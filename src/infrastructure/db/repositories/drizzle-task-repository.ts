@@ -1,5 +1,6 @@
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import type {
+  MoveCommand,
   NewTask,
   StartCommand,
   TaskRepository,
@@ -97,6 +98,33 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
 
     async finish(id: TaskId, endedAt: Date) {
       await db.update(tasks).set({ endedAt, updatedAt: new Date() }).where(eq(tasks.id, id));
+    },
+
+    // 振り直しを伴う場合も含め、並びの更新は1トランザクションで反映する
+    async move(command: MoveCommand) {
+      const { taskId, sectionId, sortOrder, renumber } = command;
+      const now = new Date();
+
+      if (renumber === null) {
+        await db
+          .update(tasks)
+          .set({ sectionId, sortOrder, updatedAt: now })
+          .where(eq(tasks.id, taskId));
+        return;
+      }
+
+      await db.transaction(async (tx) => {
+        for (const row of renumber) {
+          await tx
+            .update(tasks)
+            .set({ sortOrder: row.sortOrder, updatedAt: now })
+            .where(eq(tasks.id, row.taskId));
+        }
+        await tx
+          .update(tasks)
+          .set({ sectionId, sortOrder, updatedAt: now })
+          .where(eq(tasks.id, taskId));
+      });
     },
   };
 }

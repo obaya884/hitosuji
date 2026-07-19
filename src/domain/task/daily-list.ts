@@ -84,3 +84,32 @@ export function withTaskUpdated(
     tasks: group.tasks.map((t) => (t.id === taskId ? update(t) : t)),
   }));
 }
+
+/**
+ * タスクを移動したグループ列を返す（楽観的更新の並び替え用）。
+ * 実際の sort_order 採番はサーバが確定するので、ここでは表示上の並びだけを作る
+ */
+export function withTaskMoved(
+  groups: readonly DailyGroup[],
+  taskId: TaskId,
+  destination: Readonly<{ sectionId: number | null; index: number }>
+): DailyGroup[] {
+  const moving = groups.flatMap((g) => g.tasks).find((t) => t.id === taskId);
+  if (moving === undefined) return [...groups];
+
+  const removed = groups.map((g) => ({ ...g, tasks: g.tasks.filter((t) => t.id !== taskId) }));
+  const moved = { ...moving, sectionId: destination.sectionId };
+
+  const target = removed.find((g) => (g.section?.id ?? null) === destination.sectionId);
+  if (target === undefined) {
+    // 移動先グループが画面に無い（0件だった）場合は表示を変えずサーバ確定を待つ
+    return [...groups];
+  }
+
+  const index = Math.max(0, Math.min(destination.index, target.tasks.length));
+  return removed.map((g) =>
+    g === target
+      ? { ...g, tasks: [...g.tasks.slice(0, index), moved, ...g.tasks.slice(index)] }
+      : g
+  );
+}

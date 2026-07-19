@@ -12,10 +12,16 @@ import {
   updateTaskPunch,
 } from "@/application/task/punch-usecases";
 import type { LogicalDate } from "@/domain/shared/logical-date";
+import {
+  moveTaskByOneStep,
+  moveTaskTo,
+} from "@/application/task/reorder-usecases";
+import { createSectionRepository } from "@/infrastructure/db/repositories/drizzle-section-repository";
 import { createTaskRepository } from "@/infrastructure/db/repositories/drizzle-task-repository";
 
 // 合成ルート: リポジトリ実装をユースケースへ注入する（アーキテクチャ定義書 §3）
 const taskRepo = createTaskRepository();
+const sectionRepo = createSectionRepository();
 
 export type DailyActionResult = Readonly<{ ok: true } | { ok: false; message: string }>;
 
@@ -81,6 +87,38 @@ export async function updateTaskPunchAction(
 ): Promise<DailyActionResult> {
   const result = await updateTaskPunch(taskRepo, { taskId: id, ...punch });
   if (!result.ok) return { ok: false, message: PUNCH_ERROR_MESSAGES[result.error] };
+  revalidatePath("/");
+  return { ok: true };
+}
+
+const REORDER_ERROR_MESSAGES: Record<string, string> = {
+  task_not_found: "タスクが見つかりませんでした",
+};
+
+/** ドラッグ＆ドロップでの並び替え（O-6） */
+export async function moveTaskAction(
+  input: Readonly<{
+    taskId: number;
+    date: LogicalDate;
+    sectionId: number | null;
+    index: number;
+  }>
+): Promise<DailyActionResult> {
+  const result = await moveTaskTo(taskRepo, input);
+  if (!result.ok) return { ok: false, message: REORDER_ERROR_MESSAGES[result.error] };
+  revalidatePath("/");
+  return { ok: true };
+}
+
+/** Shift+J/K での並び替え（O-6） */
+export async function moveTaskByStepAction(
+  input: Readonly<{ taskId: number; date: LogicalDate; step: 1 | -1 }>
+): Promise<DailyActionResult> {
+  const result = await moveTaskByOneStep(
+    { tasks: taskRepo, sections: sectionRepo },
+    input
+  );
+  if (!result.ok) return { ok: false, message: REORDER_ERROR_MESSAGES[result.error] };
   revalidatePath("/");
   return { ok: true };
 }

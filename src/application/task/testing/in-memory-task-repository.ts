@@ -1,6 +1,7 @@
 // テスト用のインメモリ TaskRepository。
 // 古典学派の「本物と同じ契約を満たす偽物」であってモックではない（アーキテクチャ定義書 §8）
 import type {
+  MoveCommand,
   NewTask,
   StartCommand,
   TaskRepository,
@@ -82,6 +83,15 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
     finish: async (id: TaskId, endedAt: Date) => {
       const i = indexOf(id);
       rows[i] = { ...rows[i], endedAt };
+    },
+
+    move: async (command: MoveCommand) => {
+      for (const { taskId, sortOrder } of command.renumber ?? []) {
+        const i = indexOf(taskId);
+        rows[i] = { ...rows[i], sortOrder };
+      }
+      const i = indexOf(command.taskId);
+      rows[i] = { ...rows[i], sectionId: command.sectionId, sortOrder: command.sortOrder };
     },
   };
 }

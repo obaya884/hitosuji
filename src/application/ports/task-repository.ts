@@ -28,6 +28,15 @@ export type StartCommand = Readonly<{
   }> | null;
 }>;
 
+/** 並び替えの命令（画面定義書01 O-6 / データモデル定義書 §3.5） */
+export type MoveCommand = Readonly<{
+  taskId: TaskId;
+  sectionId: number | null;
+  sortOrder: number;
+  /** 中間値が尽きた場合の同一グループの振り直し */
+  renumber: readonly Readonly<{ taskId: TaskId; sortOrder: number }>[] | null;
+}>;
+
 export type TaskRepository = Readonly<{
   /** 表示日1日分のみ取得する（画面定義書01 §7 / N-08） */
   listByDate(date: LogicalDate): Promise<Task[]>;
@@ -40,4 +49,6 @@ export type TaskRepository = Readonly<{
   start(command: StartCommand): Promise<void>;
   updatePunch(id: TaskId, punch: Readonly<{ startedAt: Date; endedAt: Date | null }>): Promise<void>;
   finish(id: TaskId, endedAt: Date): Promise<void>;
+  /** 並び替え（O-6）。振り直しを伴う場合も1トランザクションで反映する */
+  move(command: MoveCommand): Promise<void>;
 }>;

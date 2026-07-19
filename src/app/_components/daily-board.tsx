@@ -1,11 +1,12 @@
 "use client";
 
-import { useOptimistic, useState, useTransition } from "react";
+import { useEffect, useOptimistic, useState, useTransition } from "react";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import {
   withTaskAppended,
+  withTaskMoved,
   withTaskUpdated,
   type DailyGroup,
 } from "@/domain/task/daily-list";
@@ -16,6 +17,8 @@ import type { Task } from "@/domain/task/task";
 import {
   addTaskAction,
   finishTaskAction,
+  moveTaskAction,
+  moveTaskByStepAction,
   renameTaskAction,
   startTaskAction,
   updateTaskEstimateAction,
@@ -40,7 +43,12 @@ type OptimisticAction =
   | Readonly<{ type: "estimate"; id: number; minutes: number }>
   | Readonly<{ type: "start"; id: number; at: Date }>
   | Readonly<{ type: "finish"; id: number; at: Date }>
-  | Readonly<{ type: "punch"; id: number; startedAt: Date; endedAt: Date | null }>;
+  | Readonly<{ type: "punch"; id: number; startedAt: Date; endedAt: Date | null }>
+  | Readonly<{
+      type: "move";
+      id: number;
+      destination: Readonly<{ sectionId: number | null; index: number }>;
+    }>;
 
 function applyOptimisticAction(
   groups: readonly DailyGroup[],
@@ -67,6 +75,8 @@ function applyOptimisticAction(
         startedAt: action.startedAt,
         endedAt: action.endedAt,
       }));
+    case "move":
+      return withTaskMoved(groups, action.id, action.destination);
   }
 }
 
@@ -100,6 +110,7 @@ function optimisticTask(date: LogicalDate, name: string): Task {
 export function DailyBoard({ date, groups, modes, projects }: Props) {
   const [optimisticGroups, dispatchOptimistic] = useOptimistic(groups, applyOptimisticAction);
   const [name, setName] = useState("");
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
@@ -186,9 +197,41 @@ export function DailyBoard({ date, groups, modes, projects }: Props) {
     );
   }
 
+  /** ドラッグ＆ドロップでの並び替え（O-6） */
+  function move(taskId: number, destination: Readonly<{ sectionId: number | null; index: number }>) {
+    run({ type: "move", id: taskId, destination }, () =>
+      moveTaskAction({ taskId, date, ...destination })
+    );
+  }
+
+  /** Shift+J/K での並び替え（画面定義書01 §6）。採番はサーバが決めるので楽観更新はしない */
+  function moveByStep(step: 1 | -1) {
+    if (selectedId === null) return;
+    setError(null);
+    startTransition(async () => {
+      const result = await moveTaskByStepAction({ taskId: selectedId, date, step });
+      if (!result.ok) setError(result.message);
+    });
+  }
+
   const onKeyDown = inlineEditKeyHandler({
     onEnter: add,
     onEscape: (input) => input.blur(), // Esc でフォーカスを外しリスト操作へ戻る
+  });
+
+  useEffect(() => {
+    function onKeyDownGlobal(e: KeyboardEvent) {
+      // テキスト入力中・IME変換中はショートカット無効（画面定義書01 §6）
+      const target = e.target as HTMLElement | null;
+      if (e.isComposing || target?.tagName === "INPUT" || target?.tagName === "TEXTAREA") return;
+      if (!e.shiftKey) return;
+
+      if (e.key === "J") moveByStep(1);
+      if (e.key === "K") moveByStep(-1);
+    }
+
+    window.addEventListener("keydown", onKeyDownGlobal);
+    return () => window.removeEventListener("keydown", onKeyDownGlobal);
   });
 
   return (
@@ -218,6 +261,9 @@ export function DailyBoard({ date, groups, modes, projects }: Props) {
         onEstimate={setEstimate}
         onPunch={punch}
         onEditPunch={editPunch}
+        onMove={move}
+        selectedId={selectedId}
+        onSelect={setSelectedId}
         now={now}
       />
     </>

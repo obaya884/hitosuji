@@ -17,6 +17,9 @@ type Props = Readonly<{
   onEstimate: (task: Task, rawMinutes: string) => void;
   onPunch: (task: Task) => void;
   onEditPunch: (task: Task, field: "startedAt" | "endedAt", hhmm: string) => void;
+  onMove: (taskId: number, destination: Readonly<{ sectionId: number | null; index: number }>) => void;
+  selectedId: number | null;
+  onSelect: (taskId: number) => void;
   /** 毎分更新される現在時刻。実行中タスクの経過表示に使う（F-205） */
   now: Date;
 }>;
@@ -32,6 +35,9 @@ export function DailyList({
   onEstimate,
   onPunch,
   onEditPunch,
+  onMove,
+  selectedId,
+  onSelect,
   now,
 }: Props) {
   if (groups.length === 0) {
@@ -47,7 +53,17 @@ export function DailyList({
       {groups.map((group) => (
         <section key={group.section?.id ?? "unclassified"} className="mt-4 first:mt-0">
           <GroupHeading group={group} />
-          <table className="w-full text-sm">
+          <table
+            className="w-full text-sm"
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              const id = Number(e.dataTransfer.getData("text/plain"));
+              if (Number.isFinite(id)) {
+                onMove(id, { sectionId: group.section?.id ?? null, index: group.tasks.length });
+              }
+            }}
+          >
             <thead>
               <tr className="text-left text-xs text-gray-400">
                 <th className="w-6 py-1 font-normal" />
@@ -60,10 +76,15 @@ export function DailyList({
               </tr>
             </thead>
             <tbody>
-              {group.tasks.map((task) => (
+              {group.tasks.map((task, index) => (
                 <TaskRow
                   key={task.id}
                   task={task}
+                  index={index}
+                  sectionId={group.section?.id ?? null}
+                  onMove={onMove}
+                  isSelected={task.id === selectedId}
+                  onSelect={onSelect}
                   mode={task.modeId === null ? undefined : modeById.get(task.modeId)}
                   project={task.projectId === null ? undefined : projectById.get(task.projectId)}
                   onRename={onRename}
@@ -109,8 +130,13 @@ function isOverEstimate(minutes: number, task: Task): boolean {
 
 function TaskRow({
   task,
+  index,
+  sectionId,
   mode,
   project,
+  onMove,
+  isSelected,
+  onSelect,
   onRename,
   onEstimate,
   onPunch,
@@ -124,6 +150,11 @@ function TaskRow({
   onEstimate: (task: Task, rawMinutes: string) => void;
   onPunch: (task: Task) => void;
   onEditPunch: (task: Task, field: "startedAt" | "endedAt", hhmm: string) => void;
+  index: number;
+  sectionId: number | null;
+  onMove: (taskId: number, destination: Readonly<{ sectionId: number | null; index: number }>) => void;
+  isSelected: boolean;
+  onSelect: (taskId: number) => void;
   now: Date;
 }>) {
   const [editing, setEditing] = useState<EditingField>(null);
@@ -150,7 +181,22 @@ function TaskRow({
   const onKeyDown = inlineEditKeyHandler({ onEnter: commit, onEscape: () => setEditing(null) });
 
   return (
-    <tr className="border-b border-gray-100">
+    <tr
+      // ドラッグ＆ドロップでの並び替え（O-6）。編集中はドラッグさせない
+      draggable={editing === null}
+      onDragStart={(e) => e.dataTransfer.setData("text/plain", String(task.id))}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const draggedId = Number(e.dataTransfer.getData("text/plain"));
+        if (Number.isFinite(draggedId) && draggedId !== task.id) {
+          onMove(draggedId, { sectionId, index });
+        }
+      }}
+      onClick={() => onSelect(task.id)}
+      className={`border-b border-gray-100 ${isSelected ? "bg-blue-50" : ""}`}
+    >
       <td className="w-6 py-1 text-center">
         {/* 開始 →（実行中なら）終了 のトグル（F-201） */}
         <button

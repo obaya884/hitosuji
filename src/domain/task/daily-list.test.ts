@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { Section } from "../section/section";
-import { groupTasksBySection, totalEstimateMinutes, withTaskAppended } from "./daily-list";
+import {
+  groupTasksBySection,
+  totalEstimateMinutes,
+  withTaskAppended,
+  withTaskMoved,
+} from "./daily-list";
 import type { Task } from "./task";
 
 const morning: Section = { id: 1, name: "朝", startTime: "06:00", isArchived: false };
@@ -104,5 +109,33 @@ describe("withTaskAppended（N-01: 楽観的更新で追加を即反映）", () 
     const groups = groupTasksBySection([task({ id: 1, sectionId: null })], [morning]);
     withTaskAppended(groups, task({ id: 9 }));
     expect(groups[0].tasks).toHaveLength(1);
+  });
+});
+
+describe("withTaskMoved（N-01: 並び替えを即反映）", () => {
+  const groups = groupTasksBySection(
+    [
+      task({ id: 1, sectionId: morning.id, sortOrder: 1000 }),
+      task({ id: 2, sectionId: morning.id, sortOrder: 2000 }),
+      task({ id: 3, sectionId: forenoon.id, sortOrder: 1000 }),
+    ],
+    [morning, forenoon]
+  );
+
+  it("同じグループ内で位置を入れ替える", () => {
+    const moved = withTaskMoved(groups, 2, { sectionId: morning.id, index: 0 });
+    expect(moved[0].tasks.map((t) => t.id)).toEqual([2, 1]);
+  });
+
+  it("別のセクションへ移すと section_id も変わる", () => {
+    const moved = withTaskMoved(groups, 1, { sectionId: forenoon.id, index: 0 });
+    expect(moved[0].tasks.map((t) => t.id)).toEqual([2]);
+    expect(moved[1].tasks.map((t) => t.id)).toEqual([1, 3]);
+    expect(moved[1].tasks[0].sectionId).toBe(forenoon.id);
+  });
+
+  it("元のグループ列を変更しない", () => {
+    withTaskMoved(groups, 2, { sectionId: morning.id, index: 0 });
+    expect(groups[0].tasks.map((t) => t.id)).toEqual([1, 2]);
   });
 });
