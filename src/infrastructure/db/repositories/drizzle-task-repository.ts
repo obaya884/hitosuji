@@ -1,5 +1,9 @@
-import { eq } from "drizzle-orm";
-import type { NewTask, TaskRepository } from "@/application/ports/task-repository";
+import { and, eq, isNotNull, isNull } from "drizzle-orm";
+import type {
+  NewTask,
+  StartCommand,
+  TaskRepository,
+} from "@/application/ports/task-repository";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import type { Task, TaskId } from "@/domain/task/task";
 import { db as defaultDb, type Database } from "@/infrastructure/db";
@@ -47,6 +51,45 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
         .update(tasks)
         .set({ estimateMinutes, updatedAt: new Date() })
         .where(eq(tasks.id, id));
+    },
+
+    async findById(id: TaskId) {
+      const [row] = await db.select().from(tasks).where(eq(tasks.id, id));
+      return row === undefined ? null : toDomain(row);
+    },
+
+    async findRunning() {
+      const [row] = await db
+        .select()
+        .from(tasks)
+        .where(and(isNotNull(tasks.startedAt), isNull(tasks.endedAt)));
+      return row === undefined ? null : toDomain(row);
+    },
+
+    // 割り込みは「終了 → 再開タスク生成 → 開始」を1トランザクションで行う（アーキテクチャ定義書 §7）
+    async start(command: StartCommand) {
+      const { taskId, startedAt, interruption } = command;
+      if (interruption === null) {
+        await db
+          .update(tasks)
+          .set({ startedAt, updatedAt: new Date() })
+          .where(eq(tasks.id, taskId));
+        return;
+      }
+
+      await db.transaction(async (tx) => {
+        const now = new Date();
+        await tx
+          .update(tasks)
+          .set({ endedAt: interruption.endedAt, updatedAt: now })
+          .where(eq(tasks.id, interruption.runningTaskId));
+        await tx.insert(tasks).values(interruption.resumeTask);
+        await tx.update(tasks).set({ startedAt, updatedAt: now }).where(eq(tasks.id, taskId));
+      });
+    },
+
+    async finish(id: TaskId, endedAt: Date) {
+      await db.update(tasks).set({ endedAt, updatedAt: new Date() }).where(eq(tasks.id, id));
     },
   };
 }

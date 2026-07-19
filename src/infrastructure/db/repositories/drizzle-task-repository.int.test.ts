@@ -68,3 +68,96 @@ describe("DrizzleTaskRepository.listByDate（画面定義書01 §7: 表示日1�
     expect(await repo.listByDate("2026-07-19")).toEqual([]);
   });
 });
+
+describe("start の割り込み（F-201: 終了・再開タスク生成・開始を1トランザクションで）", () => {
+  it("3つの更新がすべて反映される", async () => {
+    const startedAt = new Date("2026-07-19T08:48:00Z");
+    const endedAt = new Date("2026-07-19T09:00:00Z");
+    const [running, target] = await db
+      .insert(tasks)
+      .values([
+        { taskDate: "2026-07-19", name: "メールチェック", estimateMinutes: 30, sortOrder: 1000, startedAt },
+        { taskDate: "2026-07-19", name: "設計書レビュー", estimateMinutes: 60, sortOrder: 2000 },
+      ])
+      .returning();
+
+    await repo.start({
+      taskId: target.id,
+      startedAt: endedAt,
+      interruption: {
+        runningTaskId: running.id,
+        endedAt,
+        resumeTask: {
+          taskDate: "2026-07-19",
+          name: "メールチェック",
+          estimateMinutes: 18,
+          sectionId: null,
+          modeId: null,
+          projectId: null,
+          sortOrder: 3000,
+          splitParentId: running.id,
+        },
+      },
+    });
+
+    const after = await repo.listByDate("2026-07-19");
+    expect(after.find((t) => t.id === running.id)?.endedAt).toEqual(endedAt);
+    expect(after.find((t) => t.id === target.id)?.startedAt).toEqual(endedAt);
+    expect(after.find((t) => t.splitParentId === running.id)).toEqual(
+      expect.objectContaining({ name: "メールチェック", estimateMinutes: 18, startedAt: null })
+    );
+  });
+
+  it("再開タスクの生成に失敗したら全体が巻き戻る（トランザクション境界の確認）", async () => {
+    const startedAt = new Date("2026-07-19T08:48:00Z");
+    const [running, target] = await db
+      .insert(tasks)
+      .values([
+        { taskDate: "2026-07-19", name: "実行中", sortOrder: 1000, startedAt },
+        { taskDate: "2026-07-19", name: "開始対象", sortOrder: 2000 },
+      ])
+      .returning();
+
+    await expect(
+      repo.start({
+        taskId: target.id,
+        startedAt: new Date("2026-07-19T09:00:00Z"),
+        interruption: {
+          runningTaskId: running.id,
+          endedAt: new Date("2026-07-19T09:00:00Z"),
+          resumeTask: {
+            taskDate: "2026-07-19",
+            name: "再開",
+            estimateMinutes: 10,
+            sectionId: 999999, // 存在しないセクション → FK違反
+            modeId: null,
+            projectId: null,
+            sortOrder: 3000,
+            splitParentId: running.id,
+          },
+        },
+      })
+    ).rejects.toThrow();
+
+    const after = await repo.listByDate("2026-07-19");
+    expect(after.find((t) => t.id === running.id)?.endedAt).toBeNull();
+    expect(after.find((t) => t.id === target.id)?.startedAt).toBeNull();
+    expect(after).toHaveLength(2);
+  });
+});
+
+describe("findRunning（実行中は全日付を通じて最大1件）", () => {
+  it("日付をまたいでも実行中タスクを見つける", async () => {
+    await db.insert(tasks).values([
+      { taskDate: "2026-07-18", name: "前日の実行中", sortOrder: 1000, startedAt: new Date("2026-07-18T23:00:00Z") },
+      { taskDate: "2026-07-19", name: "未実行", sortOrder: 1000 },
+    ]);
+
+    expect((await repo.findRunning())?.name).toBe("前日の実行中");
+  });
+
+  it("実行中がなければ null", async () => {
+    await db.insert(tasks).values({ taskDate: "2026-07-19", name: "未実行", sortOrder: 1000 });
+    expect(await repo.findRunning()).toBeNull();
+  });
+});

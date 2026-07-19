@@ -9,11 +9,14 @@ import {
   withTaskUpdated,
   type DailyGroup,
 } from "@/domain/task/daily-list";
+import { taskStatus } from "@/domain/task/status";
 import { validateEstimateMinutes, validateTaskName } from "@/domain/task/task-edit";
 import type { Task } from "@/domain/task/task";
 import {
   addTaskAction,
+  finishTaskAction,
   renameTaskAction,
+  startTaskAction,
   updateTaskEstimateAction,
   type DailyActionResult,
 } from "@/app/actions";
@@ -31,7 +34,9 @@ type Props = Readonly<{
 type OptimisticAction =
   | Readonly<{ type: "append"; task: Task }>
   | Readonly<{ type: "rename"; id: number; name: string }>
-  | Readonly<{ type: "estimate"; id: number; minutes: number }>;
+  | Readonly<{ type: "estimate"; id: number; minutes: number }>
+  | Readonly<{ type: "start"; id: number; at: Date }>
+  | Readonly<{ type: "finish"; id: number; at: Date }>;
 
 function applyOptimisticAction(
   groups: readonly DailyGroup[],
@@ -47,6 +52,11 @@ function applyOptimisticAction(
         ...t,
         estimateMinutes: action.minutes,
       }));
+    // 割り込み時の「実行中タスクの終了・再開タスク生成」はサーバ確定後に反映される
+    case "start":
+      return withTaskUpdated(groups, action.id, (t) => ({ ...t, startedAt: action.at }));
+    case "finish":
+      return withTaskUpdated(groups, action.id, (t) => ({ ...t, endedAt: action.at }));
   }
 }
 
@@ -119,6 +129,20 @@ export function DailyBoard({ date, groups, modes, projects }: Props) {
     );
   }
 
+  /** 開始 →（実行中なら）終了 のトグル（F-201 / 画面定義書01 §6 の Enter 相当） */
+  function punch(task: Task) {
+    const status = taskStatus(task);
+    if (status === "completed") return; // 完了タスクの再打刻は提供しない
+
+    // 打刻時刻はクライアントの現在時刻を送る（画面定義書01 §7）
+    const now = new Date();
+    if (status === "not_started") {
+      run({ type: "start", id: task.id, at: now }, () => startTaskAction(task.id, now));
+    } else {
+      run({ type: "finish", id: task.id, at: now }, () => finishTaskAction(task.id, now));
+    }
+  }
+
   const onKeyDown = inlineEditKeyHandler({
     onEnter: add,
     onEscape: (input) => input.blur(), // Esc でフォーカスを外しリスト操作へ戻る
@@ -149,6 +173,7 @@ export function DailyBoard({ date, groups, modes, projects }: Props) {
         projects={projects}
         onRename={rename}
         onEstimate={setEstimate}
+        onPunch={punch}
       />
     </>
   );

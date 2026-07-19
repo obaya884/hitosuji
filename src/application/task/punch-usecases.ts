@@ -1,0 +1,86 @@
+// 打刻のユースケース（F-201 / データモデル定義書 §4.2）
+import type { TaskRepository } from "@/application/ports/task-repository";
+import { err, ok, type Result } from "@/domain/shared/result";
+import { canFinish, canStart, resumeTaskDraft, type PunchError } from "@/domain/task/punch";
+import { insertBetweenSortOrder } from "@/domain/task/sort-order";
+import type { Task, TaskId } from "@/domain/task/task";
+
+export type PunchUsecaseError = PunchError | "task_not_found" | "needs_renumber";
+
+/** 同一セクション内で、対象タスクの直後にあるタスクの sort_order（なければ null） */
+function nextSortOrderInSection(sameDay: readonly Task[], target: Task): number | null {
+  const following = sameDay
+    .filter((t) => t.sectionId === target.sectionId && t.sortOrder > target.sortOrder)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+  return following.length === 0 ? null : following[0].sortOrder;
+}
+
+/**
+ * 開始打刻（F-201）。実行中タスクが他にあれば割り込みとして扱い、
+ * ①実行中タスクを終了 ②その再開タスクを開始タスクの直下に生成 ③開始、を1トランザクションで行う。
+ * 現在時刻はクライアントから受け取る（サーバ時刻を使わない）
+ */
+export async function startTask(
+  repo: TaskRepository,
+  input: Readonly<{ taskId: TaskId; now: Date }>
+): Promise<Result<TaskId, PunchUsecaseError>> {
+  const target = await repo.findById(input.taskId);
+  if (target === null) return err("task_not_found");
+
+  const startable = canStart(target);
+  if (!startable.ok) return startable;
+
+  const running = await repo.findRunning();
+  if (running === null) {
+    await repo.start({ taskId: target.id, startedAt: input.now, interruption: null });
+    return ok(target.id);
+  }
+
+  const finishable = canFinish(running, input.now);
+  if (!finishable.ok) return finishable;
+
+  // 再開タスクは開始タスクの直下（＝開始タスクと同じ日付・セクション）に置く。
+  // 前日以前の実行中タスクを割り込んだ場合も当日側に生成される（データモデル定義書 §4.2）
+  const sameDay = await repo.listByDate(target.taskDate);
+  const placed = insertBetweenSortOrder(
+    target.sortOrder,
+    nextSortOrderInSection(sameDay, target)
+  );
+  if (!placed.ok) return err("needs_renumber");
+
+  const draft = resumeTaskDraft(running, input.now);
+  await repo.start({
+    taskId: target.id,
+    startedAt: input.now,
+    interruption: {
+      runningTaskId: running.id,
+      endedAt: input.now, // 終了と開始に同じ時刻を使い、実績に隙間を作らない
+      resumeTask: {
+        taskDate: target.taskDate,
+        name: draft.name,
+        estimateMinutes: draft.estimateMinutes,
+        sectionId: target.sectionId,
+        modeId: draft.modeId,
+        projectId: draft.projectId,
+        sortOrder: placed.value,
+        splitParentId: draft.splitParentId,
+      },
+    },
+  });
+  return ok(target.id);
+}
+
+/** 終了打刻（F-201） */
+export async function finishTask(
+  repo: TaskRepository,
+  input: Readonly<{ taskId: TaskId; now: Date }>
+): Promise<Result<TaskId, PunchUsecaseError>> {
+  const target = await repo.findById(input.taskId);
+  if (target === null) return err("task_not_found");
+
+  const finishable = canFinish(target, input.now);
+  if (!finishable.ok) return finishable;
+
+  await repo.finish(target.id, input.now);
+  return ok(target.id);
+}

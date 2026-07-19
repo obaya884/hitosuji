@@ -1,40 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { NewTask, TaskRepository } from "@/application/ports/task-repository";
-import type { LogicalDate } from "@/domain/shared/logical-date";
 import type { Task } from "@/domain/task/task";
+import { inMemoryTaskRepository as inMemoryRepo } from "./testing/in-memory-task-repository";
 import { addTask, renameTask, updateTaskEstimate } from "./daily-list-usecases";
-
-// 古典学派: Port の契約を満たすインメモリ実装（アーキテクチャ定義書 §8）
-function inMemoryRepo(initial: readonly Task[] = []): TaskRepository & { rows: Task[] } {
-  const rows = [...initial];
-  let nextId = Math.max(0, ...rows.map((r) => r.id)) + 1;
-  return {
-    rows,
-    listByDate: async (date: LogicalDate) => rows.filter((r) => r.taskDate === date),
-    create: async (input: NewTask) => {
-      const created: Task = {
-        id: nextId++,
-        ...input,
-        startedAt: null,
-        endedAt: null,
-        comment: null,
-        routineId: null,
-        splitParentId: null,
-        postponedCount: 0,
-      };
-      rows.push(created);
-      return created;
-    },
-    rename: async (id: number, name: string) => {
-      const i = rows.findIndex((r) => r.id === id);
-      rows[i] = { ...rows[i], name };
-    },
-    updateEstimate: async (id: number, estimateMinutes: number) => {
-      const i = rows.findIndex((r) => r.id === id);
-      rows[i] = { ...rows[i], estimateMinutes };
-    },
-  };
-}
 
 function task(over: Partial<Task> & { id: number }): Task {
   return {

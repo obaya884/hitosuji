@@ -4,12 +4,19 @@ const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"] as const;
 // MVP は日界0:00固定・日本時間で運用する（要件定義書 §8-5）
 export const APP_TIME_ZONE = "Asia/Tokyo";
 
-/** 分を `H:MM` へ。未設定（0分）は `--:--`（見積もりが計算に含まれないことを示す） */
-export function formatMinutes(minutes: number): string {
-  if (minutes <= 0) return "--:--";
+/** 分を `H:MM` へ */
+export function formatDuration(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   return `${h}:${String(m).padStart(2, "0")}`;
+}
+
+/**
+ * 見積もりの表示。未設定（0分）は `--:--`（終了予定時刻の計算に含まれないことを示す）。
+ * 実績には使わない（1分未満の実績は 0:00 と表示する。画面定義書01 §3.3）
+ */
+export function formatEstimate(minutes: number): string {
+  return minutes <= 0 ? "--:--" : formatDuration(minutes);
 }
 
 /** 打刻時刻を `HH:MM` へ（表示は日本時間） */
