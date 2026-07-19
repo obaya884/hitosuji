@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
+import { btnSecondary, inputBase, linkAccent, linkMuted } from "@/app/_lib/ui";
+import { PlusIcon } from "@/app/_components/icons";
 import { MODE_COLORS, type Mode } from "@/domain/mode/mode";
 import type { ActionResult } from "../_lib/action-result";
 import { createModeAction, setModeArchivedAction, updateModeAction } from "./actions";
@@ -40,7 +42,7 @@ export function ModesTable({ active, archived }: Props) {
   const onKeyDown = inlineEditKeyHandler({ onEnter: save, onEscape: () => setEditing(null) });
 
   const editRow = (key: string) => (
-    <tr key={key} className="border-b border-gray-100">
+    <tr key={key} className="border-b border-line">
       <td className="py-1 pr-2">
         <div className="flex flex-wrap gap-1">
           {MODE_COLORS.map((color) => (
@@ -52,7 +54,9 @@ export function ModesTable({ active, archived }: Props) {
               onClick={() => setEditing((s) => (s === null ? s : { ...s, color }))}
               style={{ backgroundColor: color }}
               className={`h-5 w-5 rounded-full ${
-                editing?.color === color ? "ring-2 ring-gray-900 ring-offset-1" : ""
+                editing?.color === color
+                  ? "outline-solid outline-2 outline-offset-2 outline-ink"
+                  : ""
               }`}
             />
           ))}
@@ -64,15 +68,15 @@ export function ModesTable({ active, archived }: Props) {
           value={editing?.name ?? ""}
           onChange={(e) => setEditing((s) => (s === null ? s : { ...s, name: e.target.value }))}
           onKeyDown={onKeyDown}
-          className="w-full rounded border border-gray-300 px-2 py-1"
+          className={`w-full ${inputBase}`}
           placeholder="モード名"
         />
       </td>
       <td className="py-1 text-right whitespace-nowrap">
-        <button onClick={save} disabled={isPending} className="px-2 text-blue-600">
+        <button onClick={save} disabled={isPending} className={`px-2 ${linkAccent}`}>
           保存
         </button>
-        <button onClick={() => setEditing(null)} className="px-2 text-gray-500">
+        <button onClick={() => setEditing(null)} className={`px-2 ${linkMuted}`}>
           取消
         </button>
       </td>
@@ -82,27 +86,28 @@ export function ModesTable({ active, archived }: Props) {
   return (
     <section className="mt-4">
       <div className="flex items-center justify-between">
-        <p className="text-xs text-gray-500">色はプリセットから選択します。並び順は名前順です。</p>
+        <p className="text-xs text-ink-muted">色はプリセットから選択します。並び順は名前順です。</p>
         <button
           onClick={() => {
             setError(null);
             setEditing({ id: "new", name: "", color: MODE_COLORS[0] });
           }}
-          className="rounded border border-gray-300 px-3 py-1 text-sm"
+          className={`inline-flex shrink-0 items-center gap-1 ${btnSecondary}`}
         >
-          ＋ 新規追加
+          <PlusIcon className="h-3 w-3" />
+          新規追加
         </button>
       </div>
 
       {error !== null && (
-        <p className="mt-2 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800">
+        <p className="mt-2 rounded-control border border-line bg-danger-weak px-3 py-2 text-sm text-danger">
           {error}
         </p>
       )}
 
       <table className="mt-2 w-full text-sm">
         <thead>
-          <tr className="border-b border-gray-200 text-left text-xs text-gray-500">
+          <tr className="border-b border-line-strong text-left text-xs text-ink-muted">
             <th className="w-48 py-2 font-normal">色</th>
             <th className="py-2 font-normal">名前</th>
             <th className="w-32 py-2" />
@@ -113,11 +118,11 @@ export function ModesTable({ active, archived }: Props) {
             editing?.id === mode.id ? (
               editRow(String(mode.id))
             ) : (
-              <tr key={mode.id} className="border-b border-gray-100">
+              <tr key={mode.id} className="border-b border-line">
                 <td className="py-2">
                   <span
                     style={{ backgroundColor: mode.color }}
-                    className="inline-block h-3 w-10 rounded"
+                    className="inline-block h-3 w-10 rounded-control"
                     aria-hidden
                   />
                 </td>
@@ -128,14 +133,14 @@ export function ModesTable({ active, archived }: Props) {
                       setError(null);
                       setEditing({ id: mode.id, name: mode.name, color: mode.color });
                     }}
-                    className="px-2 text-blue-600"
+                    className={`px-2 ${linkAccent}`}
                   >
                     編集
                   </button>
                   <button
                     onClick={() => run(() => setModeArchivedAction(mode.id, true))}
                     disabled={isPending}
-                    className="px-2 text-gray-500"
+                    className={`px-2 ${linkMuted}`}
                   >
                     アーカイブ
                   </button>
@@ -149,17 +154,17 @@ export function ModesTable({ active, archived }: Props) {
 
       {archived.length > 0 && (
         <details className="mt-6">
-          <summary className="cursor-pointer text-sm text-gray-500">
+          <summary className="cursor-pointer text-sm text-ink-muted">
             アーカイブ済み（{archived.length}）
           </summary>
           <table className="mt-2 w-full text-sm">
             <tbody>
               {archived.map((mode) => (
-                <tr key={mode.id} className="border-b border-gray-100 text-gray-500">
+                <tr key={mode.id} className="border-b border-line text-ink-muted">
                   <td className="w-48 py-2">
                     <span
                       style={{ backgroundColor: mode.color }}
-                      className="inline-block h-3 w-10 rounded opacity-50"
+                      className="inline-block h-3 w-10 rounded-control opacity-50"
                       aria-hidden
                     />
                   </td>
@@ -168,7 +173,7 @@ export function ModesTable({ active, archived }: Props) {
                     <button
                       onClick={() => run(() => setModeArchivedAction(mode.id, false))}
                       disabled={isPending}
-                      className="px-2 text-blue-600"
+                      className={`px-2 ${linkAccent}`}
                     >
                       復元
                     </button>

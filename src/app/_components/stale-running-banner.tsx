@@ -11,10 +11,10 @@ type Props = Readonly<{ task: Task }>;
  */
 export function StaleRunningBanner({ task }: Props) {
   return (
-    <div className="mt-3 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+    <div className="mt-3 rounded-control border border-line bg-danger-weak px-3 py-2 text-sm text-danger">
       前日以前の実行中タスクがあります:{" "}
       <span className="font-medium">{task.name}</span>
-      <span className="ml-2 text-xs tabular-nums">
+      <span className="ml-2 font-mono text-xs tabular-nums">
         {formatLogicalDate(task.taskDate, weekdayIndex(task.taskDate))}
         {task.startedAt !== null && ` ${formatClock(task.startedAt)}〜`}
       </span>

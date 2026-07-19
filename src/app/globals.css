@@ -1,26 +1,59 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  /* デフォルトパレット・影・角丸を無効化（置換漏れのクラスはビルドで生成されない） */
+  --color-*: initial;
+  --shadow-*: initial;
+  --radius-*: initial;
+
+  /* 面 */
+  --color-paper: #fafaf8; /* ページ背景（紙白） */
+  --color-band: #f0eee7; /* 紙面を一段沈めた帯（セクション見出し） */
+  --color-surface: #ffffff; /* ポップオーバー・モーダル・トースト等の浮遊面 */
+  --color-scrim: rgb(28 30 38 / 0.35); /* モーダル背後 */
+  --color-white: #ffffff; /* 塗りボタン上の文字 */
+
+  /* 文字 */
+  --color-ink: #1c1e26; /* 本文（墨） */
+  --color-ink-muted: #5c5f6b; /* 副次情報 */
+  --color-ink-faint: #9a9ca6; /* 未設定（--:--）・プレースホルダ */
+
+  /* 罫線 */
+  --color-line: #e8e6e0; /* 行区切り・囲み罫 */
+  --color-line-strong: #d9d6ce; /* thead 下罫 */
+
+  /* アクセント（紺藍） */
+  --color-accent: #26437c; /* 主ボタン・リンク・実行中・今日 */
+  --color-accent-hover: #1e3866;
+  --color-accent-weak: #eef1f7; /* 選択行・ホバー面 */
+
+  /* 警告 */
+  --color-danger: #b3452e; /* 見積超過・24時超・削除系 */
+  --color-danger-weak: #f7ece8;
+
+  /* フォント（layout.tsx の next/font 変数と連携） */
+  --font-sans: var(--font-plex-sans), "Hiragino Sans", "Noto Sans JP",
+    sans-serif;
+  /* Plex Mono も ui-monospace も漢字を持たない。日本語フォントを明示しないと
+     generic monospace にフォールバックし、中国語字形（宋体等）で描画される */
+  --font-mono: var(--font-plex-mono), ui-monospace, "Hiragino Sans",
+    "Noto Sans JP", monospace;
+
+  /* 紙面の幅（ヘッダナビと本文で共有し、必ず一致させる） */
+  --container-page: 84rem;
+
+  /* 角丸2段階 */
+  --radius-control: 4px; /* 入力欄・ボタン */
+  --radius-float: 8px; /* ポップオーバー・モーダル・トースト */
+
+  /* 影1種（浮遊要素用） */
+  --shadow-float: 0 2px 6px rgb(28 30 38 / 0.06), 0 8px 24px rgb(28 30 38 / 0.1);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  body {
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
   }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
 }

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { floatPanel } from "../_lib/ui";
+import { CheckIcon } from "./icons";
 
 export type PopoverOption = Readonly<{
   id: number | null;
@@ -42,7 +44,7 @@ export function SelectPopover({ options, selectedId, onSelect, onClose }: Props)
   return (
     <div
       ref={ref}
-      className="absolute z-10 mt-1 max-h-64 w-48 overflow-y-auto rounded border border-gray-300 bg-white py-1 shadow-lg"
+      className={`absolute z-10 mt-1 max-h-64 w-48 overflow-y-auto py-1 ${floatPanel}`}
     >
       {options.map((option) => (
         <button
@@ -52,7 +54,7 @@ export function SelectPopover({ options, selectedId, onSelect, onClose }: Props)
             onSelect(option.id);
             onClose();
           }}
-          className={`flex w-full items-center gap-2 px-3 py-1 text-left text-sm hover:bg-gray-100 ${
+          className={`flex w-full items-center gap-2 px-3 py-1 text-left text-sm hover:bg-accent-weak ${
             option.id === selectedId ? "font-medium" : ""
           }`}
         >
@@ -63,8 +65,8 @@ export function SelectPopover({ options, selectedId, onSelect, onClose }: Props)
               aria-hidden
             />
           )}
-          <span className={option.id === null ? "text-gray-500" : ""}>{option.label}</span>
-          {option.id === selectedId && <span className="ml-auto text-xs">✓</span>}
+          <span className={option.id === null ? "text-ink-faint" : ""}>{option.label}</span>
+          {option.id === selectedId && <CheckIcon className="ml-auto h-3 w-3 shrink-0" />}
         </button>
       ))}
     </div>

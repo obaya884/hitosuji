@@ -5,6 +5,7 @@ import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import { WEEKDAY_BITS, toggleWeekday, type RecurrenceType, type Routine } from "@/domain/routine/routine";
 import type { RoutineInput } from "@/domain/routine/routine-input";
+import { btnPrimary, inputBase, linkMuted } from "@/app/_lib/ui";
 
 type Props = Readonly<{
   routine: Routine | null;
@@ -57,43 +58,43 @@ export function RoutineForm({ routine, modes, projects, today, onSubmit, onCance
   }
 
   return (
-    <div className="mt-3 rounded border border-gray-300 p-3">
+    <div className="mt-3 rounded-float border border-line bg-surface p-3">
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="text-sm">
-          <span className="text-xs text-gray-500">名前</span>
+          <span className="text-xs text-ink-muted">名前</span>
           <input
             autoFocus
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="朝食"
-            className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+            className={`mt-1 w-full ${inputBase}`}
           />
         </label>
 
         <div className="grid grid-cols-2 gap-3">
           <label className="text-sm">
-            <span className="text-xs text-gray-500">見積もり（分）</span>
+            <span className="text-xs text-ink-muted">見積もり（分）</span>
             <input
               inputMode="numeric"
               value={estimateMinutes}
               onChange={(e) => setEstimateMinutes(e.target.value)}
-              className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+              className={`mt-1 w-full ${inputBase}`}
             />
           </label>
           <label className="text-sm">
-            <span className="text-xs text-gray-500">開始想定時刻</span>
+            <span className="text-xs text-ink-muted">開始想定時刻</span>
             <input
               type="time"
               value={scheduledStartTime}
               onChange={(e) => setScheduledStartTime(e.target.value)}
-              className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+              className={`mt-1 w-full ${inputBase}`}
             />
           </label>
         </div>
       </div>
 
       <fieldset className="mt-3">
-        <legend className="text-xs text-gray-500">繰り返し</legend>
+        <legend className="text-xs text-ink-muted">繰り返し</legend>
         <div className="mt-1 flex flex-wrap gap-3 text-sm">
           {(Object.keys(RECURRENCE_LABELS) as RecurrenceType[]).map((type) => (
             <label key={type} className="flex items-center gap-1">
@@ -102,6 +103,7 @@ export function RoutineForm({ routine, modes, projects, today, onSubmit, onCance
                 name="recurrenceType"
                 checked={recurrenceType === type}
                 onChange={() => setRecurrenceType(type)}
+                className="accent-accent"
               />
               {RECURRENCE_LABELS[type]}
             </label>
@@ -116,6 +118,7 @@ export function RoutineForm({ routine, modes, projects, today, onSubmit, onCance
                   type="checkbox"
                   checked={(weekdays & (1 << weekday.bit)) !== 0}
                   onChange={() => setWeekdays((v) => toggleWeekday(v, weekday.bit))}
+                  className="accent-accent"
                 />
                 {weekday.label}
               </label>
@@ -129,9 +132,9 @@ export function RoutineForm({ routine, modes, projects, today, onSubmit, onCance
               inputMode="numeric"
               value={monthDay}
               onChange={(e) => setMonthDay(e.target.value)}
-              className="w-16 rounded border border-gray-300 px-2 py-1"
+              className={`w-16 ${inputBase}`}
             />
-            <span className="ml-2 text-xs text-gray-500">
+            <span className="ml-2 text-xs text-ink-muted">
               日（31日など存在しない月は月末に丸めます）
             </span>
           </label>
@@ -143,9 +146,9 @@ export function RoutineForm({ routine, modes, projects, today, onSubmit, onCance
               inputMode="numeric"
               value={intervalDays}
               onChange={(e) => setIntervalDays(e.target.value)}
-              className="w-16 rounded border border-gray-300 px-2 py-1"
+              className={`w-16 ${inputBase}`}
             />
-            <span className="ml-2 text-xs text-gray-500">日ごと（開始日が起算日）</span>
+            <span className="ml-2 text-xs text-ink-muted">日ごと（開始日が起算日）</span>
           </label>
         )}
       </fieldset>
@@ -153,32 +156,32 @@ export function RoutineForm({ routine, modes, projects, today, onSubmit, onCance
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <div className="grid grid-cols-2 gap-3">
           <label className="text-sm">
-            <span className="text-xs text-gray-500">開始日</span>
+            <span className="text-xs text-ink-muted">開始日</span>
             <input
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+              className={`mt-1 w-full ${inputBase}`}
             />
           </label>
           <label className="text-sm">
-            <span className="text-xs text-gray-500">終了日（任意）</span>
+            <span className="text-xs text-ink-muted">終了日（任意）</span>
             <input
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+              className={`mt-1 w-full ${inputBase}`}
             />
           </label>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <label className="text-sm">
-            <span className="text-xs text-gray-500">モード</span>
+            <span className="text-xs text-ink-muted">モード</span>
             <select
               value={modeId ?? ""}
               onChange={(e) => setModeId(e.target.value === "" ? null : Number(e.target.value))}
-              className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+              className={`mt-1 w-full ${inputBase}`}
             >
               <option value="">なし</option>
               {modes.map((mode) => (
@@ -189,13 +192,13 @@ export function RoutineForm({ routine, modes, projects, today, onSubmit, onCance
             </select>
           </label>
           <label className="text-sm">
-            <span className="text-xs text-gray-500">プロジェクト</span>
+            <span className="text-xs text-ink-muted">プロジェクト</span>
             <select
               value={projectId ?? ""}
               onChange={(e) =>
                 setProjectId(e.target.value === "" ? null : Number(e.target.value))
               }
-              className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+              className={`mt-1 w-full ${inputBase}`}
             >
               <option value="">なし</option>
               {projects.map((project) => (
@@ -209,14 +212,10 @@ export function RoutineForm({ routine, modes, projects, today, onSubmit, onCance
       </div>
 
       <div className="mt-3 flex justify-end gap-2">
-        <button type="button" onClick={onCancel} className="px-3 py-1 text-sm text-gray-500">
+        <button type="button" onClick={onCancel} className={`px-3 py-1 text-sm ${linkMuted}`}>
           取消
         </button>
-        <button
-          type="button"
-          onClick={submit}
-          className="rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white"
-        >
+        <button type="button" onClick={submit} className={btnPrimary}>
           保存
         </button>
       </div>

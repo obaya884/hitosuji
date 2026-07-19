@@ -10,6 +10,8 @@ import { taskStatus } from "@/domain/task/status";
 import { actualMinutes, elapsedMinutes, type Task } from "@/domain/task/task";
 import { formatClock, formatDuration, formatEstimate } from "@/app/_lib/format";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
+import { inputBase } from "@/app/_lib/ui";
+import { CheckIcon, PlayIcon, StopIcon } from "./icons";
 import { RowMenu } from "./row-menu";
 import { SelectPopover, type PopoverOption } from "./select-popover";
 
@@ -46,8 +48,12 @@ export type EditField =
 
 export type EditingCell = Readonly<{ taskId: number; field: EditField }>;
 
-// ボタンが示すのは「押したときの動作」: 未実行→開始(▶) / 実行中→終了(■) / 完了は操作なし(✔)
-const STATUS_ICON = { not_started: "▶", running: "■", completed: "✔" } as const;
+// ボタンが示すのは「押したときの動作」: 未実行→開始(再生) / 実行中→終了(停止) / 完了は操作なし(チェック)
+const STATUS_ICON = {
+  not_started: <PlayIcon className="h-3 w-3" />,
+  running: <StopIcon className="h-3 w-3" />,
+  completed: <CheckIcon className="h-3 w-3" />,
+} as const;
 
 // 画面定義書01 §3.2/§3.3。打刻・並び替えは後続ステップ
 export function DailyList({
@@ -76,13 +82,13 @@ export function DailyList({
     <table className="mt-4 w-full text-sm">
       {/* 列見出しは画面トップに1つだけ置く（セクションごとに繰り返さない） */}
       <thead>
-        <tr className="border-b border-gray-300 text-left text-xs text-gray-400">
+        <tr className="border-b border-line-strong text-left text-xs text-ink-muted">
           <th className="w-10 py-2 font-normal" />
           <th className="py-2 font-normal">タスク</th>
-          <th className="w-16 py-2 font-normal">モード</th>
-          <th className="w-16 py-2 text-right font-normal">見積</th>
-          <th className="w-20 py-2 text-right font-normal">実績</th>
-          <th className="w-28 py-2 text-right font-normal">実施時間</th>
+          <th className="w-32 py-2 font-normal">モード</th>
+          <th className="w-24 py-2 text-right font-normal">見積</th>
+          <th className="w-28 py-2 text-right font-normal">実績</th>
+          <th className="w-40 py-2 text-right font-normal">実施時間</th>
           <th className="w-8 py-2 font-normal" />
         </tr>
       </thead>
@@ -103,7 +109,7 @@ export function DailyList({
           {/* 0件のセクションもドロップ先として機能させる（§3.2） */}
           {group.tasks.length === 0 && (
             <tr>
-              <td colSpan={7} className="py-2 pl-10 text-xs text-gray-300">
+              <td colSpan={7} className="py-2 pl-10 text-xs text-ink-faint">
                 タスクなし
               </td>
             </tr>
@@ -150,27 +156,27 @@ function GroupHeading({ group }: Readonly<{ group: DailyGroup }>) {
   const excess = capacity === null ? 0 : total - capacity;
 
   return (
-    <tr className="border-y border-gray-200 bg-gray-50">
-      <td colSpan={3} className="py-2 pl-2 text-sm font-medium">
+    <tr className="border-y border-line-strong bg-band">
+      <td colSpan={3} className="py-2 pl-2 text-sm font-bold tracking-wide">
         {group.section === null ? "未分類" : group.section.name}
         {group.section !== null && (
-          <span className="ml-2 text-xs font-normal text-gray-500 tabular-nums">
+          <span className="ml-2 font-mono text-xs font-normal tracking-normal text-ink-muted tabular-nums">
             {group.section.startTime}
             {group.endTime !== null && `–${group.endTime}`}
           </span>
         )}
       </td>
-      <td colSpan={4} className="py-2 pr-2 text-right text-xs text-gray-500 tabular-nums">
-        見積 {formatEstimate(total)}
+      <td colSpan={4} className="py-2 pr-2 text-right text-xs text-ink-muted tabular-nums">
+        見積 <span className="font-mono">{formatEstimate(total)}</span>
         {capacity !== null && (
-          <>
+          <span className="font-mono">
             /{formatDuration(capacity)}{" "}
             {/* 合計が枠を超えたら警告色（F-110） */}
-            <span className={excess > 0 ? "text-red-600" : ""}>
+            <span className={excess > 0 ? "text-danger" : ""}>
               ({excess > 0 ? "+" : "-"}
               {formatDuration(Math.abs(excess))})
             </span>
-          </>
+          </span>
         )}
       </td>
     </tr>
@@ -269,7 +275,7 @@ function TaskRow({
   const onKeyDown = inlineEditKeyHandler({ onEnter: commit, onEscape: onEndEdit });
 
   // モード設定時は行の色を継承させ、未設定時のみ既定のグレーにする
-  const dimmed = mode === undefined ? "text-gray-500" : "";
+  const dimmed = mode === undefined ? "text-ink-muted" : "";
 
   return (
     <tr
@@ -288,7 +294,7 @@ function TaskRow({
       onClick={() => onSelect(task.id)}
       // モード色は行全体のテキスト色に反映する（F-401 / 画面定義書01 §2）
       style={mode === undefined ? undefined : { color: mode.color }}
-      className={`border-b border-gray-100 ${isSelected ? "bg-blue-50" : ""}`}
+      className={`border-b border-line ${isSelected ? "bg-accent-weak" : ""}`}
     >
       <td className="w-10 py-3">
         {/* 開始 →（実行中なら）終了 のトグル（F-201）。押しやすさのため円形ボタンにする */}
@@ -297,12 +303,12 @@ function TaskRow({
           onClick={() => onPunch(task)}
           disabled={status === "completed"}
           aria-label={status === "not_started" ? "開始" : status === "running" ? "終了" : "完了済み"}
-          className={`flex h-7 w-7 items-center justify-center rounded-full text-xs ${
+          className={`flex h-7 w-7 items-center justify-center rounded-full ${
             status === "running"
-              ? "bg-blue-600 text-white"
+              ? "bg-accent text-white"
               : status === "completed"
-                ? "text-gray-400"
-                : "border border-gray-300 text-gray-500 hover:border-blue-600 hover:text-blue-600"
+                ? "text-ink-faint"
+                : "border border-line text-ink-muted hover:border-accent hover:text-accent"
           }`}
         >
           {STATUS_ICON[status]}
@@ -315,7 +321,7 @@ function TaskRow({
             defaultValue={initialValue("name")}
             onKeyDown={onKeyDown}
             onBlur={(e) => commit(e.currentTarget)}
-            className="w-full rounded border border-gray-300 px-1 py-1"
+            className={`w-full ${inputBase}`}
           />
         ) : (
           <button type="button" onClick={() => onBeginEdit(task, "name")} className="text-left hover:underline">
@@ -330,7 +336,7 @@ function TaskRow({
               onClick={() => onBeginEdit(task, "project")}
               className={`hover:underline ${dimmed}`}
             >
-              {project?.name ?? <span className="opacity-50">プロジェクト</span>}
+              {project?.name ?? <span className="text-ink-faint">プロジェクト</span>}
             </button>
             {editing === "project" && (
               <SelectPopover
@@ -359,10 +365,10 @@ function TaskRow({
           </span>
         )}
       </td>
-      <td className={`relative w-16 py-3 text-xs ${dimmed}`}>
+      <td className={`relative w-32 py-3 text-xs ${dimmed}`}>
         {/* モード選択ポップオーバー（O-5） */}
         <button type="button" onClick={() => onBeginEdit(task, "mode")} className="hover:underline">
-          {mode?.name ?? <span className="opacity-50">モード</span>}
+          {mode?.name ?? <span className="text-ink-faint">モード</span>}
         </button>
         {editing === "mode" && (
           <SelectPopover
@@ -373,7 +379,7 @@ function TaskRow({
           />
         )}
       </td>
-      <td className="w-16 py-3 text-right tabular-nums">
+      <td className="w-24 py-3 text-right font-mono tabular-nums">
         {editing === "estimate" ? (
           <input
             autoFocus
@@ -382,32 +388,32 @@ function TaskRow({
             onKeyDown={onKeyDown}
             onBlur={(e) => commit(e.currentTarget)}
             placeholder="分"
-            className="w-14 rounded border border-gray-300 px-1 py-1 text-right"
+            className={`w-14 text-right ${inputBase}`}
           />
         ) : (
           <button
             type="button"
             onClick={() => onBeginEdit(task, "estimate")}
-            className={`hover:underline ${task.estimateMinutes <= 0 ? "opacity-40" : ""}`}
+            className={`hover:underline ${task.estimateMinutes <= 0 ? "text-ink-faint" : ""}`}
           >
             {formatEstimate(task.estimateMinutes)}
           </button>
         )}
       </td>
-      <td className={`w-20 py-3 text-right tabular-nums ${dimmed}`}>
+      <td className={`w-28 py-3 text-right font-mono tabular-nums ${dimmed}`}>
         {actual !== null && (
-          <span className={isOverEstimate(actual, task) ? "text-red-600" : ""}>
+          <span className={isOverEstimate(actual, task) ? "text-danger" : ""}>
             → {formatDuration(actual)}
           </span>
         )}
         {/* 実行中は経過をクライアントタイマーで表示（F-205） */}
         {elapsed !== null && (
-          <span className={isOverEstimate(elapsed, task) ? "text-red-600" : ""}>
+          <span className={isOverEstimate(elapsed, task) ? "text-danger" : ""}>
             (経過 {formatDuration(elapsed)})
           </span>
         )}
       </td>
-      <td className={`w-28 py-3 text-right tabular-nums ${dimmed}`}>
+      <td className={`w-40 py-3 text-right font-mono tabular-nums ${dimmed}`}>
         {/* 開始・終了時刻のインライン修正（F-203）。未打刻のタスクは編集させない */}
         {task.startedAt !== null &&
           (editing === "startedAt" || editing === "endedAt" ? (
@@ -418,7 +424,7 @@ function TaskRow({
               onKeyDown={onKeyDown}
               onBlur={(e) => commit(e.currentTarget)}
               placeholder="1935"
-              className="w-16 rounded border border-gray-300 px-1 py-1 text-right"
+              className={`w-16 text-right ${inputBase}`}
             />
           ) : (
             <>

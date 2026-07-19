@@ -37,12 +37,15 @@ import {
   type DailyActionResult,
 } from "@/app/actions";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
+import { inputBase } from "@/app/_lib/ui";
 import { useNow } from "@/app/_lib/use-now";
 import { DailyList, type EditField, type EditingCell } from "./daily-list";
 import { DailySummary } from "./daily-summary";
 import { DateNav } from "./date-nav";
+import { PlusIcon } from "./icons";
 import { ShortcutHelp } from "./shortcut-help";
 import { StaleRunningBanner } from "./stale-running-banner";
+import { Toast } from "./toast";
 
 type Props = Readonly<{
   date: LogicalDate;
@@ -490,7 +493,7 @@ export function DailyBoard({
             type="button"
             onClick={() => setShowHelp(true)}
             aria-label="キーボードショートカット"
-            className="text-xs text-gray-400 hover:text-gray-700"
+            className="text-xs text-ink-faint hover:text-ink"
           >
             ?
           </button>
@@ -498,19 +501,19 @@ export function DailyBoard({
       </div>
 
       <div className="mt-3 flex items-center gap-2">
-        <span className="text-gray-400">＋</span>
+        <PlusIcon className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
         <input
           ref={quickAddRef}
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={onKeyDown}
           placeholder="タスク名を入力して Enter で追加"
-          className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
+          className={`w-full text-sm ${inputBase}`}
         />
       </div>
 
       {error !== null && (
-        <p className="mt-2 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800">
+        <p className="mt-2 rounded-control border border-line bg-danger-weak px-3 py-2 text-sm text-danger">
           {error}
         </p>
       )}
@@ -519,12 +522,11 @@ export function DailyBoard({
 
       {/* 削除の Undo トースト（O-8） */}
       {deleted !== null && (
-        <div className="fixed bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded bg-gray-900 px-4 py-2 text-sm text-white shadow-lg">
-          <span>「{deleted.name}」を削除しました</span>
-          <button type="button" onClick={undoDelete} className="font-medium text-blue-300 hover:underline">
-            取り消す
-          </button>
-        </div>
+        <Toast
+          message={`「${deleted.name}」を削除しました`}
+          actionLabel="取り消す"
+          onAction={undoDelete}
+        />
       )}
 
       {staleRunningTask !== null && <StaleRunningBanner task={staleRunningTask} />}

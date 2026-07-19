@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { floatPanel } from "../_lib/ui";
+import { EllipsisIcon } from "./icons";
 
 export type RowMenuItem = Readonly<{
   label: string;
@@ -39,12 +41,12 @@ export function RowMenu({ items }: Readonly<{ items: readonly RowMenuItem[] }>) 
         type="button"
         aria-label="行メニュー"
         onClick={() => setOpen((v) => !v)}
-        className="px-1 text-gray-400 hover:text-gray-700"
+        className="px-1 py-1 text-ink-faint hover:text-ink"
       >
-        ⋯
+        <EllipsisIcon />
       </button>
       {open && (
-        <div className="absolute right-0 z-10 mt-1 w-36 rounded border border-gray-300 bg-white py-1 shadow-lg">
+        <div className={`absolute right-0 z-10 mt-1 w-36 py-1 ${floatPanel}`}>
           {items.map((item) => (
             <button
               key={item.label}
@@ -57,7 +59,7 @@ export function RowMenu({ items }: Readonly<{ items: readonly RowMenuItem[] }>) 
                 item.onSelect();
                 setOpen(false);
               }}
-              className="block w-full px-3 py-1 text-left text-sm text-gray-700 hover:bg-gray-100 disabled:text-gray-300 disabled:hover:bg-transparent"
+              className="block w-full px-3 py-1 text-left text-sm text-ink hover:bg-accent-weak disabled:text-ink-faint disabled:hover:bg-transparent"
             >
               {item.label}
             </button>

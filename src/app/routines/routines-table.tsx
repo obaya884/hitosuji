@@ -7,6 +7,8 @@ import { describeRecurrence, type Routine } from "@/domain/routine/routine";
 import type { RoutineInput } from "@/domain/routine/routine-input";
 import { sectionAt, type Section } from "@/domain/section/section";
 import { formatEstimate } from "@/app/_lib/format";
+import { btnSecondary, linkAccent, linkMuted } from "@/app/_lib/ui";
+import { PlusIcon } from "@/app/_components/icons";
 import {
   createRoutineAction,
   deleteRoutineAction,
@@ -52,7 +54,7 @@ export function RoutinesTable({ routines, modes, projects, sections, today }: Pr
   return (
     <section className="mt-4">
       <div className="flex items-center justify-between">
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-ink-muted">
           有効なルーチンは、デイリーリストで対象日を表示したときに自動で展開されます（当日以降のみ）。
         </p>
         <button
@@ -60,14 +62,15 @@ export function RoutinesTable({ routines, modes, projects, sections, today }: Pr
             setError(null);
             setEditing("new");
           }}
-          className="rounded border border-gray-300 px-3 py-1 text-sm"
+          className={`inline-flex shrink-0 items-center gap-1 ${btnSecondary}`}
         >
-          ＋ 新規ルーチン
+          <PlusIcon className="h-3 w-3" />
+          新規ルーチン
         </button>
       </div>
 
       {error !== null && (
-        <p className="mt-2 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800">
+        <p className="mt-2 rounded-control border border-line bg-danger-weak px-3 py-2 text-sm text-danger">
           {error}
         </p>
       )}
@@ -85,10 +88,10 @@ export function RoutinesTable({ routines, modes, projects, sections, today }: Pr
 
       <table className="mt-3 w-full text-sm">
         <thead>
-          <tr className="border-b border-gray-300 text-left text-xs text-gray-400">
+          <tr className="border-b border-line-strong text-left text-xs text-ink-muted">
             <th className="w-12 py-2 font-normal">有効</th>
             <th className="py-2 font-normal">名前</th>
-            <th className="w-16 py-2 text-right font-normal">見積</th>
+            <th className="w-20 py-2 pr-4 text-right font-normal">見積</th>
             <th className="w-40 py-2 font-normal">繰り返し</th>
             <th className="w-36 py-2 font-normal">開始想定</th>
             <th className="w-24 py-2 font-normal" />
@@ -104,7 +107,7 @@ export function RoutinesTable({ routines, modes, projects, sections, today }: Pr
               <tr
                 key={routine.id}
                 // 無効ルーチンはグレーアウト（画面定義書02 §3）
-                className={`border-b border-gray-100 ${routine.isActive ? "" : "text-gray-400"}`}
+                className={`border-b border-line ${routine.isActive ? "" : "text-ink-faint"}`}
                 style={
                   routine.isActive && mode !== undefined ? { color: mode.color } : undefined
                 }
@@ -118,17 +121,18 @@ export function RoutinesTable({ routines, modes, projects, sections, today }: Pr
                       run(() => setRoutineActiveAction(routine.id, e.target.checked))
                     }
                     aria-label={`${routine.name} を有効にする`}
+                    className="accent-accent"
                   />
                 </td>
                 <td className="py-2">{routine.name}</td>
-                <td className="py-2 text-right tabular-nums">
+                <td className="py-2 pr-4 text-right font-mono tabular-nums">
                   {formatEstimate(routine.estimateMinutes)}
                 </td>
                 <td className="py-2 text-xs">{describeRecurrence(routine)}</td>
                 <td className="py-2 text-xs tabular-nums">
-                  {routine.scheduledStartTime}
+                  <span className="font-mono">{routine.scheduledStartTime}</span>
                   {section !== undefined && (
-                    <span className="ml-1 text-gray-500">({section.name})</span>
+                    <span className="ml-1 text-ink-muted">({section.name})</span>
                   )}
                 </td>
                 <td className="py-2 text-right whitespace-nowrap">
@@ -137,7 +141,7 @@ export function RoutinesTable({ routines, modes, projects, sections, today }: Pr
                       setError(null);
                       setEditing(isEditing ? null : routine);
                     }}
-                    className="px-2 text-blue-600"
+                    className={`px-2 ${linkAccent}`}
                   >
                     {isEditing ? "閉じる" : "編集"}
                   </button>
@@ -153,7 +157,7 @@ export function RoutinesTable({ routines, modes, projects, sections, today }: Pr
                       run(() => deleteRoutineAction(routine.id));
                     }}
                     disabled={isPending}
-                    className="px-2 text-gray-500"
+                    className={`px-2 ${linkMuted}`}
                   >
                     削除
                   </button>
@@ -165,7 +169,7 @@ export function RoutinesTable({ routines, modes, projects, sections, today }: Pr
       </table>
 
       {routines.length === 0 && editing === null && (
-        <p className="mt-4 text-sm text-gray-500">ルーチンはまだありません。</p>
+        <p className="mt-4 text-sm text-ink-muted">ルーチンはまだありません。</p>
       )}
 
       {editing !== null && editing !== "new" && (

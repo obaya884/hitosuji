@@ -26,15 +26,15 @@ export function DailySummary({ groups, now, isToday }: Props) {
   const overMidnight = isOverMidnight(end, now);
 
   return (
-    <div className="flex items-baseline gap-4 text-sm tabular-nums">
+    <div className="flex items-baseline gap-4 font-mono text-sm tabular-nums">
       <span>
-        <span className="text-xs text-gray-500">終了予定 </span>
-        <span className={overMidnight ? "font-medium text-red-600" : "font-medium"}>
+        <span className="font-sans text-xs text-ink-muted">終了予定 </span>
+        <span className={overMidnight ? "font-medium text-danger" : "font-medium"}>
           {formatProjectedEnd(end, now)}
         </span>
       </span>
       <span>
-        <span className="text-xs text-gray-500">残 </span>
+        <span className="font-sans text-xs text-ink-muted">残 </span>
         {formatDuration(remaining)}
       </span>
     </div>

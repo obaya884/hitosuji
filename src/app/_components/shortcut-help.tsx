@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { floatPanel } from "../_lib/ui";
 
 // 画面定義書01 §6 の一覧と対応させる（変更時は仕様書を先に更新する）
 const SHORTCUTS = [
@@ -35,29 +36,29 @@ export function ShortcutHelp({ onClose }: Props) {
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-30 flex items-center justify-center bg-black/30 p-4"
+      className="fixed inset-0 z-30 flex items-center justify-center bg-scrim p-4"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="max-h-full w-full max-w-md overflow-y-auto rounded border border-gray-300 bg-white p-4 shadow-lg"
+        className={`max-h-full w-full max-w-md overflow-y-auto p-4 ${floatPanel}`}
       >
         <div className="flex items-baseline justify-between">
           <h2 className="text-sm font-medium">キーボードショートカット</h2>
-          <button type="button" onClick={onClose} className="text-xs text-gray-500 hover:underline">
+          <button type="button" onClick={onClose} className="text-xs text-ink-muted hover:underline">
             閉じる（Esc）
           </button>
         </div>
         <table className="mt-3 w-full text-sm">
           <tbody>
             {SHORTCUTS.map((shortcut) => (
-              <tr key={shortcut.keys} className="border-b border-gray-100 last:border-0">
+              <tr key={shortcut.keys} className="border-b border-line last:border-0">
                 <td className="w-44 py-1 pr-2 align-top font-mono text-xs">{shortcut.keys}</td>
-                <td className="py-1 text-gray-700">{shortcut.description}</td>
+                <td className="py-1 text-ink">{shortcut.description}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        <p className="mt-3 text-xs text-gray-500">
+        <p className="mt-3 text-xs text-ink-muted">
           先送りは誤操作を防ぐためショートカットを割り当てていません（行メニューから実行）。
         </p>
       </div>
