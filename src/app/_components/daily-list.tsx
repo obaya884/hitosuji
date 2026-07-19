@@ -5,6 +5,7 @@ import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { Section } from "@/domain/section/section";
 import { totalEstimateMinutes, type DailyGroup } from "@/domain/task/daily-list";
+import { sectionCapacityMinutes } from "@/domain/task/projection";
 import { taskStatus } from "@/domain/task/status";
 import { actualMinutes, elapsedMinutes, type Task } from "@/domain/task/task";
 import { formatClock, formatDuration, formatEstimate } from "@/app/_lib/format";
@@ -50,79 +51,86 @@ export function DailyList({
   onSelect,
   now,
 }: Props) {
-  if (groups.length === 0) {
-    // §7 空状態
-    return <p className="mt-6 text-sm text-gray-500">ルーチンなし。タスクを追加</p>;
-  }
-
   const modeById = new Map(modes.map((m) => [m.id, m]));
   const projectById = new Map(projects.map((p) => [p.id, p]));
 
   return (
-    <div className="mt-4">
+    <table className="mt-4 w-full text-sm">
+      {/* 列見出しは画面トップに1つだけ置く（セクションごとに繰り返さない） */}
+      <thead>
+        <tr className="border-b border-gray-300 text-left text-xs text-gray-400">
+          <th className="w-10 py-2 font-normal" />
+          <th className="py-2 font-normal">タスク</th>
+          <th className="w-16 py-2 font-normal">モード</th>
+          <th className="w-16 py-2 text-right font-normal">見積</th>
+          <th className="w-20 py-2 text-right font-normal">実績</th>
+          <th className="w-28 py-2 text-right font-normal">実施時間</th>
+          <th className="w-8 py-2 font-normal" />
+        </tr>
+      </thead>
       {groups.map((group) => (
-        <section key={group.section?.id ?? "unclassified"} className="mt-4 first:mt-0">
+        <tbody
+          key={group.section?.id ?? "unclassified"}
+          // セクションの余白へのドロップは、そのセクションの末尾への移動として扱う（O-6）
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault();
+            const id = Number(e.dataTransfer.getData("text/plain"));
+            if (Number.isFinite(id)) {
+              onMove(id, { sectionId: group.section?.id ?? null, index: group.tasks.length });
+            }
+          }}
+        >
           <GroupHeading group={group} />
-          <table
-            className="w-full text-sm"
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              const id = Number(e.dataTransfer.getData("text/plain"));
-              if (Number.isFinite(id)) {
-                onMove(id, { sectionId: group.section?.id ?? null, index: group.tasks.length });
-              }
-            }}
-          >
-            <thead>
-              <tr className="text-left text-xs text-gray-400">
-                <th className="w-10 py-2 font-normal" />
-                <th className="py-2 font-normal">タスク</th>
-                <th className="w-16 py-2 font-normal">モード</th>
-                <th className="w-16 py-2 text-right font-normal">見積</th>
-                <th className="w-20 py-2 text-right font-normal">実績</th>
-                <th className="w-28 py-2 text-right font-normal">実施時間</th>
-                <th className="w-8 py-2 font-normal" />
-              </tr>
-            </thead>
-            <tbody>
-              {group.tasks.map((task, index) => (
-                <TaskRow
-                  key={task.id}
-                  task={task}
-                  index={index}
-                  sectionId={group.section?.id ?? null}
-                  onMove={onMove}
-                  modes={modes}
-                  projects={projects}
-                  sections={sections}
-                  onAssign={onAssign}
-                  onOperate={onOperate}
-                  isSelected={task.id === selectedId}
-                  onSelect={onSelect}
-                  mode={task.modeId === null ? undefined : modeById.get(task.modeId)}
-                  project={task.projectId === null ? undefined : projectById.get(task.projectId)}
-                  onRename={onRename}
-                  onEstimate={onEstimate}
-                  onPunch={onPunch}
-                  onEditPunch={onEditPunch}
-                  now={now}
-                />
-              ))}
-            </tbody>
-          </table>
-        </section>
+          {/* 0件のセクションもドロップ先として機能させる（§3.2） */}
+          {group.tasks.length === 0 && (
+            <tr>
+              <td colSpan={7} className="py-2 pl-10 text-xs text-gray-300">
+                タスクなし
+              </td>
+            </tr>
+          )}
+          {group.tasks.map((task, index) => (
+            <TaskRow
+              key={task.id}
+              task={task}
+              index={index}
+              sectionId={group.section?.id ?? null}
+              onMove={onMove}
+              modes={modes}
+              projects={projects}
+              sections={sections}
+              onAssign={onAssign}
+              onOperate={onOperate}
+              isSelected={task.id === selectedId}
+              onSelect={onSelect}
+              mode={task.modeId === null ? undefined : modeById.get(task.modeId)}
+              project={task.projectId === null ? undefined : projectById.get(task.projectId)}
+              onRename={onRename}
+              onEstimate={onEstimate}
+              onPunch={onPunch}
+              onEditPunch={onEditPunch}
+              now={now}
+            />
+          ))}
+        </tbody>
       ))}
-    </div>
+    </table>
   );
 }
 
 function GroupHeading({ group }: Readonly<{ group: DailyGroup }>) {
-  const estimate = formatEstimate(totalEstimateMinutes(group.tasks));
+  const total = totalEstimateMinutes(group.tasks);
+  // セクション枠の長さ（F-110 の分母）。未分類とアーカイブ済みセクションでは枠が定まらない
+  const capacity =
+    group.section === null || group.endTime === null
+      ? null
+      : sectionCapacityMinutes(group.section.startTime, group.endTime);
+  const excess = capacity === null ? 0 : total - capacity;
 
   return (
-    <div className="flex items-baseline justify-between border-b border-gray-300 py-2">
-      <h2 className="text-sm font-medium">
+    <tr className="border-y border-gray-200 bg-gray-50">
+      <td colSpan={3} className="py-2 pl-2 text-sm font-medium">
         {group.section === null ? "未分類" : group.section.name}
         {group.section !== null && (
           <span className="ml-2 text-xs font-normal text-gray-500 tabular-nums">
@@ -130,9 +138,21 @@ function GroupHeading({ group }: Readonly<{ group: DailyGroup }>) {
             {group.endTime !== null && `–${group.endTime}`}
           </span>
         )}
-      </h2>
-      <span className="text-xs text-gray-500 tabular-nums">見積 {estimate}</span>
-    </div>
+      </td>
+      <td colSpan={4} className="py-2 pr-2 text-right text-xs text-gray-500 tabular-nums">
+        見積 {formatEstimate(total)}
+        {capacity !== null && (
+          <>
+            /{formatDuration(capacity)}{" "}
+            {/* 合計が枠を超えたら警告色（F-110） */}
+            <span className={excess > 0 ? "text-red-600" : ""}>
+              ({excess > 0 ? "+" : "-"}
+              {formatDuration(Math.abs(excess))})
+            </span>
+          </>
+        )}
+      </td>
+    </tr>
   );
 }
 

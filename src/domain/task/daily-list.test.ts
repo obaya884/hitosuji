@@ -40,9 +40,10 @@ describe("groupTasksBySection（画面定義書01 §3.2: 表示順はセクシ�
     expect(groups.map((g) => g.section?.name ?? "未分類")).toEqual(["未分類", "朝"]);
   });
 
-  it("未分類が0件なら未分類グループを表示しない", () => {
+  it("未分類は0件でも常に表示する（受け皿として見えている必要がある）", () => {
     const groups = groupTasksBySection([task({ id: 1, sectionId: morning.id })], [morning]);
-    expect(groups.map((g) => g.section?.name)).toEqual(["朝"]);
+    expect(groups.map((g) => g.section?.name ?? "未分類")).toEqual(["未分類", "朝"]);
+    expect(groups[0].tasks).toEqual([]);
   });
 
   it("セクションは start_time 昇順に並ぶ", () => {
@@ -50,7 +51,7 @@ describe("groupTasksBySection（画面定義書01 §3.2: 表示順はセクシ�
       [task({ id: 1, sectionId: forenoon.id }), task({ id: 2, sectionId: morning.id })],
       [forenoon, morning]
     );
-    expect(groups.map((g) => g.section?.name)).toEqual(["朝", "午前"]);
+    expect(groups.map((g) => g.section?.name)).toEqual([undefined, "朝", "午前"]);
   });
 
   it("グループ内は sort_order 昇順に並ぶ", () => {
@@ -61,26 +62,36 @@ describe("groupTasksBySection（画面定義書01 §3.2: 表示順はセクシ�
       ],
       [morning]
     );
-    expect(groups[0].tasks.map((t) => t.id)).toEqual([2, 1]);
+    expect(groups[1].tasks.map((t) => t.id)).toEqual([2, 1]);
   });
 
-  it("タスクが属さないセクションは見出しを出さない", () => {
+  it("有効セクションはタスク0件でも表示する（1日の枠組みを俯瞰するため）", () => {
     const groups = groupTasksBySection([task({ id: 1, sectionId: morning.id })], [morning, forenoon]);
-    expect(groups).toHaveLength(1);
+    expect(groups.map((g) => g.section?.name ?? "未分類")).toEqual(["未分類", "朝", "午前"]);
+    expect(groups[2].tasks).toEqual([]);
   });
 
-  it("アーカイブ済みセクションでも当日タスクが属していれば表示する（枠は導出しない）", () => {
-    const groups = groupTasksBySection([task({ id: 1, sectionId: archived.id })], [morning, archived]);
-    expect(groups.map((g) => [g.section?.name, g.endTime])).toEqual([["旧枠", null]]);
+  it("アーカイブ済みセクションはタスクが属している場合のみ表示する（枠は導出しない）", () => {
+    const withTask = groupTasksBySection([task({ id: 1, sectionId: archived.id })], [morning, archived]);
+    expect(withTask.map((g) => [g.section?.name, g.endTime])).toEqual([
+      [undefined, null],
+      ["朝", "06:00"],
+      ["旧枠", null],
+    ]);
+
+    const withoutTask = groupTasksBySection([], [morning, archived]);
+    expect(withoutTask.map((g) => g.section?.name ?? "未分類")).toEqual(["未分類", "朝"]);
   });
 
   it("有効セクションの枠の終了時刻は次のセクションの開始時刻になる", () => {
     const groups = groupTasksBySection([task({ id: 1, sectionId: morning.id })], [morning, forenoon]);
-    expect(groups[0].endTime).toBe("09:00");
+    expect(groups[1].endTime).toBe("09:00");
   });
 
-  it("タスク0件の日は空配列（空状態の表示は presentation の責務。§7）", () => {
-    expect(groupTasksBySection([], [morning, forenoon])).toEqual([]);
+  it("タスク0件の日でもセクション見出しは並ぶ", () => {
+    const groups = groupTasksBySection([], [morning, forenoon]);
+    expect(groups.map((g) => g.section?.name ?? "未分類")).toEqual(["未分類", "朝", "午前"]);
+    expect(groups.every((g) => g.tasks.length === 0)).toBe(true);
   });
 });
 
@@ -92,10 +103,9 @@ describe("totalEstimateMinutes（F-110: セクション見積合計）", () => {
 });
 
 describe("withTaskAppended（N-01: 楽観的更新で追加を即反映）", () => {
-  it("未分類グループがなければ先頭に作る", () => {
+  it("空の未分類グループへ足す", () => {
     const groups = groupTasksBySection([task({ id: 1, sectionId: morning.id })], [morning]);
     const appended = withTaskAppended(groups, task({ id: 9 }));
-    expect(appended.map((g) => g.section?.name ?? "未分類")).toEqual(["未分類", "朝"]);
     expect(appended[0].tasks.map((t) => t.id)).toEqual([9]);
   });
 
@@ -122,20 +132,27 @@ describe("withTaskMoved（N-01: 並び替えを即反映）", () => {
     [morning, forenoon]
   );
 
+  // groups[0] は未分類、groups[1] が朝、groups[2] が午前
   it("同じグループ内で位置を入れ替える", () => {
     const moved = withTaskMoved(groups, 2, { sectionId: morning.id, index: 0 });
-    expect(moved[0].tasks.map((t) => t.id)).toEqual([2, 1]);
+    expect(moved[1].tasks.map((t) => t.id)).toEqual([2, 1]);
   });
 
   it("別のセクションへ移すと section_id も変わる", () => {
     const moved = withTaskMoved(groups, 1, { sectionId: forenoon.id, index: 0 });
-    expect(moved[0].tasks.map((t) => t.id)).toEqual([2]);
-    expect(moved[1].tasks.map((t) => t.id)).toEqual([1, 3]);
-    expect(moved[1].tasks[0].sectionId).toBe(forenoon.id);
+    expect(moved[1].tasks.map((t) => t.id)).toEqual([2]);
+    expect(moved[2].tasks.map((t) => t.id)).toEqual([1, 3]);
+    expect(moved[2].tasks[0].sectionId).toBe(forenoon.id);
+  });
+
+  it("空のセクションへも移せる（0件でも見出しが表示されているため）", () => {
+    const moved = withTaskMoved(groups, 1, { sectionId: null, index: 0 });
+    expect(moved[0].tasks.map((t) => t.id)).toEqual([1]);
+    expect(moved[0].tasks[0].sectionId).toBeNull();
   });
 
   it("元のグループ列を変更しない", () => {
     withTaskMoved(groups, 2, { sectionId: morning.id, index: 0 });
-    expect(groups[0].tasks.map((t) => t.id)).toEqual([1, 2]);
+    expect(groups[1].tasks.map((t) => t.id)).toEqual([1, 2]);
   });
 });

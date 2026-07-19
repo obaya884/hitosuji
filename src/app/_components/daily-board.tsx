@@ -4,7 +4,7 @@ import { useEffect, useOptimistic, useState, useTransition } from "react";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { Section } from "@/domain/section/section";
-import type { LogicalDate } from "@/domain/shared/logical-date";
+import { weekdayIndex, type LogicalDate } from "@/domain/shared/logical-date";
 import {
   withTaskAppended,
   withTaskMoved,
@@ -37,9 +37,12 @@ import {
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { useNow } from "@/app/_lib/use-now";
 import { DailyList } from "./daily-list";
+import { DailySummary } from "./daily-summary";
+import { DateNav } from "./date-nav";
 
 type Props = Readonly<{
   date: LogicalDate;
+  isToday: boolean;
   groups: readonly DailyGroup[];
   modes: readonly Mode[];
   projects: readonly Project[];
@@ -126,7 +129,7 @@ function optimisticTask(date: LogicalDate, name: string): Task {
   };
 }
 
-export function DailyBoard({ date, groups, modes, projects, sections }: Props) {
+export function DailyBoard({ date, isToday, groups, modes, projects, sections }: Props) {
   const [optimisticGroups, dispatchOptimistic] = useOptimistic(groups, applyOptimisticAction);
   const [name, setName] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -135,11 +138,12 @@ export function DailyBoard({ date, groups, modes, projects, sections }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
-  // 実行中タスクがあるときだけ毎分更新する（F-205）
+  // 実行中タスクの経過（F-205）と終了予定時刻（F-104）のため毎分更新する。
+  // 当日を表示していないときは終了予定を出さないので、実行中タスクがある場合のみ回す
   const hasRunning = optimisticGroups.some((g) =>
     g.tasks.some((t) => taskStatus(t) === "running")
   );
-  const now = useNow(hasRunning);
+  const now = useNow(hasRunning || isToday);
 
   function run(optimistic: OptimisticAction, action: () => Promise<DailyActionResult>) {
     setError(null);
@@ -325,6 +329,12 @@ export function DailyBoard({ date, groups, modes, projects, sections }: Props) {
 
   return (
     <>
+      {/* 日付ナビ＋サマリ（画面定義書01 §2） */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <DateNav date={date} weekday={weekdayIndex(date)} isToday={isToday} />
+        <DailySummary groups={optimisticGroups} now={now} isToday={isToday} />
+      </div>
+
       <div className="mt-3 flex items-center gap-2">
         <span className="text-gray-400">＋</span>
         <input

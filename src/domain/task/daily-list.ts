@@ -16,10 +16,10 @@ function bySortOrder(tasks: readonly Task[]): Task[] {
 }
 
 /**
- * タスクをセクションごとにまとめる。
- * - 未分類（section_id なし）は先頭。0件なら表示しない（§3.2）
- * - セクション見出しは当日タスクが属するセクションのみ。アーカイブ済みでも表示する（§3.2）
- * - タスク0件の日は空配列を返す（空状態の表示は presentation の責務。§7）
+ * タスクをセクションごとにまとめる（§3.2）。
+ * - 未分類（section_id なし）は先頭。0件でも常に表示する（インボックスの受け皿のため）
+ * - 有効なセクションはタスク0件でも常に表示する
+ * - アーカイブ済みセクションは当日タスクが属している場合のみ表示する
  */
 export function groupTasksBySection(
   tasks: readonly Task[],
@@ -28,24 +28,24 @@ export function groupTasksBySection(
   const endTimeOf = new Map(sectionRanges(sections).map((r) => [r.section.id, r.endTime]));
   const sectionById = new Map(sections.map((s) => [s.id, s]));
 
-  const unclassified = tasks.filter((t) => t.sectionId === null);
+  // タスクが属しているアーカイブ済みセクション（有効セクションは無条件で表示する）
+  const usedArchived = [...new Set(tasks.map((t) => t.sectionId))]
+    .filter((id): id is number => id !== null)
+    .map((id) => sectionById.get(id))
+    .filter((s): s is Section => s !== undefined && s.isArchived);
 
-  const usedSections = sortByStartTime(
-    [...new Set(tasks.map((t) => t.sectionId))]
-      .filter((id): id is number => id !== null)
-      .map((id) => sectionById.get(id))
-      .filter((s): s is Section => s !== undefined)
-  );
+  const shown = sortByStartTime([...sections.filter((s) => !s.isArchived), ...usedArchived]);
 
-  const groups: DailyGroup[] = usedSections.map((section) => ({
+  const groups: DailyGroup[] = shown.map((section) => ({
     section,
     endTime: endTimeOf.get(section.id) ?? null,
     tasks: bySortOrder(tasks.filter((t) => t.sectionId === section.id)),
   }));
 
-  return unclassified.length > 0
-    ? [{ section: null, endTime: null, tasks: bySortOrder(unclassified) }, ...groups]
-    : groups;
+  return [
+    { section: null, endTime: null, tasks: bySortOrder(tasks.filter((t) => t.sectionId === null)) },
+    ...groups,
+  ];
 }
 
 /** セクションの見積もり合計（分）。F-110 の「見積 2:30/3:00」の分子 */

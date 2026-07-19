@@ -1,11 +1,10 @@
 import { listDailyList } from "@/application/task/daily-list-usecases";
-import { isValidLogicalDate, weekdayIndex } from "@/domain/shared/logical-date";
+import { isValidLogicalDate } from "@/domain/shared/logical-date";
 import { createModeRepository } from "@/infrastructure/db/repositories/drizzle-mode-repository";
 import { createProjectRepository } from "@/infrastructure/db/repositories/drizzle-project-repository";
 import { createSectionRepository } from "@/infrastructure/db/repositories/drizzle-section-repository";
 import { createTaskRepository } from "@/infrastructure/db/repositories/drizzle-task-repository";
 import { DailyBoard } from "./_components/daily-board";
-import { DateNav } from "./_components/date-nav";
 import { todayLogicalDate } from "./_lib/format";
 
 export const dynamic = "force-dynamic";
@@ -29,9 +28,9 @@ export default async function Home({
 
   return (
     <>
-      <DateNav date={date} weekday={weekdayIndex(date)} isToday={date === today} />
       <DailyBoard
         date={date}
+        isToday={date === today}
         groups={view.groups}
         modes={view.modes}
         projects={view.projects}
