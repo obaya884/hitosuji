@@ -81,6 +81,18 @@ Next.js 16 (App Router) + TypeScript / Tailwind CSS 4 / Drizzle ORM + node-postg
 - `DATABASE_URL` — Postgres 接続文字列
 - `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` — 両方設定すると Basic認証が有効。未設定なら素通し（ローカル開発用）。**リポジトリにコミットしない**
 
+## 本番マイグレーションの手順
+
+スキーマ変更を含むデプロイは、**必ず「本番へ適用 → push」の順**で行う（逆順だと新コードが存在しないテーブルを参照して本番が壊れる）。
+
+1. Neon コンソール → Connection Details から接続文字列を取得（**Pooled connection のチェックを外す**）
+2. `.env.migrate` に `DATABASE_URL='...'` の1行で保存する（`&` を含むためシングルクォート必須）
+   - **接続文字列をコマンドライン引数に直接書かない**。会話履歴・シェル履歴に平文で残る
+   - Next.js が自動読み込みする `.env.production` / `.env.production.local` は使わない（ローカルの `npm run build` が本番DBを向く）
+   - `vercel env pull` では取得できない（Sensitive 指定の変数は `[SENSITIVE]` になる）
+3. `set -a; . ./.env.migrate; set +a; npm run db:migrate`
+4. `migrations applied successfully!` を確認したら `.env.migrate` を削除し、push する
+
 ## 規約
 
 - **コードの変更は必ず Edit / Write ツールで行う**。python や sed 等のスクリプトによる一括置換は使わない（変更内容がチャットに差分として表示されず、オーナーがレビューできなくなるため）。複数箇所の変更でも1つずつ Edit する
