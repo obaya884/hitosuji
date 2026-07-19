@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import type { Section } from "@/domain/section/section";
 import type { ActionResult } from "../_lib/action-result";
 import {
@@ -43,6 +44,11 @@ export function SectionsTable({ ranges, archived }: Props) {
     run(action, () => setEditing(null));
   }
 
+  const onKeyDown = inlineEditKeyHandler({ onEnter: save, onEscape: () => setEditing(null) });
+
+  // 編集中の行の終了時刻（導出値）。新規追加時は保存後に確定するため未定
+  const editingEndTime = ranges.find((r) => r.id === editing?.id)?.endTime;
+
   const editRow = (key: string) => (
     <tr key={key} className="border-b border-gray-100">
       <td className="py-1 pr-2">
@@ -50,27 +56,27 @@ export function SectionsTable({ ranges, archived }: Props) {
           autoFocus
           value={editing?.name ?? ""}
           onChange={(e) => setEditing((s) => (s === null ? s : { ...s, name: e.target.value }))}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") save();
-            if (e.key === "Escape") setEditing(null);
-          }}
+          onKeyDown={onKeyDown}
           className="w-full rounded border border-gray-300 px-2 py-1"
           placeholder="セクション名"
         />
       </td>
       <td className="py-1 pr-2">
-        <input
-          type="time"
-          value={editing?.startTime ?? ""}
-          onChange={(e) =>
-            setEditing((s) => (s === null ? s : { ...s, startTime: e.target.value }))
-          }
-          onKeyDown={(e) => {
-            if (e.key === "Enter") save();
-            if (e.key === "Escape") setEditing(null);
-          }}
-          className="rounded border border-gray-300 px-2 py-1"
-        />
+        {/* 編集できるのは開始時刻のみ。終了時刻は次セクションの開始からの導出値なので読み取り専用で並べる */}
+        <span className="flex items-center gap-1">
+          <input
+            type="time"
+            value={editing?.startTime ?? ""}
+            onChange={(e) =>
+              setEditing((s) => (s === null ? s : { ...s, startTime: e.target.value }))
+            }
+            onKeyDown={onKeyDown}
+            className="rounded border border-gray-300 px-2 py-1"
+          />
+          <span className="tabular-nums text-gray-400" title="次のセクションの開始時刻から自動導出">
+            –{editingEndTime ?? "自動"}
+          </span>
+        </span>
       </td>
       <td className="py-1 text-right whitespace-nowrap">
         <button onClick={save} disabled={isPending} className="px-2 text-blue-600">
@@ -87,7 +93,7 @@ export function SectionsTable({ ranges, archived }: Props) {
     <section className="mt-4">
       <div className="flex items-center justify-between">
         <p className="text-xs text-gray-500">
-          終了時刻は次のセクションの開始時刻から自動導出されます。並び順は開始時刻順です。
+          編集できるのは開始時刻だけです（終了時刻は次のセクションの開始から自動導出）。並び順は開始時刻順です。
         </p>
         <button
           onClick={() => {

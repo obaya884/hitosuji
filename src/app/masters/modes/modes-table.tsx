@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { MODE_COLORS, type Mode } from "@/domain/mode/mode";
 import type { ActionResult } from "../_lib/action-result";
 import { createModeAction, setModeArchivedAction, updateModeAction } from "./actions";
@@ -36,6 +37,8 @@ export function ModesTable({ active, archived }: Props) {
     run(action, () => setEditing(null));
   }
 
+  const onKeyDown = inlineEditKeyHandler({ onEnter: save, onEscape: () => setEditing(null) });
+
   const editRow = (key: string) => (
     <tr key={key} className="border-b border-gray-100">
       <td className="py-1 pr-2">
@@ -60,10 +63,7 @@ export function ModesTable({ active, archived }: Props) {
           autoFocus
           value={editing?.name ?? ""}
           onChange={(e) => setEditing((s) => (s === null ? s : { ...s, name: e.target.value }))}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") save();
-            if (e.key === "Escape") setEditing(null);
-          }}
+          onKeyDown={onKeyDown}
           className="w-full rounded border border-gray-300 px-2 py-1"
           placeholder="モード名"
         />
