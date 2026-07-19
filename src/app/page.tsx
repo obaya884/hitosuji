@@ -1,5 +1,6 @@
-import { db } from "@/db";
-import { sections } from "@/db/schema";
+// 暫定ページのため infrastructure を直接参照している（アーキテクチャ定義書 §9 の例外。S-03 実装時に解消）
+import { db } from "@/infrastructure/db";
+import { sections } from "@/infrastructure/db/schema";
 
 export const dynamic = "force-dynamic";
 
