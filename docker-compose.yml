@@ -11,5 +11,18 @@ services:
     volumes:
       - db-data:/var/lib/postgresql/data
 
+  # 統合テスト用DB（tmpfs で使い捨て。データは残らない）
+  db-test:
+    image: postgres:17-alpine
+    container_name: hitosuji-db-test
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: hitosuji
+      POSTGRES_PASSWORD: hitosuji
+      POSTGRES_DB: hitosuji_test
+    tmpfs:
+      - /var/lib/postgresql/data
+
 volumes:
   db-data:
