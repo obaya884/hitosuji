@@ -21,6 +21,7 @@ import {
   type DailyActionResult,
 } from "@/app/actions";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
+import { useNow } from "@/app/_lib/use-now";
 import { DailyList } from "./daily-list";
 
 type Props = Readonly<{
@@ -85,6 +86,12 @@ export function DailyBoard({ date, groups, modes, projects }: Props) {
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+
+  // 実行中タスクがあるときだけ毎分更新する（F-205）
+  const hasRunning = optimisticGroups.some((g) =>
+    g.tasks.some((t) => taskStatus(t) === "running")
+  );
+  const now = useNow(hasRunning);
 
   function run(optimistic: OptimisticAction, action: () => Promise<DailyActionResult>) {
     setError(null);
@@ -174,6 +181,7 @@ export function DailyBoard({ date, groups, modes, projects }: Props) {
         onRename={rename}
         onEstimate={setEstimate}
         onPunch={punch}
+        now={now}
       />
     </>
   );

@@ -5,7 +5,7 @@ import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import { totalEstimateMinutes, type DailyGroup } from "@/domain/task/daily-list";
 import { taskStatus } from "@/domain/task/status";
-import { actualMinutes, type Task } from "@/domain/task/task";
+import { actualMinutes, elapsedMinutes, type Task } from "@/domain/task/task";
 import { formatClock, formatDuration, formatEstimate } from "@/app/_lib/format";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 
@@ -16,12 +16,22 @@ type Props = Readonly<{
   onRename: (task: Task, name: string) => void;
   onEstimate: (task: Task, rawMinutes: string) => void;
   onPunch: (task: Task) => void;
+  /** 毎分更新される現在時刻。実行中タスクの経過表示に使う（F-205） */
+  now: Date;
 }>;
 
 const STATUS_ICON = { not_started: "・", running: "▶", completed: "✔" } as const;
 
 // 画面定義書01 §3.2/§3.3。打刻・並び替えは後続ステップ
-export function DailyList({ groups, modes, projects, onRename, onEstimate, onPunch }: Props) {
+export function DailyList({
+  groups,
+  modes,
+  projects,
+  onRename,
+  onEstimate,
+  onPunch,
+  now,
+}: Props) {
   if (groups.length === 0) {
     // §7 空状態
     return <p className="mt-6 text-sm text-gray-500">ルーチンなし。タスクを追加</p>;
@@ -57,6 +67,7 @@ export function DailyList({ groups, modes, projects, onRename, onEstimate, onPun
                   onRename={onRename}
                   onEstimate={onEstimate}
                   onPunch={onPunch}
+                  now={now}
                 />
               ))}
             </tbody>
@@ -88,6 +99,11 @@ function GroupHeading({ group }: Readonly<{ group: DailyGroup }>) {
 
 type EditingField = "name" | "estimate" | null;
 
+/** 見積もり超過は警告色（F-202）。見積もり未設定（0分）は超過判定しない */
+function isOverEstimate(minutes: number, task: Task): boolean {
+  return task.estimateMinutes > 0 && minutes > task.estimateMinutes;
+}
+
 function TaskRow({
   task,
   mode,
@@ -95,6 +111,7 @@ function TaskRow({
   onRename,
   onEstimate,
   onPunch,
+  now,
 }: Readonly<{
   task: Task;
   mode?: Mode;
@@ -102,11 +119,13 @@ function TaskRow({
   onRename: (task: Task, name: string) => void;
   onEstimate: (task: Task, rawMinutes: string) => void;
   onPunch: (task: Task) => void;
+  now: Date;
 }>) {
   const [editing, setEditing] = useState<EditingField>(null);
   const [draft, setDraft] = useState("");
   const status = taskStatus(task);
   const actual = actualMinutes(task);
+  const elapsed = elapsedMinutes(task, now);
 
   function beginEdit(field: Exclude<EditingField, null>) {
     setDraft(field === "name" ? task.name : String(task.estimateMinutes || ""));
@@ -197,10 +216,14 @@ function TaskRow({
       </td>
       <td className="w-20 py-1 text-right tabular-nums text-gray-500">
         {actual !== null && (
-          <span
-            className={actual > task.estimateMinutes && task.estimateMinutes > 0 ? "text-red-600" : ""}
-          >
+          <span className={isOverEstimate(actual, task) ? "text-red-600" : ""}>
             → {formatDuration(actual)}
+          </span>
+        )}
+        {/* 実行中は経過をクライアントタイマーで表示（F-205） */}
+        {elapsed !== null && (
+          <span className={isOverEstimate(elapsed, task) ? "text-red-600" : ""}>
+            (経過 {formatDuration(elapsed)})
           </span>
         )}
       </td>
