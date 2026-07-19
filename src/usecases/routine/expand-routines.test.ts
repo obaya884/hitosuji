@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 import type {
   RoutineRepository,
   RoutineTaskSeed,
-} from "@/application/ports/routine-repository";
-import type { SectionRepository } from "@/application/ports/section-repository";
+} from "@/usecases/ports/routine-repository";
+import type { SectionRepository } from "@/usecases/ports/section-repository";
 import type { Routine } from "@/domain/routine/routine";
 import type { Section } from "@/domain/section/section";
 import type { Task } from "@/domain/task/task";
 import { expandRoutinesFor } from "./expand-routines";
-import { inMemoryTaskRepository } from "@/application/task/testing/in-memory-task-repository";
+import { inMemoryTaskRepository } from "@/usecases/task/testing/in-memory-task-repository";
 
 const sections: Section[] = [
   { id: 1, name: "深夜", startTime: "00:00", isArchived: false },

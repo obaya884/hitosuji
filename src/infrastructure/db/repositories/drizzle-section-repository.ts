@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import type { SectionInput, SectionRepository } from "@/application/ports/section-repository";
+import type { SectionInput, SectionRepository } from "@/usecases/ports/section-repository";
 import { normalizeStartTime, type Section, type SectionId } from "@/domain/section/section";
 import { db as defaultDb, type Database } from "@/infrastructure/db";
 import { sections } from "@/infrastructure/db/schema";

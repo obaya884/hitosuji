@@ -7,26 +7,26 @@ import {
   setTaskMode,
   setTaskProject,
   updateTaskEstimate,
-} from "@/application/task/daily-list-usecases";
+} from "@/usecases/task/daily-list-usecases";
 import {
   finishTask,
   startTask,
   updateTaskPunch,
-} from "@/application/task/punch-usecases";
+} from "@/usecases/task/punch-usecases";
 import {
   deleteTask,
   duplicateTask,
   postponeTask,
   restoreTask,
   suspendTask,
-} from "@/application/task/task-operations";
+} from "@/usecases/task/task-operations";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import type { Task } from "@/domain/task/task";
 import {
   moveTaskByOneStep,
   moveTaskTo,
   setTaskSection,
-} from "@/application/task/reorder-usecases";
+} from "@/usecases/task/reorder-usecases";
 import { createSectionRepository } from "@/infrastructure/db/repositories/drizzle-section-repository";
 import { createTaskRepository } from "@/infrastructure/db/repositories/drizzle-task-repository";
 

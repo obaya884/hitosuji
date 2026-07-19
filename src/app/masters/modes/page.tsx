@@ -1,4 +1,4 @@
-import { listModes } from "@/application/mode/mode-usecases";
+import { listModes } from "@/usecases/mode/mode-usecases";
 import { createModeRepository } from "@/infrastructure/db/repositories/drizzle-mode-repository";
 import { ModesTable } from "./modes-table";
 

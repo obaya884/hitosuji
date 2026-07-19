@@ -1,6 +1,6 @@
 // 中断・複製・先送り・削除のユースケース（F-204 / F-111 / F-107 / O-8）
-import type { SectionRepository } from "@/application/ports/section-repository";
-import type { RoutineSkip, TaskRepository } from "@/application/ports/task-repository";
+import type { SectionRepository } from "@/usecases/ports/section-repository";
+import type { RoutineSkip, TaskRepository } from "@/usecases/ports/task-repository";
 import { addDays, type LogicalDate } from "@/domain/shared/logical-date";
 import { err, ok, type Result } from "@/domain/shared/result";
 import { duplicateDraft, insertionIndexForDuplicate } from "@/domain/task/duplicate";

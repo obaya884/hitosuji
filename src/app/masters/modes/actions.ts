@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createMode, setModeArchived, updateMode } from "@/application/mode/mode-usecases";
+import { createMode, setModeArchived, updateMode } from "@/usecases/mode/mode-usecases";
 import type { ModeId } from "@/domain/mode/mode";
 import { createModeRepository } from "@/infrastructure/db/repositories/drizzle-mode-repository";
 import { failure, type ActionResult } from "../_lib/action-result";

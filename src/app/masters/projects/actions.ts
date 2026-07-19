@@ -5,7 +5,7 @@ import {
   createProject,
   setProjectArchived,
   updateProject,
-} from "@/application/project/project-usecases";
+} from "@/usecases/project/project-usecases";
 import type { ProjectId } from "@/domain/project/project";
 import { createProjectRepository } from "@/infrastructure/db/repositories/drizzle-project-repository";
 import { failure, type ActionResult } from "../_lib/action-result";

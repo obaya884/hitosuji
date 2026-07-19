@@ -7,7 +7,7 @@ import type {
   StartCommand,
   SuspendCommand,
   TaskRepository,
-} from "@/application/ports/task-repository";
+} from "@/usecases/ports/task-repository";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import type { Task, TaskId } from "@/domain/task/task";
 import { db as defaultDb, type Database } from "@/infrastructure/db";

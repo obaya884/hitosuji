@@ -1,7 +1,7 @@
 // ルーチン展開（F-301/302 / データモデル定義書 §4.1）
-import type { RoutineRepository, RoutineTaskSeed } from "@/application/ports/routine-repository";
-import type { SectionRepository } from "@/application/ports/section-repository";
-import type { TaskRepository } from "@/application/ports/task-repository";
+import type { RoutineRepository, RoutineTaskSeed } from "@/usecases/ports/routine-repository";
+import type { SectionRepository } from "@/usecases/ports/section-repository";
+import type { TaskRepository } from "@/usecases/ports/task-repository";
 import { routinesToExpand } from "@/domain/routine/expansion";
 import { sectionAt } from "@/domain/section/section";
 import type { LogicalDate } from "@/domain/shared/logical-date";

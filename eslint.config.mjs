@@ -3,7 +3,7 @@ import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
 // レイヤー依存方向の強制（docs/アーキテクチャ定義書.md §3）
-// domain ← application ← infrastructure / presentation(src/app)
+// domain ← usecases ← infrastructure / presentation(src/app)
 const layerRules = [
   {
     // domain: 他レイヤー・フレームワーク・DBに依存しない純粋な TypeScript のみ
@@ -15,7 +15,7 @@ const layerRules = [
           patterns: [
             {
               group: [
-                "**/application/**",
+                "**/usecases/**",
                 "**/infrastructure/**",
                 "@/app/**",
                 "next", "next/**",
@@ -32,8 +32,8 @@ const layerRules = [
     },
   },
   {
-    // application: domain のみに依存。インフラは Port(IF) 経由で受け取る
-    files: ["src/application/**/*.ts"],
+    // usecases: domain のみに依存。インフラは Port(IF) 経由で受け取る
+    files: ["src/usecases/**/*.ts"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -49,7 +49,7 @@ const layerRules = [
                 "pg", "pg/**",
               ],
               message:
-                "application 層は infrastructure/presentation に依存できません。Port(IF) を定義して実装を注入してください（アーキテクチャ定義書 §3）",
+                "usecases 層は infrastructure/presentation に依存できません。Port(IF) を定義して実装を注入してください（アーキテクチャ定義書 §3）",
             },
           ],
         },

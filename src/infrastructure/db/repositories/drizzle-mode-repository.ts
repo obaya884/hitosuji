@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import type { ModeInput, ModeRepository } from "@/application/ports/mode-repository";
+import type { ModeInput, ModeRepository } from "@/usecases/ports/mode-repository";
 import type { Mode, ModeId } from "@/domain/mode/mode";
 import { db as defaultDb, type Database } from "@/infrastructure/db";
 import { modes } from "@/infrastructure/db/schema";

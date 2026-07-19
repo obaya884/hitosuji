@@ -2,7 +2,7 @@ import { eq, sql } from "drizzle-orm";
 import type {
   RoutineRepository,
   RoutineTaskSeed,
-} from "@/application/ports/routine-repository";
+} from "@/usecases/ports/routine-repository";
 import { normalizeStartTime } from "@/domain/section/section";
 import type { RecurrenceType, Routine, RoutineId } from "@/domain/routine/routine";
 import type { ValidRoutineInput } from "@/domain/routine/routine-input";

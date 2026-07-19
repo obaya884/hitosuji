@@ -1,4 +1,4 @@
-import { listSections } from "@/application/section/section-usecases";
+import { listSections } from "@/usecases/section/section-usecases";
 import { createSectionRepository } from "@/infrastructure/db/repositories/drizzle-section-repository";
 import { SectionsTable } from "./sections-table";
 

@@ -1,8 +1,8 @@
 // デイリーリストの表示ユースケース（S-01 / 画面定義書01 §3）
-import type { ModeRepository } from "@/application/ports/mode-repository";
-import type { ProjectRepository } from "@/application/ports/project-repository";
-import type { SectionRepository } from "@/application/ports/section-repository";
-import type { TaskRepository } from "@/application/ports/task-repository";
+import type { ModeRepository } from "@/usecases/ports/mode-repository";
+import type { ProjectRepository } from "@/usecases/ports/project-repository";
+import type { SectionRepository } from "@/usecases/ports/section-repository";
+import type { TaskRepository } from "@/usecases/ports/task-repository";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { Section } from "@/domain/section/section";

@@ -1,5 +1,5 @@
 // モード管理のユースケース（S-03 / 画面定義書03 §3.2）
-import type { ModeRepository } from "@/application/ports/mode-repository";
+import type { ModeRepository } from "@/usecases/ports/mode-repository";
 import { validateModeInput, type Mode, type ModeError, type ModeId } from "@/domain/mode/mode";
 import { sortByName } from "@/domain/shared/name-order";
 import { ok, type Result } from "@/domain/shared/result";

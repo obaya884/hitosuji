@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import type { ProjectInput, ProjectRepository } from "@/application/ports/project-repository";
+import type { ProjectInput, ProjectRepository } from "@/usecases/ports/project-repository";
 import type { Project, ProjectId } from "@/domain/project/project";
 import { db as defaultDb, type Database } from "@/infrastructure/db";
 import { projects } from "@/infrastructure/db/schema";

@@ -1,6 +1,6 @@
 // 並び替えのユースケース（画面定義書01 O-6）
-import type { TaskRepository } from "@/application/ports/task-repository";
-import type { SectionRepository } from "@/application/ports/section-repository";
+import type { TaskRepository } from "@/usecases/ports/task-repository";
+import type { SectionRepository } from "@/usecases/ports/section-repository";
 import { activeSections } from "@/domain/section/section";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import { ok, type Result } from "@/domain/shared/result";

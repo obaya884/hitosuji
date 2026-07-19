@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ProjectInput, ProjectRepository } from "@/application/ports/project-repository";
+import type { ProjectInput, ProjectRepository } from "@/usecases/ports/project-repository";
 import type { Project, ProjectId } from "@/domain/project/project";
 import {
   createProject,

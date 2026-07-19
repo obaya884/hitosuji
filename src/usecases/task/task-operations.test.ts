@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { SectionRepository } from "@/application/ports/section-repository";
+import type { SectionRepository } from "@/usecases/ports/section-repository";
 import type { Section } from "@/domain/section/section";
 import { taskStatus } from "@/domain/task/status";
 import type { Task } from "@/domain/task/task";

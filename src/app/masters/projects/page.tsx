@@ -1,4 +1,4 @@
-import { listProjects } from "@/application/project/project-usecases";
+import { listProjects } from "@/usecases/project/project-usecases";
 import { createProjectRepository } from "@/infrastructure/db/repositories/drizzle-project-repository";
 import { ProjectsTable } from "./projects-table";
 

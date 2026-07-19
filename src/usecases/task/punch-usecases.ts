@@ -1,5 +1,5 @@
 // 打刻のユースケース（F-201 / データモデル定義書 §4.2）
-import type { TaskRepository } from "@/application/ports/task-repository";
+import type { TaskRepository } from "@/usecases/ports/task-repository";
 import { err, ok, type Result } from "@/domain/shared/result";
 import { canFinish, canStart, resumeTaskDraft, type PunchError } from "@/domain/task/punch";
 import { placeNewTask } from "@/domain/task/placement";

@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { Task } from "@/domain/task/task";
 import { inMemoryTaskRepository as inMemoryRepo } from "./testing/in-memory-task-repository";
-import type { ModeRepository } from "@/application/ports/mode-repository";
-import type { ProjectRepository } from "@/application/ports/project-repository";
-import type { SectionRepository } from "@/application/ports/section-repository";
-import type { TaskRepository } from "@/application/ports/task-repository";
+import type { ModeRepository } from "@/usecases/ports/mode-repository";
+import type { ProjectRepository } from "@/usecases/ports/project-repository";
+import type { SectionRepository } from "@/usecases/ports/section-repository";
+import type { TaskRepository } from "@/usecases/ports/task-repository";
 import {
   addTask,
   listDailyList,

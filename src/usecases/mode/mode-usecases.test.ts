@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ModeInput, ModeRepository } from "@/application/ports/mode-repository";
+import type { ModeInput, ModeRepository } from "@/usecases/ports/mode-repository";
 import { MODE_COLORS, type Mode, type ModeId } from "@/domain/mode/mode";
 import { createMode, listModes, setModeArchived, updateMode } from "./mode-usecases";
 

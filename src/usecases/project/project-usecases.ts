@@ -1,5 +1,5 @@
 // プロジェクト管理のユースケース（S-03 / 画面定義書03 §3.3）
-import type { ProjectRepository } from "@/application/ports/project-repository";
+import type { ProjectRepository } from "@/usecases/ports/project-repository";
 import {
   validateProjectInput,
   type Project,

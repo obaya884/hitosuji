@@ -24,13 +24,13 @@ Next.js 16 (App Router) + TypeScript / Tailwind CSS 4 / Drizzle ORM + node-postg
 ```
 [ブラウザ] → HTTPS + Basic認証 (src/proxy.ts) → [Next.js App Router] → Drizzle → [PostgreSQL]
 
-依存方向: domain ← application ← { infrastructure, presentation }（ESLint で強制）
+依存方向: domain ← usecases ← { infrastructure, presentation }（ESLint で強制）
 ```
 
 ### ディレクトリと責務
 
 - `src/domain/` — 純粋な業務ロジック（採番・導出・展開判定等）。I/O・`new Date()` 禁止、すべて引数で受け取る。クラス不使用（`Readonly` type＋純関数）。業務的失敗は `Result`（`domain/shared/result.ts`）
-- `src/application/` — ユースケース（1操作=1関数）＋ `ports/` にリポジトリIF。SQL を書かない
+- `src/usecases/` — ユースケース（1操作=1関数）＋ `ports/` にリポジトリIF。SQL を書かない。domain との判別基準は「リポジトリ（I/O）に触るか」
 - `src/infrastructure/db/` — Drizzle スキーマ（データモデル定義書 §3 と1:1）・`repositories/` に Port 実装・migrations・seed・`testing/`（テストヘルパー）。トランザクション境界はリポジトリメソッド内
 - `src/app/` — 画面（Server Component は表示日1日分＋マスタのみ取得）＋ Server Actions（更新の入口。合成ルートとしてリポジトリ実装をユースケースへ注入する）
 - `src/proxy.ts` — Basic認証（Next.js 16 の middleware 相当）

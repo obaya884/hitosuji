@@ -1,5 +1,5 @@
 // ルーチン管理のユースケース（S-02 / 画面定義書02 §5）
-import type { RoutineRepository } from "@/application/ports/routine-repository";
+import type { RoutineRepository } from "@/usecases/ports/routine-repository";
 import type { Routine, RoutineError, RoutineId } from "@/domain/routine/routine";
 import { validateRoutineInput, type RoutineInput } from "@/domain/routine/routine-input";
 import { compareByName } from "@/domain/shared/name-order";

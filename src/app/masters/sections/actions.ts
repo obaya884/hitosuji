@@ -6,7 +6,7 @@ import {
   createSection,
   restoreSection,
   updateSection,
-} from "@/application/section/section-usecases";
+} from "@/usecases/section/section-usecases";
 import type { SectionId } from "@/domain/section/section";
 import { createSectionRepository } from "@/infrastructure/db/repositories/drizzle-section-repository";
 import { failure, type ActionResult } from "../_lib/action-result";

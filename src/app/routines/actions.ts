@@ -6,7 +6,7 @@ import {
   deleteRoutine,
   setRoutineActive,
   updateRoutine,
-} from "@/application/routine/routine-usecases";
+} from "@/usecases/routine/routine-usecases";
 import type { RoutineInput } from "@/domain/routine/routine-input";
 import { createRoutineRepository } from "@/infrastructure/db/repositories/drizzle-routine-repository";
 

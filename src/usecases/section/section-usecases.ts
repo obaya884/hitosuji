@@ -1,5 +1,5 @@
 // セクション管理のユースケース（S-03 / 画面定義書03 §3.1）
-import type { SectionRepository } from "@/application/ports/section-repository";
+import type { SectionRepository } from "@/usecases/ports/section-repository";
 import {
   canArchive,
   sectionRanges,
