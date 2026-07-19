@@ -18,6 +18,14 @@ npm run db:seed                # 初期データ（セクション・モード�
 npm run dev                    # http://localhost:3000
 ```
 
+テスト（アーキテクチャ・テスト戦略は [docs/アーキテクチャ定義書.md](./docs/アーキテクチャ定義書.md)）:
+
+```bash
+npm test                       # 全テスト（統合テストは db-test コンテナが必要）
+npm run test:unit              # ユニットのみ
+npm run test:int               # 統合のみ
+```
+
 ## デプロイ（Vercel + Neon）
 
 本番URL: **https://hitosuji-five.vercel.app**（Basic認証あり。`hitosuji.vercel.app` は他ユーザー取得済み）

@@ -1,6 +1,6 @@
 ---
 name: verifier
-description: 実装後の機械的な検証（lint・build・型・マイグレーション・シード・疎通確認）を実行し、結果の要約だけを報告する。コードは修正しない。実装の一区切りごとに使う。
+description: 実装後の機械的な検証（lint・build・型・テスト・マイグレーション・シード・疎通確認）を実行し、結果の要約だけを報告する。コードは修正しない。実装の一区切りごとに使う。
 tools: Bash, Read, Grep, Glob
 model: sonnet
 ---
@@ -13,12 +13,14 @@ model: sonnet
 
 1. `npm run lint`
 2. `npm run build`
-3. スキーマ変更（`db/schema.ts` / `db/migrations/` の差分）がある場合のみ:
+3. `npm run test:unit`
+4. `npm run test:int`（`docker compose up -d db-test` で :5433 のテスト用DBを起動してから）
+5. スキーマ変更（`src/infrastructure/db/schema.ts` / `migrations/` の差分）がある場合のみ:
    - `docker compose up -d` でローカルDBの起動を確認
    - `npm run db:migrate`
    - `npm run db:seed`（冪等なので再実行してよい）
    - 必要なら `psql postgresql://hitosuji:hitosuji@localhost:5432/hitosuji` で制約・データを直接確認
-4. 疎通確認を指示された場合のみ: `npm run dev` をバックグラウンドで起動し、対象ページの HTTP ステータスと表示内容を curl で確認。**確認後は起動したプロセスを必ず停止する**
+6. 疎通確認を指示された場合のみ: `npm run dev` をバックグラウンドで起動し、対象ページの HTTP ステータスと表示内容を curl で確認。**確認後は起動したプロセスを必ず停止する**
 
 ## 制約
 

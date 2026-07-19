@@ -19,18 +19,21 @@ Next.js 16 (App Router) + TypeScript / Tailwind CSS 4 / Drizzle ORM + node-postg
 
 ## アーキテクチャ
 
+クリーンアーキテクチャ＋関数型DDD。**コード配置・依存方向・テスト戦略の契約は `docs/アーキテクチャ定義書.md` が正**。要点:
+
 ```
-[ブラウザ] → HTTPS + Basic認証 (proxy.ts) → [Next.js App Router] → Drizzle → [PostgreSQL]
+[ブラウザ] → HTTPS + Basic認証 (src/proxy.ts) → [Next.js App Router] → Drizzle → [PostgreSQL]
+
+依存方向: domain ← application ← { infrastructure, presentation }（ESLint で強制）
 ```
 
 ### ディレクトリと責務
 
-- `app/` — 画面。Server Component で表示日1日分のデータ＋マスタのみ取得する
-- `app/actions/` — Server Actions（更新系の入口。打刻・追加・編集・並び替え等）※未作成
-- `lib/` — ドメインロジック（セクション導出、終了予定計算、ルーチン展開判定、sort_order 採番等）※未作成
-- `db/schema.ts` — Drizzle スキーマ。データモデル定義書 §3 と1:1対応を保つ
-- `db/migrations/` — drizzle-kit 生成のマイグレーション（`npm run db:generate` で生成）
-- `proxy.ts` — Basic認証（Next.js 16 の middleware 相当）
+- `src/domain/` — 純粋な業務ロジック（採番・導出・展開判定等）。I/O・`new Date()` 禁止、すべて引数で受け取る。クラス不使用（`Readonly` type＋純関数）。業務的失敗は `Result`（`domain/shared/result.ts`）
+- `src/application/` — ユースケース（1操作=1関数）＋ `ports/` にリポジトリIF。SQL を書かない
+- `src/infrastructure/db/` — Drizzle スキーマ（データモデル定義書 §3 と1:1）・`repositories/` に Port 実装・migrations・seed・`testing/`（テストヘルパー）。トランザクション境界はリポジトリメソッド内
+- `src/app/` — 画面（Server Component は表示日1日分＋マスタのみ取得）＋ Server Actions（更新の入口。合成ルートとしてリポジトリ実装をユースケースへ注入する）
+- `src/proxy.ts` — Basic認証（Next.js 16 の middleware 相当）
 
 ### 設計原則（実装のたびに効く判断基準）
 
@@ -64,8 +67,9 @@ Next.js 16 (App Router) + TypeScript / Tailwind CSS 4 / Drizzle ORM + node-postg
 
 ## 開発コマンド
 
-- `docker compose up -d` — ローカルDB起動（OrbStack が必要）
+- `docker compose up -d` — ローカルDB起動（開発用 :5432 とテスト用 db-test :5433。OrbStack が必要）
 - `npm run dev` — 開発サーバ（http://localhost:3000）
+- `npm test` — 全テスト / `test:unit` ユニットのみ / `test:int` 統合のみ（要 db-test）/ `test:watch`
 - `npm run db:generate` — スキーマ変更からマイグレーション生成
 - `npm run db:migrate` — マイグレーション適用
 - `npm run db:seed` — 初期データ投入（冪等）
@@ -84,3 +88,4 @@ Next.js 16 (App Router) + TypeScript / Tailwind CSS 4 / Drizzle ORM + node-postg
 - UIは装飾を排したシンプルなテーブル型リスト（N-05）。コンポーネントライブラリは使わない。モーダルは最小限、インライン編集を基本とする
 - キーボードショートカットは画面定義書01 §6 が正。修飾キーは Shift のみ、preventDefault は最小化
 - マイグレーションは Drizzle Kit で管理し、本番適用はデプロイ前に手動実行
+- テストは古典学派（モック原則不使用）・テストピラミッド。コロケーション配置、ユニット `*.test.ts` / 統合 `*.int.test.ts`。domain のテスト名には対応する仕様条項を書く。詳細はアーキテクチャ定義書 §8
