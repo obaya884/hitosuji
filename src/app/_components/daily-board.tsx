@@ -42,6 +42,7 @@ import { DailyList, type EditField, type EditingCell } from "./daily-list";
 import { DailySummary } from "./daily-summary";
 import { DateNav } from "./date-nav";
 import { ShortcutHelp } from "./shortcut-help";
+import { StaleRunningBanner } from "./stale-running-banner";
 
 type Props = Readonly<{
   date: LogicalDate;
@@ -50,6 +51,8 @@ type Props = Readonly<{
   modes: readonly Mode[];
   projects: readonly Project[];
   sections: readonly Section[];
+  /** 前日以前に放置されている実行中タスク（画面定義書01 §8） */
+  staleRunningTask: Task | null;
 }>;
 
 // 楽観的更新（N-01）: 永続化を待たずに画面へ反映し、失敗時はサーバ状態へ巻き戻す
@@ -132,7 +135,15 @@ function optimisticTask(date: LogicalDate, name: string): Task {
   };
 }
 
-export function DailyBoard({ date, isToday, groups, modes, projects, sections }: Props) {
+export function DailyBoard({
+  date,
+  isToday,
+  groups,
+  modes,
+  projects,
+  sections,
+  staleRunningTask,
+}: Props) {
   const [optimisticGroups, dispatchOptimistic] = useOptimistic(groups, applyOptimisticAction);
   const [name, setName] = useState("");
   const [rawSelectedId, setSelectedId] = useState<number | null>(null);
@@ -486,6 +497,8 @@ export function DailyBoard({ date, isToday, groups, modes, projects, sections }:
           </button>
         </div>
       )}
+
+      {staleRunningTask !== null && <StaleRunningBanner task={staleRunningTask} />}
 
       <DailyList
         groups={optimisticGroups}

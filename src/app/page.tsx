@@ -35,6 +35,7 @@ export default async function Home({
         modes={view.modes}
         projects={view.projects}
         sections={view.sections}
+        staleRunningTask={view.staleRunningTask}
       />
     </>
   );

@@ -1,7 +1,35 @@
 import { describe, expect, it } from "vitest";
 import type { Task } from "@/domain/task/task";
 import { inMemoryTaskRepository as inMemoryRepo } from "./testing/in-memory-task-repository";
-import { addTask, renameTask, updateTaskEstimate } from "./daily-list-usecases";
+import type { ModeRepository } from "@/application/ports/mode-repository";
+import type { ProjectRepository } from "@/application/ports/project-repository";
+import type { SectionRepository } from "@/application/ports/section-repository";
+import type { TaskRepository } from "@/application/ports/task-repository";
+import {
+  addTask,
+  listDailyList,
+  renameTask,
+  updateTaskEstimate,
+} from "./daily-list-usecases";
+
+const emptySectionRepo: SectionRepository = {
+  listAll: async () => [],
+  create: async () => ({ id: 1, name: "", startTime: "00:00", isArchived: false }),
+  update: async () => {},
+  setArchived: async () => {},
+};
+const emptyModeRepo: ModeRepository = {
+  listAll: async () => [],
+  create: async () => ({ id: 1, name: "", color: "#000000", isArchived: false }),
+  update: async () => {},
+  setArchived: async () => {},
+};
+const emptyProjectRepo: ProjectRepository = {
+  listAll: async () => [],
+  create: async () => ({ id: 1, name: "", isArchived: false }),
+  update: async () => {},
+  setArchived: async () => {},
+};
 
 function task(over: Partial<Task> & { id: number }): Task {
   return {
@@ -107,5 +135,44 @@ describe("updateTaskEstimate（F-103: 見積もりのインライン編集）", 
       error: "invalid_estimate",
     });
     expect(repo.rows[0].estimateMinutes).toBe(30);
+  });
+});
+
+describe("listDailyList の警告対象（画面定義書01 §8: 前日以前の実行中タスク）", () => {
+  const deps = (tasks: TaskRepository) => ({
+    tasks,
+    sections: emptySectionRepo,
+    modes: emptyModeRepo,
+    projects: emptyProjectRepo,
+  });
+
+  it("実行中タスクが表示日より前ならバナー対象として返す", async () => {
+    const repo = inMemoryRepo([
+      task({ id: 1, taskDate: "2026-07-18", startedAt: new Date("2026-07-18T23:00:00Z") }),
+    ]);
+    const view = await listDailyList(deps(repo), "2026-07-19");
+    expect(view.staleRunningTask?.id).toBe(1);
+  });
+
+  it("実行中タスクが表示日と同じ日なら対象にしない", async () => {
+    const repo = inMemoryRepo([
+      task({ id: 1, taskDate: "2026-07-19", startedAt: new Date("2026-07-19T09:00:00Z") }),
+    ]);
+    const view = await listDailyList(deps(repo), "2026-07-19");
+    expect(view.staleRunningTask).toBeNull();
+  });
+
+  it("未来日を表示中に当日の実行中タスクがあっても対象にする（放置の検知が目的）", async () => {
+    const repo = inMemoryRepo([
+      task({ id: 1, taskDate: "2026-07-19", startedAt: new Date("2026-07-19T09:00:00Z") }),
+    ]);
+    const view = await listDailyList(deps(repo), "2026-07-20");
+    expect(view.staleRunningTask?.id).toBe(1);
+  });
+
+  it("実行中タスクがなければ対象なし", async () => {
+    const repo = inMemoryRepo([task({ id: 1, taskDate: "2026-07-18" })]);
+    const view = await listDailyList(deps(repo), "2026-07-19");
+    expect(view.staleRunningTask).toBeNull();
   });
 });

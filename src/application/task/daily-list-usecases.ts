@@ -27,6 +27,8 @@ export type DailyListDeps = Readonly<{
 export type DailyListView = Readonly<{
   date: LogicalDate;
   groups: readonly DailyGroup[];
+  /** 表示日より前に放置されている実行中タスク（画面定義書01 §8 の警告バナー用） */
+  staleRunningTask: Task | null;
   /** タスク行のモード色・プロジェクト名やポップオーバーの選択肢に使う（アーカイブ済みも含む） */
   modes: readonly Mode[];
   projects: readonly Project[];
@@ -37,14 +39,25 @@ export async function listDailyList(
   deps: DailyListDeps,
   date: LogicalDate
 ): Promise<DailyListView> {
-  const [tasks, sections, modes, projects] = await Promise.all([
+  const [tasks, sections, modes, projects, running] = await Promise.all([
     deps.tasks.listByDate(date),
     deps.sections.listAll(),
     deps.modes.listAll(),
     deps.projects.listAll(),
+    deps.tasks.findRunning(),
   ]);
 
-  return { date, groups: groupTasksBySection(tasks, sections), modes, projects, sections };
+  // 実行中タスクが表示日より前の日付にあるなら、終了打刻の失念として警告する（§8）
+  const staleRunningTask = running !== null && running.taskDate < date ? running : null;
+
+  return {
+    date,
+    groups: groupTasksBySection(tasks, sections),
+    modes,
+    projects,
+    sections,
+    staleRunningTask,
+  };
 }
 
 /**
