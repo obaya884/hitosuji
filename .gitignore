@@ -45,3 +45,6 @@ next-env.d.ts
 
 # allow env template
 !.env.example
+
+# Claude Code ローカル状態
+.claude/scheduled_tasks.lock
