@@ -1,7 +1,7 @@
 // デイリーリストの表示順（画面定義書01 §3.2 / データモデル定義書 §3.5）
 // 表示順は「セクション（start_time 順）→ sort_order」。未分類はリスト先頭のインボックス
 import { sectionRanges, sortByStartTime, type Section } from "../section/section";
-import type { Task } from "./task";
+import type { Task, TaskId } from "./task";
 
 export type DailyGroup = Readonly<{
   /** null = 未分類（インボックス） */
@@ -68,4 +68,19 @@ export function withTaskAppended(
   return groups.map((g) =>
     g === unclassified ? { ...g, tasks: [...g.tasks, task] } : g
   );
+}
+
+/**
+ * 指定タスクを差し替えた新しいグループ列を返す（楽観的更新のインライン編集用）。
+ * 並び順は変えない（編集で位置は動かない）
+ */
+export function withTaskUpdated(
+  groups: readonly DailyGroup[],
+  taskId: TaskId,
+  update: (task: Task) => Task
+): DailyGroup[] {
+  return groups.map((group) => ({
+    ...group,
+    tasks: group.tasks.map((t) => (t.id === taskId ? update(t) : t)),
+  }));
 }

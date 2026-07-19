@@ -4,9 +4,19 @@ import { useOptimistic, useState, useTransition } from "react";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { LogicalDate } from "@/domain/shared/logical-date";
-import { withTaskAppended, type DailyGroup } from "@/domain/task/daily-list";
+import {
+  withTaskAppended,
+  withTaskUpdated,
+  type DailyGroup,
+} from "@/domain/task/daily-list";
+import { validateEstimateMinutes, validateTaskName } from "@/domain/task/task-edit";
 import type { Task } from "@/domain/task/task";
-import { addTaskAction } from "@/app/actions";
+import {
+  addTaskAction,
+  renameTaskAction,
+  updateTaskEstimateAction,
+  type DailyActionResult,
+} from "@/app/actions";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { DailyList } from "./daily-list";
 
@@ -17,7 +27,30 @@ type Props = Readonly<{
   projects: readonly Project[];
 }>;
 
-/** 楽観的更新（N-01）で先に表示する仮タスク。負のIDでサーバ確定前だと分かるようにする */
+// 楽観的更新（N-01）: 永続化を待たずに画面へ反映し、失敗時はサーバ状態へ巻き戻す
+type OptimisticAction =
+  | Readonly<{ type: "append"; task: Task }>
+  | Readonly<{ type: "rename"; id: number; name: string }>
+  | Readonly<{ type: "estimate"; id: number; minutes: number }>;
+
+function applyOptimisticAction(
+  groups: readonly DailyGroup[],
+  action: OptimisticAction
+): DailyGroup[] {
+  switch (action.type) {
+    case "append":
+      return withTaskAppended(groups, action.task);
+    case "rename":
+      return withTaskUpdated(groups, action.id, (t) => ({ ...t, name: action.name }));
+    case "estimate":
+      return withTaskUpdated(groups, action.id, (t) => ({
+        ...t,
+        estimateMinutes: action.minutes,
+      }));
+  }
+}
+
+/** 楽観的更新で先に表示する仮タスク。負のIDでサーバ確定前だと分かるようにする */
 function optimisticTask(date: LogicalDate, name: string): Task {
   return {
     id: -Date.now(),
@@ -38,13 +71,19 @@ function optimisticTask(date: LogicalDate, name: string): Task {
 }
 
 export function DailyBoard({ date, groups, modes, projects }: Props) {
-  const [optimisticGroups, appendOptimistic] = useOptimistic(
-    groups,
-    (current: readonly DailyGroup[], task: Task) => withTaskAppended(current, task)
-  );
+  const [optimisticGroups, dispatchOptimistic] = useOptimistic(groups, applyOptimisticAction);
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+
+  function run(optimistic: OptimisticAction, action: () => Promise<DailyActionResult>) {
+    setError(null);
+    startTransition(async () => {
+      dispatchOptimistic(optimistic);
+      const result = await action();
+      if (!result.ok) setError(result.message);
+    });
+  }
 
   // §3.4: Enter で追加 → 欄はクリアされフォーカスは残る（連続追加）。空のままの Enter は何もしない
   function add() {
@@ -52,12 +91,32 @@ export function DailyBoard({ date, groups, modes, projects }: Props) {
     if (trimmed === "") return;
 
     setName("");
-    setError(null);
-    startTransition(async () => {
-      appendOptimistic(optimisticTask(date, trimmed));
-      const result = await addTaskAction({ date, name: trimmed });
-      if (!result.ok) setError(result.message);
-    });
+    run({ type: "append", task: optimisticTask(date, trimmed) }, () =>
+      addTaskAction({ date, name: trimmed })
+    );
+  }
+
+  function rename(task: Task, raw: string) {
+    const validated = validateTaskName(raw);
+    if (!validated.ok) return; // 空名は確定不可（§8）。編集は破棄して元の名前に戻る
+    if (validated.value === task.name) return;
+
+    run({ type: "rename", id: task.id, name: validated.value }, () =>
+      renameTaskAction(task.id, validated.value)
+    );
+  }
+
+  function setEstimate(task: Task, raw: string) {
+    const validated = validateEstimateMinutes(raw);
+    if (!validated.ok) {
+      setError("見積もりは分（0以上の整数）で入力してください");
+      return;
+    }
+    if (validated.value === task.estimateMinutes) return;
+
+    run({ type: "estimate", id: task.id, minutes: validated.value }, () =>
+      updateTaskEstimateAction(task.id, raw)
+    );
   }
 
   const onKeyDown = inlineEditKeyHandler({
@@ -84,7 +143,13 @@ export function DailyBoard({ date, groups, modes, projects }: Props) {
         </p>
       )}
 
-      <DailyList groups={optimisticGroups} modes={modes} projects={projects} />
+      <DailyList
+        groups={optimisticGroups}
+        modes={modes}
+        projects={projects}
+        onRename={rename}
+        onEstimate={setEstimate}
+      />
     </>
   );
 }

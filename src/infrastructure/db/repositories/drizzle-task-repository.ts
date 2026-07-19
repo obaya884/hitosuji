@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import type { NewTask, TaskRepository } from "@/application/ports/task-repository";
 import type { LogicalDate } from "@/domain/shared/logical-date";
-import type { Task } from "@/domain/task/task";
+import type { Task, TaskId } from "@/domain/task/task";
 import { db as defaultDb, type Database } from "@/infrastructure/db";
 import { tasks } from "@/infrastructure/db/schema";
 
@@ -36,6 +36,17 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
     async create(input: NewTask) {
       const [row] = await db.insert(tasks).values(input).returning();
       return toDomain(row);
+    },
+
+    async rename(id: TaskId, name: string) {
+      await db.update(tasks).set({ name, updatedAt: new Date() }).where(eq(tasks.id, id));
+    },
+
+    async updateEstimate(id: TaskId, estimateMinutes: number) {
+      await db
+        .update(tasks)
+        .set({ estimateMinutes, updatedAt: new Date() })
+        .where(eq(tasks.id, id));
     },
   };
 }

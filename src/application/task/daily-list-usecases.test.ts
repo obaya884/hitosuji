@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { NewTask, TaskRepository } from "@/application/ports/task-repository";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import type { Task } from "@/domain/task/task";
-import { addTask } from "./daily-list-usecases";
+import { addTask, renameTask, updateTaskEstimate } from "./daily-list-usecases";
 
 // 古典学派: Port の契約を満たすインメモリ実装（アーキテクチャ定義書 §8）
 function inMemoryRepo(initial: readonly Task[] = []): TaskRepository & { rows: Task[] } {
@@ -24,6 +24,14 @@ function inMemoryRepo(initial: readonly Task[] = []): TaskRepository & { rows: T
       };
       rows.push(created);
       return created;
+    },
+    rename: async (id: number, name: string) => {
+      const i = rows.findIndex((r) => r.id === id);
+      rows[i] = { ...rows[i], name };
+    },
+    updateEstimate: async (id: number, estimateMinutes: number) => {
+      const i = rows.findIndex((r) => r.id === id);
+      rows[i] = { ...rows[i], estimateMinutes };
     },
   };
 }
@@ -95,5 +103,42 @@ describe("addTask（F-102 / 画面定義書01 §3.4: クイック追加）", () 
     const repo = inMemoryRepo();
     const result = await addTask(repo, { date: "2026-07-19", name: " 朝食 " });
     expect(result.ok && result.value.name).toBe("朝食");
+  });
+});
+
+describe("renameTask（F-102: タスク名のインライン編集）", () => {
+  it("前後の空白を除いて改名する", async () => {
+    const repo = inMemoryRepo([task({ id: 1, name: "旧名" })]);
+    expect((await renameTask(repo, 1, " 新名 ")).ok).toBe(true);
+    expect(repo.rows[0].name).toBe("新名");
+  });
+
+  it("空の名前では改名しない（§8: 確定不可）", async () => {
+    const repo = inMemoryRepo([task({ id: 1, name: "旧名" })]);
+    expect(await renameTask(repo, 1, "  ")).toEqual({ ok: false, error: "name_required" });
+    expect(repo.rows[0].name).toBe("旧名");
+  });
+});
+
+describe("updateTaskEstimate（F-103: 見積もりのインライン編集）", () => {
+  it("分の整数を保存する", async () => {
+    const repo = inMemoryRepo([task({ id: 1, estimateMinutes: 0 })]);
+    expect((await updateTaskEstimate(repo, 1, "45")).ok).toBe(true);
+    expect(repo.rows[0].estimateMinutes).toBe(45);
+  });
+
+  it("空入力は未設定（0分）へ戻す", async () => {
+    const repo = inMemoryRepo([task({ id: 1, estimateMinutes: 30 })]);
+    expect((await updateTaskEstimate(repo, 1, "")).ok).toBe(true);
+    expect(repo.rows[0].estimateMinutes).toBe(0);
+  });
+
+  it("非数値・負値では保存しない（§8: 確定不可）", async () => {
+    const repo = inMemoryRepo([task({ id: 1, estimateMinutes: 30 })]);
+    expect(await updateTaskEstimate(repo, 1, "-10")).toEqual({
+      ok: false,
+      error: "invalid_estimate",
+    });
+    expect(repo.rows[0].estimateMinutes).toBe(30);
   });
 });

@@ -9,7 +9,12 @@ import type { LogicalDate } from "@/domain/shared/logical-date";
 import { err, ok, type Result } from "@/domain/shared/result";
 import { groupTasksBySection, type DailyGroup } from "@/domain/task/daily-list";
 import { appendSortOrder } from "@/domain/task/sort-order";
-import type { Task } from "@/domain/task/task";
+import {
+  validateEstimateMinutes,
+  validateTaskName,
+  type TaskEditError,
+} from "@/domain/task/task-edit";
+import type { Task, TaskId } from "@/domain/task/task";
 
 export type DailyListDeps = Readonly<{
   tasks: TaskRepository;
@@ -65,4 +70,28 @@ export async function addTask(
     sortOrder: appendSortOrder(unclassified),
   });
   return ok(created);
+}
+
+/** タスク名のインライン編集（F-102 / 画面定義書01 §3.3） */
+export async function renameTask(
+  repo: TaskRepository,
+  id: TaskId,
+  name: string
+): Promise<Result<TaskId, TaskEditError>> {
+  const validated = validateTaskName(name);
+  if (!validated.ok) return validated;
+  await repo.rename(id, validated.value);
+  return ok(id);
+}
+
+/** 見積もりのインライン編集（F-103 / 画面定義書01 §3.3。分の整数入力） */
+export async function updateTaskEstimate(
+  repo: TaskRepository,
+  id: TaskId,
+  rawMinutes: string
+): Promise<Result<TaskId, TaskEditError>> {
+  const validated = validateEstimateMinutes(rawMinutes);
+  if (!validated.ok) return validated;
+  await repo.updateEstimate(id, validated.value);
+  return ok(id);
 }
