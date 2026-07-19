@@ -37,7 +37,7 @@ import {
   type DailyActionResult,
 } from "@/app/actions";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
-import { inputBase } from "@/app/_lib/ui";
+import { inputBase, noticeDanger } from "@/app/_lib/ui";
 import { useNow } from "@/app/_lib/use-now";
 import { DailyList, type EditField, type EditingCell } from "./daily-list";
 import { DailySummary } from "./daily-summary";
@@ -513,7 +513,7 @@ export function DailyBoard({
       </div>
 
       {error !== null && (
-        <p className="mt-2 rounded-control border border-line bg-danger-weak px-3 py-2 text-sm text-danger">
+        <p className={`mt-2 ${noticeDanger}`}>
           {error}
         </p>
       )}

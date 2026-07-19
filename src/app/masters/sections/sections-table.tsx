@@ -2,7 +2,13 @@
 
 import { useState, useTransition } from "react";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
-import { btnSecondary, inputBase, linkAccent, linkMuted } from "@/app/_lib/ui";
+import {
+  btnSecondary,
+  inputBase,
+  linkAccent,
+  linkMuted,
+  noticeDanger,
+} from "@/app/_lib/ui";
 import { PlusIcon } from "@/app/_components/icons";
 import type { Section } from "@/domain/section/section";
 import type { ActionResult } from "../_lib/action-result";
@@ -110,7 +116,7 @@ export function SectionsTable({ ranges, archived }: Props) {
       </div>
 
       {error !== null && (
-        <p className="mt-2 rounded-control border border-line bg-danger-weak px-3 py-2 text-sm text-danger">
+        <p className={`mt-2 ${noticeDanger}`}>
           {error}
         </p>
       )}

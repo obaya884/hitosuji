@@ -16,3 +16,7 @@ export const inputBase =
 
 export const floatPanel =
   "rounded-float border border-line bg-surface shadow-float";
+
+// エラー・警告の帯（Server Action の失敗、前日以前の実行中タスク等）
+export const noticeDanger =
+  "rounded-control border border-danger-line bg-danger-weak px-3 py-2 text-sm text-danger";

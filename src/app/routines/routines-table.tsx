@@ -7,7 +7,7 @@ import { describeRecurrence, type Routine } from "@/domain/routine/routine";
 import type { RoutineInput } from "@/domain/routine/routine-input";
 import { sectionAt, type Section } from "@/domain/section/section";
 import { formatEstimate } from "@/app/_lib/format";
-import { btnSecondary, linkAccent, linkMuted } from "@/app/_lib/ui";
+import { btnSecondary, linkAccent, linkMuted, noticeDanger } from "@/app/_lib/ui";
 import { PlusIcon } from "@/app/_components/icons";
 import {
   createRoutineAction,
@@ -70,7 +70,7 @@ export function RoutinesTable({ routines, modes, projects, sections, today }: Pr
       </div>
 
       {error !== null && (
-        <p className="mt-2 rounded-control border border-line bg-danger-weak px-3 py-2 text-sm text-danger">
+        <p className={`mt-2 ${noticeDanger}`}>
           {error}
         </p>
       )}

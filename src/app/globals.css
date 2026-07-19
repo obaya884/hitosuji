@@ -29,7 +29,8 @@
 
   /* 警告 */
   --color-danger: #b3452e; /* 見積超過・24時超・削除系 */
-  --color-danger-weak: #f7ece8;
+  --color-danger-weak: #f7ece8; /* 警告表示の地色 */
+  --color-danger-line: #e5c4b9; /* 警告表示の囲み罫（line と同程度の明度に寄せる） */
 
   /* フォント（layout.tsx の next/font 変数と連携） */
   --font-sans: var(--font-plex-sans), "Hiragino Sans", "Noto Sans JP",
