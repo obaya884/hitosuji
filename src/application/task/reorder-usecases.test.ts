@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { SectionRepository } from "@/application/ports/section-repository";
 import type { Section } from "@/domain/section/section";
 import type { Task } from "@/domain/task/task";
-import { moveTaskByOneStep, moveTaskTo } from "./reorder-usecases";
+import { moveTaskByOneStep, moveTaskTo, setTaskSection } from "./reorder-usecases";
 import { inMemoryTaskRepository } from "./testing/in-memory-task-repository";
 
 function task(over: Partial<Task> & { id: number }): Task {
@@ -141,5 +141,41 @@ describe("moveTaskByOneStep（画面定義書01 §6: Shift+J/K）", () => {
         { taskId: 99, date: "2026-07-19", step: 1 }
       )
     ).toEqual({ ok: false, error: "task_not_found" });
+  });
+});
+
+describe("setTaskSection（O-5: セクションの割り当て）", () => {
+  it("移動先セクションの末尾へ置く（データモデル定義書 §3.5）", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: null, sortOrder: 1000 }),
+      task({ id: 2, sectionId: 1, sortOrder: 1000 }),
+      task({ id: 3, sectionId: 1, sortOrder: 2000 }),
+    ]);
+
+    await setTaskSection(repo, { taskId: 1, date: "2026-07-19", sectionId: 1 });
+
+    const moved = repo.rows.find((t) => t.id === 1);
+    expect([moved?.sectionId, moved?.sortOrder]).toEqual([1, 3000]);
+  });
+
+  it("未分類（null）へ戻せる", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 1, sortOrder: 1000 }),
+      task({ id: 2, sectionId: null, sortOrder: 1000 }),
+    ]);
+
+    await setTaskSection(repo, { taskId: 1, date: "2026-07-19", sectionId: null });
+
+    const moved = repo.rows.find((t) => t.id === 1);
+    expect([moved?.sectionId, moved?.sortOrder]).toEqual([null, 2000]);
+  });
+
+  it("空のセクションへ割り当てられる", async () => {
+    const repo = inMemoryTaskRepository([task({ id: 1, sectionId: null, sortOrder: 1000 })]);
+
+    await setTaskSection(repo, { taskId: 1, date: "2026-07-19", sectionId: 2 });
+
+    const moved = repo.rows.find((t) => t.id === 1);
+    expect([moved?.sectionId, moved?.sortOrder]).toEqual([2, 1000]);
   });
 });

@@ -3,6 +3,7 @@
 import { useEffect, useOptimistic, useState, useTransition } from "react";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
+import type { Section } from "@/domain/section/section";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import {
   withTaskAppended,
@@ -20,6 +21,9 @@ import {
   moveTaskAction,
   moveTaskByStepAction,
   renameTaskAction,
+  setTaskModeAction,
+  setTaskProjectAction,
+  setTaskSectionAction,
   startTaskAction,
   updateTaskEstimateAction,
   updateTaskPunchAction,
@@ -34,6 +38,7 @@ type Props = Readonly<{
   groups: readonly DailyGroup[];
   modes: readonly Mode[];
   projects: readonly Project[];
+  sections: readonly Section[];
 }>;
 
 // 楽観的更新（N-01）: 永続化を待たずに画面へ反映し、失敗時はサーバ状態へ巻き戻す
@@ -48,7 +53,9 @@ type OptimisticAction =
       type: "move";
       id: number;
       destination: Readonly<{ sectionId: number | null; index: number }>;
-    }>;
+    }>
+  | Readonly<{ type: "mode"; id: number; modeId: number | null }>
+  | Readonly<{ type: "project"; id: number; projectId: number | null }>;
 
 function applyOptimisticAction(
   groups: readonly DailyGroup[],
@@ -77,6 +84,10 @@ function applyOptimisticAction(
       }));
     case "move":
       return withTaskMoved(groups, action.id, action.destination);
+    case "mode":
+      return withTaskUpdated(groups, action.id, (t) => ({ ...t, modeId: action.modeId }));
+    case "project":
+      return withTaskUpdated(groups, action.id, (t) => ({ ...t, projectId: action.projectId }));
   }
 }
 
@@ -107,7 +118,7 @@ function optimisticTask(date: LogicalDate, name: string): Task {
   };
 }
 
-export function DailyBoard({ date, groups, modes, projects }: Props) {
+export function DailyBoard({ date, groups, modes, projects, sections }: Props) {
   const [optimisticGroups, dispatchOptimistic] = useOptimistic(groups, applyOptimisticAction);
   const [name, setName] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -204,6 +215,26 @@ export function DailyBoard({ date, groups, modes, projects }: Props) {
     );
   }
 
+  /** モード・プロジェクト・セクションの割り当て（O-5） */
+  function assign(task: Task, field: "mode" | "project" | "section", id: number | null) {
+    if (field === "mode") {
+      run({ type: "mode", id: task.id, modeId: id }, () => setTaskModeAction(task.id, id));
+      return;
+    }
+    if (field === "project") {
+      run({ type: "project", id: task.id, projectId: id }, () =>
+        setTaskProjectAction(task.id, id)
+      );
+      return;
+    }
+    // セクション移動は移動先末尾への並び替えを伴うため、採番はサーバに委ねる
+    setError(null);
+    startTransition(async () => {
+      const result = await setTaskSectionAction({ taskId: task.id, date, sectionId: id });
+      if (!result.ok) setError(result.message);
+    });
+  }
+
   /** Shift+J/K での並び替え（画面定義書01 §6）。採番はサーバが決めるので楽観更新はしない */
   function moveByStep(step: 1 | -1) {
     if (selectedId === null) return;
@@ -262,6 +293,8 @@ export function DailyBoard({ date, groups, modes, projects }: Props) {
         onPunch={punch}
         onEditPunch={editPunch}
         onMove={move}
+        sections={sections}
+        onAssign={assign}
         selectedId={selectedId}
         onSelect={setSelectedId}
         now={now}

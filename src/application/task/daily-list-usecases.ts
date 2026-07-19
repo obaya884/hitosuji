@@ -5,6 +5,7 @@ import type { SectionRepository } from "@/application/ports/section-repository";
 import type { TaskRepository } from "@/application/ports/task-repository";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
+import type { Section } from "@/domain/section/section";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import { err, ok, type Result } from "@/domain/shared/result";
 import { groupTasksBySection, type DailyGroup } from "@/domain/task/daily-list";
@@ -26,9 +27,10 @@ export type DailyListDeps = Readonly<{
 export type DailyListView = Readonly<{
   date: LogicalDate;
   groups: readonly DailyGroup[];
-  /** タスク行のモード色・プロジェクト名の解決に使う（アーカイブ済みも含む） */
+  /** タスク行のモード色・プロジェクト名やポップオーバーの選択肢に使う（アーカイブ済みも含む） */
   modes: readonly Mode[];
   projects: readonly Project[];
+  sections: readonly Section[];
 }>;
 
 export async function listDailyList(
@@ -42,7 +44,7 @@ export async function listDailyList(
     deps.projects.listAll(),
   ]);
 
-  return { date, groups: groupTasksBySection(tasks, sections), modes, projects };
+  return { date, groups: groupTasksBySection(tasks, sections), modes, projects, sections };
 }
 
 /**
@@ -93,5 +95,25 @@ export async function updateTaskEstimate(
   const validated = validateEstimateMinutes(rawMinutes);
   if (!validated.ok) return validated;
   await repo.updateEstimate(id, validated.value);
+  return ok(id);
+}
+
+/** モードの割り当て（O-5 / F-401）。null で未設定に戻す */
+export async function setTaskMode(
+  repo: TaskRepository,
+  id: TaskId,
+  modeId: number | null
+): Promise<Result<TaskId, TaskEditError>> {
+  await repo.updateClassification(id, { modeId });
+  return ok(id);
+}
+
+/** プロジェクトの割り当て（O-5 / F-402）。null で未設定に戻す */
+export async function setTaskProject(
+  repo: TaskRepository,
+  id: TaskId,
+  projectId: number | null
+): Promise<Result<TaskId, TaskEditError>> {
+  await repo.updateClassification(id, { projectId });
   return ok(id);
 }

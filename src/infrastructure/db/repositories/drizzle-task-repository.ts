@@ -100,6 +100,16 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
       await db.update(tasks).set({ endedAt, updatedAt: new Date() }).where(eq(tasks.id, id));
     },
 
+    async updateClassification(
+      id: TaskId,
+      classification: Readonly<{ modeId?: number | null; projectId?: number | null }>
+    ) {
+      await db
+        .update(tasks)
+        .set({ ...classification, updatedAt: new Date() })
+        .where(eq(tasks.id, id));
+    },
+
     // 振り直しを伴う場合も含め、並びの更新は1トランザクションで反映する
     async move(command: MoveCommand) {
       const { taskId, sectionId, sortOrder, renumber } = command;

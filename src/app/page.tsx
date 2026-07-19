@@ -35,6 +35,7 @@ export default async function Home({
         groups={view.groups}
         modes={view.modes}
         projects={view.projects}
+        sections={view.sections}
       />
     </>
   );

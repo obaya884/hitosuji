@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import {
   addTask,
   renameTask,
+  setTaskMode,
+  setTaskProject,
   updateTaskEstimate,
 } from "@/application/task/daily-list-usecases";
 import {
@@ -15,6 +17,7 @@ import type { LogicalDate } from "@/domain/shared/logical-date";
 import {
   moveTaskByOneStep,
   moveTaskTo,
+  setTaskSection,
 } from "@/application/task/reorder-usecases";
 import { createSectionRepository } from "@/infrastructure/db/repositories/drizzle-section-repository";
 import { createTaskRepository } from "@/infrastructure/db/repositories/drizzle-task-repository";
@@ -118,6 +121,34 @@ export async function moveTaskByStepAction(
     { tasks: taskRepo, sections: sectionRepo },
     input
   );
+  if (!result.ok) return { ok: false, message: REORDER_ERROR_MESSAGES[result.error] };
+  revalidatePath("/");
+  return { ok: true };
+}
+
+/** モード・プロジェクト・セクションの割り当て（O-5） */
+export async function setTaskModeAction(
+  id: number,
+  modeId: number | null
+): Promise<DailyActionResult> {
+  await setTaskMode(taskRepo, id, modeId);
+  revalidatePath("/");
+  return { ok: true };
+}
+
+export async function setTaskProjectAction(
+  id: number,
+  projectId: number | null
+): Promise<DailyActionResult> {
+  await setTaskProject(taskRepo, id, projectId);
+  revalidatePath("/");
+  return { ok: true };
+}
+
+export async function setTaskSectionAction(
+  input: Readonly<{ taskId: number; date: LogicalDate; sectionId: number | null }>
+): Promise<DailyActionResult> {
+  const result = await setTaskSection(taskRepo, input);
   if (!result.ok) return { ok: false, message: REORDER_ERROR_MESSAGES[result.error] };
   revalidatePath("/");
   return { ok: true };

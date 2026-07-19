@@ -85,6 +85,14 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
       rows[i] = { ...rows[i], endedAt };
     },
 
+    updateClassification: async (
+      id: TaskId,
+      classification: Readonly<{ modeId?: number | null; projectId?: number | null }>
+    ) => {
+      const i = indexOf(id);
+      rows[i] = { ...rows[i], ...classification };
+    },
+
     move: async (command: MoveCommand) => {
       for (const { taskId, sortOrder } of command.renumber ?? []) {
         const i = indexOf(taskId);

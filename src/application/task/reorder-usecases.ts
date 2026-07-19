@@ -49,3 +49,24 @@ export async function moveTaskByOneStep(
   await repos.tasks.move(reorder.value);
   return ok(input.taskId);
 }
+
+/**
+ * セクションの割り当て（O-5 / F-105）。
+ * 移動先セクションの末尾へ置く（データモデル定義書 §3.5: セクション移動は移動先末尾 +1000）
+ */
+export async function setTaskSection(
+  repo: TaskRepository,
+  input: Readonly<{ taskId: TaskId; date: LogicalDate; sectionId: number | null }>
+): Promise<Result<TaskId, ReorderUsecaseError>> {
+  const sameDay = await repo.listByDate(input.date);
+  const destinationSize = sameDay.filter(
+    (t) => t.sectionId === input.sectionId && t.id !== input.taskId
+  ).length;
+
+  return moveTaskTo(repo, {
+    taskId: input.taskId,
+    date: input.date,
+    sectionId: input.sectionId,
+    index: destinationSize,
+  });
+}

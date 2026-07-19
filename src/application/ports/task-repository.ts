@@ -51,4 +51,9 @@ export type TaskRepository = Readonly<{
   finish(id: TaskId, endedAt: Date): Promise<void>;
   /** 並び替え（O-6）。振り直しを伴う場合も1トランザクションで反映する */
   move(command: MoveCommand): Promise<void>;
+  /** モード・プロジェクトの割り当て（O-5） */
+  updateClassification(
+    id: TaskId,
+    classification: Readonly<{ modeId?: number | null; projectId?: number | null }>
+  ): Promise<void>;
 }>;
