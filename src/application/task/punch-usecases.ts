@@ -2,18 +2,10 @@
 import type { TaskRepository } from "@/application/ports/task-repository";
 import { err, ok, type Result } from "@/domain/shared/result";
 import { canFinish, canStart, resumeTaskDraft, type PunchError } from "@/domain/task/punch";
-import { insertBetweenSortOrder } from "@/domain/task/sort-order";
-import type { Task, TaskId } from "@/domain/task/task";
+import { placeNewTask } from "@/domain/task/placement";
+import type { TaskId } from "@/domain/task/task";
 
-export type PunchUsecaseError = PunchError | "task_not_found" | "needs_renumber";
-
-/** 同一セクション内で、対象タスクの直後にあるタスクの sort_order（なければ null） */
-function nextSortOrderInSection(sameDay: readonly Task[], target: Task): number | null {
-  const following = sameDay
-    .filter((t) => t.sectionId === target.sectionId && t.sortOrder > target.sortOrder)
-    .sort((a, b) => a.sortOrder - b.sortOrder);
-  return following.length === 0 ? null : following[0].sortOrder;
-}
+export type PunchUsecaseError = PunchError | "task_not_found";
 
 /**
  * 開始打刻（F-201）。実行中タスクが他にあれば割り込みとして扱い、
@@ -42,11 +34,10 @@ export async function startTask(
   // 再開タスクは開始タスクの直下（＝開始タスクと同じ日付・セクション）に置く。
   // 前日以前の実行中タスクを割り込んだ場合も当日側に生成される（データモデル定義書 §4.2）
   const sameDay = await repo.listByDate(target.taskDate);
-  const placed = insertBetweenSortOrder(
-    target.sortOrder,
-    nextSortOrderInSection(sameDay, target)
-  );
-  if (!placed.ok) return err("needs_renumber");
+  const group = sameDay
+    .filter((t) => t.sectionId === target.sectionId)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+  const placed = placeNewTask(group, target.sectionId, group.findIndex((t) => t.id === target.id) + 1);
 
   const draft = resumeTaskDraft(running, input.now);
   await repo.start({
@@ -62,9 +53,10 @@ export async function startTask(
         sectionId: target.sectionId,
         modeId: draft.modeId,
         projectId: draft.projectId,
-        sortOrder: placed.value,
+        sortOrder: placed.sortOrder,
         splitParentId: draft.splitParentId,
       },
+      renumber: placed.renumber,
     },
   });
   return ok(target.id);

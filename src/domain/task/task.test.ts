@@ -28,9 +28,18 @@ describe("actualMinutes（データモデル定義書 §3.5: 実績 = ended_at �
     expect(actualMinutes(t)).toBe(18);
   });
 
-  it("1分未満は0分に丸める（表示は 0:00。--:-- にはしない）", () => {
-    const t = task({ id: 1, startedAt, endedAt: new Date("2026-07-19T08:00:20Z") });
-    expect(actualMinutes(t)).toBe(0);
+  it("1分未満は常に0分（切り捨て。画面定義書01 §3.3: 表示は 0:00）", () => {
+    const short = task({ id: 1, startedAt, endedAt: new Date("2026-07-19T08:00:20Z") });
+    expect(actualMinutes(short)).toBe(0);
+
+    // 45秒は四捨五入だと1分になってしまうため、切り捨てであることを固定する
+    const almostAMinute = task({ id: 1, startedAt, endedAt: new Date("2026-07-19T08:00:45Z") });
+    expect(actualMinutes(almostAMinute)).toBe(0);
+  });
+
+  it("端数は切り捨てる（1分59秒は1分）", () => {
+    const t = task({ id: 1, startedAt, endedAt: new Date("2026-07-19T08:01:59Z") });
+    expect(actualMinutes(t)).toBe(1);
   });
 
   it("未実行・実行中は実績を持たない", () => {
@@ -43,6 +52,11 @@ describe("elapsedMinutes（F-205: 実行中タスクの経過時間）", () => {
   it("実行中タスクの経過を現在時刻から求める", () => {
     const t = task({ id: 1, startedAt });
     expect(elapsedMinutes(t, new Date("2026-07-19T08:12:00Z"))).toBe(12);
+  });
+
+  it("経過も端数は切り捨てる（開始直後は0分）", () => {
+    const t = task({ id: 1, startedAt });
+    expect(elapsedMinutes(t, new Date("2026-07-19T08:00:45Z"))).toBe(0);
   });
 
   it("未実行・完了タスクは経過を持たない", () => {

@@ -1,6 +1,9 @@
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import type { Task, TaskId } from "@/domain/task/task";
 
+/** 採番の振り直し。挿入・移動と同じトランザクションで反映する（データモデル定義書 §3.5） */
+export type Renumber = readonly Readonly<{ taskId: TaskId; sortOrder: number }>[];
+
 /** 新規タスクの永続化入力（id・打刻・created_at 等は永続化側が決める） */
 export type NewTask = Readonly<{
   taskDate: LogicalDate;
@@ -25,6 +28,7 @@ export type StartCommand = Readonly<{
     runningTaskId: TaskId;
     endedAt: Date;
     resumeTask: NewTask;
+    renumber: Renumber | null;
   }> | null;
 }>;
 
@@ -34,7 +38,7 @@ export type MoveCommand = Readonly<{
   sectionId: number | null;
   sortOrder: number;
   /** 中間値が尽きた場合の同一グループの振り直し */
-  renumber: readonly Readonly<{ taskId: TaskId; sortOrder: number }>[] | null;
+  renumber: Renumber | null;
 }>;
 
 /** 中断（F-204）: 実行中タスクの終了と再開タスクの生成を1トランザクションで行う */
@@ -42,6 +46,8 @@ export type SuspendCommand = Readonly<{
   taskId: TaskId;
   endedAt: Date;
   resumeTask: NewTask;
+  /** 中間値が尽きた場合の同一グループの振り直し（データモデル定義書 §3.5） */
+  renumber: Renumber | null;
 }>;
 
 export type TaskRepository = Readonly<{
@@ -50,7 +56,7 @@ export type TaskRepository = Readonly<{
   findById(id: TaskId): Promise<Task | null>;
   /** 実行中タスクは全日付を通じて最大1件（データモデル定義書 §3.5） */
   findRunning(): Promise<Task | null>;
-  create(input: NewTask): Promise<Task>;
+  create(input: NewTask, renumber?: Renumber | null): Promise<Task>;
   rename(id: TaskId, name: string): Promise<void>;
   updateEstimate(id: TaskId, estimateMinutes: number): Promise<void>;
   start(command: StartCommand): Promise<void>;

@@ -23,14 +23,20 @@ export type Task = Readonly<{
   postponedCount: number;
 }>;
 
-/** 実績時間（分）。完了タスクのみ求まる（データモデル定義書 §3.5） */
+/**
+ * 実績時間（分）。完了タスクのみ求まる（データモデル定義書 §3.5）。
+ * 満たない分は切り捨てる（画面定義書01 §3.3: 1分未満の実績は 0:00 と表示する）
+ */
 export function actualMinutes(task: Task): number | null {
   if (task.startedAt === null || task.endedAt === null) return null;
-  return Math.round((task.endedAt.getTime() - task.startedAt.getTime()) / 60000);
+  return Math.floor((task.endedAt.getTime() - task.startedAt.getTime()) / 60000);
 }
 
-/** 実行中タスクの経過時間（分）。現在時刻は引数で受け取る（domain は now を持たない） */
+/**
+ * 実行中タスクの経過時間（分）。現在時刻は引数で受け取る（domain は now を持たない）。
+ * 実績と同じく切り捨て（「n分経過」は n 分を満たしてから表示する）
+ */
 export function elapsedMinutes(task: Task, now: Date): number | null {
   if (task.startedAt === null || task.endedAt !== null) return null;
-  return Math.round((now.getTime() - task.startedAt.getTime()) / 60000);
+  return Math.floor((now.getTime() - task.startedAt.getTime()) / 60000);
 }

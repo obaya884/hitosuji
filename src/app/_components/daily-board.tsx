@@ -269,12 +269,12 @@ export function DailyBoard({
       );
       return;
     }
-    // セクション移動は移動先末尾への並び替えを伴うため、採番はサーバに委ねる
-    setError(null);
-    startTransition(async () => {
-      const result = await setTaskSectionAction({ taskId: task.id, date, sectionId: id });
-      if (!result.ok) setError(result.message);
-    });
+    // セクション移動は移動先末尾への並び替え。表示上の位置はクライアントで決まるので楽観更新する
+    const destination = optimisticGroups.find((g) => (g.section?.id ?? null) === id);
+    run(
+      { type: "move", id: task.id, destination: { sectionId: id, index: destination?.tasks.length ?? 0 } },
+      () => setTaskSectionAction({ taskId: task.id, date, sectionId: id })
+    );
   }
 
   /** 中断・複製・先送り・削除（F-204 / F-111 / F-107 / O-8） */
@@ -318,14 +318,39 @@ export function DailyBoard({
     });
   }
 
-  /** Shift+J/K での並び替え（画面定義書01 §6）。採番はサーバが決めるので楽観更新はしない */
+  /**
+   * Shift+J/K での並び替え（画面定義書01 §6）。N-01 が0ms目標に挙げる操作なので楽観更新する。
+   * 移動先はサーバ（moveTaskByStep）と同じ規則で求める: グループ内で1つ動かし、
+   * 端に達したら隣のセクションへ移る（タスク0件のセクションも移動先になる）
+   */
   function moveByStep(step: 1 | -1) {
     if (selectedId === null) return;
-    setError(null);
-    startTransition(async () => {
-      const result = await moveTaskByStepAction({ taskId: selectedId, date, step });
-      if (!result.ok) setError(result.message);
-    });
+
+    const groupIndex = optimisticGroups.findIndex((g) =>
+      g.tasks.some((t) => t.id === selectedId)
+    );
+    if (groupIndex === -1) return;
+
+    const group = optimisticGroups[groupIndex];
+    const positionInGroup = group.tasks.findIndex((t) => t.id === selectedId);
+    const nextPosition = positionInGroup + step;
+
+    let destination: Readonly<{ sectionId: number | null; index: number }>;
+    if (nextPosition >= 0 && nextPosition < group.tasks.length) {
+      destination = { sectionId: group.section?.id ?? null, index: nextPosition };
+    } else {
+      const neighborGroup = optimisticGroups[groupIndex + step];
+      if (neighborGroup === undefined) return; // リスト全体の端では動かさない
+      destination = {
+        // 下へ動くなら移動先の先頭、上へ動くなら移動先の末尾に入る
+        sectionId: neighborGroup.section?.id ?? null,
+        index: step === 1 ? 0 : neighborGroup.tasks.length,
+      };
+    }
+
+    run({ type: "move", id: selectedId, destination }, () =>
+      moveTaskByStepAction({ taskId: selectedId, date, step })
+    );
   }
 
   const onKeyDown = inlineEditKeyHandler({
@@ -365,9 +390,13 @@ export function DailyBoard({
       if (e.shiftKey) {
         switch (e.key) {
           case "J":
+          case "ArrowDown":
+            e.preventDefault(); // Shift+矢印の既定動作（選択範囲の拡張）を抑える
             moveByStep(1);
             return;
           case "K":
+          case "ArrowUp":
+            e.preventDefault();
             moveByStep(-1);
             return;
           case "H":

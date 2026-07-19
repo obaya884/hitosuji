@@ -70,7 +70,6 @@ const PUNCH_ERROR_MESSAGES: Record<string, string> = {
   already_started: "このタスクはすでに開始済みです",
   not_running: "実行中のタスクではありません",
   ended_before_started: "終了時刻が開始時刻より前になります",
-  needs_renumber: "並び順の再採番が必要です。時間をおいて再試行してください",
   invalid_time: "時刻は HH:MM 形式で入力してください",
   not_punched: "打刻されていないため修正できません",
   no_started_at: "開始時刻のないタスクに終了時刻は設定できません",
@@ -179,7 +178,7 @@ export async function suspendTaskAction(id: number, now: Date): Promise<DailyAct
 export async function duplicateTaskAction(
   id: number
 ): Promise<Readonly<{ ok: true; createdId: number } | { ok: false; message: string }>> {
-  const result = await duplicateTask(taskRepo, { taskId: id });
+  const result = await duplicateTask({ tasks: taskRepo, sections: sectionRepo }, { taskId: id });
   if (!result.ok) return { ok: false, message: OPERATION_ERROR_MESSAGES[result.error] };
   revalidatePath("/");
   return { ok: true, createdId: result.value.id };

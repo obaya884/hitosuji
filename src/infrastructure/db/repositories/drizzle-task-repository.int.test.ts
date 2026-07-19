@@ -97,6 +97,7 @@ describe("start の割り込み（F-201: 終了・再開タスク生成・開始
           sortOrder: 3000,
           splitParentId: running.id,
         },
+        renumber: null,
       },
     });
 
@@ -135,6 +136,7 @@ describe("start の割り込み（F-201: 終了・再開タスク生成・開始
             sortOrder: 3000,
             splitParentId: running.id,
           },
+          renumber: null,
         },
       })
     ).rejects.toThrow();
@@ -184,6 +186,7 @@ describe("suspend（F-204: 終了と再開タスク生成を1トランザクシ�
         sortOrder: 2000,
         splitParentId: running.id,
       },
+      renumber: null,
     });
 
     const after = await repo.listByDate("2026-07-19");
@@ -231,5 +234,66 @@ describe("delete / restore（O-8: 削除と取り消し）", () => {
     expect(restored[0]).toEqual(
       expect.objectContaining({ name: "消すタスク", startedAt, endedAt })
     );
+  });
+});
+
+describe("create の振り直し（データモデル定義書 §3.5: 中間値が尽きたとき）", () => {
+  it("振り直しと挿入が同じトランザクションで反映される", async () => {
+    const [first, second] = await db
+      .insert(tasks)
+      .values([
+        { taskDate: "2026-07-19", name: "A", sortOrder: 1000 },
+        { taskDate: "2026-07-19", name: "B", sortOrder: 1001 },
+      ])
+      .returning();
+
+    await repo.create(
+      {
+        taskDate: "2026-07-19",
+        name: "割り込み",
+        estimateMinutes: 0,
+        sectionId: null,
+        modeId: null,
+        projectId: null,
+        sortOrder: 2000,
+      },
+      [
+        { taskId: first.id, sortOrder: 1000 },
+        { taskId: second.id, sortOrder: 3000 },
+      ]
+    );
+
+    const after = (await repo.listByDate("2026-07-19")).sort((a, b) => a.sortOrder - b.sortOrder);
+    expect(after.map((t) => [t.name, t.sortOrder])).toEqual([
+      ["A", 1000],
+      ["割り込み", 2000],
+      ["B", 3000],
+    ]);
+  });
+
+  it("挿入に失敗したら振り直しも巻き戻る", async () => {
+    const [first] = await db
+      .insert(tasks)
+      .values({ taskDate: "2026-07-19", name: "A", sortOrder: 1000 })
+      .returning();
+
+    await expect(
+      repo.create(
+        {
+          taskDate: "2026-07-19",
+          name: "不正",
+          estimateMinutes: 0,
+          sectionId: 999999, // 存在しないセクション → FK違反
+          modeId: null,
+          projectId: null,
+          sortOrder: 2000,
+        },
+        [{ taskId: first.id, sortOrder: 5000 }]
+      )
+    ).rejects.toThrow();
+
+    const after = await repo.listByDate("2026-07-19");
+    expect(after).toHaveLength(1);
+    expect(after[0].sortOrder).toBe(1000); // 振り直しが巻き戻っている
   });
 });

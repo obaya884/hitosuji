@@ -2,6 +2,7 @@ import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import type {
   MoveCommand,
   NewTask,
+  Renumber,
   StartCommand,
   SuspendCommand,
   TaskRepository,
@@ -12,6 +13,18 @@ import { db as defaultDb, type Database } from "@/infrastructure/db";
 import { tasks } from "@/infrastructure/db/schema";
 
 type Row = typeof tasks.$inferSelect;
+
+/** 振り直しをまとめて適用する（呼び出し側のトランザクション内で使う） */
+async function applyRenumber(
+  tx: Pick<Database, "update">,
+  renumber: Renumber | null | undefined
+): Promise<void> {
+  if (renumber === undefined || renumber === null) return;
+  const now = new Date();
+  for (const row of renumber) {
+    await tx.update(tasks).set({ sortOrder: row.sortOrder, updatedAt: now }).where(eq(tasks.id, row.taskId));
+  }
+}
 
 function toDomain(row: Row): Task {
   return {
@@ -39,9 +52,18 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
       return rows.map(toDomain);
     },
 
-    async create(input: NewTask) {
-      const [row] = await db.insert(tasks).values(input).returning();
-      return toDomain(row);
+    async create(input: NewTask, renumber?: Renumber | null) {
+      if (renumber === undefined || renumber === null) {
+        const [row] = await db.insert(tasks).values(input).returning();
+        return toDomain(row);
+      }
+
+      // 振り直しと挿入は同じトランザクションで反映する（データモデル定義書 §3.5）
+      return await db.transaction(async (tx) => {
+        await applyRenumber(tx, renumber);
+        const [row] = await tx.insert(tasks).values(input).returning();
+        return toDomain(row);
+      });
     },
 
     async rename(id: TaskId, name: string) {
@@ -81,6 +103,7 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
 
       await db.transaction(async (tx) => {
         const now = new Date();
+        await applyRenumber(tx, interruption.renumber);
         await tx
           .update(tasks)
           .set({ endedAt: interruption.endedAt, updatedAt: now })
@@ -105,6 +128,7 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
     async suspend(command: SuspendCommand) {
       await db.transaction(async (tx) => {
         const now = new Date();
+        await applyRenumber(tx, command.renumber);
         await tx
           .update(tasks)
           .set({ endedAt: command.endedAt, updatedAt: now })
@@ -158,12 +182,7 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
       }
 
       await db.transaction(async (tx) => {
-        for (const row of renumber) {
-          await tx
-            .update(tasks)
-            .set({ sortOrder: row.sortOrder, updatedAt: now })
-            .where(eq(tasks.id, row.taskId));
-        }
+        await applyRenumber(tx, renumber);
         await tx
           .update(tasks)
           .set({ sectionId, sortOrder, updatedAt: now })

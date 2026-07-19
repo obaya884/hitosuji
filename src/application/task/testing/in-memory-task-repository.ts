@@ -3,6 +3,7 @@
 import type {
   MoveCommand,
   NewTask,
+  Renumber,
   StartCommand,
   SuspendCommand,
   TaskRepository,
@@ -28,7 +29,11 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
     findRunning: async () =>
       rows.find((r) => r.startedAt !== null && r.endedAt === null) ?? null,
 
-    create: async (input: NewTask) => {
+    create: async (input: NewTask, renumber?: Renumber | null) => {
+      for (const row of renumber ?? []) {
+        const i = indexOf(row.taskId);
+        rows[i] = { ...rows[i], sortOrder: row.sortOrder };
+      }
       const created: Task = {
         id: nextId++,
         splitParentId: null,
@@ -56,6 +61,10 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
     start: async (command: StartCommand) => {
       const { taskId, startedAt, interruption } = command;
       if (interruption !== null) {
+        for (const row of interruption.renumber ?? []) {
+          const j = indexOf(row.taskId);
+          rows[j] = { ...rows[j], sortOrder: row.sortOrder };
+        }
         const running = indexOf(interruption.runningTaskId);
         rows[running] = { ...rows[running], endedAt: interruption.endedAt };
         rows.push({
@@ -87,6 +96,10 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
     },
 
     suspend: async (command: SuspendCommand) => {
+      for (const row of command.renumber ?? []) {
+        const j = indexOf(row.taskId);
+        rows[j] = { ...rows[j], sortOrder: row.sortOrder };
+      }
       const i = indexOf(command.taskId);
       rows[i] = { ...rows[i], endedAt: command.endedAt };
       rows.push({

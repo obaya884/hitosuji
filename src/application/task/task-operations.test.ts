@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import type { SectionRepository } from "@/application/ports/section-repository";
+import type { Section } from "@/domain/section/section";
 import { taskStatus } from "@/domain/task/status";
 import type { Task } from "@/domain/task/task";
 import {
@@ -71,25 +73,62 @@ describe("suspendTask（F-204: 中断）", () => {
 });
 
 describe("duplicateTask（F-111: 複製）", () => {
+  // 挿入位置は1日のリスト全体の表示順で決まり、section_id は挿入位置のセクションに従う
+  const sections: Section[] = [
+    { id: 1, name: "朝", startTime: "06:00", isArchived: false },
+    { id: 2, name: "午前", startTime: "09:00", isArchived: false },
+  ];
+  const sectionRepo: SectionRepository = {
+    listAll: async () => sections,
+    create: async () => sections[0],
+    update: async () => {},
+    setArchived: async () => {},
+  };
+  const repos = (tasks: ReturnType<typeof inMemoryTaskRepository>) => ({
+    tasks,
+    sections: sectionRepo,
+  });
+
   it("実行中タスクがあればその直後へ挿入する", async () => {
     const repo = inMemoryTaskRepository([
-      task({ id: 1, startedAt, endedAt: now, sortOrder: 1000 }),
-      task({ id: 2, startedAt, sortOrder: 2000 }), // 実行中
-      task({ id: 3, sortOrder: 3000 }),
+      task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }),
+      task({ id: 2, sectionId: 1, startedAt, sortOrder: 2000 }), // 実行中
+      task({ id: 3, sectionId: 1, sortOrder: 3000 }),
     ]);
 
-    const result = await duplicateTask(repo, { taskId: 1 });
+    const result = await duplicateTask(repos(repo), { taskId: 1 });
     expect(result.ok && result.value.sortOrder).toBe(2500); // 実行中(2000)の直後
   });
 
   it("実行中がなければ最初の未実行タスクの直前へ挿入する", async () => {
     const repo = inMemoryTaskRepository([
-      task({ id: 1, startedAt, endedAt: now, sortOrder: 1000 }),
-      task({ id: 2, sortOrder: 2000 }), // 最初の未実行
+      task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }),
+      task({ id: 2, sectionId: 1, sortOrder: 2000 }), // 最初の未実行
     ]);
 
-    const result = await duplicateTask(repo, { taskId: 1 });
+    const result = await duplicateTask(repos(repo), { taskId: 1 });
     expect(result.ok && result.value.sortOrder).toBe(1500);
+  });
+
+  it("挿入位置が別セクションなら section_id もそのセクションに従う", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }), // 朝・完了
+      task({ id: 2, sectionId: 2, startedAt, sortOrder: 1000 }), // 午前・実行中
+    ]);
+
+    // 朝のタスクを複製すると、実行中タスク（午前）の直後に入る
+    const result = await duplicateTask(repos(repo), { taskId: 1 });
+    expect(result.ok && [result.value.sectionId, result.value.sortOrder]).toEqual([2, 2000]);
+  });
+
+  it("すべて完了ならリスト末尾（最後のセクション）へ挿入する", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }),
+      task({ id: 2, sectionId: 2, startedAt, endedAt: now, sortOrder: 1000 }),
+    ]);
+
+    const result = await duplicateTask(repos(repo), { taskId: 1 });
+    expect(result.ok && result.value.sectionId).toBe(2);
   });
 
   it("完了タスクを複製しても未実行タスクとして作られる（見積もりは満額）", async () => {
@@ -97,7 +136,7 @@ describe("duplicateTask（F-111: 複製）", () => {
       task({ id: 1, estimateMinutes: 45, startedAt, endedAt: now }),
     ]);
 
-    const result = await duplicateTask(repo, { taskId: 1 });
+    const result = await duplicateTask(repos(repo), { taskId: 1 });
     expect(result.ok && result.value).toEqual(
       expect.objectContaining({
         estimateMinutes: 45,
@@ -111,8 +150,21 @@ describe("duplicateTask（F-111: 複製）", () => {
 
   it("ルーチン由来のタスクを複製しても routine_id は引き継がない（冪等制約に抵触するため）", async () => {
     const repo = inMemoryTaskRepository([task({ id: 1, routineId: 9 })]);
-    const result = await duplicateTask(repo, { taskId: 1 });
+    const result = await duplicateTask(repos(repo), { taskId: 1 });
     expect(result.ok && result.value.routineId).toBeNull();
+  });
+
+  it("中間値が尽きたら振り直しを伴って挿入する（操作は失敗しない）", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }),
+      task({ id: 2, sectionId: 1, sortOrder: 1001 }), // 最初の未実行。1000との間に隙間がない
+    ]);
+
+    const result = await duplicateTask(repos(repo), { taskId: 1 });
+    expect(result.ok).toBe(true);
+
+    const ordered = [...repo.rows].sort((a, b) => a.sortOrder - b.sortOrder);
+    expect(ordered.map((t) => t.id)).toEqual([1, 3, 2]); // 複製(id:3)が id:2 の直前に入る
   });
 });
 

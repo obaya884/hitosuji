@@ -22,7 +22,8 @@ export function duplicateDraft(original: Task): DuplicateDraft {
 /**
  * 挿入位置「未実施のトップ」を求める（F-111）。
  * 実行中タスクがあればその直後、なければ表示順で最初の未実行タスクの直前、
- * いずれもなければリスト末尾。返り値は同一グループ内の挿入インデックス
+ * いずれもなければリスト末尾。**1日のリスト全体の表示順**に対して求める
+ * （section_id は挿入位置のセクションに従うため、元タスクと別セクションになりうる）
  */
 export function insertionIndexForDuplicate(orderedTasks: readonly Task[]): number {
   const runningIndex = orderedTasks.findIndex((t) => taskStatus(t) === "running");

@@ -113,3 +113,14 @@ export function withTaskMoved(
       : g
   );
 }
+
+/**
+ * 1日のタスクを表示順（セクション → sort_order）に並べる。
+ * 複製の挿入位置（F-111）のように、リスト全体の並びが要る処理で使う
+ */
+export function orderTasksForDisplay(
+  tasks: readonly Task[],
+  sections: readonly Section[]
+): Task[] {
+  return groupTasksBySection(tasks, sections).flatMap((g) => g.tasks);
+}

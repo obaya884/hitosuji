@@ -118,6 +118,18 @@ describe("moveTaskByStep（画面定義書01 §6: Shift+J/K で1つずつ移動�
     expect(r.ok && [r.value.sectionId, r.value.sortOrder]).toEqual([null, 2000]);
   });
 
+  it("タスク0件のセクションへも移動できる（空セクションも表示されるため）", () => {
+    // セクション2（午前）にタスクがない状態で、セクション1の末尾から下へ動かす
+    const r = moveTaskByStep(tasks, 3, 1, SECTION_ORDER);
+    expect(r.ok && [r.value.sectionId, r.value.sortOrder]).toEqual([2, 1000]);
+  });
+
+  it("空セクションを跨いでも1つずつ移動する（一気に飛ばさない）", () => {
+    const inEmptyNeighbor = [task({ id: 1, sectionId: 1, sortOrder: 1000 })];
+    const first = moveTaskByStep(inEmptyNeighbor, 1, 1, SECTION_ORDER);
+    expect(first.ok && first.value.sectionId).toBe(2); // 朝 → 午前（空）
+  });
+
   it("リスト全体の先頭・末尾では動かさない", () => {
     const first = moveTaskByStep(tasks, 1, -1, [1, 2]);
     expect(first.ok && first.value.sortOrder).toBe(1000); // 変化なし
