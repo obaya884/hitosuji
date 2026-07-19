@@ -27,4 +27,6 @@ export type RoutineRepository = Readonly<{
    * `ON CONFLICT (routine_id, task_date) DO NOTHING` で既展開分は無視される
    */
   expand(seeds: readonly RoutineTaskSeed[]): Promise<number>;
+  /** 指定日にスキップされているルーチン（F-304 / データモデル定義書 §3.6） */
+  listSkippedOn(date: LogicalDate): Promise<RoutineId[]>;
 }>;

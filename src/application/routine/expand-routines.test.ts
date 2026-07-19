@@ -61,7 +61,7 @@ function task(over: Partial<Task> & { id: number }): Task {
 }
 
 /** 展開された種を記録するだけのリポジトリ（永続化の冪等性は統合テストで検証済み） */
-function recordingRoutineRepo(all: readonly Routine[]) {
+function recordingRoutineRepo(all: readonly Routine[], skipped: readonly number[] = []) {
   const expanded: RoutineTaskSeed[] = [];
   const repo: RoutineRepository = {
     listAll: async () => [...all],
@@ -74,6 +74,7 @@ function recordingRoutineRepo(all: readonly Routine[]) {
       expanded.push(...seeds);
       return seeds.length;
     },
+    listSkippedOn: async () => [...skipped],
   };
   return { repo, expanded };
 }
@@ -172,6 +173,21 @@ describe("expandRoutinesFor（データモデル定義書 §4.1）", () => {
       )
     ).toBe(0);
     expect(expanded).toEqual([]);
+  });
+
+  it("その日にスキップされたルーチンは展開しない（F-304 / §3.6）", async () => {
+    const { repo, expanded } = recordingRoutineRepo(
+      [routine({ id: 1 }), routine({ id: 2 })],
+      [1] // ルーチン1はスキップ済み
+    );
+
+    await expandRoutinesFor(
+      { routines: repo, sections: sectionRepo, tasks: inMemoryTaskRepository() },
+      TODAY,
+      TODAY
+    );
+
+    expect(expanded.map((s) => s.routineId)).toEqual([2]);
   });
 
   it("有効セクションがなければ未分類へ置く", async () => {

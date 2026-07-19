@@ -4,6 +4,7 @@ import type {
   MoveCommand,
   NewTask,
   Renumber,
+  RoutineSkip,
   StartCommand,
   SuspendCommand,
   TaskRepository,
@@ -11,16 +12,26 @@ import type {
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import type { Task, TaskId } from "@/domain/task/task";
 
-export type InMemoryTaskRepository = TaskRepository & { readonly rows: Task[] };
+export type InMemoryTaskRepository = TaskRepository & {
+  readonly rows: Task[];
+  /** 記録されたルーチンスキップ（F-304 の検証用） */
+  readonly skips: RoutineSkip[];
+};
+
+function sameSkip(a: RoutineSkip, b: RoutineSkip): boolean {
+  return a.routineId === b.routineId && a.taskDate === b.taskDate;
+}
 
 export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryTaskRepository {
   const rows = [...initial];
+  const skips: RoutineSkip[] = [];
   let nextId = Math.max(0, ...rows.map((r) => r.id)) + 1;
 
   const indexOf = (id: TaskId) => rows.findIndex((r) => r.id === id);
 
   return {
     rows,
+    skips,
 
     listByDate: async (date: LogicalDate) => rows.filter((r) => r.taskDate === date),
 
@@ -114,11 +125,16 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
       });
     },
 
-    delete: async (id: TaskId) => {
+    delete: async (id: TaskId, skip: RoutineSkip | null) => {
       rows.splice(indexOf(id), 1);
+      if (skip !== null && !skips.some((s) => sameSkip(s, skip))) skips.push(skip);
     },
 
-    restore: async (restored) => {
+    restore: async (restored, skip: RoutineSkip | null) => {
+      if (skip !== null) {
+        const i = skips.findIndex((s) => sameSkip(s, skip));
+        if (i !== -1) skips.splice(i, 1);
+      }
       const created: Task = { id: nextId++, ...restored };
       rows.push(created);
       return created;

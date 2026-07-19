@@ -7,7 +7,8 @@ import { normalizeStartTime } from "@/domain/section/section";
 import type { RecurrenceType, Routine, RoutineId } from "@/domain/routine/routine";
 import type { ValidRoutineInput } from "@/domain/routine/routine-input";
 import { db as defaultDb, type Database } from "@/infrastructure/db";
-import { routines, tasks } from "@/infrastructure/db/schema";
+import type { LogicalDate } from "@/domain/shared/logical-date";
+import { routineSkips, routines, tasks } from "@/infrastructure/db/schema";
 
 type Row = typeof routines.$inferSelect;
 
@@ -82,6 +83,14 @@ export function createRoutineRepository(db: Database = defaultDb): RoutineReposi
         .returning({ id: tasks.id });
 
       return inserted.length;
+    },
+
+    async listSkippedOn(date: LogicalDate) {
+      const rows = await db
+        .select({ routineId: routineSkips.routineId })
+        .from(routineSkips)
+        .where(eq(routineSkips.taskDate, date));
+      return rows.map((row) => row.routineId);
     },
   };
 }

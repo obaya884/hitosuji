@@ -1,6 +1,6 @@
 // 中断・複製・先送り・削除のユースケース（F-204 / F-111 / F-107 / O-8）
 import type { SectionRepository } from "@/application/ports/section-repository";
-import type { TaskRepository } from "@/application/ports/task-repository";
+import type { RoutineSkip, TaskRepository } from "@/application/ports/task-repository";
 import { addDays, type LogicalDate } from "@/domain/shared/logical-date";
 import { err, ok, type Result } from "@/domain/shared/result";
 import { duplicateDraft, insertionIndexForDuplicate } from "@/domain/task/duplicate";
@@ -124,7 +124,10 @@ export async function postponeTask(
   return ok(target.id);
 }
 
-/** 削除（O-8）。Undo はクライアント側で「削除前のタスクを作り直す」形で実現する */
+/**
+ * 削除（O-8）。Undo はクライアント側で「削除前のタスクを作り直す」形で実現する。
+ * ルーチン由来のタスクは、その日を再展開しないようスキップも記録する（F-304）
+ */
 export async function deleteTask(
   repo: TaskRepository,
   input: Readonly<{ taskId: TaskId }>
@@ -132,11 +135,21 @@ export async function deleteTask(
   const target = await repo.findById(input.taskId);
   if (target === null) return err("task_not_found");
 
-  await repo.delete(target.id);
+  await repo.delete(target.id, skipOf(target));
   return ok(target);
 }
 
-/** 削除の取り消し（O-8）。打刻・属性をそのままに復元する（id は採番し直される） */
+/** ルーチン由来のタスクなら、その日のスキップを表す（そうでなければ null） */
+function skipOf(task: Task): RoutineSkip | null {
+  return task.routineId === null
+    ? null
+    : { routineId: task.routineId, taskDate: task.taskDate };
+}
+
+/**
+ * 削除の取り消し（O-8）。打刻・属性をそのままに復元する（id は採番し直される）。
+ * ルーチン由来なら削除時に記録したスキップも解除する（F-304）
+ */
 export async function restoreTask(
   repo: TaskRepository,
   deleted: Task
@@ -144,5 +157,5 @@ export async function restoreTask(
   // id は復元先で採番し直されるので渡さない
   const { id, ...rest } = deleted;
   void id;
-  return ok(await repo.restore(rest));
+  return ok(await repo.restore(rest, skipOf(deleted)));
 }

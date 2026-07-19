@@ -2,7 +2,7 @@
 // 判定は純関数。実際の INSERT は infrastructure が冪等に行う
 import { compareByName } from "../shared/name-order";
 import { weekdayIndex, type LogicalDate } from "../shared/logical-date";
-import { hasWeekday, type Routine } from "./routine";
+import { hasWeekday, type Routine, type RoutineId } from "./routine";
 
 /** 論理日付の差（日数）。どちらも UTC 基準で解釈する */
 function daysBetween(from: LogicalDate, to: LogicalDate): number {
@@ -55,17 +55,21 @@ export function occursOn(routine: Routine, date: LogicalDate): boolean {
 
 /**
  * 日付 D に展開すべきルーチンを、生成順（開始想定時刻の昇順・同時刻は名前の自然順）で返す
- * （データモデル定義書 §4.1-2）。過去日は展開しない（§4.1-0）
+ * （データモデル定義書 §4.1-2）。過去日は展開しない（§4.1-0）。
+ * その日にスキップされたルーチンは除外する（F-304 / §3.6）
  */
 export function routinesToExpand(
   routines: readonly Routine[],
   date: LogicalDate,
-  today: LogicalDate
+  today: LogicalDate,
+  skippedRoutineIds: readonly RoutineId[] = []
 ): Routine[] {
   if (date < today) return []; // 過去日は展開しない
 
+  const skipped = new Set(skippedRoutineIds);
+
   return routines
-    .filter((routine) => occursOn(routine, date))
+    .filter((routine) => !skipped.has(routine.id) && occursOn(routine, date))
     .sort(
       (a, b) =>
         a.scheduledStartTime.localeCompare(b.scheduledStartTime) || compareByName(a, b)

@@ -25,12 +25,14 @@ export async function expandRoutinesFor(
 ): Promise<number> {
   if (date < today) return 0; // 過去日は展開しない（§4.1-0）
 
-  const [routines, sections] = await Promise.all([
+  const [routines, sections, skipped] = await Promise.all([
     deps.routines.listAll(),
     deps.sections.listAll(),
+    deps.routines.listSkippedOn(date),
   ]);
 
-  const targets = routinesToExpand(routines, date, today);
+  // その日にスキップされたルーチンは展開しない（F-304 / データモデル定義書 §3.6）
+  const targets = routinesToExpand(routines, date, today, skipped);
   if (targets.length === 0) return 0;
 
   const existing = await deps.tasks.listByDate(date);

@@ -85,6 +85,21 @@ export const routines = pgTable(
   ]
 );
 
+// §3.6 routine_skips — 特定日にそのルーチンを展開しない記録（F-304）。
+// 展開されたタスクの削除で作られ、削除の取り消しで解除される
+export const routineSkips = pgTable(
+  "routine_skips",
+  {
+    id: serial("id").primaryKey(),
+    routineId: integer("routine_id")
+      .notNull()
+      .references(() => routines.id, { onDelete: "cascade" }),
+    taskDate: date("task_date").notNull(),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("uq_routine_skips").on(t.routineId, t.taskDate)]
+);
+
 // §3.5 tasks — プランとログを兼ねる中心テーブル。状態カラムは持たず打刻から導出する
 export const tasks = pgTable(
   "tasks",

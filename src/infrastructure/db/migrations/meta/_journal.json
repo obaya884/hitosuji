@@ -8,6 +8,13 @@
       "when": 1784435188669,
       "tag": "0000_skinny_silver_samurai",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1784475848865,
+      "tag": "0001_light_vermin",
+      "breakpoints": true
     }
   ]
 }

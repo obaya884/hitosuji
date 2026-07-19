@@ -4,6 +4,9 @@ import type { Task, TaskId } from "@/domain/task/task";
 /** 採番の振り直し。挿入・移動と同じトランザクションで反映する（データモデル定義書 §3.5） */
 export type Renumber = readonly Readonly<{ taskId: TaskId; sortOrder: number }>[];
 
+/** 特定日のルーチンスキップ（F-304 / データモデル定義書 §3.6） */
+export type RoutineSkip = Readonly<{ routineId: number; taskDate: LogicalDate }>;
+
 /** 新規タスクの永続化入力（id・打刻・created_at 等は永続化側が決める） */
 export type NewTask = Readonly<{
   taskDate: LogicalDate;
@@ -66,9 +69,16 @@ export type TaskRepository = Readonly<{
   move(command: MoveCommand): Promise<void>;
   /** モード・プロジェクトの割り当て（O-5） */
   suspend(command: SuspendCommand): Promise<void>;
-  delete(id: TaskId): Promise<void>;
-  /** 削除の取り消し（O-8）。打刻を含めて復元する。id は採番し直される */
-  restore(task: Omit<Task, "id">): Promise<Task>;
+  /**
+   * 削除（O-8）。ルーチン由来のタスクを削除するときは、その日を再展開しないよう
+   * スキップも同じトランザクションで記録する（F-304 / データモデル定義書 §3.6）
+   */
+  delete(id: TaskId, skip: RoutineSkip | null): Promise<void>;
+  /**
+   * 削除の取り消し（O-8）。打刻を含めて復元する。id は採番し直される。
+   * スキップの記録があれば同じトランザクションで解除する
+   */
+  restore(task: Omit<Task, "id">, skip: RoutineSkip | null): Promise<Task>;
   /** 先送り（F-107）: task_date の付け替えと postponed_count の加算 */
   postpone(id: TaskId, input: Readonly<{ taskDate: LogicalDate; sortOrder: number }>): Promise<void>;
   updateClassification(

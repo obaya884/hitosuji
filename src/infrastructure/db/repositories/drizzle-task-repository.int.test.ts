@@ -1,5 +1,6 @@
+import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { sections, tasks } from "@/infrastructure/db/schema";
+import { routineSkips, routines, sections, tasks } from "@/infrastructure/db/schema";
 import { createTestDb, truncateAll } from "@/infrastructure/db/testing/test-db";
 import { createTaskRepository } from "./drizzle-task-repository";
 
@@ -222,18 +223,105 @@ describe("delete / restore（O-8: 削除と取り消し）", () => {
       .values({ taskDate: "2026-07-19", name: "消すタスク", sortOrder: 1000, startedAt, endedAt })
       .returning();
 
-    await repo.delete(target.id);
+    await repo.delete(target.id, null);
     expect(await repo.listByDate("2026-07-19")).toHaveLength(0);
 
     const { id, ...rest } = { ...target, taskDate: "2026-07-19" };
     void id;
-    await repo.restore({ ...rest, startedAt, endedAt });
+    await repo.restore({ ...rest, startedAt, endedAt }, null);
 
     const restored = await repo.listByDate("2026-07-19");
     expect(restored).toHaveLength(1);
     expect(restored[0]).toEqual(
       expect.objectContaining({ name: "消すタスク", startedAt, endedAt })
     );
+  });
+});
+
+describe("ルーチン由来タスクの削除とスキップ（F-304 / データモデル定義書 §3.6）", () => {
+  async function createRoutine() {
+    const [row] = await db
+      .insert(routines)
+      .values({
+        name: "朝食",
+        estimateMinutes: 20,
+        scheduledStartTime: "06:30",
+        recurrenceType: "daily",
+        startDate: "2026-07-19",
+      })
+      .returning();
+    return row;
+  }
+
+  it("削除すると同じトランザクションでスキップが記録される", async () => {
+    const routine = await createRoutine();
+    const [target] = await db
+      .insert(tasks)
+      .values({
+        taskDate: "2026-07-19",
+        name: "朝食",
+        sortOrder: 1000,
+        routineId: routine.id,
+      })
+      .returning();
+
+    await repo.delete(target.id, { routineId: routine.id, taskDate: "2026-07-19" });
+
+    expect(await repo.listByDate("2026-07-19")).toHaveLength(0);
+    expect(await db.select().from(routineSkips)).toEqual([
+      expect.objectContaining({ routineId: routine.id, taskDate: "2026-07-19" }),
+    ]);
+  });
+
+  it("復元するとスキップが解除される（再展開できる状態に戻る）", async () => {
+    const routine = await createRoutine();
+    const [target] = await db
+      .insert(tasks)
+      .values({
+        taskDate: "2026-07-19",
+        name: "朝食",
+        sortOrder: 1000,
+        routineId: routine.id,
+      })
+      .returning();
+    const skip = { routineId: routine.id, taskDate: "2026-07-19" };
+
+    await repo.delete(target.id, skip);
+    const { id, ...rest } = { ...target, taskDate: "2026-07-19" };
+    void id;
+    await repo.restore(rest, skip);
+
+    expect(await repo.listByDate("2026-07-19")).toHaveLength(1);
+    expect(await db.select().from(routineSkips)).toHaveLength(0);
+  });
+
+  it("同じ日に複数回スキップを記録しても1件（記録も冪等）", async () => {
+    const routine = await createRoutine();
+    const skip = { routineId: routine.id, taskDate: "2026-07-19" };
+
+    // 削除 → 再展開 → また削除、という流れでも記録は増えない
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const [task] = await db
+        .insert(tasks)
+        .values({ taskDate: "2026-07-19", name: "朝食", sortOrder: 1000, routineId: routine.id })
+        .returning();
+      await repo.delete(task.id, skip);
+    }
+
+    expect(await db.select().from(routineSkips)).toHaveLength(1);
+  });
+
+  it("ルーチンを削除するとスキップも消える（ON DELETE CASCADE）", async () => {
+    const routine = await createRoutine();
+    const [target] = await db
+      .insert(tasks)
+      .values({ taskDate: "2026-07-19", name: "朝食", sortOrder: 1000, routineId: routine.id })
+      .returning();
+
+    await repo.delete(target.id, { routineId: routine.id, taskDate: "2026-07-19" });
+    await db.delete(routines).where(eq(routines.id, routine.id));
+
+    expect(await db.select().from(routineSkips)).toHaveLength(0);
   });
 });
 

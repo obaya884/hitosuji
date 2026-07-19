@@ -3,6 +3,7 @@ import type {
   MoveCommand,
   NewTask,
   Renumber,
+  RoutineSkip,
   StartCommand,
   SuspendCommand,
   TaskRepository,
@@ -10,7 +11,7 @@ import type {
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import type { Task, TaskId } from "@/domain/task/task";
 import { db as defaultDb, type Database } from "@/infrastructure/db";
-import { tasks } from "@/infrastructure/db/schema";
+import { routineSkips, tasks } from "@/infrastructure/db/schema";
 
 type Row = typeof tasks.$inferSelect;
 
@@ -137,13 +138,39 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
       });
     },
 
-    async delete(id: TaskId) {
-      await db.delete(tasks).where(eq(tasks.id, id));
+    // ルーチン由来のタスクは削除とスキップ記録を1トランザクションで行う（F-304）
+    async delete(id: TaskId, skip: RoutineSkip | null) {
+      if (skip === null) {
+        await db.delete(tasks).where(eq(tasks.id, id));
+        return;
+      }
+
+      await db.transaction(async (tx) => {
+        await tx.delete(tasks).where(eq(tasks.id, id));
+        // 同じ日に何度削除しても記録は1件（uq_routine_skips）
+        await tx.insert(routineSkips).values(skip).onConflictDoNothing();
+      });
     },
 
-    async restore(restored: Omit<Task, "id">) {
-      const [row] = await db.insert(tasks).values(restored).returning();
-      return toDomain(row);
+    async restore(restored: Omit<Task, "id">, skip: RoutineSkip | null) {
+      if (skip === null) {
+        const [row] = await db.insert(tasks).values(restored).returning();
+        return toDomain(row);
+      }
+
+      // 復元するならスキップも解除する（解除しないと次の表示で重複展開を試みる）
+      return await db.transaction(async (tx) => {
+        await tx
+          .delete(routineSkips)
+          .where(
+            and(
+              eq(routineSkips.routineId, skip.routineId),
+              eq(routineSkips.taskDate, skip.taskDate)
+            )
+          );
+        const [row] = await tx.insert(tasks).values(restored).returning();
+        return toDomain(row);
+      });
     },
 
     async postpone(id: TaskId, input: Readonly<{ taskDate: LogicalDate; sortOrder: number }>) {

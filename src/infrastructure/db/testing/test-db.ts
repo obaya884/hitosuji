@@ -19,6 +19,6 @@ export function createTestDb(): { db: TestDb; pool: Pool } {
 // 全テーブルを空にする（beforeEach で呼ぶ。古典学派: テスト間の状態を実DBごとリセット）
 export async function truncateAll(db: TestDb): Promise<void> {
   await db.execute(
-    sql`TRUNCATE TABLE tasks, routines, sections, modes, projects RESTART IDENTITY CASCADE`
+    sql`TRUNCATE TABLE tasks, routine_skips, routines, sections, modes, projects RESTART IDENTITY CASCADE`
   );
 }
