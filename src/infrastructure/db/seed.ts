@@ -1,42 +1,64 @@
 // 初期データ投入（データモデル定義書 §5）。空テーブルにのみ投入する冪等スクリプト
-import { config } from "dotenv";
+import { pathToFileURL } from "node:url";
+import type { Database } from "./index";
+import { modes, sections } from "./schema";
 
-config({ path: [".env.local", ".env"], quiet: true });
+// 要件定義書 §8-2 で決定済みの初期セクション
+const SEED_SECTIONS = [
+  { name: "朝", startTime: "06:00" },
+  { name: "午前", startTime: "09:00" },
+  { name: "午後", startTime: "12:00" },
+  { name: "夜", startTime: "18:00" },
+  { name: "深夜", startTime: "00:00" },
+];
 
-async function main() {
-  const { db } = await import("./index");
-  const { sections, modes } = await import("./schema");
+// 色は画面定義書03 §3.2 のプリセットから選ぶ（プリセット外だと画面で編集できなくなる）
+const SEED_MODES = [
+  { name: "仕事", color: "#3b82f6" },
+  { name: "暮らし", color: "#22c55e" },
+  { name: "休憩", color: "#9ca3af" },
+];
 
+export type SeedResult = Readonly<{ sections: string; modes: string }>;
+
+export async function seedMasters(db: Database): Promise<SeedResult> {
   const existingSections = await db.select().from(sections);
   if (existingSections.length === 0) {
-    await db.insert(sections).values([
-      { name: "朝", startTime: "06:00" },
-      { name: "午前", startTime: "09:00" },
-      { name: "午後", startTime: "12:00" },
-      { name: "夜", startTime: "18:00" },
-      { name: "深夜", startTime: "00:00" },
-    ]);
-    console.log("sections: 初期データを投入しました");
-  } else {
-    console.log(`sections: ${existingSections.length}件存在するためスキップ`);
+    await db.insert(sections).values(SEED_SECTIONS);
   }
 
   const existingModes = await db.select().from(modes);
   if (existingModes.length === 0) {
-    await db.insert(modes).values([
-      { name: "仕事", color: "#3b82f6" },
-      { name: "暮らし", color: "#22c55e" },
-      { name: "休憩", color: "#9ca3af" },
-    ]);
-    console.log("modes: 初期データを投入しました");
-  } else {
-    console.log(`modes: ${existingModes.length}件存在するためスキップ`);
+    await db.insert(modes).values(SEED_MODES);
   }
 
+  return {
+    sections:
+      existingSections.length === 0
+        ? "初期データを投入しました"
+        : `${existingSections.length}件存在するためスキップ`,
+    modes:
+      existingModes.length === 0
+        ? "初期データを投入しました"
+        : `${existingModes.length}件存在するためスキップ`,
+  };
+}
+
+async function main() {
+  const { config } = await import("dotenv");
+  config({ path: [".env.local", ".env"], quiet: true });
+
+  const { db } = await import("./index");
+  const result = await seedMasters(db);
+  console.log(`sections: ${result.sections}`);
+  console.log(`modes: ${result.modes}`);
   process.exit(0);
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+// `npm run db:seed` で直接実行されたときだけ走らせる（テストからは import して使う）
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
+}
