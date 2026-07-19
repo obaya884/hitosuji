@@ -4,6 +4,7 @@ import type {
   MoveCommand,
   NewTask,
   StartCommand,
+  SuspendCommand,
   TaskRepository,
 } from "@/application/ports/task-repository";
 import type { LogicalDate } from "@/domain/shared/logical-date";
@@ -83,6 +84,41 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
     finish: async (id: TaskId, endedAt: Date) => {
       const i = indexOf(id);
       rows[i] = { ...rows[i], endedAt };
+    },
+
+    suspend: async (command: SuspendCommand) => {
+      const i = indexOf(command.taskId);
+      rows[i] = { ...rows[i], endedAt: command.endedAt };
+      rows.push({
+        id: nextId++,
+        splitParentId: null,
+        ...command.resumeTask,
+        startedAt: null,
+        endedAt: null,
+        comment: null,
+        routineId: null,
+        postponedCount: 0,
+      });
+    },
+
+    delete: async (id: TaskId) => {
+      rows.splice(indexOf(id), 1);
+    },
+
+    restore: async (restored) => {
+      const created: Task = { id: nextId++, ...restored };
+      rows.push(created);
+      return created;
+    },
+
+    postpone: async (id: TaskId, input) => {
+      const i = indexOf(id);
+      rows[i] = {
+        ...rows[i],
+        taskDate: input.taskDate,
+        sortOrder: input.sortOrder,
+        postponedCount: rows[i].postponedCount + 1,
+      };
     },
 
     updateClassification: async (

@@ -13,7 +13,15 @@ import {
   startTask,
   updateTaskPunch,
 } from "@/application/task/punch-usecases";
+import {
+  deleteTask,
+  duplicateTask,
+  postponeTask,
+  restoreTask,
+  suspendTask,
+} from "@/application/task/task-operations";
 import type { LogicalDate } from "@/domain/shared/logical-date";
+import type { Task } from "@/domain/task/task";
 import {
   moveTaskByOneStep,
   moveTaskTo,
@@ -150,6 +158,53 @@ export async function setTaskSectionAction(
 ): Promise<DailyActionResult> {
   const result = await setTaskSection(taskRepo, input);
   if (!result.ok) return { ok: false, message: REORDER_ERROR_MESSAGES[result.error] };
+  revalidatePath("/");
+  return { ok: true };
+}
+
+const OPERATION_ERROR_MESSAGES: Record<string, string> = {
+  ...PUNCH_ERROR_MESSAGES,
+  not_postponable: "先送りできるのは未実行タスクだけです",
+};
+
+/** 中断（F-204） */
+export async function suspendTaskAction(id: number, now: Date): Promise<DailyActionResult> {
+  const result = await suspendTask(taskRepo, { taskId: id, now });
+  if (!result.ok) return { ok: false, message: OPERATION_ERROR_MESSAGES[result.error] };
+  revalidatePath("/");
+  return { ok: true };
+}
+
+/** 複製（F-111） */
+export async function duplicateTaskAction(id: number): Promise<DailyActionResult> {
+  const result = await duplicateTask(taskRepo, { taskId: id });
+  if (!result.ok) return { ok: false, message: OPERATION_ERROR_MESSAGES[result.error] };
+  revalidatePath("/");
+  return { ok: true };
+}
+
+/** 先送り（F-107） */
+export async function postponeTaskAction(id: number): Promise<DailyActionResult> {
+  const result = await postponeTask(taskRepo, { taskId: id });
+  if (!result.ok) return { ok: false, message: OPERATION_ERROR_MESSAGES[result.error] };
+  revalidatePath("/");
+  return { ok: true };
+}
+
+/** 削除（O-8）。Undo のために削除したタスクを返す */
+export async function deleteTaskAction(
+  id: number
+): Promise<Readonly<{ ok: true; deleted: Task } | { ok: false; message: string }>> {
+  const result = await deleteTask(taskRepo, { taskId: id });
+  if (!result.ok) return { ok: false, message: OPERATION_ERROR_MESSAGES[result.error] };
+  revalidatePath("/");
+  return { ok: true, deleted: result.value };
+}
+
+/** 削除の取り消し（O-8） */
+export async function restoreTaskAction(deleted: Task): Promise<DailyActionResult> {
+  const result = await restoreTask(taskRepo, deleted);
+  if (!result.ok) return { ok: false, message: OPERATION_ERROR_MESSAGES[result.error] };
   revalidatePath("/");
   return { ok: true };
 }

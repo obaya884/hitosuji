@@ -37,6 +37,13 @@ export type MoveCommand = Readonly<{
   renumber: readonly Readonly<{ taskId: TaskId; sortOrder: number }>[] | null;
 }>;
 
+/** 中断（F-204）: 実行中タスクの終了と再開タスクの生成を1トランザクションで行う */
+export type SuspendCommand = Readonly<{
+  taskId: TaskId;
+  endedAt: Date;
+  resumeTask: NewTask;
+}>;
+
 export type TaskRepository = Readonly<{
   /** 表示日1日分のみ取得する（画面定義書01 §7 / N-08） */
   listByDate(date: LogicalDate): Promise<Task[]>;
@@ -52,6 +59,12 @@ export type TaskRepository = Readonly<{
   /** 並び替え（O-6）。振り直しを伴う場合も1トランザクションで反映する */
   move(command: MoveCommand): Promise<void>;
   /** モード・プロジェクトの割り当て（O-5） */
+  suspend(command: SuspendCommand): Promise<void>;
+  delete(id: TaskId): Promise<void>;
+  /** 削除の取り消し（O-8）。打刻を含めて復元する。id は採番し直される */
+  restore(task: Omit<Task, "id">): Promise<Task>;
+  /** 先送り（F-107）: task_date の付け替えと postponed_count の加算 */
+  postpone(id: TaskId, input: Readonly<{ taskDate: LogicalDate; sortOrder: number }>): Promise<void>;
   updateClassification(
     id: TaskId,
     classification: Readonly<{ modeId?: number | null; projectId?: number | null }>

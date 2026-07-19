@@ -1,8 +1,9 @@
-import { and, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import type {
   MoveCommand,
   NewTask,
   StartCommand,
+  SuspendCommand,
   TaskRepository,
 } from "@/application/ports/task-repository";
 import type { LogicalDate } from "@/domain/shared/logical-date";
@@ -98,6 +99,39 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
 
     async finish(id: TaskId, endedAt: Date) {
       await db.update(tasks).set({ endedAt, updatedAt: new Date() }).where(eq(tasks.id, id));
+    },
+
+    // 中断は「終了 → 再開タスク生成」を1トランザクションで行う（データモデル定義書 §4.2）
+    async suspend(command: SuspendCommand) {
+      await db.transaction(async (tx) => {
+        const now = new Date();
+        await tx
+          .update(tasks)
+          .set({ endedAt: command.endedAt, updatedAt: now })
+          .where(eq(tasks.id, command.taskId));
+        await tx.insert(tasks).values(command.resumeTask);
+      });
+    },
+
+    async delete(id: TaskId) {
+      await db.delete(tasks).where(eq(tasks.id, id));
+    },
+
+    async restore(restored: Omit<Task, "id">) {
+      const [row] = await db.insert(tasks).values(restored).returning();
+      return toDomain(row);
+    },
+
+    async postpone(id: TaskId, input: Readonly<{ taskDate: LogicalDate; sortOrder: number }>) {
+      await db
+        .update(tasks)
+        .set({
+          taskDate: input.taskDate,
+          sortOrder: input.sortOrder,
+          postponedCount: sql`${tasks.postponedCount} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(eq(tasks.id, id));
     },
 
     async updateClassification(

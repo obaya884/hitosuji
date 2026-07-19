@@ -161,3 +161,75 @@ describe("findRunning（実行中は全日付を通じて最大1件）", () => {
     expect(await repo.findRunning()).toBeNull();
   });
 });
+
+describe("suspend（F-204: 終了と再開タスク生成を1トランザクションで）", () => {
+  it("元タスクの終了と再開タスクの生成が両方反映される", async () => {
+    const startedAt = new Date("2026-07-19T08:48:00Z");
+    const endedAt = new Date("2026-07-19T09:00:00Z");
+    const [running] = await db
+      .insert(tasks)
+      .values({ taskDate: "2026-07-19", name: "執筆", estimateMinutes: 30, sortOrder: 1000, startedAt })
+      .returning();
+
+    await repo.suspend({
+      taskId: running.id,
+      endedAt,
+      resumeTask: {
+        taskDate: "2026-07-19",
+        name: "執筆",
+        estimateMinutes: 18,
+        sectionId: null,
+        modeId: null,
+        projectId: null,
+        sortOrder: 2000,
+        splitParentId: running.id,
+      },
+    });
+
+    const after = await repo.listByDate("2026-07-19");
+    expect(after.find((t) => t.id === running.id)?.endedAt).toEqual(endedAt);
+    expect(after.find((t) => t.splitParentId === running.id)).toEqual(
+      expect.objectContaining({ name: "執筆", estimateMinutes: 18, startedAt: null })
+    );
+  });
+});
+
+describe("postpone（F-107: 先送り）", () => {
+  it("task_date を付け替え postponed_count を加算する", async () => {
+    const [target] = await db
+      .insert(tasks)
+      .values({ taskDate: "2026-07-19", name: "先送り対象", sortOrder: 1000, postponedCount: 1 })
+      .returning();
+
+    await repo.postpone(target.id, { taskDate: "2026-07-20", sortOrder: 3000 });
+
+    expect(await repo.listByDate("2026-07-19")).toHaveLength(0);
+    expect((await repo.listByDate("2026-07-20"))[0]).toEqual(
+      expect.objectContaining({ taskDate: "2026-07-20", sortOrder: 3000, postponedCount: 2 })
+    );
+  });
+});
+
+describe("delete / restore（O-8: 削除と取り消し）", () => {
+  it("削除したタスクを打刻ごと復元できる", async () => {
+    const startedAt = new Date("2026-07-19T08:00:00Z");
+    const endedAt = new Date("2026-07-19T08:30:00Z");
+    const [target] = await db
+      .insert(tasks)
+      .values({ taskDate: "2026-07-19", name: "消すタスク", sortOrder: 1000, startedAt, endedAt })
+      .returning();
+
+    await repo.delete(target.id);
+    expect(await repo.listByDate("2026-07-19")).toHaveLength(0);
+
+    const { id, ...rest } = { ...target, taskDate: "2026-07-19" };
+    void id;
+    await repo.restore({ ...rest, startedAt, endedAt });
+
+    const restored = await repo.listByDate("2026-07-19");
+    expect(restored).toHaveLength(1);
+    expect(restored[0]).toEqual(
+      expect.objectContaining({ name: "消すタスク", startedAt, endedAt })
+    );
+  });
+});

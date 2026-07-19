@@ -9,6 +9,7 @@ import { taskStatus } from "@/domain/task/status";
 import { actualMinutes, elapsedMinutes, type Task } from "@/domain/task/task";
 import { formatClock, formatDuration, formatEstimate } from "@/app/_lib/format";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
+import { RowMenu } from "./row-menu";
 import { SelectPopover, type PopoverOption } from "./select-popover";
 
 type Props = Readonly<{
@@ -22,6 +23,7 @@ type Props = Readonly<{
   onMove: (taskId: number, destination: Readonly<{ sectionId: number | null; index: number }>) => void;
   sections: readonly Section[];
   onAssign: (task: Task, field: "mode" | "project" | "section", id: number | null) => void;
+  onOperate: (task: Task, operation: "suspend" | "duplicate" | "postpone" | "delete") => void;
   selectedId: number | null;
   onSelect: (taskId: number) => void;
   /** 毎分更新される現在時刻。実行中タスクの経過表示に使う（F-205） */
@@ -43,6 +45,7 @@ export function DailyList({
   onMove,
   sections,
   onAssign,
+  onOperate,
   selectedId,
   onSelect,
   now,
@@ -79,6 +82,7 @@ export function DailyList({
                 <th className="w-16 py-2 text-right font-normal">見積</th>
                 <th className="w-20 py-2 text-right font-normal">実績</th>
                 <th className="w-28 py-2 text-right font-normal">実施時間</th>
+                <th className="w-8 py-2 font-normal" />
               </tr>
             </thead>
             <tbody>
@@ -93,6 +97,7 @@ export function DailyList({
                   projects={projects}
                   sections={sections}
                   onAssign={onAssign}
+                  onOperate={onOperate}
                   isSelected={task.id === selectedId}
                   onSelect={onSelect}
                   mode={task.modeId === null ? undefined : modeById.get(task.modeId)}
@@ -167,6 +172,7 @@ function TaskRow({
   projects,
   sections,
   onAssign,
+  onOperate,
   isSelected,
   onSelect,
   onRename,
@@ -189,6 +195,7 @@ function TaskRow({
   projects: readonly Project[];
   sections: readonly Section[];
   onAssign: (task: Task, field: "mode" | "project" | "section", id: number | null) => void;
+  onOperate: (task: Task, operation: "suspend" | "duplicate" | "postpone" | "delete") => void;
   isSelected: boolean;
   onSelect: (taskId: number) => void;
   now: Date;
@@ -391,6 +398,32 @@ function TaskRow({
               )}
             </>
           ))}
+      </td>
+      <td className="w-8 py-3">
+        <RowMenu
+          items={[
+            {
+              label: "中断",
+              onSelect: () => onOperate(task, "suspend"),
+              disabled: status !== "running", // 実行中のみ（F-204）
+            },
+            { label: "複製", onSelect: () => onOperate(task, "duplicate") },
+            {
+              label: "翌日へ先送り",
+              onSelect: () => onOperate(task, "postpone"),
+              disabled: status !== "not_started", // 未実行のみ（F-107）
+            },
+            {
+              label: "削除",
+              onSelect: () => onOperate(task, "delete"),
+              // 打刻済みは確認ダイアログ（O-8）
+              confirmMessage:
+                status === "not_started"
+                  ? undefined
+                  : `「${task.name}」は打刻済みです。削除しますか？`,
+            },
+          ]}
+        />
       </td>
     </tr>
   );

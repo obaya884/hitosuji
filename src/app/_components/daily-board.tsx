@@ -17,10 +17,15 @@ import { validateEstimateMinutes, validateTaskName } from "@/domain/task/task-ed
 import type { Task } from "@/domain/task/task";
 import {
   addTaskAction,
+  deleteTaskAction,
+  duplicateTaskAction,
   finishTaskAction,
   moveTaskAction,
   moveTaskByStepAction,
+  postponeTaskAction,
   renameTaskAction,
+  restoreTaskAction,
+  suspendTaskAction,
   setTaskModeAction,
   setTaskProjectAction,
   setTaskSectionAction,
@@ -55,7 +60,8 @@ type OptimisticAction =
       destination: Readonly<{ sectionId: number | null; index: number }>;
     }>
   | Readonly<{ type: "mode"; id: number; modeId: number | null }>
-  | Readonly<{ type: "project"; id: number; projectId: number | null }>;
+  | Readonly<{ type: "project"; id: number; projectId: number | null }>
+  | Readonly<{ type: "remove"; id: number }>;
 
 function applyOptimisticAction(
   groups: readonly DailyGroup[],
@@ -88,6 +94,8 @@ function applyOptimisticAction(
       return withTaskUpdated(groups, action.id, (t) => ({ ...t, modeId: action.modeId }));
     case "project":
       return withTaskUpdated(groups, action.id, (t) => ({ ...t, projectId: action.projectId }));
+    case "remove":
+      return groups.map((g) => ({ ...g, tasks: g.tasks.filter((t) => t.id !== action.id) }));
   }
 }
 
@@ -122,6 +130,8 @@ export function DailyBoard({ date, groups, modes, projects, sections }: Props) {
   const [optimisticGroups, dispatchOptimistic] = useOptimistic(groups, applyOptimisticAction);
   const [name, setName] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  // 直前に削除したタスク（Undo 用。O-8）
+  const [deleted, setDeleted] = useState<Task | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
@@ -235,6 +245,42 @@ export function DailyBoard({ date, groups, modes, projects, sections }: Props) {
     });
   }
 
+  /** 中断・複製・先送り・削除（F-204 / F-111 / F-107 / O-8） */
+  function operate(task: Task, operation: "suspend" | "duplicate" | "postpone" | "delete") {
+    if (operation === "delete") {
+      run({ type: "remove", id: task.id }, async () => {
+        const result = await deleteTaskAction(task.id);
+        if (result.ok) setDeleted(result.deleted);
+        return result;
+      });
+      return;
+    }
+
+    // 生成物の採番はサーバが決めるため楽観更新はしない
+    setError(null);
+    startTransition(async () => {
+      const result =
+        operation === "suspend"
+          ? await suspendTaskAction(task.id, new Date())
+          : operation === "duplicate"
+            ? await duplicateTaskAction(task.id)
+            : await postponeTaskAction(task.id);
+      if (!result.ok) setError(result.message);
+    });
+  }
+
+  /** 削除の取り消し（O-8） */
+  function undoDelete() {
+    if (deleted === null) return;
+    const restoring = deleted;
+    setDeleted(null);
+    setError(null);
+    startTransition(async () => {
+      const result = await restoreTaskAction(restoring);
+      if (!result.ok) setError(result.message);
+    });
+  }
+
   /** Shift+J/K での並び替え（画面定義書01 §6）。採番はサーバが決めるので楽観更新はしない */
   function moveByStep(step: 1 | -1) {
     if (selectedId === null) return;
@@ -250,11 +296,23 @@ export function DailyBoard({ date, groups, modes, projects, sections }: Props) {
     onEscape: (input) => input.blur(), // Esc でフォーカスを外しリスト操作へ戻る
   });
 
+  // Undo トーストは5秒で消える（O-8）
+  useEffect(() => {
+    if (deleted === null) return;
+    const timeoutId = setTimeout(() => setDeleted(null), 5000);
+    return () => clearTimeout(timeoutId);
+  }, [deleted]);
+
   useEffect(() => {
     function onKeyDownGlobal(e: KeyboardEvent) {
       // テキスト入力中・IME変換中はショートカット無効（画面定義書01 §6）
       const target = e.target as HTMLElement | null;
       if (e.isComposing || target?.tagName === "INPUT" || target?.tagName === "TEXTAREA") return;
+      // U: 直前の削除を取り消す（画面定義書01 §6）
+      if (!e.shiftKey && (e.key === "u" || e.key === "U")) {
+        undoDelete();
+        return;
+      }
       if (!e.shiftKey) return;
 
       if (e.key === "J") moveByStep(1);
@@ -284,6 +342,16 @@ export function DailyBoard({ date, groups, modes, projects, sections }: Props) {
         </p>
       )}
 
+      {/* 削除の Undo トースト（O-8） */}
+      {deleted !== null && (
+        <div className="fixed bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded bg-gray-900 px-4 py-2 text-sm text-white shadow-lg">
+          <span>「{deleted.name}」を削除しました</span>
+          <button type="button" onClick={undoDelete} className="font-medium text-blue-300 hover:underline">
+            取り消す
+          </button>
+        </div>
+      )}
+
       <DailyList
         groups={optimisticGroups}
         modes={modes}
@@ -295,6 +363,7 @@ export function DailyBoard({ date, groups, modes, projects, sections }: Props) {
         onMove={move}
         sections={sections}
         onAssign={assign}
+        onOperate={operate}
         selectedId={selectedId}
         onSelect={setSelectedId}
         now={now}
