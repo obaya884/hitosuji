@@ -53,6 +53,21 @@ export function sectionRanges(sections: readonly Section[]): SectionRange[] {
 }
 
 /**
+ * 指定時刻 "HH:MM" を含む有効セクションを求める（ルーチン展開のセクション導出。F-302）。
+ * 有効セクションは24時間を敷き詰めるため必ず一意に定まる（データモデル定義書 §3.1）。
+ * 先頭セクションの開始より前の時刻は、日をまたいで続く最後のセクションに属する
+ */
+export function sectionAt(sections: readonly Section[], time: string): Section | undefined {
+  const actives = activeSections(sections);
+  if (actives.length === 0) return undefined;
+
+  const target = normalizeStartTime(time);
+  const started = actives.filter((s) => s.startTime <= target);
+
+  return started.length === 0 ? actives[actives.length - 1] : started[started.length - 1];
+}
+
+/**
  * 追加・編集時の検証（画面定義書03 §3.1）。
  * 有効セクション間の start_time 重複はエラー。自分自身との重複は除外する。
  */

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   activeSections,
   canArchive,
+  sectionAt,
   sectionRanges,
   validateSectionInput,
   type Section,
@@ -37,6 +38,33 @@ describe("sectionRanges（画面定義書03 §3.1: 終了時刻は次セクシ�
   it("アーカイブ済みセクションは枠の導出に含めない", () => {
     const archived = section({ id: 4, startTime: "12:00", isArchived: true });
     expect(sectionRanges([morning, forenoon, archived]).map((r) => r.section.id)).toEqual([1, 2]);
+  });
+});
+
+describe("sectionAt（F-302: 開始想定時刻を含むセクションの導出）", () => {
+  const sections = [midnight, morning, forenoon]; // 00:00 / 06:00 / 09:00
+
+  it("時刻を含むセクションを返す", () => {
+    expect(sectionAt(sections, "06:30")?.name).toBe("朝");
+    expect(sectionAt(sections, "12:00")?.name).toBe("午前"); // 09:00 以降は午前が続く
+  });
+
+  it("セクションの開始時刻ちょうどはそのセクションに属する", () => {
+    expect(sectionAt(sections, "06:00")?.name).toBe("朝");
+  });
+
+  it("先頭セクションの開始より前の時刻は、日をまたいで続く最後のセクションに属する", () => {
+    const withoutMidnight = [morning, forenoon]; // 06:00 / 09:00
+    expect(sectionAt(withoutMidnight, "03:00")?.name).toBe("午前");
+  });
+
+  it("アーカイブ済みセクションは導出対象にしない", () => {
+    const archived = section({ id: 9, name: "旧", startTime: "07:00", isArchived: true });
+    expect(sectionAt([...sections, archived], "07:30")?.name).toBe("朝");
+  });
+
+  it("有効セクションが1件もなければ導出できない", () => {
+    expect(sectionAt([], "06:30")).toBeUndefined();
   });
 });
 

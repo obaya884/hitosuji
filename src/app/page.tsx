@@ -1,7 +1,9 @@
+import { expandRoutinesFor } from "@/application/routine/expand-routines";
 import { listDailyList } from "@/application/task/daily-list-usecases";
 import { isValidLogicalDate } from "@/domain/shared/logical-date";
 import { createModeRepository } from "@/infrastructure/db/repositories/drizzle-mode-repository";
 import { createProjectRepository } from "@/infrastructure/db/repositories/drizzle-project-repository";
+import { createRoutineRepository } from "@/infrastructure/db/repositories/drizzle-routine-repository";
 import { createSectionRepository } from "@/infrastructure/db/repositories/drizzle-section-repository";
 import { createTaskRepository } from "@/infrastructure/db/repositories/drizzle-task-repository";
 import { DailyBoard } from "./_components/daily-board";
@@ -15,6 +17,7 @@ const deps = {
   sections: createSectionRepository(),
   modes: createModeRepository(),
   projects: createProjectRepository(),
+  routines: createRoutineRepository(),
 };
 
 export default async function Home({
@@ -23,6 +26,10 @@ export default async function Home({
   const today = todayLogicalDate();
   const requested = (await searchParams).date;
   const date = requested !== undefined && isValidLogicalDate(requested) ? requested : today;
+
+  // ルーチンは表示のたびにサーバで冪等展開する（F-301 / データモデル定義書 §4.1）。
+  // 一覧取得より先に行い、展開直後の分も同じ表示に含める
+  await expandRoutinesFor(deps, date, today);
 
   const view = await listDailyList(deps, date);
 
