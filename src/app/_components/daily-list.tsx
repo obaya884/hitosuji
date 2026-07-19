@@ -16,6 +16,7 @@ type Props = Readonly<{
   onRename: (task: Task, name: string) => void;
   onEstimate: (task: Task, rawMinutes: string) => void;
   onPunch: (task: Task) => void;
+  onEditPunch: (task: Task, field: "startedAt" | "endedAt", hhmm: string) => void;
   /** 毎分更新される現在時刻。実行中タスクの経過表示に使う（F-205） */
   now: Date;
 }>;
@@ -30,6 +31,7 @@ export function DailyList({
   onRename,
   onEstimate,
   onPunch,
+  onEditPunch,
   now,
 }: Props) {
   if (groups.length === 0) {
@@ -67,6 +69,7 @@ export function DailyList({
                   onRename={onRename}
                   onEstimate={onEstimate}
                   onPunch={onPunch}
+                  onEditPunch={onEditPunch}
                   now={now}
                 />
               ))}
@@ -97,7 +100,7 @@ function GroupHeading({ group }: Readonly<{ group: DailyGroup }>) {
   );
 }
 
-type EditingField = "name" | "estimate" | null;
+type EditingField = "name" | "estimate" | "startedAt" | "endedAt" | null;
 
 /** 見積もり超過は警告色（F-202）。見積もり未設定（0分）は超過判定しない */
 function isOverEstimate(minutes: number, task: Task): boolean {
@@ -111,6 +114,7 @@ function TaskRow({
   onRename,
   onEstimate,
   onPunch,
+  onEditPunch,
   now,
 }: Readonly<{
   task: Task;
@@ -119,6 +123,7 @@ function TaskRow({
   onRename: (task: Task, name: string) => void;
   onEstimate: (task: Task, rawMinutes: string) => void;
   onPunch: (task: Task) => void;
+  onEditPunch: (task: Task, field: "startedAt" | "endedAt", hhmm: string) => void;
   now: Date;
 }>) {
   const [editing, setEditing] = useState<EditingField>(null);
@@ -128,13 +133,17 @@ function TaskRow({
   const elapsed = elapsedMinutes(task, now);
 
   function beginEdit(field: Exclude<EditingField, null>) {
-    setDraft(field === "name" ? task.name : String(task.estimateMinutes || ""));
+    if (field === "name") setDraft(task.name);
+    if (field === "estimate") setDraft(String(task.estimateMinutes || ""));
+    if (field === "startedAt") setDraft(task.startedAt === null ? "" : formatClock(task.startedAt));
+    if (field === "endedAt") setDraft(task.endedAt === null ? "" : formatClock(task.endedAt));
     setEditing(field);
   }
 
   function commit() {
     if (editing === "name") onRename(task, draft);
     if (editing === "estimate") onEstimate(task, draft);
+    if (editing === "startedAt" || editing === "endedAt") onEditPunch(task, editing, draft);
     setEditing(null);
   }
 
@@ -228,11 +237,39 @@ function TaskRow({
         )}
       </td>
       <td className="w-28 py-1 text-right tabular-nums text-gray-500">
-        {task.startedAt !== null && (
-          <>
-            {formatClock(task.startedAt)}–{task.endedAt !== null ? formatClock(task.endedAt) : ""}
-          </>
-        )}
+        {/* 開始・終了時刻のインライン修正（F-203）。未打刻のタスクは編集させない */}
+        {task.startedAt !== null &&
+          (editing === "startedAt" || editing === "endedAt" ? (
+            <input
+              autoFocus
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={onKeyDown}
+              onBlur={commit}
+              placeholder="1935"
+              className="w-16 rounded border border-gray-300 px-1 py-0.5 text-right"
+            />
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => beginEdit("startedAt")}
+                className="hover:underline"
+              >
+                {formatClock(task.startedAt)}
+              </button>
+              –
+              {task.endedAt !== null && (
+                <button
+                  type="button"
+                  onClick={() => beginEdit("endedAt")}
+                  className="hover:underline"
+                >
+                  {formatClock(task.endedAt)}
+                </button>
+              )}
+            </>
+          ))}
       </td>
     </tr>
   );

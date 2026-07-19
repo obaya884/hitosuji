@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { taskStatus } from "@/domain/task/status";
 import type { Task } from "@/domain/task/task";
-import { finishTask, startTask } from "./punch-usecases";
+import { finishTask, startTask, updateTaskPunch } from "./punch-usecases";
 import { inMemoryTaskRepository } from "./testing/in-memory-task-repository";
 
 function task(over: Partial<Task> & { id: number }): Task {
@@ -138,5 +138,50 @@ describe("finishTask（F-201: 終了打刻）", () => {
       ok: false,
       error: "ended_before_started",
     });
+  });
+});
+
+describe("updateTaskPunch（F-203: 打刻時刻の修正）", () => {
+  const startedAt = new Date("2026-07-19T08:00:00Z");
+  const endedAt = new Date("2026-07-19T08:30:00Z");
+
+  it("開始・終了時刻を書き換える", async () => {
+    const repo = inMemoryTaskRepository([task({ id: 1, startedAt, endedAt })]);
+    const newStart = new Date("2026-07-19T07:45:00Z");
+
+    expect(
+      (await updateTaskPunch(repo, { taskId: 1, startedAt: newStart, endedAt })).ok
+    ).toBe(true);
+    expect(repo.rows[0].startedAt).toEqual(newStart);
+  });
+
+  it("実行中タスク（終了なし）の開始時刻も修正できる", async () => {
+    const repo = inMemoryTaskRepository([task({ id: 1, startedAt })]);
+    const newStart = new Date("2026-07-19T07:30:00Z");
+
+    expect(
+      (await updateTaskPunch(repo, { taskId: 1, startedAt: newStart, endedAt: null })).ok
+    ).toBe(true);
+    expect(repo.rows[0].endedAt).toBeNull();
+  });
+
+  it("終了が開始より前になる修正は拒否する（サーバ側でも再検証する）", async () => {
+    const repo = inMemoryTaskRepository([task({ id: 1, startedAt, endedAt })]);
+
+    expect(
+      await updateTaskPunch(repo, {
+        taskId: 1,
+        startedAt: new Date("2026-07-19T09:00:00Z"),
+        endedAt,
+      })
+    ).toEqual({ ok: false, error: "ended_before_started" });
+    expect(repo.rows[0].startedAt).toEqual(startedAt);
+  });
+
+  it("未実行タスクの打刻は修正できない", async () => {
+    const repo = inMemoryTaskRepository([task({ id: 1 })]);
+    expect(
+      await updateTaskPunch(repo, { taskId: 1, startedAt, endedAt: null })
+    ).toEqual({ ok: false, error: "not_running" });
   });
 });

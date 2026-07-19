@@ -10,6 +10,7 @@ import {
   type DailyGroup,
 } from "@/domain/task/daily-list";
 import { taskStatus } from "@/domain/task/status";
+import { editEndedAt, editStartedAt } from "@/domain/task/punch-edit";
 import { validateEstimateMinutes, validateTaskName } from "@/domain/task/task-edit";
 import type { Task } from "@/domain/task/task";
 import {
@@ -18,6 +19,7 @@ import {
   renameTaskAction,
   startTaskAction,
   updateTaskEstimateAction,
+  updateTaskPunchAction,
   type DailyActionResult,
 } from "@/app/actions";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
@@ -37,7 +39,8 @@ type OptimisticAction =
   | Readonly<{ type: "rename"; id: number; name: string }>
   | Readonly<{ type: "estimate"; id: number; minutes: number }>
   | Readonly<{ type: "start"; id: number; at: Date }>
-  | Readonly<{ type: "finish"; id: number; at: Date }>;
+  | Readonly<{ type: "finish"; id: number; at: Date }>
+  | Readonly<{ type: "punch"; id: number; startedAt: Date; endedAt: Date | null }>;
 
 function applyOptimisticAction(
   groups: readonly DailyGroup[],
@@ -58,8 +61,21 @@ function applyOptimisticAction(
       return withTaskUpdated(groups, action.id, (t) => ({ ...t, startedAt: action.at }));
     case "finish":
       return withTaskUpdated(groups, action.id, (t) => ({ ...t, endedAt: action.at }));
+    case "punch":
+      return withTaskUpdated(groups, action.id, (t) => ({
+        ...t,
+        startedAt: action.startedAt,
+        endedAt: action.endedAt,
+      }));
   }
 }
+
+const PUNCH_EDIT_MESSAGES: Record<string, string> = {
+  invalid_time: "時刻は HH:MM 形式で入力してください",
+  not_punched: "打刻されていないため修正できません",
+  no_started_at: "開始時刻のないタスクに終了時刻は設定できません",
+  ended_before_started: "終了時刻は開始時刻より後にしてください",
+};
 
 /** 楽観的更新で先に表示する仮タスク。負のIDでサーバ確定前だと分かるようにする */
 function optimisticTask(date: LogicalDate, name: string): Task {
@@ -150,6 +166,26 @@ export function DailyBoard({ date, groups, modes, projects }: Props) {
     }
   }
 
+  /** 開始・終了時刻のインライン修正（F-203）。HH:MM の解釈は利用者のタイムゾーンで行う */
+  function editPunch(task: Task, field: "startedAt" | "endedAt", hhmm: string) {
+    const edited = field === "startedAt" ? editStartedAt(task, hhmm) : editEndedAt(task, hhmm);
+    if (!edited.ok) {
+      setError(PUNCH_EDIT_MESSAGES[edited.error]);
+      return;
+    }
+
+    // editStartedAt / editEndedAt を通った時点で startedAt は必ず存在する
+    if (task.startedAt === null) return;
+    const punch =
+      field === "startedAt"
+        ? { startedAt: edited.value, endedAt: task.endedAt }
+        : { startedAt: task.startedAt, endedAt: edited.value };
+
+    run({ type: "punch", id: task.id, ...punch }, () =>
+      updateTaskPunchAction(task.id, punch)
+    );
+  }
+
   const onKeyDown = inlineEditKeyHandler({
     onEnter: add,
     onEscape: (input) => input.blur(), // Esc でフォーカスを外しリスト操作へ戻る
@@ -181,6 +217,7 @@ export function DailyBoard({ date, groups, modes, projects }: Props) {
         onRename={rename}
         onEstimate={setEstimate}
         onPunch={punch}
+        onEditPunch={editPunch}
         now={now}
       />
     </>

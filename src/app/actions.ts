@@ -6,7 +6,11 @@ import {
   renameTask,
   updateTaskEstimate,
 } from "@/application/task/daily-list-usecases";
-import { finishTask, startTask } from "@/application/task/punch-usecases";
+import {
+  finishTask,
+  startTask,
+  updateTaskPunch,
+} from "@/application/task/punch-usecases";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import { createTaskRepository } from "@/infrastructure/db/repositories/drizzle-task-repository";
 
@@ -50,6 +54,9 @@ const PUNCH_ERROR_MESSAGES: Record<string, string> = {
   not_running: "実行中のタスクではありません",
   ended_before_started: "終了時刻が開始時刻より前になります",
   needs_renumber: "並び順の再採番が必要です。時間をおいて再試行してください",
+  invalid_time: "時刻は HH:MM 形式で入力してください",
+  not_punched: "打刻されていないため修正できません",
+  no_started_at: "開始時刻のないタスクに終了時刻は設定できません",
 };
 
 /** 開始打刻（F-201）。now はクライアントの現在時刻を受け取る */
@@ -62,6 +69,17 @@ export async function startTaskAction(id: number, now: Date): Promise<DailyActio
 
 export async function finishTaskAction(id: number, now: Date): Promise<DailyActionResult> {
   const result = await finishTask(taskRepo, { taskId: id, now });
+  if (!result.ok) return { ok: false, message: PUNCH_ERROR_MESSAGES[result.error] };
+  revalidatePath("/");
+  return { ok: true };
+}
+
+/** 打刻時刻の修正（F-203）。HH:MM の解釈はクライアント側で済ませ、絶対時刻を受け取る */
+export async function updateTaskPunchAction(
+  id: number,
+  punch: Readonly<{ startedAt: Date; endedAt: Date | null }>
+): Promise<DailyActionResult> {
+  const result = await updateTaskPunch(taskRepo, { taskId: id, ...punch });
   if (!result.ok) return { ok: false, message: PUNCH_ERROR_MESSAGES[result.error] };
   revalidatePath("/");
   return { ok: true };

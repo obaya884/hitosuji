@@ -71,6 +71,14 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
       rows[i] = { ...rows[i], startedAt };
     },
 
+    updatePunch: async (
+      id: TaskId,
+      punch: Readonly<{ startedAt: Date; endedAt: Date | null }>
+    ) => {
+      const i = indexOf(id);
+      rows[i] = { ...rows[i], ...punch };
+    },
+
     finish: async (id: TaskId, endedAt: Date) => {
       const i = indexOf(id);
       rows[i] = { ...rows[i], endedAt };

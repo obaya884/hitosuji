@@ -38,5 +38,6 @@ export type TaskRepository = Readonly<{
   rename(id: TaskId, name: string): Promise<void>;
   updateEstimate(id: TaskId, estimateMinutes: number): Promise<void>;
   start(command: StartCommand): Promise<void>;
+  updatePunch(id: TaskId, punch: Readonly<{ startedAt: Date; endedAt: Date | null }>): Promise<void>;
   finish(id: TaskId, endedAt: Date): Promise<void>;
 }>;

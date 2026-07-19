@@ -88,6 +88,13 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
       });
     },
 
+    async updatePunch(id: TaskId, punch: Readonly<{ startedAt: Date; endedAt: Date | null }>) {
+      await db
+        .update(tasks)
+        .set({ ...punch, updatedAt: new Date() })
+        .where(eq(tasks.id, id));
+    },
+
     async finish(id: TaskId, endedAt: Date) {
       await db.update(tasks).set({ endedAt, updatedAt: new Date() }).where(eq(tasks.id, id));
     },

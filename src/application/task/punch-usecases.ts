@@ -84,3 +84,24 @@ export async function finishTask(
   await repo.finish(target.id, input.now);
   return ok(target.id);
 }
+
+/**
+ * 打刻時刻の修正（F-203）。
+ * `HH:MM` → 絶対時刻の変換はクライアント側（利用者のタイムゾーン）で行い、
+ * ここでは永続化前に 開始 ≦ 終了 の整合性を再検証する
+ */
+export async function updateTaskPunch(
+  repo: TaskRepository,
+  input: Readonly<{ taskId: TaskId; startedAt: Date; endedAt: Date | null }>
+): Promise<Result<TaskId, PunchUsecaseError>> {
+  const target = await repo.findById(input.taskId);
+  if (target === null) return err("task_not_found");
+  if (target.startedAt === null) return err("not_running");
+
+  if (input.endedAt !== null && input.endedAt.getTime() < input.startedAt.getTime()) {
+    return err("ended_before_started");
+  }
+
+  await repo.updatePunch(target.id, { startedAt: input.startedAt, endedAt: input.endedAt });
+  return ok(target.id);
+}
