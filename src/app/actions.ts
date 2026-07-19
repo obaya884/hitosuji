@@ -175,12 +175,14 @@ export async function suspendTaskAction(id: number, now: Date): Promise<DailyAct
   return { ok: true };
 }
 
-/** 複製（F-111） */
-export async function duplicateTaskAction(id: number): Promise<DailyActionResult> {
+/** 複製（F-111）。複製後に選択行を移すため、作られたタスクのIDを返す（O-11） */
+export async function duplicateTaskAction(
+  id: number
+): Promise<Readonly<{ ok: true; createdId: number } | { ok: false; message: string }>> {
   const result = await duplicateTask(taskRepo, { taskId: id });
   if (!result.ok) return { ok: false, message: OPERATION_ERROR_MESSAGES[result.error] };
   revalidatePath("/");
-  return { ok: true };
+  return { ok: true, createdId: result.value.id };
 }
 
 /** 先送り（F-107） */

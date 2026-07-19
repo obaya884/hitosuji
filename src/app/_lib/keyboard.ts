@@ -7,14 +7,14 @@ import type { KeyboardEvent } from "react";
  */
 export function inlineEditKeyHandler(
   handlers: Readonly<{
-    onEnter: () => void;
-    /** 入力欄自身を受け取る（フォーカスを外す用途。ref を持たずに済む） */
+    /** 入力欄自身を受け取る（値の読み取り・フォーカス操作に使い、ref を持たずに済む） */
+    onEnter: (input: HTMLInputElement) => void;
     onEscape: (input: HTMLInputElement) => void;
   }>
 ) {
   return (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.nativeEvent.isComposing || e.keyCode === 229) return;
-    if (e.key === "Enter") handlers.onEnter();
+    if (e.key === "Enter") handlers.onEnter(e.currentTarget);
     if (e.key === "Escape") handlers.onEscape(e.currentTarget);
   };
 }

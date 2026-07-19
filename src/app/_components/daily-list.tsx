@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { Section } from "@/domain/section/section";
@@ -27,9 +27,24 @@ type Props = Readonly<{
   onOperate: (task: Task, operation: "suspend" | "duplicate" | "postpone" | "delete") => void;
   selectedId: number | null;
   onSelect: (taskId: number) => void;
+  /** 編集中のセル（選択行モデルと同じく親が単一の真実を持つ） */
+  editing: EditingCell | null;
+  onBeginEdit: (task: Task, field: EditField) => void;
+  onEndEdit: () => void;
   /** 毎分更新される現在時刻。実行中タスクの経過表示に使う（F-205） */
   now: Date;
 }>;
+
+export type EditField =
+  | "name"
+  | "estimate"
+  | "startedAt"
+  | "endedAt"
+  | "mode"
+  | "project"
+  | "section";
+
+export type EditingCell = Readonly<{ taskId: number; field: EditField }>;
 
 // ボタンが示すのは「押したときの動作」: 未実行→開始(▶) / 実行中→終了(■) / 完了は操作なし(✔)
 const STATUS_ICON = { not_started: "▶", running: "■", completed: "✔" } as const;
@@ -49,6 +64,9 @@ export function DailyList({
   onOperate,
   selectedId,
   onSelect,
+  editing,
+  onBeginEdit,
+  onEndEdit,
   now,
 }: Props) {
   const modeById = new Map(modes.map((m) => [m.id, m]));
@@ -104,6 +122,9 @@ export function DailyList({
               onOperate={onOperate}
               isSelected={task.id === selectedId}
               onSelect={onSelect}
+              editing={editing?.taskId === task.id ? editing.field : null}
+              onBeginEdit={onBeginEdit}
+              onEndEdit={onEndEdit}
               mode={task.modeId === null ? undefined : modeById.get(task.modeId)}
               project={task.projectId === null ? undefined : projectById.get(task.projectId)}
               onRename={onRename}
@@ -156,8 +177,6 @@ function GroupHeading({ group }: Readonly<{ group: DailyGroup }>) {
   );
 }
 
-type EditingField = "name" | "estimate" | "startedAt" | "endedAt" | null;
-
 /** ポップオーバーの選択肢。アーカイブ済みマスタは選択肢に出さない（画面定義書03 §4） */
 function toOptions(
   items: readonly Readonly<{ id: number; name: string; isArchived: boolean; color?: string }>[],
@@ -195,6 +214,9 @@ function TaskRow({
   onOperate,
   isSelected,
   onSelect,
+  editing,
+  onBeginEdit,
+  onEndEdit,
   onRename,
   onEstimate,
   onPunch,
@@ -218,31 +240,34 @@ function TaskRow({
   onOperate: (task: Task, operation: "suspend" | "duplicate" | "postpone" | "delete") => void;
   isSelected: boolean;
   onSelect: (taskId: number) => void;
+  editing: EditField | null;
+  onBeginEdit: (task: Task, field: EditField) => void;
+  onEndEdit: () => void;
   now: Date;
 }>) {
-  const [editing, setEditing] = useState<EditingField>(null);
-  const [draft, setDraft] = useState("");
-  const [popover, setPopover] = useState<"mode" | "project" | "section" | null>(null);
   const status = taskStatus(task);
   const actual = actualMinutes(task);
   const elapsed = elapsedMinutes(task, now);
 
-  function beginEdit(field: Exclude<EditingField, null>) {
-    if (field === "name") setDraft(task.name);
-    if (field === "estimate") setDraft(String(task.estimateMinutes || ""));
-    if (field === "startedAt") setDraft(task.startedAt === null ? "" : formatClock(task.startedAt));
-    if (field === "endedAt") setDraft(task.endedAt === null ? "" : formatClock(task.endedAt));
-    setEditing(field);
+  // 入力欄は非制御にして、確定時に値を読む（親が編集状態だけを持てば済む）
+  function initialValue(field: EditField): string {
+    if (field === "name") return task.name;
+    if (field === "estimate") return String(task.estimateMinutes || "");
+    if (field === "startedAt") return task.startedAt === null ? "" : formatClock(task.startedAt);
+    if (field === "endedAt") return task.endedAt === null ? "" : formatClock(task.endedAt);
+    return "";
   }
 
-  function commit() {
-    if (editing === "name") onRename(task, draft);
-    if (editing === "estimate") onEstimate(task, draft);
-    if (editing === "startedAt" || editing === "endedAt") onEditPunch(task, editing, draft);
-    setEditing(null);
+  function commit(input: HTMLInputElement) {
+    const value = input.value;
+    if (editing === "name") onRename(task, value);
+    if (editing === "estimate") onEstimate(task, value);
+    if (editing === "startedAt" || editing === "endedAt") onEditPunch(task, editing, value);
+    onEndEdit();
   }
 
-  const onKeyDown = inlineEditKeyHandler({ onEnter: commit, onEscape: () => setEditing(null) });
+  const onKeyDown = inlineEditKeyHandler({ onEnter: commit, onEscape: onEndEdit });
+
   // モード設定時は行の色を継承させ、未設定時のみ既定のグレーにする
   const dimmed = mode === undefined ? "text-gray-500" : "";
 
@@ -287,14 +312,13 @@ function TaskRow({
         {editing === "name" ? (
           <input
             autoFocus
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            defaultValue={initialValue("name")}
             onKeyDown={onKeyDown}
-            onBlur={commit}
+            onBlur={(e) => commit(e.currentTarget)}
             className="w-full rounded border border-gray-300 px-1 py-1"
           />
         ) : (
-          <button type="button" onClick={() => beginEdit("name")} className="text-left hover:underline">
+          <button type="button" onClick={() => onBeginEdit(task, "name")} className="text-left hover:underline">
             {task.name}
           </button>
         )}
@@ -303,33 +327,33 @@ function TaskRow({
             {/* プロジェクト選択ポップオーバー（O-5） */}
             <button
               type="button"
-              onClick={() => setPopover("project")}
+              onClick={() => onBeginEdit(task, "project")}
               className={`hover:underline ${dimmed}`}
             >
               {project?.name ?? <span className="opacity-50">プロジェクト</span>}
             </button>
-            {popover === "project" && (
+            {editing === "project" && (
               <SelectPopover
                 options={toOptions(projects, "プロジェクトなし")}
                 selectedId={task.projectId}
                 onSelect={(id) => onAssign(task, "project", id)}
-                onClose={() => setPopover(null)}
+                onClose={onEndEdit}
               />
             )}
             {/* セクション選択ポップオーバー（O-5） */}
             <button
               type="button"
-              onClick={() => setPopover("section")}
+              onClick={() => onBeginEdit(task, "section")}
               className={`hover:underline ${dimmed} opacity-80`}
             >
               {sections.find((s) => s.id === task.sectionId)?.name ?? "未分類"}
             </button>
-            {popover === "section" && (
+            {editing === "section" && (
               <SelectPopover
                 options={toOptions(sections, "未分類")}
                 selectedId={task.sectionId}
                 onSelect={(id) => onAssign(task, "section", id)}
-                onClose={() => setPopover(null)}
+                onClose={onEndEdit}
               />
             )}
           </span>
@@ -337,15 +361,15 @@ function TaskRow({
       </td>
       <td className={`relative w-16 py-3 text-xs ${dimmed}`}>
         {/* モード選択ポップオーバー（O-5） */}
-        <button type="button" onClick={() => setPopover("mode")} className="hover:underline">
+        <button type="button" onClick={() => onBeginEdit(task, "mode")} className="hover:underline">
           {mode?.name ?? <span className="opacity-50">モード</span>}
         </button>
-        {popover === "mode" && (
+        {editing === "mode" && (
           <SelectPopover
             options={toOptions(modes, "モードなし", true)}
             selectedId={task.modeId}
             onSelect={(id) => onAssign(task, "mode", id)}
-            onClose={() => setPopover(null)}
+            onClose={onEndEdit}
           />
         )}
       </td>
@@ -354,17 +378,16 @@ function TaskRow({
           <input
             autoFocus
             inputMode="numeric"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            defaultValue={initialValue("estimate")}
             onKeyDown={onKeyDown}
-            onBlur={commit}
+            onBlur={(e) => commit(e.currentTarget)}
             placeholder="分"
             className="w-14 rounded border border-gray-300 px-1 py-1 text-right"
           />
         ) : (
           <button
             type="button"
-            onClick={() => beginEdit("estimate")}
+            onClick={() => onBeginEdit(task, "estimate")}
             className={`hover:underline ${task.estimateMinutes <= 0 ? "opacity-40" : ""}`}
           >
             {formatEstimate(task.estimateMinutes)}
@@ -390,10 +413,10 @@ function TaskRow({
           (editing === "startedAt" || editing === "endedAt" ? (
             <input
               autoFocus
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
+              key={editing}
+              defaultValue={initialValue(editing)}
               onKeyDown={onKeyDown}
-              onBlur={commit}
+              onBlur={(e) => commit(e.currentTarget)}
               placeholder="1935"
               className="w-16 rounded border border-gray-300 px-1 py-1 text-right"
             />
@@ -401,7 +424,7 @@ function TaskRow({
             <>
               <button
                 type="button"
-                onClick={() => beginEdit("startedAt")}
+                onClick={() => onBeginEdit(task, "startedAt")}
                 className="hover:underline"
               >
                 {formatClock(task.startedAt)}
@@ -410,7 +433,7 @@ function TaskRow({
               {task.endedAt !== null && (
                 <button
                   type="button"
-                  onClick={() => beginEdit("endedAt")}
+                  onClick={() => onBeginEdit(task, "endedAt")}
                   className="hover:underline"
                 >
                   {formatClock(task.endedAt)}

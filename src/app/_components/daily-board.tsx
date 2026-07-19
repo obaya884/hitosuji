@@ -1,16 +1,18 @@
 "use client";
 
-import { useEffect, useOptimistic, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { Section } from "@/domain/section/section";
-import { weekdayIndex, type LogicalDate } from "@/domain/shared/logical-date";
+import { addDays, weekdayIndex, type LogicalDate } from "@/domain/shared/logical-date";
 import {
   withTaskAppended,
   withTaskMoved,
   withTaskUpdated,
   type DailyGroup,
 } from "@/domain/task/daily-list";
+import { currentTaskId, keepSelection, moveSelection } from "@/domain/task/selection";
 import { taskStatus } from "@/domain/task/status";
 import { editEndedAt, editStartedAt } from "@/domain/task/punch-edit";
 import { validateEstimateMinutes, validateTaskName } from "@/domain/task/task-edit";
@@ -36,9 +38,10 @@ import {
 } from "@/app/actions";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { useNow } from "@/app/_lib/use-now";
-import { DailyList } from "./daily-list";
+import { DailyList, type EditField, type EditingCell } from "./daily-list";
 import { DailySummary } from "./daily-summary";
 import { DateNav } from "./date-nav";
+import { ShortcutHelp } from "./shortcut-help";
 
 type Props = Readonly<{
   date: LogicalDate;
@@ -132,7 +135,11 @@ function optimisticTask(date: LogicalDate, name: string): Task {
 export function DailyBoard({ date, isToday, groups, modes, projects, sections }: Props) {
   const [optimisticGroups, dispatchOptimistic] = useOptimistic(groups, applyOptimisticAction);
   const [name, setName] = useState("");
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [rawSelectedId, setSelectedId] = useState<number | null>(null);
+  const [editing, setEditing] = useState<EditingCell | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
+  const quickAddRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
   // 直前に削除したタスク（Undo 用。O-8）
   const [deleted, setDeleted] = useState<Task | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -144,6 +151,16 @@ export function DailyBoard({ date, isToday, groups, modes, projects, sections }:
     g.tasks.some((t) => taskStatus(t) === "running")
   );
   const now = useNow(hasRunning || isToday);
+
+  // 表示順に並んだタスク（選択行モデルの基盤。画面定義書01 §5）
+  const orderedTasks = useMemo(
+    () => optimisticGroups.flatMap((g) => g.tasks),
+    [optimisticGroups]
+  );
+
+  // 選択行は描画時に導出する（§5）。未選択や、削除・日付移動で選択が消えた場合は
+  // 「現在地」（実行中、なければ最初の未実行）へ自動的に戻る
+  const selectedId = keepSelection(orderedTasks, rawSelectedId);
 
   function run(optimistic: OptimisticAction, action: () => Promise<DailyActionResult>) {
     setError(null);
@@ -263,12 +280,17 @@ export function DailyBoard({ date, isToday, groups, modes, projects, sections }:
     // 生成物の採番はサーバが決めるため楽観更新はしない
     setError(null);
     startTransition(async () => {
+      if (operation === "duplicate") {
+        const result = await duplicateTaskAction(task.id);
+        if (result.ok) setSelectedId(result.createdId); // 複製したタスクを選択する（O-11）
+        else setError(result.message);
+        return;
+      }
+
       const result =
         operation === "suspend"
           ? await suspendTaskAction(task.id, new Date())
-          : operation === "duplicate"
-            ? await duplicateTaskAction(task.id)
-            : await postponeTaskAction(task.id);
+          : await postponeTaskAction(task.id);
       if (!result.ok) setError(result.message);
     });
   }
@@ -312,15 +334,105 @@ export function DailyBoard({ date, isToday, groups, modes, projects, sections }:
       // テキスト入力中・IME変換中はショートカット無効（画面定義書01 §6）
       const target = e.target as HTMLElement | null;
       if (e.isComposing || target?.tagName === "INPUT" || target?.tagName === "TEXTAREA") return;
-      // U: 直前の削除を取り消す（画面定義書01 §6）
-      if (!e.shiftKey && (e.key === "u" || e.key === "U")) {
-        undoDelete();
+      // 修飾キーは Shift のみ使用する（§6）。Cmd/Ctrl 併用時はブラウザの既定動作に任せる
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      const selected = orderedTasks.find((t) => t.id === selectedId) ?? null;
+      const requestEdit = (field: EditField) => {
+        if (selected === null) return;
+        // 押したキー自体が編集欄へ入力されないように既定動作を止める
+        e.preventDefault();
+        setEditing({ taskId: selected.id, field });
+      };
+
+      // ? は Shift+/ で入力されるため、Shift 分岐より先に処理する
+      if (e.key === "?") {
+        setShowHelp((v) => !v);
         return;
       }
-      if (!e.shiftKey) return;
 
-      if (e.key === "J") moveByStep(1);
-      if (e.key === "K") moveByStep(-1);
+      if (e.shiftKey) {
+        switch (e.key) {
+          case "J":
+            moveByStep(1);
+            return;
+          case "K":
+            moveByStep(-1);
+            return;
+          case "H":
+            router.push(`/?date=${addDays(date, -1)}`);
+            return;
+          case "L":
+            router.push(`/?date=${addDays(date, 1)}`);
+            return;
+          default:
+            return;
+        }
+      }
+
+      switch (e.key) {
+        // 選択行の移動（§5）
+        case "j":
+        case "ArrowDown":
+          setSelectedId((current) => moveSelection(orderedTasks, current, 1));
+          return;
+        case "k":
+        case "ArrowUp":
+          setSelectedId((current) => moveSelection(orderedTasks, current, -1));
+          return;
+        case "c": // 現在地へジャンプ（§5）
+          setSelectedId(currentTaskId(orderedTasks));
+          return;
+        case "Enter":
+          // ボタンにフォーカスが残っている場合はブラウザがそのボタンを押すので、
+          // ここで打刻すると二重に発火する（打刻ボタンを押した直後など）
+          if (target?.tagName === "BUTTON") return;
+          if (selected !== null) punch(selected); // 開始 →（実行中なら）終了
+          return;
+        case "i":
+          if (selected !== null) operate(selected, "suspend");
+          return;
+        case "y":
+          if (selected !== null) operate(selected, "duplicate");
+          return;
+        case "d":
+          if (selected !== null) operate(selected, "delete");
+          return;
+        case "u":
+          undoDelete();
+          return;
+        case "t":
+          router.push("/");
+          return;
+        case "n":
+          e.preventDefault(); // 入力欄に "n" が入るのを防ぐ
+          quickAddRef.current?.focus();
+          return;
+        case "r":
+        case "F2":
+          requestEdit("name");
+          return;
+        case "e":
+          requestEdit("estimate");
+          return;
+        case "b":
+          requestEdit("startedAt");
+          return;
+        case "f":
+          requestEdit("endedAt");
+          return;
+        case "m":
+          requestEdit("mode");
+          return;
+        case "p":
+          requestEdit("project");
+          return;
+        case "s":
+          requestEdit("section");
+          return;
+        default:
+          return;
+      }
     }
 
     window.addEventListener("keydown", onKeyDownGlobal);
@@ -332,12 +444,23 @@ export function DailyBoard({ date, isToday, groups, modes, projects, sections }:
       {/* 日付ナビ＋サマリ（画面定義書01 §2） */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <DateNav date={date} weekday={weekdayIndex(date)} isToday={isToday} />
-        <DailySummary groups={optimisticGroups} now={now} isToday={isToday} />
+        <div className="flex items-baseline gap-3">
+          <DailySummary groups={optimisticGroups} now={now} isToday={isToday} />
+          <button
+            type="button"
+            onClick={() => setShowHelp(true)}
+            aria-label="キーボードショートカット"
+            className="text-xs text-gray-400 hover:text-gray-700"
+          >
+            ?
+          </button>
+        </div>
       </div>
 
       <div className="mt-3 flex items-center gap-2">
         <span className="text-gray-400">＋</span>
         <input
+          ref={quickAddRef}
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={onKeyDown}
@@ -351,6 +474,8 @@ export function DailyBoard({ date, isToday, groups, modes, projects, sections }:
           {error}
         </p>
       )}
+
+      {showHelp && <ShortcutHelp onClose={() => setShowHelp(false)} />}
 
       {/* 削除の Undo トースト（O-8） */}
       {deleted !== null && (
@@ -374,6 +499,9 @@ export function DailyBoard({ date, isToday, groups, modes, projects, sections }:
         sections={sections}
         onAssign={assign}
         onOperate={operate}
+        editing={editing}
+        onBeginEdit={(task, field) => setEditing({ taskId: task.id, field })}
+        onEndEdit={() => setEditing(null)}
         selectedId={selectedId}
         onSelect={setSelectedId}
         now={now}
