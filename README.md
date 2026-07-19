@@ -12,7 +12,7 @@
 brew install --cask orbstack   # Docker ランタイム（初回のみ）
 docker compose up -d           # ローカル PostgreSQL 起動
 npm install
-cp .env.example .env.local
+# .env.local を作り、.env.example の値の行だけを写す（ヘッダはコピーしない）
 npm run db:migrate             # スキーマ適用
 npm run db:seed                # 初期データ（セクション・モード）
 npm run dev                    # http://localhost:3000
