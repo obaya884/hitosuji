@@ -20,6 +20,8 @@ npm run dev                    # http://localhost:3000
 
 ## デプロイ（Vercel + Neon）
 
+本番URL: **https://hitosuji-five.vercel.app**（Basic認証あり。`hitosuji.vercel.app` は他ユーザー取得済み）
+
 1. GitHub にプライベートリポジトリを作成して push
 2. [Neon](https://neon.tech) で無料プロジェクトを作成し、接続文字列を取得
 3. 本番DBへスキーマ適用: `DATABASE_URL=<Neonの接続文字列> npm run db:migrate && DATABASE_URL=<同> npm run db:seed`
