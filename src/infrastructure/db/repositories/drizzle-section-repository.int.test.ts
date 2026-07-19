@@ -49,7 +49,9 @@ describe("DrizzleSectionRepository", () => {
     const [after] = await db.select().from(sections);
     expect(after.name).toBe("早朝");
     expect(after.startTime).toBe("05:30:00");
-    expect(after.updatedAt.getTime()).toBeGreaterThanOrEqual(before.updatedAt.getTime());
+    // updated_at はアプリ層が設定する（データモデル定義書 §3 共通カラム）。
+    // 挿入時の既定値は DB 時刻なので大小比較はコンテナとホストの時計差で揺れる。更新されたことだけを見る
+    expect(after.updatedAt.getTime()).not.toBe(before.updatedAt.getTime());
   });
 
   it("setArchived はアーカイブと復元の両方に使える", async () => {

@@ -1,0 +1,41 @@
+// 論理日付 "YYYY-MM-DD"（データモデル定義書 §1: task_date は保存された論理日付。打刻時刻から導出しない）
+// 日界の将来導入に備え、日付の計算はこの純関数群に閉じる
+import { err, ok, type Result } from "./result";
+
+export type LogicalDate = string;
+
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+export function isValidLogicalDate(value: string): boolean {
+  if (!DATE_PATTERN.test(value)) return false;
+  const [y, m, d] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return (
+    date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d
+  );
+}
+
+export function parseLogicalDate(value: string): Result<LogicalDate, "invalid_date"> {
+  return isValidLogicalDate(value) ? ok(value) : err("invalid_date");
+}
+
+/** 前日・翌日（F-106）。UTC 基準で計算するのでサマータイムの影響を受けない */
+export function addDays(date: LogicalDate, days: number): LogicalDate {
+  const [y, m, d] = date.split("-").map(Number);
+  const shifted = new Date(Date.UTC(y, m - 1, d + days));
+  return toLogicalDate(shifted);
+}
+
+/** Date（UTC の年月日）を論理日付文字列へ */
+export function toLogicalDate(date: Date): LogicalDate {
+  const y = String(date.getUTCFullYear()).padStart(4, "0");
+  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(date.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/** 曜日（0=日）。表示用の曜日名は presentation で解決する */
+export function weekdayIndex(date: LogicalDate): number {
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+}
