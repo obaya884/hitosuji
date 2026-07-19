@@ -28,7 +28,7 @@ npm run test:int               # 統合のみ
 
 ## デプロイ（Vercel + Neon）
 
-本番URL: **https://hitosuji-five.vercel.app**（Basic認証あり。`hitosuji.vercel.app` は他ユーザー取得済み）
+本番URL: **[https://hitosuji-five.vercel.app](https://hitosuji-five.vercel.app)**（Basic認証あり。`hitosuji.vercel.app` は他ユーザー取得済み）
 
 1. GitHub にプライベートリポジトリを作成して push
 2. [Neon](https://neon.tech) で無料プロジェクトを作成し、接続文字列を取得
