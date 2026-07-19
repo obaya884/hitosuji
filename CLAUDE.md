@@ -83,6 +83,7 @@ Next.js 16 (App Router) + TypeScript / Tailwind CSS 4 / Drizzle ORM + node-postg
 
 ## 規約
 
+- **コードの変更は必ず Edit / Write ツールで行う**。python や sed 等のスクリプトによる一括置換は使わない（変更内容がチャットに差分として表示されず、オーナーがレビューできなくなるため）。複数箇所の変更でも1つずつ Edit する
 - UI文言・ドキュメント・コミットメッセージは日本語
 - コミットは Conventional Commits（`feat:` `fix:` `docs:` `chore:` 等）＋日本語サマリ
 - UIは装飾を排したシンプルなテーブル型リスト（N-05）。コンポーネントライブラリは使わない。モーダルは最小限、インライン編集を基本とする
