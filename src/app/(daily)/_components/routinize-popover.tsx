@@ -12,6 +12,7 @@ import {
 } from "@/domain/routine/routine-from-task";
 import { sectionAt } from "@/domain/section/section";
 import type { Section } from "@/domain/section/section";
+import { parseClockTime } from "@/domain/task/punch-edit";
 import type { Task } from "@/domain/task/task";
 import { formatClock } from "@/app/_lib/format";
 import { btnPrimary, floatPanel, inputBase } from "@/app/_lib/ui";
@@ -52,6 +53,7 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
   const [choice, setChoice] = useState<RoutineFromTaskChoice>(() =>
     defaultChoiceFromTask(task, defaultStartTime(task, sections, now))
   );
+  const [timeError, setTimeError] = useState<string | null>(null);
 
   useEffect(() => {
     function onPointerDown(e: MouseEvent) {
@@ -68,6 +70,23 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [onClose]);
+
+  /** 入力された時刻を `HH:MM` へ整形する（不正なら元の入力のまま返す） */
+  function normalized(current: RoutineFromTaskChoice): string {
+    const parsed = parseClockTime(current.scheduledStartTime);
+    if (!parsed.ok) return current.scheduledStartTime;
+    const { hours, minutes } = parsed.value;
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+  }
+
+  function submit() {
+    const scheduledStartTime = normalized(choice);
+    if (!parseClockTime(scheduledStartTime).ok) {
+      setTimeError("開始想定時刻は HH:MM で入力してください");
+      return;
+    }
+    onSubmit({ ...choice, scheduledStartTime });
+  }
 
   // 開始想定時刻から導出されるセクション（展開先の目安。F-302 と同じ導出）
   const derivedSection = sectionAt(sections, choice.scheduledStartTime);
@@ -153,6 +172,8 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
         <input
           value={choice.scheduledStartTime}
           onChange={(e) => setChoice((c) => ({ ...c, scheduledStartTime: e.target.value }))}
+          // 区切りなし入力（0805）も受け付けるため、離れた時点で HH:MM へ整形する（§4.1・F-203）
+          onBlur={() => setChoice((c) => ({ ...c, scheduledStartTime: normalized(c) }))}
           className={`w-20 font-mono tabular-nums ${inputBase}`}
         />
         {derivedSection !== undefined && (
@@ -160,10 +181,12 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
         )}
       </label>
 
+      {timeError !== null && <p className="text-xs text-danger">{timeError}</p>}
+
       <div className="flex items-center justify-between pt-1">
         {/* 元タスクは今日のリストに既にあるため、展開は翌日から（§4.1） */}
         <span className="text-xs text-ink-muted">明日から展開</span>
-        <button type="button" onClick={() => onSubmit(choice)} className={btnPrimary}>
+        <button type="button" onClick={submit} className={btnPrimary}>
           作成
         </button>
       </div>
