@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { EllipsisIcon } from "@/app/_components/icons";
 import { floatPanel } from "@/app/_lib/ui";
+import { useFlipUp } from "@/app/_lib/use-flip-up";
 
 export type RowMenuItem = Readonly<{
   label: string;
@@ -16,6 +17,8 @@ export type RowMenuItem = Readonly<{
 export function RowMenu({ items }: Readonly<{ items: readonly RowMenuItem[] }>) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  // 画面下部の行では上向きに開く（§7「ポップオーバーの表示位置」）
+  const { ref: panelRef, positionClass } = useFlipUp<HTMLDivElement>(open);
 
   useEffect(() => {
     if (!open) return;
@@ -46,7 +49,7 @@ export function RowMenu({ items }: Readonly<{ items: readonly RowMenuItem[] }>) 
         <EllipsisIcon />
       </button>
       {open && (
-        <div className={`absolute right-0 z-10 mt-1 w-36 py-1 ${floatPanel}`}>
+        <div ref={panelRef} className={`absolute right-0 z-10 w-36 py-1 ${positionClass} ${floatPanel}`}>
           {items.map((item) => (
             <button
               key={item.label}

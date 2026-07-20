@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { CheckIcon } from "@/app/_components/icons";
 import { floatPanel } from "@/app/_lib/ui";
+import { useFlipUp } from "@/app/_lib/use-flip-up";
 
 export type PopoverOption = Readonly<{
   id: number | null;
@@ -23,7 +24,8 @@ type Props = Readonly<{
  * モーダルは使わず最小限のUIにする（N-05）。Esc と外側クリックで閉じる
  */
 export function SelectPopover({ options, selectedId, onSelect, onClose }: Props) {
-  const ref = useRef<HTMLDivElement>(null);
+  // 画面下部の行では上向きに開く（§7「ポップオーバーの表示位置」）
+  const { ref, positionClass } = useFlipUp<HTMLDivElement>();
 
   useEffect(() => {
     function onPointerDown(e: MouseEvent) {
@@ -39,12 +41,13 @@ export function SelectPopover({ options, selectedId, onSelect, onClose }: Props)
       document.removeEventListener("mousedown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [onClose]);
+    // ref は useFlipUp が返す固定の参照（毎回同じオブジェクト）
+  }, [onClose, ref]);
 
   return (
     <div
       ref={ref}
-      className={`absolute z-10 mt-1 max-h-64 w-48 overflow-y-auto py-1 ${floatPanel}`}
+      className={`absolute z-10 max-h-64 w-48 overflow-y-auto py-1 ${positionClass} ${floatPanel}`}
     >
       {options.map((option) => (
         <button

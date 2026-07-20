@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   toggleWeekday,
   WEEKDAY_BITS,
@@ -16,6 +16,7 @@ import { parseClockTime } from "@/domain/task/punch-edit";
 import type { Task } from "@/domain/task/task";
 import { formatClock } from "@/app/_lib/format";
 import { btnPrimary, floatPanel, inputBase } from "@/app/_lib/ui";
+import { useFlipUp } from "@/app/_lib/use-flip-up";
 
 const RECURRENCE_LABELS: Readonly<Record<RecurrenceType, string>> = {
   daily: "毎日",
@@ -49,7 +50,8 @@ function defaultStartTime(task: Task, sections: readonly Section[], now: Date): 
  * ここで聞くのは繰り返し種別と開始想定時刻だけにする（N-05）
  */
 export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Props) {
-  const ref = useRef<HTMLDivElement>(null);
+  // 画面下部の行では上向きに開く（§7「ポップオーバーの表示位置」）
+  const { ref, positionClass } = useFlipUp<HTMLDivElement>();
   const [choice, setChoice] = useState<RoutineFromTaskChoice>(() =>
     defaultChoiceFromTask(task, defaultStartTime(task, sections, now))
   );
@@ -69,7 +71,8 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
       document.removeEventListener("mousedown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [onClose]);
+    // ref は useFlipUp が返す固定の参照（毎回同じオブジェクト）
+  }, [onClose, ref]);
 
   /** 入力された時刻を `HH:MM` へ整形する（不正なら元の入力のまま返す） */
   function normalized(current: RoutineFromTaskChoice): string {
@@ -94,7 +97,7 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
   return (
     <div
       ref={ref}
-      className={`absolute right-0 z-10 mt-1 w-64 space-y-2 p-3 text-left text-sm ${floatPanel}`}
+      className={`absolute right-0 z-10 w-64 space-y-2 p-3 text-left text-sm ${positionClass} ${floatPanel}`}
     >
       <p className="font-medium">ルーチン化</p>
 

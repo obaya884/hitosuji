@@ -1,6 +1,6 @@
 "use client";
 
-
+import { useEffect, useRef } from "react";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { RoutineFromTaskChoice } from "@/domain/routine/routine-from-task";
@@ -298,11 +298,20 @@ function TaskRow({
 
   const onKeyDown = inlineEditKeyHandler({ onEnter: commit, onEscape: onEndEdit });
 
+  // 選択行が画面外にあるときはスクロールを追従させる（§5 / FB-20）。
+  // J/K での移動だけでなく、自動セクション移動（§4.2）で行の位置が変わったときにも効かせたいので
+  // 「選択されている間、その行の位置が変わったら」を条件にする（nearest なので見えていれば動かない）
+  const rowRef = useRef<HTMLTableRowElement>(null);
+  useEffect(() => {
+    if (isSelected) rowRef.current?.scrollIntoView({ block: "nearest" });
+  }, [isSelected, sectionId, index]);
+
   // モード設定時は行の色を継承させ、未設定時のみ既定のグレーにする
   const dimmed = mode === undefined ? "text-ink-muted" : "";
 
   return (
     <tr
+      ref={rowRef}
       // ドラッグ＆ドロップでの並び替え（O-6）。編集中はドラッグさせない
       draggable={editing === null}
       onDragStart={(e) => e.dataTransfer.setData("text/plain", String(task.id))}
