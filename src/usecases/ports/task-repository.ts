@@ -78,7 +78,12 @@ export type TaskRepository = Readonly<{
   rename(id: TaskId, name: string): Promise<void>;
   updateEstimate(id: TaskId, estimateMinutes: number): Promise<void>;
   start(command: StartCommand): Promise<void>;
-  updatePunch(id: TaskId, punch: Readonly<{ startedAt: Date; endedAt: Date | null }>): Promise<void>;
+  /** 打刻の修正（F-203）。開始時刻の修正に伴う移動（F-113 §4.2-c）があれば同一トランザクションで反映する */
+  updatePunch(
+    id: TaskId,
+    punch: Readonly<{ startedAt: Date; endedAt: Date | null }>,
+    relocation?: Relocations | null
+  ): Promise<void>;
   finish(id: TaskId, endedAt: Date): Promise<void>;
   /** 並び替え（O-6）。振り直しを伴う場合も1トランザクションで反映する */
   move(command: MoveCommand): Promise<void>;

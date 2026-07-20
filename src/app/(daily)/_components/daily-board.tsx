@@ -19,6 +19,7 @@ import { validateEstimateMinutes, validateTaskName } from "@/domain/task/task-ed
 import type { RoutineFromTaskChoice } from "@/domain/routine/routine-from-task";
 import type { Task } from "@/domain/task/task";
 import { PlusIcon } from "@/app/_components/icons";
+import { formatClock } from "@/app/_lib/format";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { inputBase } from "@/app/_lib/ui";
 import { useNow } from "@/app/_lib/use-now";
@@ -265,8 +266,10 @@ export function DailyBoard({
         ? { startedAt: edited.value, endedAt: task.endedAt }
         : { startedAt: task.startedAt, endedAt: edited.value };
 
+    // 移動先セクションの判定に使う HH:MM は、利用者のタイムゾーンで整形して送る（§4.2-c）。
+    // 「今日」の判定に使う現在時刻も、他の打刻と同じくクライアントのものを送る
     run({ type: "punch", id: task.id, ...punch }, () =>
-      updateTaskPunchAction(task.id, punch)
+      updateTaskPunchAction(task.id, punch, formatClock(punch.startedAt), new Date())
     );
   }
 

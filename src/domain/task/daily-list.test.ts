@@ -106,8 +106,12 @@ describe("totalEstimateMinutes（F-110: セクション見積合計）", () => {
 describe("taskProgress（F-114: タスク進捗。セクション見出し §3.2 と1日全体のサマリ §3.1 で共用）", () => {
   it("実施済み＝完了（ended_at あり）で数え、実行中は含めない", () => {
     const tasks = [
-      task({ id: 1, startedAt: "2026-07-20T09:00:00+09:00", endedAt: "2026-07-20T09:10:00+09:00" }),
-      task({ id: 2, startedAt: "2026-07-20T09:10:00+09:00", endedAt: null }), // 実行中
+      task({
+        id: 1,
+        startedAt: new Date("2026-07-20T09:00:00+09:00"),
+        endedAt: new Date("2026-07-20T09:10:00+09:00"),
+      }),
+      task({ id: 2, startedAt: new Date("2026-07-20T09:10:00+09:00"), endedAt: null }), // 実行中
       task({ id: 3 }), // 未実行
     ];
     expect(taskProgress(tasks)).toEqual({ done: 1, total: 3 });

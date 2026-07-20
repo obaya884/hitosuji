@@ -104,12 +104,24 @@ export async function finishTaskAction(id: number, now: Date): Promise<DailyActi
   return { ok: true };
 }
 
-/** 打刻時刻の修正（F-203）。HH:MM の解釈はクライアント側で済ませ、絶対時刻を受け取る */
+/**
+ * 打刻時刻の修正（F-203）。HH:MM の解釈はクライアント側で済ませ、絶対時刻を受け取る。
+ * 開始時刻の修正時はセクション移動（F-113 §4.2-c）も同一トランザクションで行うため、
+ * 移動先の判定に使う `HH:MM` もクライアントのタイムゾーンで整形して受け取る
+ */
 export async function updateTaskPunchAction(
   id: number,
-  punch: Readonly<{ startedAt: Date; endedAt: Date | null }>
+  punch: Readonly<{ startedAt: Date; endedAt: Date | null }>,
+  startClock: string,
+  now: Date
 ): Promise<DailyActionResult> {
-  const result = await updateTaskPunch(taskRepo, { taskId: id, ...punch });
+  const result = await updateTaskPunch(punchDeps, {
+    taskId: id,
+    ...punch,
+    startClock,
+    // 「今日」の判定は他の打刻アクションと同じくクライアントの現在時刻から導く
+    today: todayLogicalDate(now),
+  });
   if (!result.ok) return { ok: false, message: PUNCH_ERROR_MESSAGES[result.error] };
   revalidatePath("/");
   return { ok: true };

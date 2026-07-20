@@ -5,7 +5,7 @@ import type { LogicalDate } from "@/domain/shared/logical-date";
 import { err, ok, type Result } from "@/domain/shared/result";
 import { canFinish, canStart, resumeTaskDraft, type PunchError } from "@/domain/task/punch";
 import { placeNewTask } from "@/domain/task/placement";
-import { relocationOnStart } from "@/domain/task/relocation";
+import { relocationOnPunchEdit, relocationOnStart } from "@/domain/task/relocation";
 import type { TaskId } from "@/domain/task/task";
 
 export type PunchUsecaseError = PunchError | "task_not_found";
@@ -112,12 +112,21 @@ export async function finishTask(
 /**
  * 打刻時刻の修正（F-203）。
  * `HH:MM` → 絶対時刻の変換はクライアント側（利用者のタイムゾーン）で行い、
- * ここでは永続化前に 開始 ≦ 終了 の整合性を再検証する
+ * ここでは永続化前に 開始 ≦ 終了 の整合性を再検証する。
+ * 開始時刻が変わった場合は、修正後の時刻を含むセクションへ移す（F-113 §4.2-c）
  */
 export async function updateTaskPunch(
-  repo: TaskRepository,
-  input: Readonly<{ taskId: TaskId; startedAt: Date; endedAt: Date | null }>
+  deps: PunchDeps,
+  input: Readonly<{
+    taskId: TaskId;
+    startedAt: Date;
+    endedAt: Date | null;
+    /** 修正後の開始時刻の `HH:MM`（クライアントのタイムゾーンで整形したもの） */
+    startClock: string;
+    today: LogicalDate;
+  }>
 ): Promise<Result<TaskId, PunchUsecaseError>> {
+  const repo = deps.tasks;
   const target = await repo.findById(input.taskId);
   if (target === null) return err("task_not_found");
   if (target.startedAt === null) return err("not_running");
@@ -126,6 +135,23 @@ export async function updateTaskPunch(
     return err("ended_before_started");
   }
 
-  await repo.updatePunch(target.id, { startedAt: input.startedAt, endedAt: input.endedAt });
+  // 終了時刻だけの修正では移動しない（§4.2 の対象外。帰属は「いつ始めたか」で決める）
+  const startedAtChanged = target.startedAt.getTime() !== input.startedAt.getTime();
+  const relocations =
+    startedAtChanged && target.taskDate === input.today
+      ? relocationOnPunchEdit(
+          target,
+          await repo.listByDate(target.taskDate),
+          await deps.sections.listAll(),
+          input.startedAt,
+          input.startClock
+        )
+      : [];
+
+  await repo.updatePunch(
+    target.id,
+    { startedAt: input.startedAt, endedAt: input.endedAt },
+    relocations.length === 0 ? null : relocations
+  );
   return ok(target.id);
 }

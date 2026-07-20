@@ -143,11 +143,28 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
       });
     },
 
-    async updatePunch(id: TaskId, punch: Readonly<{ startedAt: Date; endedAt: Date | null }>) {
-      await db
-        .update(tasks)
-        .set({ ...punch, updatedAt: new Date() })
-        .where(eq(tasks.id, id));
+    async updatePunch(
+      id: TaskId,
+      punch: Readonly<{ startedAt: Date; endedAt: Date | null }>,
+      relocation?: Relocations | null
+    ) {
+      const now = new Date();
+      if (relocation === undefined || relocation === null) {
+        await db
+          .update(tasks)
+          .set({ ...punch, updatedAt: now })
+          .where(eq(tasks.id, id));
+        return;
+      }
+
+      // 打刻の修正と、それに伴うセクション移動（§4.2-c）を1トランザクションで反映する
+      await db.transaction(async (tx) => {
+        await tx
+          .update(tasks)
+          .set({ ...punch, updatedAt: now })
+          .where(eq(tasks.id, id));
+        await applyRelocations(tx, relocation);
+      });
     },
 
     async finish(id: TaskId, endedAt: Date) {

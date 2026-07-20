@@ -211,13 +211,27 @@ describe("updateTaskPunch（F-203: 打刻時刻の修正）", () => {
   const startedAt = new Date("2026-07-19T08:00:00Z");
   const endedAt = new Date("2026-07-19T08:30:00Z");
 
+  /** 修正後の開始時刻に対応する HH:MM（クライアントが整形して送る値の代わり） */
+  const clockOf = (at: Date) =>
+    at.toLocaleTimeString("en-GB", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit" });
+
+  function editPunch(
+    repo: ReturnType<typeof inMemoryTaskRepository>,
+    input: Readonly<{ taskId: number; startedAt: Date; endedAt: Date | null }>,
+    sections: readonly Section[] = []
+  ) {
+    return updateTaskPunch(depsOf(repo, sections), {
+      ...input,
+      startClock: clockOf(input.startedAt),
+      today,
+    });
+  }
+
   it("開始・終了時刻を書き換える", async () => {
     const repo = inMemoryTaskRepository([task({ id: 1, startedAt, endedAt })]);
     const newStart = new Date("2026-07-19T07:45:00Z");
 
-    expect(
-      (await updateTaskPunch(repo, { taskId: 1, startedAt: newStart, endedAt })).ok
-    ).toBe(true);
+    expect((await editPunch(repo, { taskId: 1, startedAt: newStart, endedAt })).ok).toBe(true);
     expect(repo.rows[0].startedAt).toEqual(newStart);
   });
 
@@ -225,9 +239,7 @@ describe("updateTaskPunch（F-203: 打刻時刻の修正）", () => {
     const repo = inMemoryTaskRepository([task({ id: 1, startedAt })]);
     const newStart = new Date("2026-07-19T07:30:00Z");
 
-    expect(
-      (await updateTaskPunch(repo, { taskId: 1, startedAt: newStart, endedAt: null })).ok
-    ).toBe(true);
+    expect((await editPunch(repo, { taskId: 1, startedAt: newStart, endedAt: null })).ok).toBe(true);
     expect(repo.rows[0].endedAt).toBeNull();
   });
 
@@ -235,7 +247,7 @@ describe("updateTaskPunch（F-203: 打刻時刻の修正）", () => {
     const repo = inMemoryTaskRepository([task({ id: 1, startedAt, endedAt })]);
 
     expect(
-      await updateTaskPunch(repo, {
+      await editPunch(repo, {
         taskId: 1,
         startedAt: new Date("2026-07-19T09:00:00Z"),
         endedAt,
@@ -246,8 +258,51 @@ describe("updateTaskPunch（F-203: 打刻時刻の修正）", () => {
 
   it("未実行タスクの打刻は修正できない", async () => {
     const repo = inMemoryTaskRepository([task({ id: 1 })]);
-    expect(
-      await updateTaskPunch(repo, { taskId: 1, startedAt, endedAt: null })
-    ).toEqual({ ok: false, error: "not_running" });
+    expect(await editPunch(repo, { taskId: 1, startedAt, endedAt: null })).toEqual({
+      ok: false,
+      error: "not_running",
+    });
+  });
+
+  // 画面定義書01 §4.2-c: 開始時刻を修正したら、修正後の時刻を含むセクションへ移す
+  const sections: Section[] = [
+    { id: 1, name: "午前", startTime: "09:00", isArchived: false },
+    { id: 2, name: "午後", startTime: "12:00", isArchived: false },
+  ];
+
+  it("開始時刻の修正で、修正後の時刻を含むセクションへ移る（完了タスクでも移る）", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 1, sortOrder: 1000, startedAt, endedAt }),
+    ]);
+    const newStart = new Date("2026-07-19T03:10:00Z"); // JST 12:10
+
+    await editPunch(repo, { taskId: 1, startedAt: newStart, endedAt }, sections);
+
+    expect(repo.rows[0].sectionId).toBe(2);
+  });
+
+  it("終了時刻だけの修正では移動しない（帰属は「いつ始めたか」で決める）", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 1, sortOrder: 1000, startedAt, endedAt }),
+    ]);
+
+    await editPunch(
+      repo,
+      { taskId: 1, startedAt, endedAt: new Date("2026-07-19T15:00:00Z") },
+      sections
+    );
+
+    expect(repo.rows[0].sectionId).toBe(1);
+  });
+
+  it("今日以外の日付のタスクは移動しない", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, taskDate: "2026-07-18", sectionId: 1, sortOrder: 1000, startedAt, endedAt }),
+    ]);
+    const newStart = new Date("2026-07-19T03:10:00Z");
+
+    await editPunch(repo, { taskId: 1, startedAt: newStart, endedAt }, sections);
+
+    expect(repo.rows[0].sectionId).toBe(1);
   });
 });

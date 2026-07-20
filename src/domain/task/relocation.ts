@@ -1,8 +1,13 @@
-// 未実行タスクの自動セクション移動（F-113, Phase 2）
+// タスクの自動セクション移動（F-113）
 // 挙動の契約は画面定義書01 §4.2、書き換わる列と採番は データモデル定義書 §4.4 が正
 import { groupTasksBySection, orderTasksForDisplay } from "./daily-list";
 import { sectionAt, type Section } from "../section/section";
-import { appendSortOrder, renumberSortOrders, SORT_ORDER_STEP } from "./sort-order";
+import {
+  appendSortOrder,
+  insertBetweenSortOrder,
+  renumberSortOrders,
+  SORT_ORDER_STEP,
+} from "./sort-order";
 import { taskStatus } from "./status";
 import type { Task, TaskId } from "./task";
 
@@ -36,6 +41,46 @@ export function relocationOnStart(
     sectionId: destination.id,
     sortOrder: appendSortOrder(siblingSortOrders),
   };
+}
+
+/**
+ * 規則c（§4.2-c）: 開始時刻を修正したタスク自身を、修正後の時刻を含むセクションへ移す。
+ * 規則aと違い、移動先での位置は**開始時刻順**にする（ログの訂正であり、
+ * 打刻済みタスクと時刻順に並んでいないと記録として読めないため）。移動が不要なら空配列
+ */
+export function relocationOnPunchEdit(
+  task: Task,
+  sameDayTasks: readonly Task[],
+  sections: readonly Section[],
+  editedStartedAt: Date,
+  startClock: string
+): Relocation[] {
+  const destination = sectionAt(sections, startClock);
+  if (destination === undefined) return [];
+
+  const siblings = sameDayTasks
+    .filter((t) => t.sectionId === destination.id && t.id !== task.id)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+
+  // 自分より遅い開始時刻の打刻済みタスク、または最初の未実行タスクの直前に入る
+  const insertAt = siblings.findIndex(
+    (t) => t.startedAt === null || t.startedAt.getTime() > editedStartedAt.getTime()
+  );
+  const index = insertAt === -1 ? siblings.length : insertAt;
+
+  const sortOrder = insertBetweenSortOrder(
+    siblings[index - 1]?.sortOrder ?? null,
+    siblings[index]?.sortOrder ?? null
+  );
+
+  // 中間値が尽きたら移動先セクション全体を振り直す（§3.5 の再採番）
+  if (!sortOrder.ok) {
+    const reordered = [...siblings.slice(0, index), task, ...siblings.slice(index)];
+    const sortOrders = renumberSortOrders(reordered.length);
+    return changedOnly(reordered, destination.id, (_, i) => sortOrders[i]);
+  }
+
+  return changedOnly([task], destination.id, () => sortOrder.value);
 }
 
 /**

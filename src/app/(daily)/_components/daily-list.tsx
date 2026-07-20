@@ -472,6 +472,8 @@ function TaskRow({
               autoFocus
               key={editing}
               defaultValue={initialValue(editing)}
+              // 打ち直しが前提の項目なので既存値を全選択して始める（§3.3 / FB-23）
+              onFocus={(e) => e.currentTarget.select()}
               onKeyDown={onKeyDown}
               onBlur={(e) => commit(e.currentTarget)}
               placeholder="1935"

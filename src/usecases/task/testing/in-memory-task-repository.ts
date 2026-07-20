@@ -101,10 +101,16 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
 
     updatePunch: async (
       id: TaskId,
-      punch: Readonly<{ startedAt: Date; endedAt: Date | null }>
+      punch: Readonly<{ startedAt: Date; endedAt: Date | null }>,
+      relocation?: Relocations | null
     ) => {
       const i = indexOf(id);
       rows[i] = { ...rows[i], ...punch };
+      // 開始時刻の修正に伴うセクション移動（§4.2-c）
+      for (const row of relocation ?? []) {
+        const j = indexOf(row.taskId);
+        rows[j] = { ...rows[j], sectionId: row.sectionId, sortOrder: row.sortOrder };
+      }
     },
 
     finish: async (id: TaskId, endedAt: Date) => {
