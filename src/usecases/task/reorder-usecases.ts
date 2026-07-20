@@ -9,7 +9,7 @@ import type { TaskId } from "@/domain/task/task";
 
 export type ReorderUsecaseError = ReorderError;
 
-/** ドラッグ＆ドロップ: 指定セクションの指定位置へ移動する */
+/** 指定セクションの指定位置へ移動する（セクション割り当て `setTaskSection` の土台） */
 export async function moveTaskTo(
   repo: TaskRepository,
   input: Readonly<{

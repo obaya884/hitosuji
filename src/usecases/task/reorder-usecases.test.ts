@@ -38,7 +38,7 @@ const sectionRepo: SectionRepository = {
   remove: async () => {},
 };
 
-describe("moveTaskTo（O-6: ドラッグ＆ドロップ）", () => {
+describe("moveTaskTo（O-5/O-6: 指定位置への移動）", () => {
   it("同じセクション内で位置を変える", async () => {
     const repo = inMemoryTaskRepository([
       task({ id: 1, sortOrder: 1000 }),

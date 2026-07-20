@@ -22,11 +22,7 @@ import {
 } from "@/usecases/task/task-operations";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import type { Task } from "@/domain/task/task";
-import {
-  moveTaskByOneStep,
-  moveTaskTo,
-  setTaskSection,
-} from "@/usecases/task/reorder-usecases";
+import { moveTaskByOneStep, setTaskSection } from "@/usecases/task/reorder-usecases";
 import { createRoutineFromTask } from "@/usecases/routine/routine-usecases";
 import { applyCarryOverAfterPunch } from "@/usecases/task/relocation-usecases";
 import { formatClock, todayLogicalDate } from "@/app/_lib/format";
@@ -130,21 +126,6 @@ export async function updateTaskPunchAction(
 const REORDER_ERROR_MESSAGES: Record<string, string> = {
   task_not_found: "タスクが見つかりませんでした",
 };
-
-/** ドラッグ＆ドロップでの並び替え（O-6） */
-export async function moveTaskAction(
-  input: Readonly<{
-    taskId: number;
-    date: LogicalDate;
-    sectionId: number | null;
-    index: number;
-  }>
-): Promise<DailyActionResult> {
-  const result = await moveTaskTo(taskRepo, input);
-  if (!result.ok) return { ok: false, message: REORDER_ERROR_MESSAGES[result.error] };
-  revalidatePath("/");
-  return { ok: true };
-}
 
 /** Shift+J/K での並び替え（O-6） */
 export async function moveTaskByStepAction(

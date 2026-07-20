@@ -26,7 +26,6 @@ type Props = Readonly<{
   onEstimate: (task: Task, rawMinutes: string) => void;
   onPunch: (task: Task) => void;
   onEditPunch: (task: Task, field: "startedAt" | "endedAt", hhmm: string) => void;
-  onMove: (taskId: number, destination: Readonly<{ sectionId: number | null; index: number }>) => void;
   sections: readonly Section[];
   onAssign: (task: Task, field: "mode" | "project" | "section", id: number | null) => void;
   onOperate: (task: Task, operation: "suspend" | "duplicate" | "postpone" | "delete") => void;
@@ -73,7 +72,6 @@ export function DailyList({
   onEstimate,
   onPunch,
   onEditPunch,
-  onMove,
   sections,
   onAssign,
   onOperate,
@@ -117,34 +115,15 @@ export function DailyList({
         </tr>
       </thead>
       {groups.map((group) => (
-        <tbody
-          key={group.section?.id ?? "unclassified"}
-          // セクションの余白へのドロップは、そのセクションの末尾への移動として扱う（O-6）
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => {
-            e.preventDefault();
-            const id = Number(e.dataTransfer.getData("text/plain"));
-            if (Number.isFinite(id)) {
-              onMove(id, { sectionId: group.section?.id ?? null, index: group.tasks.length });
-            }
-          }}
-        >
+        <tbody key={group.section?.id ?? "unclassified"}>
+          {/* 0件のセクションは見出し行だけを置く（§3.2 / FB-26） */}
           <GroupHeading group={group} />
-          {/* 0件のセクションもドロップ先として機能させる（§3.2） */}
-          {group.tasks.length === 0 && (
-            <tr>
-              <td colSpan={7} className="py-2 pl-10 text-xs text-ink-faint">
-                タスクなし
-              </td>
-            </tr>
-          )}
           {group.tasks.map((task, index) => (
             <TaskRow
               key={task.id}
               task={task}
               index={index}
               sectionId={group.section?.id ?? null}
-              onMove={onMove}
               modes={modes}
               projects={projects}
               sections={sections}
@@ -195,23 +174,28 @@ function GroupHeading({ group }: Readonly<{ group: DailyGroup }>) {
               {group.endTime !== null && `–${group.endTime}`}
             </span>
           )}
-          {/* タスク進捗: プログレスバー＋実施済み/合計（F-114） */}
-          <span className="ml-3 flex items-center gap-2">
-            <TaskProgress tasks={group.tasks} />
-          </span>
-          <span className="ml-1 text-xs text-ink-muted tabular-nums">
-            見積 <span className="font-mono">{formatEstimate(total)}</span>
-            {capacity !== null && (
-              <span className="font-mono">
-                /{formatDuration(capacity)}{" "}
-                {/* 合計が枠を超えたら警告色（F-110） */}
-                <span className={excess > 0 ? "text-danger" : ""}>
-                  ({excess > 0 ? "+" : "-"}
-                  {formatDuration(Math.abs(excess))})
-                </span>
+          {/* 0件のグループでは時間帯より右を出さない（§3.2 / FB-25。情報がないのに視線を取るため） */}
+          {group.tasks.length > 0 && (
+            <>
+              {/* タスク進捗: プログレスバー＋実施済み/合計（F-114） */}
+              <span className="ml-3 flex items-center gap-2">
+                <TaskProgress tasks={group.tasks} />
               </span>
-            )}
-          </span>
+              <span className="ml-1 text-xs text-ink-muted tabular-nums">
+                見積 <span className="font-mono">{formatEstimate(total)}</span>
+                {capacity !== null && (
+                  <span className="font-mono">
+                    /{formatDuration(capacity)}{" "}
+                    {/* 合計が枠を超えたら警告色（F-110） */}
+                    <span className={excess > 0 ? "text-danger" : ""}>
+                      ({excess > 0 ? "+" : "-"}
+                      {formatDuration(Math.abs(excess))})
+                    </span>
+                  </span>
+                )}
+              </span>
+            </>
+          )}
         </span>
       </td>
     </tr>
@@ -247,7 +231,6 @@ function TaskRow({
   sectionId,
   mode,
   project,
-  onMove,
   modes,
   projects,
   sections,
@@ -275,7 +258,6 @@ function TaskRow({
   onEditPunch: (task: Task, field: "startedAt" | "endedAt", hhmm: string) => void;
   index: number;
   sectionId: number | null;
-  onMove: (taskId: number, destination: Readonly<{ sectionId: number | null; index: number }>) => void;
   modes: readonly Mode[];
   projects: readonly Project[];
   sections: readonly Section[];
@@ -331,18 +313,6 @@ function TaskRow({
       // モード色は行全体のテキスト色に反映する（F-401 / 画面定義書01 §2）。
       // scrollMarginTop は、上方向へ追従したとき行が固定領域（§2）の裏に隠れないための余白
       style={{ ...(mode === undefined ? {} : { color: mode.color }), scrollMarginTop: stickyHeight }}
-      // ドラッグ＆ドロップでの並び替え（O-6）。編集中はドラッグさせない
-      draggable={editing === null}
-      onDragStart={(e) => e.dataTransfer.setData("text/plain", String(task.id))}
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const draggedId = Number(e.dataTransfer.getData("text/plain"));
-        if (Number.isFinite(draggedId) && draggedId !== task.id) {
-          onMove(draggedId, { sectionId, index });
-        }
-      }}
       onClick={() => onSelect(task.id)}
       className={`border-b border-line ${isSelected ? "bg-accent-weak" : ""}`}
     >

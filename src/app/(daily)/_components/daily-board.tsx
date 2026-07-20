@@ -29,7 +29,6 @@ import {
   deleteTaskAction,
   duplicateTaskAction,
   finishTaskAction,
-  moveTaskAction,
   moveTaskByStepAction,
   postponeTaskAction,
   renameTaskAction,
@@ -270,13 +269,6 @@ export function DailyBoard({
     // 「今日」の判定に使う現在時刻も、他の打刻と同じくクライアントのものを送る
     run({ type: "punch", id: task.id, ...punch }, () =>
       updateTaskPunchAction(task.id, punch, formatClock(punch.startedAt), new Date())
-    );
-  }
-
-  /** ドラッグ＆ドロップでの並び替え（O-6） */
-  function move(taskId: number, destination: Readonly<{ sectionId: number | null; index: number }>) {
-    run({ type: "move", id: taskId, destination }, () =>
-      moveTaskAction({ taskId, date, ...destination })
     );
   }
 
@@ -591,7 +583,6 @@ export function DailyBoard({
         onEstimate={setEstimate}
         onPunch={punch}
         onEditPunch={editPunch}
-        onMove={move}
         sections={sections}
         onAssign={assign}
         onOperate={operate}
