@@ -2,9 +2,12 @@
 # 本番ダンプからマスタ・ルーチンだけを開発DBへ流し込む（要件定義書 §2.3 / FB-18）。
 #
 # 使い方:
-#   npm run db:backup                                   # 先に本番のダンプを取る（README のバックアップ節）
-#   npm run db:sync-masters -- backups/hitosuji_YYYYMMDD_HHMMSS.dump [対象DB名]
+#   npm run db:backup            # 先に本番のダンプを取る（README のバックアップ節）
+#   npm run db:sync-masters      # backups/ の最新ダンプを開発用の hitosuji へ
+#   npm run db:sync-masters -- backups/hitosuji_YYYYMMDD_HHMMSS.dump [対象DB名]   # 明示指定
 #
+# ダンプを省略すると backups/ の最新（更新時刻順）を使う。
+# バックアップが定期実行になれば、手元では引数なしで最新に追随できる。
 # 対象DBの既定は開発用の hitosuji。
 # **タスク（ログ）は持ち込まない**。ルーチン展開で生成されるうえ、開発中に実データを増やす必要がないため。
 # 対象DBの sections / modes / projects / routines と、それらを参照する tasks / routine_skips は
@@ -14,8 +17,18 @@ set -eu
 dump="${1:-}"
 target="${2:-hitosuji}"
 
-if [ -z "$dump" ] || [ ! -f "$dump" ]; then
-  echo "ダンプファイルを指定してください: npm run db:sync-masters -- backups/<ファイル>" >&2
+# 省略時は backups/ の最新ダンプ（更新時刻の新しい順）
+if [ -z "$dump" ]; then
+  dump=$(ls -t backups/*.dump 2>/dev/null | head -1 || true)
+  if [ -z "$dump" ]; then
+    echo "backups/ にダンプがありません。先に npm run db:backup を実行してください" >&2
+    exit 1
+  fi
+  echo "最新のダンプを使います: $dump"
+fi
+
+if [ ! -f "$dump" ]; then
+  echo "ダンプファイルが見つかりません: $dump" >&2
   exit 1
 fi
 

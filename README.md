@@ -71,9 +71,12 @@ npm run db:restore -- backups/<ファイル> <復元先DB名>          # 復元�
 本番と同じセクション・モード・プロジェクト・ルーチンで開発したいとき使う。**タスク（ログ）は持ち込まない**（ルーチン展開で生成されるため）。
 
 ```bash
-npm run db:backup                                              # 先に本番のダンプを取る
-npm run db:sync-masters -- backups/hitosuji_YYYYMMDD_HHMMSS.dump   # 対象の既定は開発用の hitosuji
+npm run db:backup             # 先に本番のダンプを取る
+npm run db:sync-masters       # backups/ の最新ダンプを開発用の hitosuji へ
+npm run db:sync-masters -- backups/hitosuji_YYYYMMDD_HHMMSS.dump [対象DB名]   # 明示指定
 ```
+
+ダンプを省略すると `backups/` の最新（更新時刻順）を使う。バックアップを定期実行にすれば、手元では引数なしで最新に追随できる。
 
 対象DBのマスタ・ルーチンは**洗い替え**になり、それらを参照する開発用のタスクも消える（実行前に確認プロンプトが出る）。スキーマはマイグレーションで作った側を正とし、データのみを流し込む（`--data-only`）。部分リストアではシーケンスが進まないため、実行後に各テーブルの最大IDへ合わせ直している。Neon のロール（`neondb_owner`）はローカルに存在しないため `--no-owner --no-privileges` を付けている（この2つがないと所有者エラーになる）。他の Postgres へ移す場合も同じダンプをそのまま `pg_restore` できる（N-06② ロックイン回避）。
 
