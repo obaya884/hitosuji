@@ -16,7 +16,8 @@
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx src/infrastructure/db/seed.ts",
     "db:backup": "sh scripts/db-backup.sh",
-    "db:restore": "sh scripts/db-restore.sh"
+    "db:restore": "sh scripts/db-restore.sh",
+    "db:sync-masters": "sh scripts/db-sync-masters.sh"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",

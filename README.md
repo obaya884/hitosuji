@@ -18,6 +18,8 @@ npm run db:seed                # 初期データ（セクション・モード�
 npm run dev                    # http://localhost:3000
 ```
 
+ファビコンは環境で色が変わる（要件定義書 §2.3 / FB-17）。**本番は紺・ローカルは琥珀**なので、両方をタブで開いていても見分けられる（判定は `VERCEL_ENV`。実体は `src/app/icon.tsx`）。
+
 テスト（アーキテクチャ・テスト戦略は [docs/アーキテクチャ定義書.md](./docs/アーキテクチャ定義書.md)）:
 
 ```bash
@@ -62,7 +64,18 @@ npm run db:restore -- backups/hitosuji_YYYYMMDD_HHMMSS.dump   # 復元先の既�
 npm run db:restore -- backups/<ファイル> <復元先DB名>          # 復元先を指定する場合
 ```
 
-ローカルの `db` コンテナに復元先DBを作り直して流し込む。Neon のロール（`neondb_owner`）はローカルに存在しないため `--no-owner --no-privileges` を付けている（この2つがないと所有者エラーになる）。他の Postgres へ移す場合も同じダンプをそのまま `pg_restore` できる（N-06② ロックイン回避）。
+ローカルの `db` コンテナに復元先DBを作り直して流し込む。
+
+### 開発DBへ本番のマスタ・ルーチンだけを入れる（FB-18）
+
+本番と同じセクション・モード・プロジェクト・ルーチンで開発したいとき使う。**タスク（ログ）は持ち込まない**（ルーチン展開で生成されるため）。
+
+```bash
+npm run db:backup                                              # 先に本番のダンプを取る
+npm run db:sync-masters -- backups/hitosuji_YYYYMMDD_HHMMSS.dump   # 対象の既定は開発用の hitosuji
+```
+
+対象DBのマスタ・ルーチンは**洗い替え**になり、それらを参照する開発用のタスクも消える（実行前に確認プロンプトが出る）。スキーマはマイグレーションで作った側を正とし、データのみを流し込む（`--data-only`）。部分リストアではシーケンスが進まないため、実行後に各テーブルの最大IDへ合わせ直している。Neon のロール（`neondb_owner`）はローカルに存在しないため `--no-owner --no-privileges` を付けている（この2つがないと所有者エラーになる）。他の Postgres へ移す場合も同じダンプをそのまま `pg_restore` できる（N-06② ロックイン回避）。
 
 ### リストア実演の結果（2026-07-20）
 
