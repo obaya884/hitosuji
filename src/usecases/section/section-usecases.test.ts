@@ -4,13 +4,17 @@ import type { Section, SectionId } from "@/domain/section/section";
 import {
   archiveSection,
   createSection,
+  deleteSection,
   listSections,
   restoreSection,
   updateSection,
 } from "./section-usecases";
 
 // 古典学派: モックではなく Port の契約を満たすインメモリ実装（アーキテクチャ定義書 §8）
-function inMemoryRepo(initial: readonly Section[] = []): SectionRepository & {
+function inMemoryRepo(
+  initial: readonly Section[] = [],
+  counts: Readonly<Record<SectionId, number>> = {}
+): SectionRepository & {
   rows: Section[];
 } {
   const rows = [...initial];
@@ -31,6 +35,14 @@ function inMemoryRepo(initial: readonly Section[] = []): SectionRepository & {
       const i = rows.findIndex((r) => r.id === id);
       rows[i] = { ...rows[i], isArchived };
     },
+    referenceCounts: async (ids: readonly SectionId[]) =>
+      Object.fromEntries(ids.filter((id) => id in counts).map((id) => [id, counts[id]])),
+    remove: async (id: SectionId) => {
+      rows.splice(
+        rows.findIndex((r) => r.id === id),
+        1
+      );
+    },
   };
 }
 
@@ -46,6 +58,35 @@ describe("listSections", () => {
       ["午前", "06:00"],
     ]);
     expect(view.archived.map((s) => s.id)).toEqual([3]);
+  });
+
+  it("削除できるのは参照0件のアーカイブ済みだけ（画面定義書03 §4.1）", async () => {
+    const used: Section = { id: 3, name: "旧A", startTime: "12:00", isArchived: true };
+    const unused: Section = { id: 4, name: "旧B", startTime: "15:00", isArchived: true };
+    const view = await listSections(inMemoryRepo([morning, used, unused], { 3: 8 }));
+    expect(view.deletableIds).toEqual([4]);
+  });
+});
+
+describe("deleteSection（画面定義書03 §4.1: 物理削除）", () => {
+  it("アーカイブ済み・参照0件なら削除する", async () => {
+    const archived: Section = { id: 3, name: "誤作成", startTime: "12:00", isArchived: true };
+    const repo = inMemoryRepo([morning, archived]);
+    expect((await deleteSection(repo, 3)).ok).toBe(true);
+    expect(repo.rows.map((s) => s.id)).toEqual([1]);
+  });
+
+  it("参照があれば削除しない", async () => {
+    const archived: Section = { id: 3, name: "旧", startTime: "12:00", isArchived: true };
+    const repo = inMemoryRepo([morning, archived], { 3: 1 });
+    expect(await deleteSection(repo, 3)).toEqual({ ok: false, error: "has_references" });
+    expect(repo.rows).toHaveLength(2);
+  });
+
+  it("有効なセクションは削除しない（最低1件の制約に触れる余地がない）", async () => {
+    const repo = inMemoryRepo([morning]);
+    expect(await deleteSection(repo, 1)).toEqual({ ok: false, error: "not_archived" });
+    expect(repo.rows).toHaveLength(1);
   });
 });
 

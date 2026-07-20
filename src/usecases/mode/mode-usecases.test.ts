@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { ModeInput, ModeRepository } from "@/usecases/ports/mode-repository";
 import { MODE_COLORS, type Mode, type ModeId } from "@/domain/mode/mode";
-import { createMode, listModes, setModeArchived, updateMode } from "./mode-usecases";
+import { createMode, deleteMode, listModes, setModeArchived, updateMode } from "./mode-usecases";
 
 // 古典学派: Port の契約を満たすインメモリ実装（アーキテクチャ定義書 §8）
-function inMemoryRepo(initial: readonly Mode[] = []): ModeRepository & { rows: Mode[] } {
+function inMemoryRepo(
+  initial: readonly Mode[] = [],
+  counts: Readonly<Record<ModeId, number>> = {}
+): ModeRepository & { rows: Mode[] } {
   const rows = [...initial];
   let nextId = Math.max(0, ...rows.map((r) => r.id)) + 1;
   return {
@@ -23,6 +26,14 @@ function inMemoryRepo(initial: readonly Mode[] = []): ModeRepository & { rows: M
       const i = rows.findIndex((r) => r.id === id);
       rows[i] = { ...rows[i], isArchived };
     },
+    referenceCounts: async (ids: readonly ModeId[]) =>
+      Object.fromEntries(ids.filter((id) => id in counts).map((id) => [id, counts[id]])),
+    remove: async (id: ModeId) => {
+      rows.splice(
+        rows.findIndex((r) => r.id === id),
+        1
+      );
+    },
   };
 }
 
@@ -38,6 +49,18 @@ describe("listModes（画面定義書03 §4: name 昇順・アーカイブ済み
     const view = await listModes(repo);
     expect(view.active.map((m) => m.name)).toEqual(["01.仕事", "02.暮らし"]);
     expect(view.archived.map((m) => m.id)).toEqual([3]);
+  });
+
+  it("削除できるのは参照0件のアーカイブ済みだけ（画面定義書03 §4.1）", async () => {
+    const repo = inMemoryRepo(
+      [
+        { id: 1, name: "有効", color: blue, isArchived: false },
+        { id: 2, name: "参照あり", color: blue, isArchived: true },
+        { id: 3, name: "参照なし", color: blue, isArchived: true },
+      ],
+      { 2: 5 }
+    );
+    expect((await listModes(repo)).deletableIds).toEqual([3]);
   });
 });
 
@@ -74,5 +97,27 @@ describe("setModeArchived", () => {
     expect(repo.rows[0].isArchived).toBe(true);
     await setModeArchived(repo, 1, false);
     expect(repo.rows[0].isArchived).toBe(false);
+  });
+});
+
+describe("deleteMode（画面定義書03 §4.1: 物理削除）", () => {
+  it("アーカイブ済み・参照0件なら削除する", async () => {
+    const repo = inMemoryRepo([{ id: 1, name: "誤作成", color: blue, isArchived: true }]);
+    expect((await deleteMode(repo, 1)).ok).toBe(true);
+    expect(repo.rows).toHaveLength(0);
+  });
+
+  it("参照があれば削除しない（ボタン表示後に参照が生まれた場合の再チェック）", async () => {
+    const repo = inMemoryRepo([{ id: 1, name: "使用中", color: blue, isArchived: true }], {
+      1: 1,
+    });
+    expect(await deleteMode(repo, 1)).toEqual({ ok: false, error: "has_references" });
+    expect(repo.rows).toHaveLength(1);
+  });
+
+  it("有効なモードは削除しない", async () => {
+    const repo = inMemoryRepo([{ id: 1, name: "仕事", color: blue, isArchived: false }]);
+    expect(await deleteMode(repo, 1)).toEqual({ ok: false, error: "not_archived" });
+    expect(repo.rows).toHaveLength(1);
   });
 });

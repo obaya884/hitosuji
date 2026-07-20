@@ -83,6 +83,8 @@ describe("duplicateTask（F-111: 複製）", () => {
     create: async () => sections[0],
     update: async () => {},
     setArchived: async () => {},
+    referenceCounts: async () => ({}),
+    remove: async () => {},
   };
   const repos = (tasks: ReturnType<typeof inMemoryTaskRepository>) => ({
     tasks,

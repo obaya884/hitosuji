@@ -1,8 +1,8 @@
-import { eq } from "drizzle-orm";
+import { count, eq, inArray } from "drizzle-orm";
 import type { ProjectInput, ProjectRepository } from "@/usecases/ports/project-repository";
 import type { Project, ProjectId } from "@/domain/project/project";
 import { db as defaultDb, type Database } from "@/infrastructure/db";
-import { projects } from "@/infrastructure/db/schema";
+import { projects, routines, tasks } from "@/infrastructure/db/schema";
 
 type Row = typeof projects.$inferSelect;
 
@@ -34,6 +34,36 @@ export function createProjectRepository(db: Database = defaultDb): ProjectReposi
         .update(projects)
         .set({ isArchived, updatedAt: new Date() })
         .where(eq(projects.id, id));
+    },
+
+    // 参照元はタスクとルーチンの2つ（画面定義書03 §4.1）
+    async referenceCounts(ids: readonly ProjectId[]) {
+      if (ids.length === 0) return {};
+      const target = [...ids];
+
+      const [fromTasks, fromRoutines] = await Promise.all([
+        db
+          .select({ projectId: tasks.projectId, n: count() })
+          .from(tasks)
+          .where(inArray(tasks.projectId, target))
+          .groupBy(tasks.projectId),
+        db
+          .select({ projectId: routines.projectId, n: count() })
+          .from(routines)
+          .where(inArray(routines.projectId, target))
+          .groupBy(routines.projectId),
+      ]);
+
+      const counts: Record<ProjectId, number> = {};
+      for (const row of [...fromTasks, ...fromRoutines]) {
+        if (row.projectId === null) continue;
+        counts[row.projectId] = (counts[row.projectId] ?? 0) + row.n;
+      }
+      return counts;
+    },
+
+    async remove(id: ProjectId) {
+      await db.delete(projects).where(eq(projects.id, id));
     },
   };
 }

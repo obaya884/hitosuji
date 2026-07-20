@@ -6,5 +6,11 @@ export const dynamic = "force-dynamic";
 
 export default async function ProjectsPage() {
   const view = await listProjects(createProjectRepository());
-  return <ProjectsTable active={[...view.active]} archived={[...view.archived]} />;
+  return (
+    <ProjectsTable
+      active={[...view.active]}
+      archived={[...view.archived]}
+      deletableIds={[...view.deletableIds]}
+    />
+  );
 }

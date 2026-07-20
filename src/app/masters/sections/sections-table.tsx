@@ -11,10 +11,12 @@ import {
 } from "@/app/_lib/ui";
 import { PlusIcon } from "@/app/_components/icons";
 import type { Section } from "@/domain/section/section";
+import { DeleteMasterButton } from "../_components/delete-master-button";
 import type { ActionResult } from "../_lib/action-result";
 import {
   archiveSectionAction,
   createSectionAction,
+  deleteSectionAction,
   restoreSectionAction,
   updateSectionAction,
 } from "./actions";
@@ -24,11 +26,12 @@ type SectionRow = Section & { endTime: string };
 type Props = Readonly<{
   ranges: readonly SectionRow[];
   archived: readonly Section[];
+  deletableIds: readonly number[];
 }>;
 
 type Editing = Readonly<{ id: number | "new"; name: string; startTime: string }>;
 
-export function SectionsTable({ ranges, archived }: Props) {
+export function SectionsTable({ ranges, archived, deletableIds }: Props) {
   const [editing, setEditing] = useState<Editing | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -175,7 +178,7 @@ export function SectionsTable({ ranges, archived }: Props) {
                 <tr key={row.id} className="border-b border-line text-ink-muted">
                   <td className="py-2">{row.name}</td>
                   <td className="w-40 py-2 font-mono tabular-nums">{row.startTime}</td>
-                  <td className="w-32 py-2 text-right">
+                  <td className="w-32 py-2 text-right whitespace-nowrap">
                     <button
                       onClick={() => run(() => restoreSectionAction(row.id))}
                       disabled={isPending}
@@ -183,6 +186,12 @@ export function SectionsTable({ ranges, archived }: Props) {
                     >
                       復元
                     </button>
+                    {deletableIds.includes(row.id) && (
+                      <DeleteMasterButton
+                        onDelete={() => run(() => deleteSectionAction(row.id))}
+                        disabled={isPending}
+                      />
+                    )}
                   </td>
                 </tr>
               ))}

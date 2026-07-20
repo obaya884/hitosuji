@@ -11,6 +11,7 @@ export default async function SectionsPage() {
     <SectionsTable
       ranges={view.ranges.map((r) => ({ ...r.section, endTime: r.endTime }))}
       archived={[...view.archived]}
+      deletableIds={[...view.deletableIds]}
     />
   );
 }

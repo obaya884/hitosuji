@@ -34,6 +34,8 @@ const sectionRepo: SectionRepository = {
   create: async () => sections[0],
   update: async () => {},
   setArchived: async () => {},
+  referenceCounts: async () => ({}),
+  remove: async () => {},
 };
 
 describe("moveTaskTo（O-6: ドラッグ＆ドロップ）", () => {

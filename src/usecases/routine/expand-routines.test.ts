@@ -21,6 +21,8 @@ const sectionRepo: SectionRepository = {
   create: async () => sections[0],
   update: async () => {},
   setArchived: async () => {},
+  referenceCounts: async () => ({}),
+  remove: async () => {},
 };
 
 function routine(over: Partial<Routine> & { id: number }): Routine {

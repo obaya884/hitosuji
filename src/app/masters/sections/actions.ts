@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import {
   archiveSection,
   createSection,
+  deleteSection,
   restoreSection,
   updateSection,
 } from "@/usecases/section/section-usecases";
@@ -43,6 +44,14 @@ export async function archiveSectionAction(id: SectionId): Promise<ActionResult>
 
 export async function restoreSectionAction(id: SectionId): Promise<ActionResult> {
   const result = await restoreSection(repo, id);
+  if (!result.ok) return failure(result.error);
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/** 物理削除（画面定義書03 §4.1。アーカイブ済み・参照0件のみ） */
+export async function deleteSectionAction(id: SectionId): Promise<ActionResult> {
+  const result = await deleteSection(repo, id);
   if (!result.ok) return failure(result.error);
   revalidatePath(PATH);
   return { ok: true };

@@ -11,17 +11,24 @@ import {
 } from "@/app/_lib/ui";
 import { PlusIcon } from "@/app/_components/icons";
 import { MODE_COLORS, type Mode } from "@/domain/mode/mode";
+import { DeleteMasterButton } from "../_components/delete-master-button";
 import type { ActionResult } from "../_lib/action-result";
-import { createModeAction, setModeArchivedAction, updateModeAction } from "./actions";
+import {
+  createModeAction,
+  deleteModeAction,
+  setModeArchivedAction,
+  updateModeAction,
+} from "./actions";
 
 type Props = Readonly<{
   active: readonly Mode[];
   archived: readonly Mode[];
+  deletableIds: readonly number[];
 }>;
 
 type Editing = Readonly<{ id: number | "new"; name: string; color: string }>;
 
-export function ModesTable({ active, archived }: Props) {
+export function ModesTable({ active, archived, deletableIds }: Props) {
   const [editing, setEditing] = useState<Editing | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -175,7 +182,7 @@ export function ModesTable({ active, archived }: Props) {
                     />
                   </td>
                   <td className="py-2">{mode.name}</td>
-                  <td className="w-32 py-2 text-right">
+                  <td className="w-32 py-2 text-right whitespace-nowrap">
                     <button
                       onClick={() => run(() => setModeArchivedAction(mode.id, false))}
                       disabled={isPending}
@@ -183,6 +190,12 @@ export function ModesTable({ active, archived }: Props) {
                     >
                       復元
                     </button>
+                    {deletableIds.includes(mode.id) && (
+                      <DeleteMasterButton
+                        onDelete={() => run(() => deleteModeAction(mode.id))}
+                        disabled={isPending}
+                      />
+                    )}
                   </td>
                 </tr>
               ))}

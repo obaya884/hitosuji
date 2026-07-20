@@ -3,13 +3,17 @@ import type { ProjectInput, ProjectRepository } from "@/usecases/ports/project-r
 import type { Project, ProjectId } from "@/domain/project/project";
 import {
   createProject,
+  deleteProject,
   listProjects,
   setProjectArchived,
   updateProject,
 } from "./project-usecases";
 
 // 古典学派: Port の契約を満たすインメモリ実装（アーキテクチャ定義書 §8）
-function inMemoryRepo(initial: readonly Project[] = []): ProjectRepository & { rows: Project[] } {
+function inMemoryRepo(
+  initial: readonly Project[] = [],
+  counts: Readonly<Record<ProjectId, number>> = {}
+): ProjectRepository & { rows: Project[] } {
   const rows = [...initial];
   let nextId = Math.max(0, ...rows.map((r) => r.id)) + 1;
   return {
@@ -28,6 +32,14 @@ function inMemoryRepo(initial: readonly Project[] = []): ProjectRepository & { r
       const i = rows.findIndex((r) => r.id === id);
       rows[i] = { ...rows[i], isArchived };
     },
+    referenceCounts: async (ids: readonly ProjectId[]) =>
+      Object.fromEntries(ids.filter((id) => id in counts).map((id) => [id, counts[id]])),
+    remove: async (id: ProjectId) => {
+      rows.splice(
+        rows.findIndex((r) => r.id === id),
+        1
+      );
+    },
   };
 }
 
@@ -41,6 +53,37 @@ describe("listProjects（画面定義書03 §4: name 昇順・アーカイブ済
     const view = await listProjects(repo);
     expect(view.active.map((p) => p.name)).toEqual(["02.確定申告", "10.引越し"]);
     expect(view.archived.map((p) => p.id)).toEqual([3]);
+  });
+
+  it("削除できるのは参照0件のアーカイブ済みだけ（画面定義書03 §4.1）", async () => {
+    const repo = inMemoryRepo(
+      [
+        { id: 1, name: "有効", isArchived: false },
+        { id: 2, name: "参照あり", isArchived: true },
+        { id: 3, name: "参照なし", isArchived: true },
+      ],
+      { 2: 2 }
+    );
+    expect((await listProjects(repo)).deletableIds).toEqual([3]);
+  });
+});
+
+describe("deleteProject（画面定義書03 §4.1: 物理削除）", () => {
+  it("アーカイブ済み・参照0件なら削除する", async () => {
+    const repo = inMemoryRepo([{ id: 1, name: "誤作成", isArchived: true }]);
+    expect((await deleteProject(repo, 1)).ok).toBe(true);
+    expect(repo.rows).toHaveLength(0);
+  });
+
+  it("参照があれば削除しない", async () => {
+    const repo = inMemoryRepo([{ id: 1, name: "使用中", isArchived: true }], { 1: 3 });
+    expect(await deleteProject(repo, 1)).toEqual({ ok: false, error: "has_references" });
+    expect(repo.rows).toHaveLength(1);
+  });
+
+  it("有効なプロジェクトは削除しない", async () => {
+    const repo = inMemoryRepo([{ id: 1, name: "引越し", isArchived: false }]);
+    expect(await deleteProject(repo, 1)).toEqual({ ok: false, error: "not_archived" });
   });
 });
 

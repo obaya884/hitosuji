@@ -17,18 +17,24 @@ const emptySectionRepo: SectionRepository = {
   create: async () => ({ id: 1, name: "", startTime: "00:00", isArchived: false }),
   update: async () => {},
   setArchived: async () => {},
+  referenceCounts: async () => ({}),
+  remove: async () => {},
 };
 const emptyModeRepo: ModeRepository = {
   listAll: async () => [],
   create: async () => ({ id: 1, name: "", color: "#000000", isArchived: false }),
   update: async () => {},
   setArchived: async () => {},
+  referenceCounts: async () => ({}),
+  remove: async () => {},
 };
 const emptyProjectRepo: ProjectRepository = {
   listAll: async () => [],
   create: async () => ({ id: 1, name: "", isArchived: false }),
   update: async () => {},
   setArchived: async () => {},
+  referenceCounts: async () => ({}),
+  remove: async () => {},
 };
 
 function task(over: Partial<Task> & { id: number }): Task {

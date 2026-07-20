@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import {
   createProject,
+  deleteProject,
   setProjectArchived,
   updateProject,
 } from "@/usecases/project/project-usecases";
@@ -37,6 +38,14 @@ export async function setProjectArchivedAction(
   isArchived: boolean
 ): Promise<ActionResult> {
   const result = await setProjectArchived(repo, id, isArchived);
+  if (!result.ok) return failure(result.error);
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/** 物理削除（画面定義書03 §4.1。アーカイブ済み・参照0件のみ） */
+export async function deleteProjectAction(id: ProjectId): Promise<ActionResult> {
+  const result = await deleteProject(repo, id);
   if (!result.ok) return failure(result.error);
   revalidatePath(PATH);
   return { ok: true };

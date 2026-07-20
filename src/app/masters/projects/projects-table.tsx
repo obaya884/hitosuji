@@ -11,17 +11,24 @@ import {
 } from "@/app/_lib/ui";
 import { PlusIcon } from "@/app/_components/icons";
 import type { Project } from "@/domain/project/project";
+import { DeleteMasterButton } from "../_components/delete-master-button";
 import type { ActionResult } from "../_lib/action-result";
-import { createProjectAction, setProjectArchivedAction, updateProjectAction } from "./actions";
+import {
+  createProjectAction,
+  deleteProjectAction,
+  setProjectArchivedAction,
+  updateProjectAction,
+} from "./actions";
 
 type Props = Readonly<{
   active: readonly Project[];
   archived: readonly Project[];
+  deletableIds: readonly number[];
 }>;
 
 type Editing = Readonly<{ id: number | "new"; name: string }>;
 
-export function ProjectsTable({ active, archived }: Props) {
+export function ProjectsTable({ active, archived, deletableIds }: Props) {
   const [editing, setEditing] = useState<Editing | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -147,7 +154,7 @@ export function ProjectsTable({ active, archived }: Props) {
               {archived.map((project) => (
                 <tr key={project.id} className="border-b border-line text-ink-muted">
                   <td className="py-2">{project.name}</td>
-                  <td className="w-32 py-2 text-right">
+                  <td className="w-32 py-2 text-right whitespace-nowrap">
                     <button
                       onClick={() => run(() => setProjectArchivedAction(project.id, false))}
                       disabled={isPending}
@@ -155,6 +162,12 @@ export function ProjectsTable({ active, archived }: Props) {
                     >
                       復元
                     </button>
+                    {deletableIds.includes(project.id) && (
+                      <DeleteMasterButton
+                        onDelete={() => run(() => deleteProjectAction(project.id))}
+                        disabled={isPending}
+                      />
+                    )}
                   </td>
                 </tr>
               ))}

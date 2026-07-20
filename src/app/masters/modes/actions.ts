@@ -1,7 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createMode, setModeArchived, updateMode } from "@/usecases/mode/mode-usecases";
+import {
+  createMode,
+  deleteMode,
+  setModeArchived,
+  updateMode,
+} from "@/usecases/mode/mode-usecases";
 import type { ModeId } from "@/domain/mode/mode";
 import { createModeRepository } from "@/infrastructure/db/repositories/drizzle-mode-repository";
 import { failure, type ActionResult } from "../_lib/action-result";
@@ -33,6 +38,14 @@ export async function setModeArchivedAction(
   isArchived: boolean
 ): Promise<ActionResult> {
   const result = await setModeArchived(repo, id, isArchived);
+  if (!result.ok) return failure(result.error);
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/** 物理削除（画面定義書03 §4.1。アーカイブ済み・参照0件のみ） */
+export async function deleteModeAction(id: ModeId): Promise<ActionResult> {
+  const result = await deleteMode(repo, id);
   if (!result.ok) return failure(result.error);
   revalidatePath(PATH);
   return { ok: true };

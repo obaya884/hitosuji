@@ -6,19 +6,31 @@ import {
   type ProjectError,
   type ProjectId,
 } from "@/domain/project/project";
+import {
+  canDeleteMaster,
+  deletableMasterIds,
+  type MasterDeletionError,
+} from "@/domain/shared/master-deletion";
 import { sortByName } from "@/domain/shared/name-order";
 import { ok, type Result } from "@/domain/shared/result";
 
 export type ProjectListView = Readonly<{
   active: readonly Project[];
   archived: readonly Project[];
+  /** 物理削除できる（参照0件の）アーカイブ済みプロジェクトの id（画面定義書03 §4.1） */
+  deletableIds: readonly ProjectId[];
 }>;
 
 export async function listProjects(repo: ProjectRepository): Promise<ProjectListView> {
   const all = sortByName(await repo.listAll());
+  const archived = all.filter((p) => p.isArchived);
+  const counts =
+    archived.length === 0 ? {} : await repo.referenceCounts(archived.map((p) => p.id));
+
   return {
     active: all.filter((p) => !p.isArchived),
-    archived: all.filter((p) => p.isArchived),
+    archived,
+    deletableIds: deletableMasterIds(archived, counts),
   };
 }
 
@@ -48,5 +60,23 @@ export async function setProjectArchived(
   isArchived: boolean
 ): Promise<Result<ProjectId, ProjectError>> {
   await repo.setArchived(id, isArchived);
+  return ok(id);
+}
+
+/**
+ * 物理削除（画面定義書03 §4.1）。
+ * ボタン表示後に参照が生まれている可能性があるため、削除直前にサーバ側で再チェックする
+ */
+export async function deleteProject(
+  repo: ProjectRepository,
+  id: ProjectId
+): Promise<Result<ProjectId, MasterDeletionError>> {
+  const target = (await repo.listAll()).find((p) => p.id === id) ?? null;
+  const counts = await repo.referenceCounts([id]);
+
+  const deletable = canDeleteMaster(target, counts[id] ?? 0);
+  if (!deletable.ok) return deletable;
+
+  await repo.remove(id);
   return ok(id);
 }

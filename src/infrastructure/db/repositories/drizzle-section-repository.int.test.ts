@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { sections } from "@/infrastructure/db/schema";
+import { sections, tasks } from "@/infrastructure/db/schema";
 import { createTestDb, truncateAll } from "@/infrastructure/db/testing/test-db";
 import { createSectionRepository } from "./drizzle-section-repository";
 
@@ -61,5 +61,20 @@ describe("DrizzleSectionRepository", () => {
 
     await repo.setArchived(created.id, false);
     expect((await repo.listAll())[0].isArchived).toBe(false);
+  });
+
+  // 画面定義書03 §4.1: セクションの参照元はタスクのみ（ルーチンは開始想定時刻から導出する）
+  it("参照件数はタスクだけを数え、参照0件のセクションは削除できる", async () => {
+    const used = await repo.create({ name: "朝", startTime: "06:00" });
+    const unused = await repo.create({ name: "誤作成", startTime: "07:00" });
+
+    await db
+      .insert(tasks)
+      .values({ taskDate: "2026-07-20", name: "T1", sortOrder: 1000, sectionId: used.id });
+
+    expect(await repo.referenceCounts([used.id, unused.id])).toEqual({ [used.id]: 1 });
+
+    await repo.remove(unused.id);
+    expect((await repo.listAll()).map((s) => s.id)).toEqual([used.id]);
   });
 });

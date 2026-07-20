@@ -6,5 +6,11 @@ export const dynamic = "force-dynamic";
 
 export default async function ModesPage() {
   const view = await listModes(createModeRepository());
-  return <ModesTable active={[...view.active]} archived={[...view.archived]} />;
+  return (
+    <ModesTable
+      active={[...view.active]}
+      archived={[...view.archived]}
+      deletableIds={[...view.deletableIds]}
+    />
+  );
 }

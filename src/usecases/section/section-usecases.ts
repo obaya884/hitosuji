@@ -9,18 +9,30 @@ import {
   type SectionId,
   type SectionRange,
 } from "@/domain/section/section";
+import {
+  canDeleteMaster,
+  deletableMasterIds,
+  type MasterDeletionError,
+} from "@/domain/shared/master-deletion";
 import { ok, type Result } from "@/domain/shared/result";
 
 export type SectionListView = Readonly<{
   ranges: readonly SectionRange[];
   archived: readonly Section[];
+  /** 物理削除できる（参照0件の）アーカイブ済みセクションの id（画面定義書03 §4.1） */
+  deletableIds: readonly SectionId[];
 }>;
 
 export async function listSections(repo: SectionRepository): Promise<SectionListView> {
   const all = await repo.listAll();
+  const archived = all.filter((s) => s.isArchived);
+  const counts =
+    archived.length === 0 ? {} : await repo.referenceCounts(archived.map((s) => s.id));
+
   return {
     ranges: sectionRanges(all),
-    archived: all.filter((s) => s.isArchived),
+    archived,
+    deletableIds: deletableMasterIds(archived, counts),
   };
 }
 
@@ -71,5 +83,24 @@ export async function restoreSection(
   if (!validated.ok) return validated;
 
   await repo.setArchived(id, false);
+  return ok(id);
+}
+
+/**
+ * 物理削除（画面定義書03 §4.1）。対象はアーカイブ済みのみのため、
+ * 「有効セクション最低1件」の制約には抵触しない。
+ * ボタン表示後に参照が生まれている可能性があるため、削除直前にサーバ側で再チェックする
+ */
+export async function deleteSection(
+  repo: SectionRepository,
+  id: SectionId
+): Promise<Result<SectionId, MasterDeletionError>> {
+  const target = (await repo.listAll()).find((s) => s.id === id) ?? null;
+  const counts = await repo.referenceCounts([id]);
+
+  const deletable = canDeleteMaster(target, counts[id] ?? 0);
+  if (!deletable.ok) return deletable;
+
+  await repo.remove(id);
   return ok(id);
 }

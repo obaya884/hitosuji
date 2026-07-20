@@ -11,6 +11,9 @@ export const linkAccent = "text-accent hover:underline";
 
 export const linkMuted = "text-ink-muted hover:text-ink";
 
+// 取り消せない操作（マスタの物理削除）の確定ボタン
+export const linkDanger = "text-danger hover:underline";
+
 export const inputBase =
   "rounded-control border border-line bg-surface px-2 py-1 text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none";
 

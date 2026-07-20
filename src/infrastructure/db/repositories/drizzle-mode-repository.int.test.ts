@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { MODE_COLORS, isPresetColor } from "@/domain/mode/mode";
-import { modes } from "@/infrastructure/db/schema";
+import { modes, routines, tasks } from "@/infrastructure/db/schema";
 import { createTestDb, truncateAll } from "@/infrastructure/db/testing/test-db";
 import { seedMasters } from "@/infrastructure/db/seed";
 import { createModeRepository } from "./drizzle-mode-repository";
@@ -32,6 +32,31 @@ describe("DrizzleModeRepository", () => {
     expect(await repo.listAll()).toEqual([
       { id: created.id, name: "01.仕事", color: MODE_COLORS[5], isArchived: true },
     ]);
+  });
+});
+
+describe("物理削除の判定（画面定義書03 §4.1）", () => {
+  it("タスクとルーチンの参照をどちらも数え、参照0件のモードは削除できる", async () => {
+    const used = await repo.create({ name: "使用中", color: MODE_COLORS[8] });
+    const unused = await repo.create({ name: "未使用", color: MODE_COLORS[5] });
+
+    await db.insert(tasks).values([
+      { taskDate: "2026-07-20", name: "T1", sortOrder: 1000, modeId: used.id },
+      { taskDate: "2026-07-20", name: "T2", sortOrder: 2000, modeId: used.id },
+    ]);
+    await db.insert(routines).values({
+      name: "R1",
+      estimateMinutes: 10,
+      scheduledStartTime: "06:30",
+      recurrenceType: "daily",
+      startDate: "2026-07-20",
+      modeId: used.id,
+    });
+
+    expect(await repo.referenceCounts([used.id, unused.id])).toEqual({ [used.id]: 3 });
+
+    await repo.remove(unused.id);
+    expect((await repo.listAll()).map((m) => m.id)).toEqual([used.id]);
   });
 });
 
