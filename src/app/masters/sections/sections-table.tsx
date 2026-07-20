@@ -29,7 +29,10 @@ type Props = Readonly<{
   deletableIds: readonly number[];
 }>;
 
-type Editing = Readonly<{ id: number | "new"; name: string; startTime: string }>;
+// セルごとに独立して編集できる（名前・開始時刻のどちらか一方だけが入力欄になる）
+type Editing =
+  | Readonly<{ id: number; field: "name" | "startTime" }>
+  | Readonly<{ id: "new" }>;
 
 export function SectionsTable({ ranges, archived, deletableIds }: Props) {
   const [editing, setEditing] = useState<Editing | null>(null);
@@ -45,52 +48,149 @@ export function SectionsTable({ ranges, archived, deletableIds }: Props) {
     });
   }
 
-  function save() {
-    if (editing === null) return;
-    const input = { name: editing.name, startTime: editing.startTime };
-    const action =
-      editing.id === "new"
-        ? () => createSectionAction(input)
-        : () => updateSectionAction(editing.id as number, input);
-    run(action, () => setEditing(null));
+  /**
+   * 保存の経路は blur の1本だけにする（画面定義書03 §4「編集方式」）。
+   * 保存時は編集していないもう片方のフィールドは現在値をそのまま送る。
+   */
+  function commit(input: HTMLInputElement) {
+    if (editing === null || editing.id === "new") return;
+    const row = ranges.find((r) => r.id === editing.id);
+    if (row === undefined) return;
+
+    const value = input.value;
+    const original = editing.field === "name" ? row.name : row.startTime;
+
+    // 変更がなければ何もせず閉じる（クリックしただけで UPDATE が飛ばないように）
+    if (value === original) {
+      setEditing(null);
+      return;
+    }
+
+    const payload =
+      editing.field === "name"
+        ? { name: value, startTime: row.startTime }
+        : { name: row.name, startTime: value };
+    // 失敗時は編集状態のまま残し、入力し直せるようにする
+    run(() => updateSectionAction(editing.id as number, payload), () => setEditing(null));
   }
 
-  const onKeyDown = inlineEditKeyHandler({ onEnter: save, onEscape: () => setEditing(null) });
+  const onKeyDown = inlineEditKeyHandler({
+    onEnter: (input) => input.blur(),
+    onEscape: (input) => {
+      // 元の値へ戻してから blur すると、commit が「変更なし」と判断して閉じるだけになる
+      if (editing !== null && editing.id !== "new") {
+        const row = ranges.find((r) => r.id === editing.id);
+        input.value = (editing.field === "name" ? row?.name : row?.startTime) ?? "";
+      }
+      input.blur();
+    },
+  });
 
-  // 編集中の行の終了時刻（導出値）。新規追加時は保存後に確定するため未定
-  const editingEndTime = ranges.find((r) => r.id === editing?.id)?.endTime;
+  /** 名前セル。クリックでその場編集（§4「編集方式」） */
+  const nameCell = (row: SectionRow) =>
+    editing?.id === row.id && editing.field === "name" ? (
+      <input
+        autoFocus
+        defaultValue={row.name}
+        onKeyDown={onKeyDown}
+        onBlur={(e) => commit(e.currentTarget)}
+        className={`w-full ${inputBase}`}
+      />
+    ) : (
+      <button
+        type="button"
+        // 保存中は同じ行の他のセルを触らせない（古い値での上書きを防ぐ。§4「編集方式」）
+        disabled={isPending}
+        onClick={() => {
+          setError(null);
+          setEditing({ id: row.id, field: "name" });
+        }}
+        className="text-left hover:underline disabled:no-underline disabled:opacity-60"
+      >
+        {row.name}
+      </button>
+    );
 
-  const editRow = (key: string) => (
+  /** 開始時刻セル。編集できるのは開始時刻のみで、終了時刻は次セクションの開始からの導出値（読み取り専用） */
+  const startTimeCell = (row: SectionRow) =>
+    editing?.id === row.id && editing.field === "startTime" ? (
+      <span className="flex items-center gap-1">
+        <input
+          type="time"
+          autoFocus
+          defaultValue={row.startTime}
+          onKeyDown={onKeyDown}
+          onBlur={(e) => commit(e.currentTarget)}
+          className={inputBase}
+        />
+        <span
+          className="font-mono tabular-nums text-ink-faint"
+          title="次のセクションの開始時刻から自動導出"
+        >
+          –{row.endTime}
+        </span>
+      </span>
+    ) : (
+      <button
+        type="button"
+        disabled={isPending}
+        onClick={() => {
+          setError(null);
+          setEditing({ id: row.id, field: "startTime" });
+        }}
+        className="font-mono tabular-nums hover:underline disabled:no-underline disabled:opacity-60"
+      >
+        {row.startTime}–{row.endTime}
+      </button>
+    );
+
+  // 新規追加の行だけは明示的な保存・取消を置く（既存行の編集はセルのインライン編集）
+  function saveNew(tr: HTMLTableRowElement | null) {
+    if (tr === null) return;
+    const name = tr.querySelector<HTMLInputElement>('[data-field="name"]')?.value ?? "";
+    const startTime = tr.querySelector<HTMLInputElement>('[data-field="startTime"]')?.value ?? "";
+    run(() => createSectionAction({ name, startTime }), () => setEditing(null));
+  }
+
+  const onNewKeyDown = inlineEditKeyHandler({
+    onEnter: (input) => saveNew(input.closest("tr")),
+    onEscape: () => setEditing(null),
+  });
+
+  const newRow = (key: string) => (
     <tr key={key} className="border-b border-line">
       <td className="py-1 pr-2">
         <input
           autoFocus
-          value={editing?.name ?? ""}
-          onChange={(e) => setEditing((s) => (s === null ? s : { ...s, name: e.target.value }))}
-          onKeyDown={onKeyDown}
+          defaultValue=""
+          onKeyDown={onNewKeyDown}
           className={`w-full ${inputBase}`}
           placeholder="セクション名"
+          data-field="name"
         />
       </td>
       <td className="py-1 pr-2">
-        {/* 編集できるのは開始時刻のみ。終了時刻は次セクションの開始からの導出値なので読み取り専用で並べる */}
         <span className="flex items-center gap-1">
           <input
             type="time"
-            value={editing?.startTime ?? ""}
-            onChange={(e) =>
-              setEditing((s) => (s === null ? s : { ...s, startTime: e.target.value }))
-            }
-            onKeyDown={onKeyDown}
+            defaultValue=""
+            onKeyDown={onNewKeyDown}
             className={inputBase}
+            data-field="startTime"
           />
+          {/* 終了時刻は次セクションの開始からの導出（入力しない）ことを新規追加時にも示す */}
           <span className="font-mono tabular-nums text-ink-faint" title="次のセクションの開始時刻から自動導出">
-            –{editingEndTime ?? "自動"}
+            –自動
           </span>
         </span>
       </td>
       <td className="py-1 text-right whitespace-nowrap">
-        <button onClick={save} disabled={isPending} className={`px-2 ${linkAccent}`}>
+        <button
+          onMouseDown={(e) => e.preventDefault()} // blur より先に押下を拾う
+          onClick={(e) => saveNew(e.currentTarget.closest("tr"))}
+          disabled={isPending}
+          className={`px-2 ${linkAccent}`}
+        >
           保存
         </button>
         <button onClick={() => setEditing(null)} className={`px-2 ${linkMuted}`}>
@@ -109,7 +209,7 @@ export function SectionsTable({ ranges, archived, deletableIds }: Props) {
         <button
           onClick={() => {
             setError(null);
-            setEditing({ id: "new", name: "", startTime: "" });
+            setEditing({ id: "new" });
           }}
           className={`inline-flex shrink-0 items-center gap-1 ${btnSecondary}`}
         >
@@ -133,37 +233,22 @@ export function SectionsTable({ ranges, archived, deletableIds }: Props) {
           </tr>
         </thead>
         <tbody>
-          {ranges.map((row) =>
-            editing?.id === row.id ? (
-              editRow(String(row.id))
-            ) : (
-              <tr key={row.id} className="border-b border-line">
-                <td className="py-2">{row.name}</td>
-                <td className="py-2 font-mono tabular-nums text-ink-muted">
-                  {row.startTime}–{row.endTime}
-                </td>
-                <td className="py-2 text-right whitespace-nowrap">
-                  <button
-                    onClick={() => {
-                      setError(null);
-                      setEditing({ id: row.id, name: row.name, startTime: row.startTime });
-                    }}
-                    className={`px-2 ${linkAccent}`}
-                  >
-                    編集
-                  </button>
-                  <button
-                    onClick={() => run(() => archiveSectionAction(row.id))}
-                    disabled={isPending}
-                    className={`px-2 ${linkMuted}`}
-                  >
-                    アーカイブ
-                  </button>
-                </td>
-              </tr>
-            )
-          )}
-          {editing?.id === "new" && editRow("new")}
+          {ranges.map((row) => (
+            <tr key={row.id} className="border-b border-line">
+              <td className="py-2">{nameCell(row)}</td>
+              <td className="py-2">{startTimeCell(row)}</td>
+              <td className="py-2 text-right whitespace-nowrap">
+                <button
+                  onClick={() => run(() => archiveSectionAction(row.id))}
+                  disabled={isPending}
+                  className={`px-2 ${linkMuted}`}
+                >
+                  アーカイブ
+                </button>
+              </td>
+            </tr>
+          ))}
+          {editing?.id === "new" && newRow("new")}
         </tbody>
       </table>
 

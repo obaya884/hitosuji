@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import {
   btnSecondary,
+  floatPanel,
   inputBase,
   linkAccent,
   linkMuted,
@@ -26,10 +27,81 @@ type Props = Readonly<{
   deletableIds: readonly number[];
 }>;
 
-type Editing = Readonly<{ id: number | "new"; name: string; color: string }>;
+type Editing = Readonly<{ id: number | "new"; name: string }>;
+
+/**
+ * カラーバーを押すと開くプリセット13色の選択（画面定義書03 §3.2）。
+ * S-01 の SelectPopover（src/app/(daily)/_components/select-popover.tsx）と同じ作り
+ * （floatPanel・Esc と外側クリックで閉じる）だが、モード用の型に合わせてこのファイル内に持つ。
+ */
+function ColorPickerPopover({
+  selected,
+  onSelect,
+  onClose,
+}: Readonly<{
+  selected: string;
+  onSelect: (color: string) => void;
+  onClose: () => void;
+}>) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [hovered, setHovered] = useState<string | null>(null);
+
+  useEffect(() => {
+    function onPointerDown(e: MouseEvent) {
+      if (ref.current !== null && !ref.current.contains(e.target as Node)) onClose();
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [onClose]);
+
+  return (
+    <div ref={ref} className={`absolute z-10 mt-1 flex w-56 flex-wrap gap-1.5 p-2 ${floatPanel}`}>
+      {MODE_COLORS.map((color) => (
+        <span key={color} className="relative">
+          <button
+            type="button"
+            aria-label={`色 ${modeColorName(color)}`}
+            aria-pressed={selected === color}
+            onMouseEnter={() => setHovered(color)}
+            onMouseLeave={() => setHovered((c) => (c === color ? null : c))}
+            onFocus={() => setHovered(color)}
+            onBlur={() => setHovered((c) => (c === color ? null : c))}
+            onClick={() => {
+              onSelect(color);
+              onClose();
+            }}
+            style={{ backgroundColor: color }}
+            className={`block h-6 w-6 rounded-full ${
+              selected === color ? "outline-solid outline-2 outline-offset-2 outline-ink" : ""
+            }`}
+          />
+          {/* 色だけでは選びにくいので、乗せた候補の名前を吹き出しで出す（画面定義書03 §3.2） */}
+          {hovered === color && (
+            <span
+              role="tooltip"
+              className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1 -translate-x-1/2 rounded-control bg-ink px-1.5 py-0.5 text-xs whitespace-nowrap text-paper"
+            >
+              {modeColorName(color)}
+            </span>
+          )}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 export function ModesTable({ active, archived, deletableIds }: Props) {
   const [editing, setEditing] = useState<Editing | null>(null);
+  const [newColor, setNewColor] = useState<string>(MODE_COLORS[0]);
+  const [colorPickerId, setColorPickerId] = useState<number | "new" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -42,55 +114,158 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
     });
   }
 
-  function save() {
+  /**
+   * 保存の経路は blur の1本だけにする（画面定義書03 §4「編集方式」）。
+   * 名前を保存するときは色は現在値のまま送る（色の変更はカラーバーのポップオーバーで独立して行う）
+   */
+  function commit(input: HTMLInputElement) {
     if (editing === null) return;
-    const input = { name: editing.name, color: editing.color };
+    const name = input.value;
+    const original = active.find((m) => m.id === editing.id)?.name;
+
+    // 変更がなければ何もせず閉じる（クリックしただけで UPDATE が飛ばないように）
+    if (editing.id !== "new" && name === original) {
+      setEditing(null);
+      return;
+    }
+
+    const color =
+      editing.id === "new"
+        ? newColor
+        : active.find((m) => m.id === editing.id)?.color ?? MODE_COLORS[0];
     const action =
       editing.id === "new"
-        ? () => createModeAction(input)
-        : () => updateModeAction(editing.id as number, input);
+        ? () => createModeAction({ name, color })
+        : () => updateModeAction(editing.id as number, { name, color });
+    // 失敗時は編集状態のまま残し、入力し直せるようにする
     run(action, () => setEditing(null));
   }
 
-  const onKeyDown = inlineEditKeyHandler({ onEnter: save, onEscape: () => setEditing(null) });
+  const onKeyDown = inlineEditKeyHandler({
+    onEnter: (input) => input.blur(),
+    onEscape: (input) => {
+      // 元の値へ戻してから blur すると、commit が「変更なし」と判断して閉じるだけになる
+      input.value = active.find((m) => m.id === editing?.id)?.name ?? "";
+      input.blur();
+    },
+  });
 
-  const editRow = (key: string) => (
+  /** 名前セル。クリックでその場編集（§4「編集方式」） */
+  const nameCell = (mode: Mode) =>
+    editing?.id === mode.id ? (
+      <input
+        autoFocus
+        defaultValue={mode.name}
+        onKeyDown={onKeyDown}
+        onBlur={(e) => commit(e.currentTarget)}
+        className={`w-full ${inputBase}`}
+      />
+    ) : (
+      <button
+        type="button"
+        // 保存中は同じ行の他のセルを触らせない（古い値での上書きを防ぐ。§4「編集方式」）
+        disabled={isPending}
+        onClick={() => {
+          setError(null);
+          setEditing({ id: mode.id, name: mode.name });
+        }}
+        className="text-left hover:underline disabled:no-underline disabled:opacity-60"
+      >
+        {mode.name}
+      </button>
+    );
+
+  /** 色セル。カラーバーを押すとプリセット選択がその場に開き、選んだ色を即保存する */
+  const colorCell = (mode: Mode) => (
+    <span className="relative inline-flex items-center gap-2">
+      <button
+        type="button"
+        // 名前の保存中は色を変えられないようにする（§4「編集方式」）
+        disabled={isPending}
+        onClick={() => setColorPickerId(mode.id)}
+        aria-label={`色を変更（現在: ${modeColorName(mode.color)}）`}
+      >
+        <span
+          style={{ backgroundColor: mode.color }}
+          className="inline-block h-3 w-10 shrink-0 rounded-control"
+          aria-hidden
+        />
+      </button>
+      <span className="text-xs text-ink-muted">{modeColorName(mode.color)}</span>
+      {colorPickerId === mode.id && (
+        <ColorPickerPopover
+          selected={mode.color}
+          onSelect={(color) =>
+            run(
+              () => updateModeAction(mode.id, { name: mode.name, color }),
+              () => setColorPickerId(null)
+            )
+          }
+          onClose={() => setColorPickerId(null)}
+        />
+      )}
+    </span>
+  );
+
+  /** 新規追加行の色セル。選択はまだ送信せずローカルに保持し、保存ボタンでまとめて送る */
+  const newColorCell = (
+    <span className="relative inline-flex items-center gap-2">
+      <button
+        type="button"
+        onClick={() => setColorPickerId("new")}
+        aria-label={`色を選択（現在: ${modeColorName(newColor)}）`}
+      >
+        <span
+          style={{ backgroundColor: newColor }}
+          className="inline-block h-3 w-10 shrink-0 rounded-control"
+          aria-hidden
+        />
+      </button>
+      <span className="text-xs text-ink-muted">{modeColorName(newColor)}</span>
+      {colorPickerId === "new" && (
+        <ColorPickerPopover selected={newColor} onSelect={setNewColor} onClose={() => setColorPickerId(null)} />
+      )}
+    </span>
+  );
+
+  // 新規行は保存経路が blur ではないので、Enter で直接保存する（IME 判定は共通関数に任せる）
+  const onNewKeyDown = inlineEditKeyHandler({
+    onEnter: (input) => commit(input),
+    onEscape: () => setEditing(null),
+  });
+
+  // 新規追加の行だけは明示的な保存・取消を置く（既存行の編集はセルのインライン編集）
+  const newRow = (key: string) => (
     <tr key={key} className="border-b border-line">
-      <td className="py-1 pr-2">
-        <div className="flex flex-wrap gap-1">
-          {MODE_COLORS.map((color) => (
-            <button
-              key={color}
-              type="button"
-              title={modeColorName(color)}
-              aria-label={`色 ${modeColorName(color)}`}
-              aria-pressed={editing?.color === color}
-              onClick={() => setEditing((s) => (s === null ? s : { ...s, color }))}
-              style={{ backgroundColor: color }}
-              className={`h-5 w-5 rounded-full ${
-                editing?.color === color
-                  ? "outline-solid outline-2 outline-offset-2 outline-ink"
-                  : ""
-              }`}
-            />
-          ))}
-        </div>
-      </td>
+      <td className="py-1 pr-2">{newColorCell}</td>
       <td className="py-1 pr-2">
         <input
           autoFocus
-          value={editing?.name ?? ""}
-          onChange={(e) => setEditing((s) => (s === null ? s : { ...s, name: e.target.value }))}
-          onKeyDown={onKeyDown}
+          defaultValue=""
+          onKeyDown={onNewKeyDown}
           className={`w-full ${inputBase}`}
           placeholder="モード名"
         />
       </td>
       <td className="py-1 text-right whitespace-nowrap">
-        <button onClick={save} disabled={isPending} className={`px-2 ${linkAccent}`}>
+        <button
+          onMouseDown={(e) => e.preventDefault()} // blur より先に押下を拾う
+          onClick={(e) => {
+            const input = e.currentTarget.closest("tr")?.querySelector("input");
+            if (input !== null && input !== undefined) commit(input);
+          }}
+          disabled={isPending}
+          className={`px-2 ${linkAccent}`}
+        >
           保存
         </button>
-        <button onClick={() => setEditing(null)} className={`px-2 ${linkMuted}`}>
+        <button
+          onClick={() => {
+            setEditing(null);
+            setColorPickerId(null);
+          }}
+          className={`px-2 ${linkMuted}`}
+        >
           取消
         </button>
       </td>
@@ -104,7 +279,8 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
         <button
           onClick={() => {
             setError(null);
-            setEditing({ id: "new", name: "", color: MODE_COLORS[0] });
+            setNewColor(MODE_COLORS[0]);
+            setEditing({ id: "new", name: "" });
           }}
           className={`inline-flex shrink-0 items-center gap-1 ${btnSecondary}`}
         >
@@ -128,44 +304,22 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
           </tr>
         </thead>
         <tbody>
-          {active.map((mode) =>
-            editing?.id === mode.id ? (
-              editRow(String(mode.id))
-            ) : (
-              <tr key={mode.id} className="border-b border-line">
-                <td className="py-2">
-                  <span className="inline-flex items-center gap-2">
-                    <span
-                      style={{ backgroundColor: mode.color }}
-                      className="inline-block h-3 w-10 shrink-0 rounded-control"
-                      aria-hidden
-                    />
-                    <span className="text-xs text-ink-muted">{modeColorName(mode.color)}</span>
-                  </span>
-                </td>
-                <td className="py-2">{mode.name}</td>
-                <td className="py-2 text-right whitespace-nowrap">
-                  <button
-                    onClick={() => {
-                      setError(null);
-                      setEditing({ id: mode.id, name: mode.name, color: mode.color });
-                    }}
-                    className={`px-2 ${linkAccent}`}
-                  >
-                    編集
-                  </button>
-                  <button
-                    onClick={() => run(() => setModeArchivedAction(mode.id, true))}
-                    disabled={isPending}
-                    className={`px-2 ${linkMuted}`}
-                  >
-                    アーカイブ
-                  </button>
-                </td>
-              </tr>
-            )
-          )}
-          {editing?.id === "new" && editRow("new")}
+          {active.map((mode) => (
+            <tr key={mode.id} className="border-b border-line">
+              <td className="py-2">{colorCell(mode)}</td>
+              <td className="py-2">{nameCell(mode)}</td>
+              <td className="py-2 text-right whitespace-nowrap">
+                <button
+                  onClick={() => run(() => setModeArchivedAction(mode.id, true))}
+                  disabled={isPending}
+                  className={`px-2 ${linkMuted}`}
+                >
+                  アーカイブ
+                </button>
+              </td>
+            </tr>
+          ))}
+          {editing?.id === "new" && newRow("new")}
         </tbody>
       </table>
 
