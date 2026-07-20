@@ -1,6 +1,6 @@
 # Hitosuji（ひとすじ）
 
-タスクシュート時間術を実践するためのシングルユーザー向けタスク管理Webアプリ。
+タスクシュート時間術を実践するためのシングルユーザー向けタスク管理Webアプリ。オーナー本人が自分のために作り、自分だけで使っている。
 
 - 仕様: [要求定義書](./docs/要求定義書.md) / [要件定義書](./docs/要件定義書.md) / [データモデル定義書](./docs/データモデル定義書.md) / [画面定義書](./docs/画面定義書/)
 - 実装の進め方: [実装計画](./docs/実装計画.md) / [ユーザーフィードバック管理簿](./docs/ユーザーフィードバック.md)
@@ -30,9 +30,9 @@ npm run test:int               # 統合のみ
 
 ## デプロイ（Vercel + Neon）
 
-本番URL: **[https://hitosuji-five.vercel.app](https://hitosuji-five.vercel.app)**（Basic認証あり。`hitosuji.vercel.app` は他ユーザー取得済み）
+本番は Vercel（Hobby）+ Neon（Free）で運用している。**本リポジトリは public だが本番URLは記載しない**（防御が Basic認証のみのため、到達手段を公開しない）。
 
-1. GitHub にプライベートリポジトリを作成して push
+1. GitHub にリポジトリを作成して push
 2. [Neon](https://neon.tech) で無料プロジェクトを作成し、接続文字列を取得
 3. 本番DBへスキーマ適用: `DATABASE_URL=<Neonの接続文字列> npm run db:migrate && DATABASE_URL=<同> npm run db:seed`
 4. [Vercel](https://vercel.com) でリポジトリをインポートし、環境変数を設定
@@ -89,3 +89,14 @@ npm run db:sync-masters -- backups/hitosuji_YYYYMMDD_HHMMSS.dump [対象DB名]  
 - 復元DBへアプリを向けて、デイリー・ルーチン・マスタの各画面が本番と同じ内容で表示されること
 
 GitHub Actions cron による自動化は実運用を開始してから検討する。
+
+## ライセンス
+
+コードとドキュメントで分けている。
+
+| 対象 | ライセンス |
+|---|---|
+| ソースコード（`docs/` と `README.md` 以外） | [GNU AGPL-3.0-or-later](./LICENSE) |
+| ドキュメント（`docs/` 配下、`README.md`） | [CC BY 4.0](./LICENSE-docs) |
+
+コードを AGPL にしているのは、改変版をネットワーク越しのサービスとして提供する場合にもソースの公開を求めたいため。設計文書は散文なので、文書に適した CC BY 4.0 で、出典表示だけを条件に自由に使えるようにしている。
