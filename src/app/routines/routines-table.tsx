@@ -20,20 +20,32 @@ import { RoutineForm } from "./routine-form";
 
 type Props = Readonly<{
   routines: readonly Routine[];
+  /** 編集フォームの選択肢。アーカイブ済みは含めない（画面定義書03 §4） */
   modes: readonly Mode[];
   projects: readonly Project[];
+  /** 一覧の表示用。参照中であればアーカイブ済みマスタの名前も出す（画面定義書03 §4） */
+  allModes: readonly Mode[];
+  allProjects: readonly Project[];
   sections: readonly Section[];
   today: string;
 }>;
 
 /** 一覧（画面定義書02 §3）。並び順は開始想定時刻の昇順（展開後のデイリーと同じ並び） */
-export function RoutinesTable({ routines, modes, projects, sections, today }: Props) {
+export function RoutinesTable({
+  routines,
+  modes,
+  projects,
+  allModes,
+  allProjects,
+  sections,
+  today,
+}: Props) {
   const [editing, setEditing] = useState<Routine | "new" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const modeById = new Map(modes.map((m) => [m.id, m]));
-  const projectById = new Map(projects.map((p) => [p.id, p]));
+  const modeById = new Map(allModes.map((m) => [m.id, m]));
+  const projectById = new Map(allProjects.map((p) => [p.id, p]));
 
   function run(action: () => Promise<RoutineActionResult>, onSuccess?: () => void) {
     setError(null);

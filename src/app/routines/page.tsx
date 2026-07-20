@@ -26,6 +26,9 @@ export default async function RoutinesPage() {
         routines={routines}
         modes={[...modeView.active]}
         projects={[...projectView.active]}
+        // 表示（名前の引き当て）にはアーカイブ済みも要る。選択肢には出さない（画面定義書03 §4）
+        allModes={[...modeView.active, ...modeView.archived]}
+        allProjects={[...projectView.active, ...projectView.archived]}
         sections={sectionView.ranges.map((r) => r.section)}
         today={todayLogicalDate()}
       />
