@@ -13,6 +13,8 @@
 - データ構造・主要ロジック: `docs/データモデル定義書.md`
 - 画面・操作・ショートカット: `docs/画面定義書/*.md`
 
+実運用で得たオーナーの気づきは `docs/ユーザーフィードバック.md` に起票してから対応する（対応時も上記ルール通り、挙動変更は仕様書反映が先）。
+
 ## 技術スタック
 
 Next.js 16 (App Router) + TypeScript / Tailwind CSS 4 / Drizzle ORM + node-postgres / PostgreSQL（ローカル: Docker(OrbStack)、本番: Neon 無料枠）/ Vercel 無料枠 / Basic認証（`proxy.ts`）
