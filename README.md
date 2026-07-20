@@ -40,16 +40,36 @@ npm run test:int               # 統合のみ
 
 ## バックアップ（N-06）
 
-週次で `pg_dump` を取得する（カスタム形式）:
+週次で `pg_dump` のカスタム形式を取得する。ローカルに Postgres クライアントを入れずに済むよう、`postgres:17-alpine` コンテナのクライアントを使う（本番 Neon と同じ 17 系。サーバより古いクライアントでは dump できない）。
+
+### 取得
+
+接続文字列は**コマンドライン引数に書かない**（シェル履歴に平文で残るため）。[CLAUDE.md](./CLAUDE.md) の「本番マイグレーションの手順」と同じく `.env.migrate` 経由で渡す。
 
 ```bash
-pg_dump "$DATABASE_URL" -Fc -f hitosuji_$(date +%Y%m%d).dump
+# Neon コンソール → Connection Details（Pooled のチェックを外す）で取得した接続文字列を
+# .env.migrate に DATABASE_URL='...' の1行で保存してから
+set -a; . ./.env.migrate; set +a
+npm run db:backup            # backups/hitosuji_YYYYMMDD_HHMMSS.dump が生成される
 ```
 
-リストア（任意の Postgres へ可能）:
+`backups/` は `.gitignore` 済み（本番の実データを含むためコミットしない）。取得後は `.env.migrate` を削除する。
+
+### 復元
 
 ```bash
-pg_restore -d "<リストア先の接続文字列>" hitosuji_YYYYMMDD.dump
+npm run db:restore -- backups/hitosuji_YYYYMMDD_HHMMSS.dump   # 復元先の既定は hitosuji_restore
+npm run db:restore -- backups/<ファイル> <復元先DB名>          # 復元先を指定する場合
 ```
 
-GitHub Actions cron による自動化は Phase 1 完了時に整備する。
+ローカルの `db` コンテナに復元先DBを作り直して流し込む。Neon のロール（`neondb_owner`）はローカルに存在しないため `--no-owner --no-privileges` を付けている（この2つがないと所有者エラーになる）。他の Postgres へ移す場合も同じダンプをそのまま `pg_restore` できる（N-06② ロックイン回避）。
+
+### リストア実演の結果（2026-07-20）
+
+本番から取得したダンプをローカルへ復元し、次を確認済み:
+
+- 全テーブルの行数が本番と完全一致（sections 10 / modes 13 / projects 7 / routines 10 / routine_skips 0 / tasks 13 / マイグレーション履歴 2）
+- マスタ・ルーチン・タスクの内容ハッシュ（md5）が本番と一致
+- 復元DBへアプリを向けて、デイリー・ルーチン・マスタの各画面が本番と同じ内容で表示されること
+
+GitHub Actions cron による自動化は実運用を開始してから検討する。

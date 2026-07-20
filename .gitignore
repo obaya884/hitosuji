@@ -33,6 +33,9 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# DBバックアップ（本番の実データを含むため決してコミットしない）
+/backups/
+
 # vercel
 .vercel
 
