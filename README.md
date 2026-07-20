@@ -30,7 +30,7 @@ npm run test:int               # 統合のみ
 
 ## デプロイ（Vercel + Neon）
 
-本番は Vercel（Hobby）+ Neon（Free）で運用している。**本リポジトリは public だが本番URLは記載しない**（防御が Basic認証のみのため、到達手段を公開しない）。
+本番は Vercel（Hobby）+ Neon（Free）で運用している。
 
 1. GitHub にリポジトリを作成して push
 2. [Neon](https://neon.tech) で無料プロジェクトを作成し、接続文字列を取得
