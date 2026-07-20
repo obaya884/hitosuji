@@ -2,6 +2,7 @@ import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import type {
   MoveCommand,
   NewTask,
+  Relocations,
   Renumber,
   RoutineSkip,
   StartCommand,
@@ -24,6 +25,21 @@ async function applyRenumber(
   const now = new Date();
   for (const row of renumber) {
     await tx.update(tasks).set({ sortOrder: row.sortOrder, updatedAt: now }).where(eq(tasks.id, row.taskId));
+  }
+}
+
+/** 自動セクション移動をまとめて適用する（F-113 / データモデル定義書 §4.4） */
+async function applyRelocations(
+  tx: Pick<Database, "update">,
+  relocations: Relocations | null | undefined
+): Promise<void> {
+  if (relocations === undefined || relocations === null) return;
+  const now = new Date();
+  for (const row of relocations) {
+    await tx
+      .update(tasks)
+      .set({ sectionId: row.sectionId, sortOrder: row.sortOrder, updatedAt: now })
+      .where(eq(tasks.id, row.taskId));
   }
 }
 
@@ -93,8 +109,10 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
 
     // 割り込みは「終了 → 再開タスク生成 → 開始」を1トランザクションで行う（アーキテクチャ定義書 §7）
     async start(command: StartCommand) {
-      const { taskId, startedAt, interruption } = command;
-      if (interruption === null) {
+      const { taskId, startedAt, interruption, relocation } = command;
+      const hasRelocation = relocation !== undefined && relocation !== null && relocation.length > 0;
+
+      if (interruption === null && !hasRelocation) {
         await db
           .update(tasks)
           .set({ startedAt, updatedAt: new Date() })
@@ -102,9 +120,20 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
         return;
       }
 
+      if (interruption === null) {
+        // 自動セクション移動（F-113 §4.2-a）は打刻と同一トランザクションで反映する
+        await db.transaction(async (tx) => {
+          const now = new Date();
+          await applyRelocations(tx, relocation);
+          await tx.update(tasks).set({ startedAt, updatedAt: now }).where(eq(tasks.id, taskId));
+        });
+        return;
+      }
+
       await db.transaction(async (tx) => {
         const now = new Date();
         await applyRenumber(tx, interruption.renumber);
+        await applyRelocations(tx, relocation);
         await tx
           .update(tasks)
           .set({ endedAt: interruption.endedAt, updatedAt: now })
@@ -214,6 +243,14 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
           .update(tasks)
           .set({ sectionId, sortOrder, updatedAt: now })
           .where(eq(tasks.id, taskId));
+      });
+    },
+
+    async relocate(relocations: Relocations) {
+      if (relocations.length === 0) return;
+      // 途中まで移動した状態を残さない（データモデル定義書 §4.4）
+      await db.transaction(async (tx) => {
+        await applyRelocations(tx, relocations);
       });
     },
   };

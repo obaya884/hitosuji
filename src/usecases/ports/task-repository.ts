@@ -27,6 +27,11 @@ export type NewTask = Readonly<{
 export type StartCommand = Readonly<{
   taskId: TaskId;
   startedAt: Date;
+  /**
+   * 開始したタスク自身の移動（F-113 / 画面定義書01 §4.2-a）。
+   * started_at の書き込みと同一トランザクションで反映する
+   */
+  relocation?: Relocations | null;
   interruption: Readonly<{
     runningTaskId: TaskId;
     endedAt: Date;
@@ -43,6 +48,16 @@ export type MoveCommand = Readonly<{
   /** 中間値が尽きた場合の同一グループの振り直し */
   renumber: Renumber | null;
 }>;
+
+/**
+ * 自動セクション移動（F-113 / データモデル定義書 §4.4）。
+ * 複数行の section_id・sort_order をまとめて更新する。途中まで移動した状態を残さないため1トランザクション
+ */
+export type Relocations = readonly Readonly<{
+  taskId: TaskId;
+  sectionId: number | null;
+  sortOrder: number;
+}>[];
 
 /** 中断（F-204）: 実行中タスクの終了と再開タスクの生成を1トランザクションで行う */
 export type SuspendCommand = Readonly<{
@@ -67,6 +82,8 @@ export type TaskRepository = Readonly<{
   finish(id: TaskId, endedAt: Date): Promise<void>;
   /** 並び替え（O-6）。振り直しを伴う場合も1トランザクションで反映する */
   move(command: MoveCommand): Promise<void>;
+  /** 自動セクション移動（F-113）。まとめて1トランザクションで反映する */
+  relocate(relocations: Relocations): Promise<void>;
   /** モード・プロジェクトの割り当て（O-5） */
   suspend(command: SuspendCommand): Promise<void>;
   /**

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import type { Section } from "@/domain/section/section";
 import { taskStatus } from "@/domain/task/status";
 import type { Task } from "@/domain/task/task";
+import { inMemorySectionRepository } from "@/usecases/section/testing/in-memory-section-repository";
 import { finishTask, startTask, updateTaskPunch } from "./punch-usecases";
 import { inMemoryTaskRepository } from "./testing/in-memory-task-repository";
 
@@ -24,17 +26,31 @@ function task(over: Partial<Task> & { id: number }): Task {
 }
 
 const now = new Date("2026-07-19T09:00:00Z");
+const nowClock = "18:00"; // 打刻の HH:MM（自動セクション移動 F-113 の判定に使う）
+const today = "2026-07-19";
+
+/**
+ * 打刻の依存。セクション0件なら自動セクション移動（F-113）は起きないので、
+ * F-201 そのものの検証にはこれを使う
+ */
+function depsOf(repo: ReturnType<typeof inMemoryTaskRepository>, sections: readonly Section[] = []) {
+  return { tasks: repo, sections: inMemorySectionRepository(sections) };
+}
+
+function punch(repo: ReturnType<typeof inMemoryTaskRepository>, taskId: number) {
+  return startTask(depsOf(repo), { taskId, now, nowClock, today });
+}
 
 describe("startTask（F-201: 開始打刻）", () => {
   it("実行中タスクがなければそのまま開始する", async () => {
     const repo = inMemoryTaskRepository([task({ id: 1 })]);
-    expect((await startTask(repo, { taskId: 1, now })).ok).toBe(true);
+    expect((await punch(repo, 1)).ok).toBe(true);
     expect(repo.rows[0].startedAt).toEqual(now);
   });
 
   it("実行中・完了タスクは開始できない", async () => {
     const repo = inMemoryTaskRepository([task({ id: 1, startedAt: now })]);
-    expect(await startTask(repo, { taskId: 1, now })).toEqual({
+    expect(await punch(repo, 1)).toEqual({
       ok: false,
       error: "already_started",
     });
@@ -42,10 +58,60 @@ describe("startTask（F-201: 開始打刻）", () => {
 
   it("存在しないタスクはエラー", async () => {
     const repo = inMemoryTaskRepository([]);
-    expect(await startTask(repo, { taskId: 99, now })).toEqual({
+    expect(await punch(repo, 99)).toEqual({
       ok: false,
       error: "task_not_found",
     });
+  });
+
+  it("画面定義書01 §4.2-a: 未分類のタスクを開始すると、開始時刻を含むセクションへ移す", async () => {
+    const sections: Section[] = [
+      { id: 1, name: "午前", startTime: "09:00", isArchived: false },
+      { id: 2, name: "夜", startTime: "18:00", isArchived: false },
+    ];
+    const repo = inMemoryTaskRepository([task({ id: 1, sectionId: null })]);
+
+    // nowClock = 18:00 なので「夜」へ移る
+    const result = await startTask(depsOf(repo, sections), { taskId: 1, now, nowClock, today });
+
+    expect(result.ok).toBe(true);
+    expect(repo.rows[0].sectionId).toBe(2);
+    expect(repo.rows[0].startedAt).toEqual(now);
+  });
+
+  it("画面定義書01 §4.2: 今日以外のタスクを開始しても自動セクション移動はしない", async () => {
+    const sections: Section[] = [{ id: 2, name: "夜", startTime: "18:00", isArchived: false }];
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, taskDate: "2026-07-18", sectionId: null }),
+    ]);
+
+    const result = await startTask(depsOf(repo, sections), {
+      taskId: 1,
+      now,
+      nowClock,
+      today, // 表示日（今日）とタスクの日付が違う
+    });
+
+    expect(result.ok).toBe(true);
+    expect(repo.rows[0].sectionId).toBeNull();
+  });
+
+  it("画面定義書01 §4.2-a: 割り込みの再開タスクは、移動後のセクションの直下に生成する", async () => {
+    const sections: Section[] = [
+      { id: 1, name: "午前", startTime: "09:00", isArchived: false },
+      { id: 2, name: "夜", startTime: "18:00", isArchived: false },
+    ];
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 1, startedAt: new Date("2026-07-19T08:30:00Z") }), // 実行中
+      task({ id: 2, sectionId: null }), // これを開始 → 「夜」へ移る
+    ]);
+
+    const result = await startTask(depsOf(repo, sections), { taskId: 2, now, nowClock, today });
+
+    expect(result.ok).toBe(true);
+    const resumed = repo.rows.find((r) => r.splitParentId !== null);
+    expect(repo.rows.find((r) => r.id === 2)?.sectionId).toBe(2);
+    expect(resumed?.sectionId).toBe(2); // 元タスクの「午前」ではなく移動先に付いていく
   });
 });
 
@@ -59,7 +125,7 @@ describe("startTask の割り込み（F-201 / データモデル定義書 §4.2�
       task({ id: 3, name: "後続タスク", sortOrder: 3000 }),
     ]);
 
-    expect((await startTask(repo, { taskId: 2, now })).ok).toBe(true);
+    expect((await punch(repo, 2)).ok).toBe(true);
 
     const [interrupted, started, , resumed] = repo.rows;
     expect(interrupted.endedAt).toEqual(now); // ①終了
@@ -81,7 +147,7 @@ describe("startTask の割り込み（F-201 / データモデル定義書 §4.2�
       task({ id: 2, taskDate: "2026-07-19", sectionId: 3, sortOrder: 5000 }),
     ]);
 
-    await startTask(repo, { taskId: 2, now });
+    await punch(repo, 2);
 
     const resumed = repo.rows[2];
     expect([resumed.taskDate, resumed.sectionId, resumed.sortOrder]).toEqual([
@@ -98,7 +164,7 @@ describe("startTask の割り込み（F-201 / データモデル定義書 §4.2�
       task({ id: 2, sortOrder: 2000 }),
     ]);
 
-    await startTask(repo, { taskId: 2, now });
+    await punch(repo, 2);
     expect(repo.rows[2].estimateMinutes).toBe(0);
   });
 
@@ -108,7 +174,7 @@ describe("startTask の割り込み（F-201 / データモデル定義書 §4.2�
       task({ id: 2, sortOrder: 2000 }),
     ]);
 
-    await startTask(repo, { taskId: 2, now });
+    await punch(repo, 2);
     expect(repo.rows.filter((t) => taskStatus(t) === "running").map((t) => t.id)).toEqual([2]);
   });
 });

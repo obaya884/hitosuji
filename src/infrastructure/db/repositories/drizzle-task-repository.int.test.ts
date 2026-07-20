@@ -385,3 +385,79 @@ describe("create の振り直し（データモデル定義書 §3.5: 中間値�
     expect(after[0].sortOrder).toBe(1000); // 振り直しが巻き戻っている
   });
 });
+
+describe("relocate（F-113 / データモデル定義書 §4.4: 自動セクション移動）", () => {
+  it("複数行の section_id と sort_order がまとめて反映される", async () => {
+    const [morning, forenoon] = await db
+      .insert(sections)
+      .values([
+        { name: "朝", startTime: "06:00" },
+        { name: "午前", startTime: "09:00" },
+      ])
+      .returning();
+    const [a, b] = await db
+      .insert(tasks)
+      .values([
+        { taskDate: "2026-07-19", name: "A", sortOrder: 1000, sectionId: morning.id },
+        { taskDate: "2026-07-19", name: "B", sortOrder: 2000, sectionId: morning.id },
+      ])
+      .returning();
+
+    await repo.relocate([
+      { taskId: a.id, sectionId: forenoon.id, sortOrder: 500 },
+      { taskId: b.id, sectionId: forenoon.id, sortOrder: 600 },
+    ]);
+
+    const after = await repo.listByDate("2026-07-19");
+    expect(after.map((t) => [t.id, t.sectionId, t.sortOrder])).toEqual(
+      expect.arrayContaining([
+        [a.id, forenoon.id, 500],
+        [b.id, forenoon.id, 600],
+      ])
+    );
+  });
+
+  it("途中で失敗した場合は1件も反映されない（1トランザクション）", async () => {
+    const [morning] = await db
+      .insert(sections)
+      .values([{ name: "朝", startTime: "06:00" }])
+      .returning();
+    const [a] = await db
+      .insert(tasks)
+      .values([{ taskDate: "2026-07-19", name: "A", sortOrder: 1000, sectionId: morning.id }])
+      .returning();
+
+    await expect(
+      repo.relocate([
+        { taskId: a.id, sectionId: morning.id, sortOrder: 500 },
+        { taskId: a.id, sectionId: 999999, sortOrder: 600 }, // 存在しないセクション → FK違反
+      ])
+    ).rejects.toThrow();
+
+    const after = await repo.listByDate("2026-07-19");
+    expect(after[0].sortOrder).toBe(1000); // 1件目の更新も巻き戻っている
+  });
+
+  it("start（§4.2-a）: 打刻と移動が同じトランザクションで反映される", async () => {
+    const [night] = await db
+      .insert(sections)
+      .values([{ name: "夜", startTime: "18:00" }])
+      .returning();
+    const [target] = await db
+      .insert(tasks)
+      .values([{ taskDate: "2026-07-19", name: "未分類のタスク", sortOrder: 1000 }])
+      .returning();
+    const startedAt = new Date("2026-07-19T09:00:00Z");
+
+    await repo.start({
+      taskId: target.id,
+      startedAt,
+      interruption: null,
+      relocation: [{ taskId: target.id, sectionId: night.id, sortOrder: 1000 }],
+    });
+
+    const [after] = await repo.listByDate("2026-07-19");
+    expect(after.startedAt).toEqual(startedAt);
+    expect(after.sectionId).toBe(night.id);
+  });
+});

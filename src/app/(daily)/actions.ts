@@ -28,6 +28,8 @@ import {
   setTaskSection,
 } from "@/usecases/task/reorder-usecases";
 import { createRoutineFromTask } from "@/usecases/routine/routine-usecases";
+import { applyCarryOverAfterPunch } from "@/usecases/task/relocation-usecases";
+import { formatClock, todayLogicalDate } from "@/app/_lib/format";
 import type { RoutineFromTaskChoice } from "@/domain/routine/routine-from-task";
 import { createRoutineRepository } from "@/infrastructure/db/repositories/drizzle-routine-repository";
 import { createSectionRepository } from "@/infrastructure/db/repositories/drizzle-section-repository";
@@ -37,6 +39,8 @@ import { createTaskRepository } from "@/infrastructure/db/repositories/drizzle-t
 const taskRepo = createTaskRepository();
 const sectionRepo = createSectionRepository();
 const routineRepo = createRoutineRepository();
+/** 打刻と自動セクション移動（F-113）はセクションも参照する */
+const punchDeps = { tasks: taskRepo, sections: sectionRepo };
 
 export type DailyActionResult = Readonly<{ ok: true } | { ok: false; message: string }>;
 
@@ -81,8 +85,12 @@ const PUNCH_ERROR_MESSAGES: Record<string, string> = {
 
 /** 開始打刻（F-201）。now はクライアントの現在時刻を受け取る */
 export async function startTaskAction(id: number, now: Date): Promise<DailyActionResult> {
-  const result = await startTask(taskRepo, { taskId: id, now });
+  const today = todayLogicalDate(now);
+  const nowClock = formatClock(now);
+  const result = await startTask(punchDeps, { taskId: id, now, nowClock, today });
   if (!result.ok) return { ok: false, message: PUNCH_ERROR_MESSAGES[result.error] };
+  // 開始したタスクより前に残っている未実行タスクを繰り下げる（F-113 §4.2-b）
+  await applyCarryOverAfterPunch(punchDeps, { date: today, today, nowClock });
   revalidatePath("/");
   return { ok: true };
 }
@@ -90,6 +98,8 @@ export async function startTaskAction(id: number, now: Date): Promise<DailyActio
 export async function finishTaskAction(id: number, now: Date): Promise<DailyActionResult> {
   const result = await finishTask(taskRepo, { taskId: id, now });
   if (!result.ok) return { ok: false, message: PUNCH_ERROR_MESSAGES[result.error] };
+  const today = todayLogicalDate(now);
+  await applyCarryOverAfterPunch(punchDeps, { date: today, today, nowClock: formatClock(now) });
   revalidatePath("/");
   return { ok: true };
 }

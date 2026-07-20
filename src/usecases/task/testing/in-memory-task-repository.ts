@@ -3,6 +3,7 @@
 import type {
   MoveCommand,
   NewTask,
+  Relocations,
   Renumber,
   RoutineSkip,
   StartCommand,
@@ -89,6 +90,11 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
           postponedCount: 0,
         });
       }
+      // 自動セクション移動（F-113 §4.2-a）は打刻と同じ操作の中で反映する
+      for (const row of command.relocation ?? []) {
+        const j = indexOf(row.taskId);
+        rows[j] = { ...rows[j], sectionId: row.sectionId, sortOrder: row.sortOrder };
+      }
       const i = indexOf(taskId);
       rows[i] = { ...rows[i], startedAt };
     },
@@ -165,6 +171,13 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
       }
       const i = indexOf(command.taskId);
       rows[i] = { ...rows[i], sectionId: command.sectionId, sortOrder: command.sortOrder };
+    },
+
+    relocate: async (relocations: Relocations) => {
+      for (const row of relocations) {
+        const i = indexOf(row.taskId);
+        rows[i] = { ...rows[i], sectionId: row.sectionId, sortOrder: row.sortOrder };
+      }
     },
   };
 }
