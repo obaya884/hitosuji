@@ -3,7 +3,7 @@ import { pathToFileURL } from "node:url";
 import type { Database } from "./index";
 import { modes, sections } from "./schema";
 
-// 要件定義書 §8-2 で決定済みの初期セクション
+// 初期セクション（データモデル定義書 §5 が正）
 const SEED_SECTIONS = [
   { name: "朝", startTime: "06:00" },
   { name: "午前", startTime: "09:00" },
