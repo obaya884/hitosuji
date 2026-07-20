@@ -33,6 +33,7 @@ export function RoutinesTable({ routines, modes, projects, sections, today }: Pr
   const [isPending, startTransition] = useTransition();
 
   const modeById = new Map(modes.map((m) => [m.id, m]));
+  const projectById = new Map(projects.map((p) => [p.id, p]));
 
   function run(action: () => Promise<RoutineActionResult>, onSuccess?: () => void) {
     setError(null);
@@ -89,17 +90,21 @@ export function RoutinesTable({ routines, modes, projects, sections, today }: Pr
       <table className="mt-3 w-full text-sm">
         <thead>
           <tr className="border-b border-line-strong text-left text-xs text-ink-muted">
-            <th className="w-12 py-2 font-normal">有効</th>
             <th className="py-2 font-normal">名前</th>
+            <th className="w-24 py-2 font-normal">モード</th>
+            <th className="w-28 py-2 font-normal">プロジェクト</th>
             <th className="w-20 py-2 pr-4 text-right font-normal">見積</th>
             <th className="w-40 py-2 font-normal">繰り返し</th>
-            <th className="w-36 py-2 font-normal">開始想定</th>
+            <th className="w-32 py-2 font-normal">開始想定</th>
+            <th className="w-12 py-2 font-normal">有効</th>
             <th className="w-24 py-2 font-normal" />
           </tr>
         </thead>
         <tbody>
           {routines.map((routine) => {
             const mode = routine.modeId === null ? undefined : modeById.get(routine.modeId);
+            const project =
+              routine.projectId === null ? undefined : projectById.get(routine.projectId);
             const section = sectionAt(sections, routine.scheduledStartTime);
             const isEditing = editing !== null && editing !== "new" && editing.id === routine.id;
 
@@ -108,10 +113,28 @@ export function RoutinesTable({ routines, modes, projects, sections, today }: Pr
                 key={routine.id}
                 // 無効ルーチンはグレーアウト（画面定義書02 §3）
                 className={`border-b border-line ${routine.isActive ? "" : "text-ink-faint"}`}
-                style={
-                  routine.isActive && mode !== undefined ? { color: mode.color } : undefined
-                }
               >
+                <td
+                  className="py-2"
+                  // モード色を名前の文字色に反映する（S-01と同じ表現。画面定義書02 §3）
+                  style={
+                    routine.isActive && mode !== undefined ? { color: mode.color } : undefined
+                  }
+                >
+                  {routine.name}
+                </td>
+                <td className="py-2 text-xs">{mode?.name ?? ""}</td>
+                <td className="py-2 text-xs">{project?.name ?? ""}</td>
+                <td className="py-2 pr-4 text-right font-mono tabular-nums">
+                  {formatEstimate(routine.estimateMinutes)}
+                </td>
+                <td className="py-2 text-xs">{describeRecurrence(routine)}</td>
+                <td className="py-2 text-xs tabular-nums">
+                  <span className="font-mono">{routine.scheduledStartTime}</span>
+                  {section !== undefined && (
+                    <span className="ml-1 text-ink-muted">({section.name})</span>
+                  )}
+                </td>
                 <td className="py-2">
                   <input
                     type="checkbox"
@@ -123,17 +146,6 @@ export function RoutinesTable({ routines, modes, projects, sections, today }: Pr
                     aria-label={`${routine.name} を有効にする`}
                     className="accent-accent"
                   />
-                </td>
-                <td className="py-2">{routine.name}</td>
-                <td className="py-2 pr-4 text-right font-mono tabular-nums">
-                  {formatEstimate(routine.estimateMinutes)}
-                </td>
-                <td className="py-2 text-xs">{describeRecurrence(routine)}</td>
-                <td className="py-2 text-xs tabular-nums">
-                  <span className="font-mono">{routine.scheduledStartTime}</span>
-                  {section !== undefined && (
-                    <span className="ml-1 text-ink-muted">({section.name})</span>
-                  )}
                 </td>
                 <td className="py-2 text-right whitespace-nowrap">
                   <button

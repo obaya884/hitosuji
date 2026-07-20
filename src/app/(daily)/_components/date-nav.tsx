@@ -4,7 +4,7 @@ import Link from "next/link";
 import { addDays } from "@/domain/shared/logical-date";
 import { ChevronLeftIcon, ChevronRightIcon } from "@/app/_components/icons";
 import { formatLogicalDate } from "@/app/_lib/format";
-import { btnPrimary, btnSecondary } from "@/app/_lib/ui";
+import { btnSecondary } from "@/app/_lib/ui";
 
 type Props = Readonly<{
   date: string;
@@ -12,7 +12,10 @@ type Props = Readonly<{
   isToday: boolean;
 }>;
 
-// 画面定義書01 §3.1: 前日/翌日/今日への移動。今日以外を表示中は背景色を変えて注意喚起する
+// 画面定義書01 §3.1: 前日/翌日/今日への移動。
+// 「今日へ」は今日以外を表示中のみ表示し、通常の枠線ボタン（強調色なし）にする
+// （2026-07-20 オーナー判断: 強調色だと「表示日＝今日」の状態表示に見えてしまい、
+// 逆に誤認を招いていたため。ボタンの有無自体が今日以外であることを示す。FB-07）
 export function DateNav({ date, weekday, isToday }: Props) {
   return (
     <div className="flex items-center gap-2">
@@ -34,10 +37,10 @@ export function DateNav({ date, weekday, isToday }: Props) {
       >
         <ChevronRightIcon className="h-3 w-3" />
       </Link>
-      {/* 今日以外を表示中は「今日」ボタンを強調色で出し、戻る導線として注意喚起する（§3.1） */}
+      {/* 今日以外を表示中のみ表示する。ボタンの有無自体が「今日以外」を示す（§3.1） */}
       {!isToday && (
-        <Link href="/" className={btnPrimary}>
-          今日
+        <Link href="/" className={btnSecondary}>
+          今日へ
         </Link>
       )}
     </div>

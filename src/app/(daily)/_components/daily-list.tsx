@@ -79,17 +79,30 @@ export function DailyList({
   const projectById = new Map(projects.map((p) => [p.id, p]));
 
   return (
-    <table className="mt-4 w-full text-sm">
+    // table-fixed + colgroup で列幅を1箇所に集約する。table-auto のままだと
+    // colSpan の行（セクション見出し・空セクション）の内容量次第で列幅の再計算結果が
+    // ずれ、見出しと本文の列境界が揃わないことがあった（FB-14）
+    <table className="mt-4 w-full table-fixed text-base">
+      <colgroup>
+        <col className="w-10" />
+        <col />
+        <col className="w-32" />
+        <col className="w-24" />
+        <col className="w-28" />
+        <col className="w-40" />
+        {/* 行メニュー（3点リーダーのボタン）の実際の footprint に合わせる（FB-14） */}
+        <col className="w-10" />
+      </colgroup>
       {/* 列見出しは画面トップに1つだけ置く（セクションごとに繰り返さない） */}
       <thead>
         <tr className="border-b border-line-strong text-left text-xs text-ink-muted">
-          <th className="w-10 py-2 font-normal" />
+          <th className="py-2 font-normal" />
           <th className="py-2 font-normal">タスク</th>
-          <th className="w-32 py-2 font-normal">モード</th>
-          <th className="w-24 py-2 text-right font-normal">見積</th>
-          <th className="w-28 py-2 text-right font-normal">実績</th>
-          <th className="w-40 py-2 text-right font-normal">実施時間</th>
-          <th className="w-8 py-2 font-normal" />
+          <th className="py-2 font-normal">モード</th>
+          <th className="py-2 text-right font-normal">見積</th>
+          <th className="py-2 text-right font-normal">実績</th>
+          <th className="py-2 text-right font-normal">実施時間</th>
+          <th className="py-2 font-normal" />
         </tr>
       </thead>
       {groups.map((group) => (
@@ -296,7 +309,7 @@ function TaskRow({
       style={mode === undefined ? undefined : { color: mode.color }}
       className={`border-b border-line ${isSelected ? "bg-accent-weak" : ""}`}
     >
-      <td className="w-10 py-3">
+      <td className="py-2.5">
         {/* 開始 →（実行中なら）終了 のトグル（F-201）。押しやすさのため円形ボタンにする */}
         <button
           type="button"
@@ -314,7 +327,7 @@ function TaskRow({
           {STATUS_ICON[status]}
         </button>
       </td>
-      <td className="py-3">
+      <td className="py-2.5">
         {editing === "name" ? (
           <input
             autoFocus
@@ -328,8 +341,9 @@ function TaskRow({
             {task.name}
           </button>
         )}
+        {/* 補助表記は本文より1段階だけ小さくする（画面定義書01 §2: 相対関係を維持する） */}
         {editing !== "name" && (
-          <span className="relative ml-2 inline-flex gap-2 text-xs">
+          <span className="relative ml-2 inline-flex gap-2 text-sm">
             {/* プロジェクト選択ポップオーバー（O-5） */}
             <button
               type="button"
@@ -365,7 +379,7 @@ function TaskRow({
           </span>
         )}
       </td>
-      <td className={`relative w-32 py-3 text-xs ${dimmed}`}>
+      <td className={`relative py-2.5 text-sm ${dimmed}`}>
         {/* モード選択ポップオーバー（O-5） */}
         <button type="button" onClick={() => onBeginEdit(task, "mode")} className="hover:underline">
           {mode?.name ?? <span className="text-ink-faint">モード</span>}
@@ -379,7 +393,7 @@ function TaskRow({
           />
         )}
       </td>
-      <td className="w-24 py-3 text-right font-mono tabular-nums">
+      <td className="py-2.5 text-right font-mono tabular-nums">
         {editing === "estimate" ? (
           <input
             autoFocus
@@ -400,7 +414,7 @@ function TaskRow({
           </button>
         )}
       </td>
-      <td className={`w-28 py-3 text-right font-mono tabular-nums ${dimmed}`}>
+      <td className={`py-2.5 text-right font-mono tabular-nums ${dimmed}`}>
         {actual !== null && (
           <span className={isOverEstimate(actual, task) ? "text-danger" : ""}>
             → {formatDuration(actual)}
@@ -413,7 +427,7 @@ function TaskRow({
           </span>
         )}
       </td>
-      <td className={`w-40 py-3 text-right font-mono tabular-nums ${dimmed}`}>
+      <td className={`py-2.5 text-right font-mono tabular-nums ${dimmed}`}>
         {/* 開始・終了時刻のインライン修正（F-203）。未打刻のタスクは編集させない */}
         {task.startedAt !== null &&
           (editing === "startedAt" || editing === "endedAt" ? (
@@ -448,7 +462,7 @@ function TaskRow({
             </>
           ))}
       </td>
-      <td className="w-8 py-3">
+      <td className="py-2.5">
         <RowMenu
           items={[
             {

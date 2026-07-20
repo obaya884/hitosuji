@@ -4,20 +4,24 @@ import { useEffect } from "react";
 import { floatPanel } from "@/app/_lib/ui";
 
 // 画面定義書01 §6 の一覧と対応させる（変更時は仕様書を先に更新する）
+// mnemonic は同§6 本表の括弧書き（Rename / Estimate / Begin / Finish / Current / Section / Yank / Undo）と一致させる。
+// 表にない由来は創作しない（該当なしのキーは mnemonic を付けない）。
 const SHORTCUTS = [
   { keys: "↓ / ↑（J / K）", description: "選択行の移動" },
-  { keys: "C", description: "現在地へジャンプ（実行中、なければ最初の未実行）" },
+  { keys: "C", description: "現在地へジャンプ（実行中、なければ最初の未実行）", mnemonic: "Current" },
   { keys: "Enter", description: "開始 →（実行中なら）終了 のトグル" },
   { keys: "I", description: "中断（実行中タスクのみ）" },
   { keys: "N", description: "クイック追加欄へフォーカス" },
-  { keys: "R / F2", description: "タスク名編集" },
-  { keys: "E", description: "見積もり編集" },
-  { keys: "B / F", description: "開始時刻 / 終了時刻の修正" },
-  { keys: "M / P / S", description: "モード / プロジェクト / セクションの選択" },
+  { keys: "R / F2", description: "タスク名編集", mnemonic: "Rename" },
+  { keys: "E", description: "見積もり編集", mnemonic: "Estimate" },
+  { keys: "B / F", description: "開始時刻 / 終了時刻の修正", mnemonic: "Begin / Finish" },
+  { keys: "M", description: "モードの選択" },
+  { keys: "P", description: "プロジェクトの選択" },
+  { keys: "S", description: "セクションの選択", mnemonic: "Section" },
   { keys: "Shift+J / Shift+K", description: "タスクの並び替え（下へ / 上へ）" },
-  { keys: "Y", description: "選択タスクの複製" },
+  { keys: "Y", description: "選択タスクの複製", mnemonic: "Yank" },
   { keys: "D", description: "削除" },
-  { keys: "U", description: "直前の削除を取り消し" },
+  { keys: "U", description: "直前の削除を取り消し", mnemonic: "Undo" },
   { keys: "Shift+H / Shift+L / T", description: "前日 / 翌日 / 今日へ移動" },
   { keys: "?", description: "この一覧の表示・非表示" },
 ] as const;
@@ -53,7 +57,12 @@ export function ShortcutHelp({ onClose }: Props) {
             {SHORTCUTS.map((shortcut) => (
               <tr key={shortcut.keys} className="border-b border-line last:border-0">
                 <td className="w-44 py-1 pr-2 align-top font-mono text-xs">{shortcut.keys}</td>
-                <td className="py-1 text-ink">{shortcut.description}</td>
+                <td className="py-1 text-ink">
+                  {shortcut.description}
+                  {"mnemonic" in shortcut && (
+                    <span className="ml-1 text-xs text-ink-muted">（{shortcut.mnemonic}）</span>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

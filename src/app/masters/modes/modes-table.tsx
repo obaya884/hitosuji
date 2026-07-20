@@ -10,7 +10,7 @@ import {
   noticeDanger,
 } from "@/app/_lib/ui";
 import { PlusIcon } from "@/app/_components/icons";
-import { MODE_COLORS, type Mode } from "@/domain/mode/mode";
+import { MODE_COLORS, modeColorName, type Mode } from "@/domain/mode/mode";
 import { DeleteMasterButton } from "../_components/delete-master-button";
 import type { ActionResult } from "../_lib/action-result";
 import {
@@ -62,7 +62,8 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
             <button
               key={color}
               type="button"
-              aria-label={`色 ${color}`}
+              title={modeColorName(color)}
+              aria-label={`色 ${modeColorName(color)}`}
               aria-pressed={editing?.color === color}
               onClick={() => setEditing((s) => (s === null ? s : { ...s, color }))}
               style={{ backgroundColor: color }}
@@ -133,11 +134,14 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
             ) : (
               <tr key={mode.id} className="border-b border-line">
                 <td className="py-2">
-                  <span
-                    style={{ backgroundColor: mode.color }}
-                    className="inline-block h-3 w-10 rounded-control"
-                    aria-hidden
-                  />
+                  <span className="inline-flex items-center gap-2">
+                    <span
+                      style={{ backgroundColor: mode.color }}
+                      className="inline-block h-3 w-10 shrink-0 rounded-control"
+                      aria-hidden
+                    />
+                    <span className="text-xs text-ink-muted">{modeColorName(mode.color)}</span>
+                  </span>
                 </td>
                 <td className="py-2">{mode.name}</td>
                 <td className="py-2 text-right whitespace-nowrap">
@@ -175,11 +179,14 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
               {archived.map((mode) => (
                 <tr key={mode.id} className="border-b border-line text-ink-muted">
                   <td className="w-48 py-2">
-                    <span
-                      style={{ backgroundColor: mode.color }}
-                      className="inline-block h-3 w-10 rounded-control opacity-50"
-                      aria-hidden
-                    />
+                    <span className="inline-flex items-center gap-2">
+                      <span
+                        style={{ backgroundColor: mode.color }}
+                        className="inline-block h-3 w-10 shrink-0 rounded-control opacity-50"
+                        aria-hidden
+                      />
+                      <span className="text-xs">{modeColorName(mode.color)}</span>
+                    </span>
                   </td>
                   <td className="py-2">{mode.name}</td>
                   <td className="w-32 py-2 text-right whitespace-nowrap">

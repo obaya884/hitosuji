@@ -182,3 +182,67 @@ describe("listDailyList の警告対象（画面定義書01 §8: 前日以前の
     expect(view.staleRunningTask).toBeNull();
   });
 });
+
+describe("listDailyList の並び順（FB-01 / 画面定義書03 §4: name 昇順・start_time 昇順）", () => {
+  it("モードは登録順ではなく name の昇順（自然順）で返す", async () => {
+    const modeRepo: ModeRepository = {
+      ...emptyModeRepo,
+      listAll: async () => [
+        { id: 1, name: "ぶどう", color: "#000000", isArchived: false },
+        { id: 2, name: "あんず", color: "#000000", isArchived: false },
+        { id: 3, name: "いちご", color: "#000000", isArchived: false },
+      ],
+    };
+    const view = await listDailyList(
+      {
+        tasks: inMemoryRepo(),
+        sections: emptySectionRepo,
+        modes: modeRepo,
+        projects: emptyProjectRepo,
+      },
+      "2026-07-19"
+    );
+    expect(view.modes.map((m) => m.name)).toEqual(["あんず", "いちご", "ぶどう"]);
+  });
+
+  it("プロジェクトは登録順ではなく name の昇順（自然順）で返す", async () => {
+    const projectRepo: ProjectRepository = {
+      ...emptyProjectRepo,
+      listAll: async () => [
+        { id: 1, name: "case-b", isArchived: false },
+        { id: 2, name: "case-a", isArchived: false },
+      ],
+    };
+    const view = await listDailyList(
+      {
+        tasks: inMemoryRepo(),
+        sections: emptySectionRepo,
+        modes: emptyModeRepo,
+        projects: projectRepo,
+      },
+      "2026-07-19"
+    );
+    expect(view.projects.map((p) => p.name)).toEqual(["case-a", "case-b"]);
+  });
+
+  it("セクションは登録順ではなく start_time の昇順で返す", async () => {
+    const sectionRepo: SectionRepository = {
+      ...emptySectionRepo,
+      listAll: async () => [
+        { id: 1, name: "夜", startTime: "20:00", isArchived: false },
+        { id: 2, name: "朝", startTime: "06:00", isArchived: false },
+        { id: 3, name: "昼", startTime: "12:00", isArchived: false },
+      ],
+    };
+    const view = await listDailyList(
+      {
+        tasks: inMemoryRepo(),
+        sections: sectionRepo,
+        modes: emptyModeRepo,
+        projects: emptyProjectRepo,
+      },
+      "2026-07-19"
+    );
+    expect(view.sections.map((s) => s.name)).toEqual(["朝", "昼", "夜"]);
+  });
+});

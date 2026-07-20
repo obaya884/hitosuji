@@ -19,7 +19,7 @@ import { validateEstimateMinutes, validateTaskName } from "@/domain/task/task-ed
 import type { Task } from "@/domain/task/task";
 import { PlusIcon } from "@/app/_components/icons";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
-import { inputBase, noticeDanger } from "@/app/_lib/ui";
+import { inputBase } from "@/app/_lib/ui";
 import { useNow } from "@/app/_lib/use-now";
 import {
   addTaskAction,
@@ -361,12 +361,7 @@ export function DailyBoard({
     onEscape: (input) => input.blur(), // Esc でフォーカスを外しリスト操作へ戻る
   });
 
-  // Undo トーストは5秒で消える（O-8）
-  useEffect(() => {
-    if (deleted === null) return;
-    const timeoutId = setTimeout(() => setDeleted(null), 5000);
-    return () => clearTimeout(timeoutId);
-  }, [deleted]);
+  // Undo トーストの自動消去（O-8）は Toast コンポーネント側に一元化してある（画面定義書01 §8 / FB-15）
 
   useEffect(() => {
     function onKeyDownGlobal(e: KeyboardEvent) {
@@ -512,21 +507,28 @@ export function DailyBoard({
         />
       </div>
 
-      {error !== null && (
-        <p className={`mt-2 ${noticeDanger}`}>
-          {error}
-        </p>
-      )}
-
       {showHelp && <ShortcutHelp onClose={() => setShowHelp(false)} />}
 
-      {/* 削除の Undo トースト（O-8） */}
-      {deleted !== null && (
-        <Toast
-          message={`「${deleted.name}」を削除しました`}
-          actionLabel="取り消す"
-          onAction={undoDelete}
-        />
+      {/* トースト置き場（画面定義書01 §8）。Undo とエラーが同時に出ても重ならないよう1箇所にまとめる */}
+      {(deleted !== null || error !== null) && (
+        <div className="fixed bottom-4 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-2">
+          {/* 削除の Undo トースト（O-8）。key で削除のたびに再マウントし、表示時間を毎回リセットする */}
+          {deleted !== null && (
+            <Toast
+              key={deleted.id}
+              message={`「${deleted.name}」を削除しました`}
+              variant="undo"
+              actionLabel="取り消す"
+              onAction={undoDelete}
+              onClose={() => setDeleted(null)}
+            />
+          )}
+          {/* 永続化失敗のエラートースト。key はメッセージ文字列でよい
+              （同一メッセージの連続発生でタイマーが延長されなくても実害はないため） */}
+          {error !== null && (
+            <Toast key={error} message={error} variant="error" onClose={() => setError(null)} />
+          )}
+        </div>
       )}
 
       {staleRunningTask !== null && <StaleRunningBanner task={staleRunningTask} />}
