@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Sans_JP, IBM_Plex_Mono } from "next/font/google";
-import { HeaderNav } from "./_components/header-nav";
+import { GlobalNav } from "./_components/global-nav";
 import "./globals.css";
 
 const plexSans = IBM_Plex_Sans_JP({
@@ -32,8 +32,9 @@ export default function RootLayout({
       lang="ja"
       className={`h-full antialiased ${plexSans.variable} ${plexMono.variable}`}
     >
-      <body className="min-h-full flex flex-col">
-        <HeaderNav />
+      {/* 左に Navigation Rail、右に本文（本文は従来どおり中央寄せ・最大幅。要件定義書 §4） */}
+      <body className="flex min-h-full">
+        <GlobalNav />
         <main className="mx-auto w-full max-w-page flex-1 px-6 py-6">{children}</main>
       </body>
     </html>

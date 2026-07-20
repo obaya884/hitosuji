@@ -496,6 +496,9 @@ export function DailyBoard({
 
   return (
     <>
+      {/* 画面見出し（画面定義書01 §2。S-02/S-03 と揃える） */}
+      <h1 className="mb-3 text-lg font-bold">デイリー</h1>
+
       {/* 日付ナビ＋サマリ（画面定義書01 §2） */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <DateNav date={date} weekday={weekdayIndex(date)} isToday={isToday} />
