@@ -54,7 +54,8 @@ export function totalEstimateMinutes(tasks: readonly Task[]): number {
 }
 
 /**
- * セクション見出しのタスク進捗（F-114 / 画面定義書01 §3.2）。
+ * タスク進捗（F-114）。セクション見出し（画面定義書01 §3.2）と
+ * 1日全体のサマリ行（§3.1）で共用する。
  * 実施済み＝完了（ended_at あり）で数え、実行中は含めない（件数ベース）
  */
 export function taskProgress(tasks: readonly Task[]): Readonly<{ done: number; total: number }> {

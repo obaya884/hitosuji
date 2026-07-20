@@ -5,7 +5,7 @@ import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { RoutineFromTaskChoice } from "@/domain/routine/routine-from-task";
 import type { Section } from "@/domain/section/section";
-import { taskProgress, totalEstimateMinutes, type DailyGroup } from "@/domain/task/daily-list";
+import { totalEstimateMinutes, type DailyGroup } from "@/domain/task/daily-list";
 import { sectionCapacityMinutes } from "@/domain/task/projection";
 import { taskStatus } from "@/domain/task/status";
 import { actualMinutes, elapsedMinutes, type Task } from "@/domain/task/task";
@@ -14,6 +14,7 @@ import { formatClock, formatDuration, formatEstimate } from "@/app/_lib/format";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { inputBase } from "@/app/_lib/ui";
 import { RowMenu } from "./row-menu";
+import { TaskProgress } from "./task-progress";
 import { RoutinizePopover } from "./routinize-popover";
 import { SelectPopover, type PopoverOption } from "./select-popover";
 
@@ -39,6 +40,8 @@ type Props = Readonly<{
   onEndEdit: () => void;
   /** 毎分更新される現在時刻。実行中タスクの経過表示に使う（F-205） */
   now: Date;
+  /** 画面上端の固定領域の高さ（px）。選択行の追従がその裏で止まらないようにする（§2 / §5） */
+  stickyHeight: number;
 }>;
 
 export type EditField =
@@ -81,6 +84,7 @@ export function DailyList({
   onBeginEdit,
   onEndEdit,
   now,
+  stickyHeight,
 }: Props) {
   const modeById = new Map(modes.map((m) => [m.id, m]));
   const projectById = new Map(projects.map((p) => [p.id, p]));
@@ -159,6 +163,7 @@ export function DailyList({
               onPunch={onPunch}
               onEditPunch={onEditPunch}
               now={now}
+              stickyHeight={stickyHeight}
             />
           ))}
         </tbody>
@@ -175,8 +180,6 @@ function GroupHeading({ group }: Readonly<{ group: DailyGroup }>) {
       ? null
       : sectionCapacityMinutes(group.section.startTime, group.endTime);
   const excess = capacity === null ? 0 : total - capacity;
-  // タスク進捗（F-114）。実施済み＝完了のみ・件数ベース
-  const progress = taskProgress(group.tasks);
 
   return (
     <tr className="border-y border-line-strong bg-band">
@@ -193,16 +196,10 @@ function GroupHeading({ group }: Readonly<{ group: DailyGroup }>) {
             </span>
           )}
           {/* タスク進捗: プログレスバー＋実施済み/合計（F-114） */}
-          <span className="ml-3 h-1.5 w-20 shrink-0 overflow-hidden rounded-control bg-line" aria-hidden>
-            <span
-              className="block h-full bg-accent"
-              style={{ width: progress.total === 0 ? 0 : `${(progress.done / progress.total) * 100}%` }}
-            />
+          <span className="ml-3 flex items-center gap-2">
+            <TaskProgress tasks={group.tasks} />
           </span>
-          <span className="font-mono text-xs text-ink-muted tabular-nums">
-            {progress.done}/{progress.total}
-          </span>
-          <span className="ml-3 text-xs text-ink-muted tabular-nums">
+          <span className="ml-1 text-xs text-ink-muted tabular-nums">
             見積 <span className="font-mono">{formatEstimate(total)}</span>
             {capacity !== null && (
               <span className="font-mono">
@@ -267,6 +264,7 @@ function TaskRow({
   onPunch,
   onEditPunch,
   now,
+  stickyHeight,
 }: Readonly<{
   task: Task;
   mode?: Mode;
@@ -291,6 +289,7 @@ function TaskRow({
   onBeginEdit: (task: Task, field: EditField) => void;
   onEndEdit: () => void;
   now: Date;
+  stickyHeight: number;
 }>) {
   const status = taskStatus(task);
   const actual = actualMinutes(task);
@@ -329,6 +328,9 @@ function TaskRow({
   return (
     <tr
       ref={rowRef}
+      // モード色は行全体のテキスト色に反映する（F-401 / 画面定義書01 §2）。
+      // scrollMarginTop は、上方向へ追従したとき行が固定領域（§2）の裏に隠れないための余白
+      style={{ ...(mode === undefined ? {} : { color: mode.color }), scrollMarginTop: stickyHeight }}
       // ドラッグ＆ドロップでの並び替え（O-6）。編集中はドラッグさせない
       draggable={editing === null}
       onDragStart={(e) => e.dataTransfer.setData("text/plain", String(task.id))}
@@ -342,8 +344,6 @@ function TaskRow({
         }
       }}
       onClick={() => onSelect(task.id)}
-      // モード色は行全体のテキスト色に反映する（F-401 / 画面定義書01 §2）
-      style={mode === undefined ? undefined : { color: mode.color }}
       className={`border-b border-line ${isSelected ? "bg-accent-weak" : ""}`}
     >
       <td className="py-2.5">

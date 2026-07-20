@@ -155,6 +155,9 @@ export function DailyBoard({
   const [editing, setEditing] = useState<EditingCell | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const quickAddRef = useRef<HTMLInputElement>(null);
+  // 固定領域の高さ。選択行のスクロール追従（§5）が固定領域の裏で止まらないようにするため実測する
+  const stickyRef = useRef<HTMLDivElement>(null);
+  const [stickyHeight, setStickyHeight] = useState(0);
   const router = useRouter();
   // 直前に削除したタスク（Undo 用。O-8）
   const [deleted, setDeleted] = useState<Task | null>(null);
@@ -169,6 +172,16 @@ export function DailyBoard({
     g.tasks.some((t) => taskStatus(t) === "running")
   );
   const now = useNow(hasRunning || isToday);
+
+  // 固定領域の高さを実測する（内容で変わりうるので ResizeObserver で追う）
+  useEffect(() => {
+    const sticky = stickyRef.current;
+    if (sticky === null) return;
+
+    const observer = new ResizeObserver(() => setStickyHeight(sticky.offsetHeight));
+    observer.observe(sticky);
+    return () => observer.disconnect();
+  }, []);
 
   // 表示順に並んだタスク（選択行モデルの基盤。画面定義書01 §5）
   const orderedTasks = useMemo(
@@ -496,35 +509,45 @@ export function DailyBoard({
 
   return (
     <>
-      {/* 画面見出し（画面定義書01 §2。S-02/S-03 と揃える） */}
-      <h1 className="mb-3 text-lg font-bold">デイリー</h1>
+      {/*
+        画面上部（h1・日付ナビ＋サマリ・クイック追加欄）は画面上端に固定する（§2 / FB-22）。
+        本文の余白（main の py-6）の中で固定すると隙間からリストが覗くので、
+        負のマージンで余白ぶんまで背景を広げてから内側で戻す
+      */}
+      <div
+        ref={stickyRef}
+        // 下端の罫線でリストとの階層を示す（§2。罫線がないとスクロール中に境界が分からない）
+        className="sticky top-0 z-10 -mx-6 -mt-6 border-b border-line-strong bg-paper px-6 pt-6 pb-3"
+      >
+        {/* 画面見出し（画面定義書01 §2。S-02/S-03 と揃える） */}
+        <h1 className="mb-3 text-lg font-bold">デイリー</h1>
 
-      {/* 日付ナビ＋サマリ（画面定義書01 §2） */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <DateNav date={date} weekday={weekdayIndex(date)} isToday={isToday} />
-        <div className="flex items-baseline gap-3">
+        {/* 日付ナビ＋サマリ（画面定義書01 §2）。
+            サマリは日付の直後へ左寄せで続ける（§3.1 / FB-22）。? だけ右端に置く */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <DateNav date={date} weekday={weekdayIndex(date)} isToday={isToday} />
           <DailySummary groups={optimisticGroups} now={now} isToday={isToday} />
           <button
             type="button"
             onClick={() => setShowHelp(true)}
             aria-label="キーボードショートカット"
-            className="text-xs text-ink-faint hover:text-ink"
+            className="ml-auto text-xs text-ink-faint hover:text-ink"
           >
             ?
           </button>
         </div>
-      </div>
 
-      <div className="mt-3 flex items-center gap-2">
-        <PlusIcon className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
-        <input
-          ref={quickAddRef}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder="タスク名を入力して Enter で追加"
-          className={`w-full text-sm ${inputBase}`}
-        />
+        <div className="mt-3 flex items-center gap-2">
+          <PlusIcon className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
+          <input
+            ref={quickAddRef}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={onKeyDown}
+            placeholder="タスク名を入力して Enter で追加"
+            className={`w-full text-sm ${inputBase}`}
+          />
+        </div>
       </div>
 
       {showHelp && <ShortcutHelp onClose={() => setShowHelp(false)} />}
@@ -576,6 +599,7 @@ export function DailyBoard({
         selectedId={selectedId}
         onSelect={setSelectedId}
         now={now}
+        stickyHeight={stickyHeight}
       />
     </>
   );
