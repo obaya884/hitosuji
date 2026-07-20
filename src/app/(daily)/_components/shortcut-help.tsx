@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { floatPanel } from "../_lib/ui";
+import { floatPanel } from "@/app/_lib/ui";
 
 // 画面定義書01 §6 の一覧と対応させる（変更時は仕様書を先に更新する）
 const SHORTCUTS = [

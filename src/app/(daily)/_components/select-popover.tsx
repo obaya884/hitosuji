@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { floatPanel } from "../_lib/ui";
-import { CheckIcon } from "./icons";
+import { CheckIcon } from "@/app/_components/icons";
+import { floatPanel } from "@/app/_lib/ui";
 
 export type PopoverOption = Readonly<{
   id: number | null;

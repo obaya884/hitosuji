@@ -6,8 +6,8 @@ import { createProjectRepository } from "@/infrastructure/db/repositories/drizzl
 import { createRoutineRepository } from "@/infrastructure/db/repositories/drizzle-routine-repository";
 import { createSectionRepository } from "@/infrastructure/db/repositories/drizzle-section-repository";
 import { createTaskRepository } from "@/infrastructure/db/repositories/drizzle-task-repository";
+import { todayLogicalDate } from "@/app/_lib/format";
 import { DailyBoard } from "./_components/daily-board";
-import { todayLogicalDate } from "./_lib/format";
 
 export const dynamic = "force-dynamic";
 

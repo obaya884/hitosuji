@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { addDays } from "@/domain/shared/logical-date";
+import { ChevronLeftIcon, ChevronRightIcon } from "@/app/_components/icons";
 import { formatLogicalDate } from "@/app/_lib/format";
-import { btnPrimary, btnSecondary } from "../_lib/ui";
-import { ChevronLeftIcon, ChevronRightIcon } from "./icons";
+import { btnPrimary, btnSecondary } from "@/app/_lib/ui";
 
 type Props = Readonly<{
   date: string;

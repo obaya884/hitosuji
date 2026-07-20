@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { floatPanel } from "../_lib/ui";
-import { EllipsisIcon } from "./icons";
+import { EllipsisIcon } from "@/app/_components/icons";
+import { floatPanel } from "@/app/_lib/ui";
 
 export type RowMenuItem = Readonly<{
   label: string;

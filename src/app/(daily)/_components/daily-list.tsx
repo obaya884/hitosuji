@@ -8,10 +8,10 @@ import { totalEstimateMinutes, type DailyGroup } from "@/domain/task/daily-list"
 import { sectionCapacityMinutes } from "@/domain/task/projection";
 import { taskStatus } from "@/domain/task/status";
 import { actualMinutes, elapsedMinutes, type Task } from "@/domain/task/task";
+import { CheckIcon, PlayIcon, StopIcon } from "@/app/_components/icons";
 import { formatClock, formatDuration, formatEstimate } from "@/app/_lib/format";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { inputBase } from "@/app/_lib/ui";
-import { CheckIcon, PlayIcon, StopIcon } from "./icons";
 import { RowMenu } from "./row-menu";
 import { SelectPopover, type PopoverOption } from "./select-popover";
 
