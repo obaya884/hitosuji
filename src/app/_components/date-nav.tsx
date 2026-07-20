@@ -10,17 +10,19 @@ type Props = Readonly<{
   date: string;
   weekday: number;
   isToday: boolean;
+  /** 移動先の画面（S-01 は `/`、S-04 は `/review`）。表示日は画面ごとに独立に持つ（画面定義書04 §3.1） */
+  basePath: string;
 }>;
 
-// 画面定義書01 §3.1: 前日/翌日/今日への移動。
+// 画面定義書01 §3.1: 前日/翌日/今日への移動。S-04 でも同じ操作にする（画面定義書04 §3.1）。
 // 「今日へ」は今日以外を表示中のみ表示し、通常の枠線ボタン（強調色なし）にする
 // （2026-07-20 オーナー判断: 強調色だと「表示日＝今日」の状態表示に見えてしまい、
 // 逆に誤認を招いていたため。ボタンの有無自体が今日以外であることを示す。FB-07）
-export function DateNav({ date, weekday, isToday }: Props) {
+export function DateNav({ date, weekday, isToday, basePath }: Props) {
   return (
     <div className="flex items-center gap-2">
       <Link
-        href={`/?date=${addDays(date, -1)}`}
+        href={`${basePath}?date=${addDays(date, -1)}`}
         aria-label="前日"
         className={`inline-flex items-center self-stretch ${btnSecondary}`}
       >
@@ -31,7 +33,7 @@ export function DateNav({ date, weekday, isToday }: Props) {
         {formatLogicalDate(date, weekday)}
       </span>
       <Link
-        href={`/?date=${addDays(date, 1)}`}
+        href={`${basePath}?date=${addDays(date, 1)}`}
         aria-label="翌日"
         className={`inline-flex items-center self-stretch ${btnSecondary}`}
       >
@@ -39,7 +41,7 @@ export function DateNav({ date, weekday, isToday }: Props) {
       </Link>
       {/* 今日以外を表示中のみ表示する。ボタンの有無自体が「今日以外」を示す（§3.1） */}
       {!isToday && (
-        <Link href="/" className={btnSecondary}>
+        <Link href={basePath} className={btnSecondary}>
           今日へ
         </Link>
       )}

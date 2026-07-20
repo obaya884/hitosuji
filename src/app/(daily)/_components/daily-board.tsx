@@ -45,7 +45,7 @@ import {
 } from "../actions";
 import { DailyList, type EditField, type EditingCell } from "./daily-list";
 import { DailySummary } from "./daily-summary";
-import { DateNav } from "./date-nav";
+import { DateNav } from "@/app/_components/date-nav";
 import { ShortcutHelp } from "./shortcut-help";
 import { StaleRunningBanner } from "./stale-running-banner";
 import { Toast } from "./toast";
@@ -528,7 +528,7 @@ export function DailyBoard({
         {/* 日付ナビ＋サマリ（画面定義書01 §2）。
             サマリは日付の直後へ左寄せで続ける（§3.1 / FB-22）。? だけ右端に置く */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <DateNav date={date} weekday={weekdayIndex(date)} isToday={isToday} />
+          <DateNav date={date} weekday={weekdayIndex(date)} isToday={isToday} basePath="/" />
           <DailySummary groups={optimisticGroups} now={now} isToday={isToday} />
           <button
             type="button"

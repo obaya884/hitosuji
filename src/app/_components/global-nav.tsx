@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { href: "/", label: "デイリー" },
   { href: "/routines", label: "ルーチン" },
   { href: "/masters", label: "マスタ" },
+  { href: "/review", label: "レビュー" },
 ] as const;
 
 function isCurrent(pathname: string, href: string): boolean {
