@@ -1,0 +1,23 @@
+# ドキュメントのライセンス
+
+`docs/` 配下のドキュメント（要求定義書・要件定義書・データモデル定義書・アーキテクチャ定義書・画面定義書・実装計画・ユーザーフィードバック管理簿）は、
+
+**クリエイティブ・コモンズ 表示 4.0 国際 (CC BY 4.0)**
+
+の下で提供されます。
+
+- 概要: https://creativecommons.org/licenses/by/4.0/deed.ja
+- 利用許諾の全文: https://creativecommons.org/licenses/by/4.0/legalcode.ja
+
+複製・改変・再配布・商用利用のいずれも自由に行えます。条件は**出典の表示**のみです。
+
+## 帰属表示の例
+
+> 「Hitosuji 設計文書」（obaya884 著）https://github.com/obaya884/hitosuji を改変して利用。CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/) の下で提供。
+
+## 適用範囲
+
+- **本ライセンスの対象**: `docs/` 配下のすべてのファイル、および `README.md`
+- **対象外**: 上記以外のソースコード・設定ファイル。これらは同梱の `LICENSE`（GNU AGPL-3.0-or-later）に従います
+
+`docs/要求定義書.md` 末尾の「参考資料」節に挙げたリンクは、出典を示すための第三者の著作物であり、本ライセンスの対象ではありません。
