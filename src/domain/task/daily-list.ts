@@ -54,6 +54,14 @@ export function totalEstimateMinutes(tasks: readonly Task[]): number {
 }
 
 /**
+ * セクション見出しのタスク進捗（F-114 / 画面定義書01 §3.2）。
+ * 実施済み＝完了（ended_at あり）で数え、実行中は含めない（件数ベース）
+ */
+export function taskProgress(tasks: readonly Task[]): Readonly<{ done: number; total: number }> {
+  return { done: tasks.filter((t) => t.endedAt !== null).length, total: tasks.length };
+}
+
+/**
  * 未分類グループの末尾へタスクを差し込んだ新しいグループ列を返す（画面定義書01 §3.4 の配置先）。
  * 楽観的更新（N-01）で、永続化を待たずに追加を画面へ反映するために使う純関数
  */

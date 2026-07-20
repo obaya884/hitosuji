@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Section } from "../section/section";
 import {
   groupTasksBySection,
+  taskProgress,
   totalEstimateMinutes,
   withTaskAppended,
   withTaskMoved,
@@ -99,6 +100,21 @@ describe("totalEstimateMinutes（F-110: セクション見積合計）", () => {
   it("見積もりを合計する（未設定=0分はそのまま加算されない）", () => {
     const tasks = [task({ id: 1, estimateMinutes: 30 }), task({ id: 2, estimateMinutes: 0 })];
     expect(totalEstimateMinutes(tasks)).toBe(30);
+  });
+});
+
+describe("taskProgress（F-114: セクション見出しのタスク進捗）", () => {
+  it("実施済み＝完了（ended_at あり）で数え、実行中は含めない", () => {
+    const tasks = [
+      task({ id: 1, startedAt: "2026-07-20T09:00:00+09:00", endedAt: "2026-07-20T09:10:00+09:00" }),
+      task({ id: 2, startedAt: "2026-07-20T09:10:00+09:00", endedAt: null }), // 実行中
+      task({ id: 3 }), // 未実行
+    ];
+    expect(taskProgress(tasks)).toEqual({ done: 1, total: 3 });
+  });
+
+  it("0件のグループは 0/0", () => {
+    expect(taskProgress([])).toEqual({ done: 0, total: 0 });
   });
 });
 

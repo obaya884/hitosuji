@@ -5,7 +5,7 @@ import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { RoutineFromTaskChoice } from "@/domain/routine/routine-from-task";
 import type { Section } from "@/domain/section/section";
-import { totalEstimateMinutes, type DailyGroup } from "@/domain/task/daily-list";
+import { taskProgress, totalEstimateMinutes, type DailyGroup } from "@/domain/task/daily-list";
 import { sectionCapacityMinutes } from "@/domain/task/projection";
 import { taskStatus } from "@/domain/task/status";
 import { actualMinutes, elapsedMinutes, type Task } from "@/domain/task/task";
@@ -175,30 +175,47 @@ function GroupHeading({ group }: Readonly<{ group: DailyGroup }>) {
       ? null
       : sectionCapacityMinutes(group.section.startTime, group.endTime);
   const excess = capacity === null ? 0 : total - capacity;
+  // タスク進捗（F-114）。実施済み＝完了のみ・件数ベース
+  const progress = taskProgress(group.tasks);
 
   return (
     <tr className="border-y border-line-strong bg-band">
-      <td colSpan={3} className="py-2 pl-2 text-sm font-bold tracking-wide">
-        {group.section === null ? "未分類" : group.section.name}
-        {group.section !== null && (
-          <span className="ml-2 font-mono text-xs font-normal tracking-normal text-ink-muted tabular-nums">
-            {group.section.startTime}
-            {group.endTime !== null && `–${group.endTime}`}
+      {/* 全要素を左寄せで1行に並べる（§3.2「見出し行のレイアウト」。左右分離をやめる） */}
+      <td colSpan={7} className="py-2 pl-2">
+        <span className="flex items-center gap-2">
+          <span className="text-sm font-bold tracking-wide">
+            {group.section === null ? "未分類" : group.section.name}
           </span>
-        )}
-      </td>
-      <td colSpan={4} className="py-2 pr-2 text-right text-xs text-ink-muted tabular-nums">
-        見積 <span className="font-mono">{formatEstimate(total)}</span>
-        {capacity !== null && (
-          <span className="font-mono">
-            /{formatDuration(capacity)}{" "}
-            {/* 合計が枠を超えたら警告色（F-110） */}
-            <span className={excess > 0 ? "text-danger" : ""}>
-              ({excess > 0 ? "+" : "-"}
-              {formatDuration(Math.abs(excess))})
+          {group.section !== null && (
+            <span className="font-mono text-xs text-ink-muted tabular-nums">
+              {group.section.startTime}
+              {group.endTime !== null && `–${group.endTime}`}
             </span>
+          )}
+          {/* タスク進捗: プログレスバー＋実施済み/合計（F-114） */}
+          <span className="ml-3 h-1.5 w-20 shrink-0 overflow-hidden rounded-control bg-line" aria-hidden>
+            <span
+              className="block h-full bg-accent"
+              style={{ width: progress.total === 0 ? 0 : `${(progress.done / progress.total) * 100}%` }}
+            />
           </span>
-        )}
+          <span className="font-mono text-xs text-ink-muted tabular-nums">
+            {progress.done}/{progress.total}
+          </span>
+          <span className="ml-3 text-xs text-ink-muted tabular-nums">
+            見積 <span className="font-mono">{formatEstimate(total)}</span>
+            {capacity !== null && (
+              <span className="font-mono">
+                /{formatDuration(capacity)}{" "}
+                {/* 合計が枠を超えたら警告色（F-110） */}
+                <span className={excess > 0 ? "text-danger" : ""}>
+                  ({excess > 0 ? "+" : "-"}
+                  {formatDuration(Math.abs(excess))})
+                </span>
+              </span>
+            )}
+          </span>
+        </span>
       </td>
     </tr>
   );
