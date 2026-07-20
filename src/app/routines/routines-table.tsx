@@ -5,6 +5,11 @@ import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import { describeRecurrence, type Routine } from "@/domain/routine/routine";
 import type { RoutineInput } from "@/domain/routine/routine-input";
+import {
+  sortRoutines,
+  type RoutineSortDirection,
+  type RoutineSortKey,
+} from "@/domain/routine/routine-order";
 import { sectionAt, type Section } from "@/domain/section/section";
 import { formatEstimate } from "@/app/_lib/format";
 import { btnSecondary, linkAccent, linkMuted, noticeDanger } from "@/app/_lib/ui";
@@ -30,7 +35,41 @@ type Props = Readonly<{
   today: string;
 }>;
 
-/** 一覧（画面定義書02 §3）。並び順は開始想定時刻の昇順（展開後のデイリーと同じ並び） */
+/**
+ * 並べ替えできる列見出し（F-306 / 画面定義書02 §3.1）。
+ * クリックでその軸に切り替え、同じ列をもう一度押すと降順になる
+ */
+function SortableHeader({
+  label,
+  sortKey,
+  sort,
+  onSort,
+  className = "",
+}: Readonly<{
+  label: string;
+  sortKey: RoutineSortKey;
+  sort: Readonly<{ key: RoutineSortKey; direction: RoutineSortDirection }>;
+  onSort: (key: RoutineSortKey) => void;
+  className?: string;
+}>) {
+  const isActive = sort.key === sortKey;
+  return (
+    <th
+      // aria-sort は見出しセル側に持たせる（button ロールでは無効なため）
+      aria-sort={isActive ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}
+      className={`py-2 font-normal ${className}`}
+    >
+      <button type="button" onClick={() => onSort(sortKey)} className="hover:text-ink">
+        {label}
+        <span className={isActive ? "ml-1" : "ml-1 invisible"} aria-hidden>
+          {isActive && sort.direction === "desc" ? "▼" : "▲"}
+        </span>
+      </button>
+    </th>
+  );
+}
+
+/** 一覧（画面定義書02 §3）。既定の並び順は開始想定時刻の昇順（展開後のデイリーと同じ並び） */
 export function RoutinesTable({
   routines,
   modes,
@@ -42,10 +81,30 @@ export function RoutinesTable({
 }: Props) {
   const [editing, setEditing] = useState<Routine | "new" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sort, setSort] = useState<Readonly<{ key: RoutineSortKey; direction: RoutineSortDirection }>>(
+    { key: "scheduledStartTime", direction: "asc" }
+  );
   const [isPending, startTransition] = useTransition();
 
   const modeById = new Map(allModes.map((m) => [m.id, m]));
   const projectById = new Map(allProjects.map((p) => [p.id, p]));
+
+  // 並べ替え（F-306 / 画面定義書02 §3.1）。既定は開始想定の昇順で、選んだ軸は記憶しない
+  const sorted = sortRoutines(
+    routines,
+    { modes: allModes, projects: allProjects },
+    sort.key,
+    sort.direction
+  );
+
+  /** 同じ列をもう一度押したら降順に切り替える。別の列なら昇順から始める */
+  function toggleSort(key: RoutineSortKey) {
+    setSort((s) =>
+      s.key === key
+        ? { key, direction: s.direction === "asc" ? "desc" : "asc" }
+        : { key, direction: "asc" }
+    );
+  }
 
   function run(action: () => Promise<RoutineActionResult>, onSuccess?: () => void) {
     setError(null);
@@ -102,18 +161,43 @@ export function RoutinesTable({
       <table className="mt-3 w-full text-sm">
         <thead>
           <tr className="border-b border-line-strong text-left text-xs text-ink-muted">
-            <th className="py-2 font-normal">名前</th>
-            <th className="w-24 py-2 font-normal">モード</th>
-            <th className="w-28 py-2 font-normal">プロジェクト</th>
+            <SortableHeader label="名前" sortKey="name" sort={sort} onSort={toggleSort} />
+            <SortableHeader
+              label="モード"
+              sortKey="mode"
+              sort={sort}
+              onSort={toggleSort}
+              className="w-24"
+            />
+            <SortableHeader
+              label="プロジェクト"
+              sortKey="project"
+              sort={sort}
+              onSort={toggleSort}
+              className="w-28"
+            />
+            {/* 見積は並べ替えの対象外（画面定義書02 §3.1） */}
             <th className="w-20 py-2 pr-4 text-right font-normal">見積</th>
-            <th className="w-40 py-2 font-normal">繰り返し</th>
-            <th className="w-32 py-2 font-normal">開始想定</th>
+            <SortableHeader
+              label="繰り返し"
+              sortKey="recurrence"
+              sort={sort}
+              onSort={toggleSort}
+              className="w-40"
+            />
+            <SortableHeader
+              label="開始想定"
+              sortKey="scheduledStartTime"
+              sort={sort}
+              onSort={toggleSort}
+              className="w-32"
+            />
             <th className="w-12 py-2 font-normal">有効</th>
             <th className="w-24 py-2 font-normal" />
           </tr>
         </thead>
         <tbody>
-          {routines.map((routine) => {
+          {sorted.map((routine) => {
             const mode = routine.modeId === null ? undefined : modeById.get(routine.modeId);
             const project =
               routine.projectId === null ? undefined : projectById.get(routine.projectId);
