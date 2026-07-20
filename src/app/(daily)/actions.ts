@@ -27,12 +27,16 @@ import {
   moveTaskTo,
   setTaskSection,
 } from "@/usecases/task/reorder-usecases";
+import { createRoutineFromTask } from "@/usecases/routine/routine-usecases";
+import type { RoutineFromTaskChoice } from "@/domain/routine/routine-from-task";
+import { createRoutineRepository } from "@/infrastructure/db/repositories/drizzle-routine-repository";
 import { createSectionRepository } from "@/infrastructure/db/repositories/drizzle-section-repository";
 import { createTaskRepository } from "@/infrastructure/db/repositories/drizzle-task-repository";
 
 // 合成ルート: リポジトリ実装をユースケースへ注入する（アーキテクチャ定義書 §3）
 const taskRepo = createTaskRepository();
 const sectionRepo = createSectionRepository();
+const routineRepo = createRoutineRepository();
 
 export type DailyActionResult = Readonly<{ ok: true } | { ok: false; message: string }>;
 
@@ -166,6 +170,17 @@ const OPERATION_ERROR_MESSAGES: Record<string, string> = {
   not_postponable: "先送りできるのは未実行タスクだけです",
 };
 
+/** ルーチン化の失敗（画面定義書01 §4.1）。入力値の検証エラーは画面定義書02 §4 の項目に対応する */
+const ROUTINE_FROM_TASK_ERROR_MESSAGES: Record<string, string> = {
+  task_not_found: "タスクが見つかりませんでした",
+  estimate_required: "見積もりを入力してからルーチン化してください",
+  routine_derived_task: "ルーチン由来のタスクはルーチン化できません（ルーチン画面で編集してください）",
+  weekdays_required: "曜日を1つ以上選んでください",
+  invalid_start_time: "開始想定時刻を HH:MM で入力してください",
+  invalid_interval_days: "間隔は1日以上で入力してください",
+  invalid_month_day: "日は1〜31で入力してください",
+};
+
 /** 中断（F-204） */
 export async function suspendTaskAction(id: number, now: Date): Promise<DailyActionResult> {
   const result = await suspendTask(taskRepo, { taskId: id, now });
@@ -182,6 +197,31 @@ export async function duplicateTaskAction(
   if (!result.ok) return { ok: false, message: OPERATION_ERROR_MESSAGES[result.error] };
   revalidatePath("/");
   return { ok: true, createdId: result.value.id };
+}
+
+/**
+ * ルーチン化（F-305 / 画面定義書01 §4.1）。
+ * 楽観的更新の対象外なので、サーバ確定を待って結果を返す
+ */
+export async function createRoutineFromTaskAction(
+  id: number,
+  choice: RoutineFromTaskChoice
+): Promise<DailyActionResult> {
+  const result = await createRoutineFromTask(
+    { routines: routineRepo, tasks: taskRepo },
+    id,
+    choice
+  );
+  if (!result.ok) {
+    // 名前・日付の検証エラーはタスク由来の値なので通常起きない。取りこぼしても既定文言を出す
+    return {
+      ok: false,
+      message: ROUTINE_FROM_TASK_ERROR_MESSAGES[result.error] ?? "ルーチン化に失敗しました",
+    };
+  }
+  // ルーチン一覧にも即座に現れるようにする（展開は翌日以降）
+  revalidatePath("/routines");
+  return { ok: true };
 }
 
 /** 先送り（F-107） */

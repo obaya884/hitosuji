@@ -2,12 +2,13 @@
 
 import { useEffect } from "react";
 
-export type ToastVariant = "undo" | "error";
+export type ToastVariant = "undo" | "info" | "error";
 
-// 表示時間はトーストの種類で決める（画面定義書01 §8: Undo付き5秒 / エラー8秒）。
+// 表示時間はトーストの種類で決める（画面定義書01 §8: Undo付き・完了通知5秒 / エラー8秒）。
 // 自動消去のタイマーはこのコンポーネントに一元化する（呼び出し側では持たない）
 const AUTO_DISMISS_MS: Readonly<Record<ToastVariant, number>> = {
   undo: 5000,
+  info: 5000,
   error: 8000,
 };
 

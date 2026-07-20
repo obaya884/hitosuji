@@ -3,6 +3,7 @@
 
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
+import type { RoutineFromTaskChoice } from "@/domain/routine/routine-from-task";
 import type { Section } from "@/domain/section/section";
 import { totalEstimateMinutes, type DailyGroup } from "@/domain/task/daily-list";
 import { sectionCapacityMinutes } from "@/domain/task/projection";
@@ -13,6 +14,7 @@ import { formatClock, formatDuration, formatEstimate } from "@/app/_lib/format";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { inputBase } from "@/app/_lib/ui";
 import { RowMenu } from "./row-menu";
+import { RoutinizePopover } from "./routinize-popover";
 import { SelectPopover, type PopoverOption } from "./select-popover";
 
 type Props = Readonly<{
@@ -27,6 +29,8 @@ type Props = Readonly<{
   sections: readonly Section[];
   onAssign: (task: Task, field: "mode" | "project" | "section", id: number | null) => void;
   onOperate: (task: Task, operation: "suspend" | "duplicate" | "postpone" | "delete") => void;
+  /** ルーチン化（O-12 / §4.1） */
+  onRoutinize: (task: Task, choice: RoutineFromTaskChoice) => void;
   selectedId: number | null;
   onSelect: (taskId: number) => void;
   /** 編集中のセル（選択行モデルと同じく親が単一の真実を持つ） */
@@ -44,7 +48,9 @@ export type EditField =
   | "endedAt"
   | "mode"
   | "project"
-  | "section";
+  | "section"
+  /** ルーチン化ポップオーバー（O-12 / §4.1） */
+  | "routinize";
 
 export type EditingCell = Readonly<{ taskId: number; field: EditField }>;
 
@@ -68,6 +74,7 @@ export function DailyList({
   sections,
   onAssign,
   onOperate,
+  onRoutinize,
   selectedId,
   onSelect,
   editing,
@@ -139,6 +146,7 @@ export function DailyList({
               sections={sections}
               onAssign={onAssign}
               onOperate={onOperate}
+              onRoutinize={onRoutinize}
               isSelected={task.id === selectedId}
               onSelect={onSelect}
               editing={editing?.taskId === task.id ? editing.field : null}
@@ -231,6 +239,7 @@ function TaskRow({
   sections,
   onAssign,
   onOperate,
+  onRoutinize,
   isSelected,
   onSelect,
   editing,
@@ -257,6 +266,8 @@ function TaskRow({
   sections: readonly Section[];
   onAssign: (task: Task, field: "mode" | "project" | "section", id: number | null) => void;
   onOperate: (task: Task, operation: "suspend" | "duplicate" | "postpone" | "delete") => void;
+  /** ルーチン化（O-12 / §4.1） */
+  onRoutinize: (task: Task, choice: RoutineFromTaskChoice) => void;
   isSelected: boolean;
   onSelect: (taskId: number) => void;
   editing: EditField | null;
@@ -462,9 +473,13 @@ function TaskRow({
             </>
           ))}
       </td>
-      <td className="py-2.5">
+      <td className="relative py-2.5">
         <RowMenu
           items={[
+            // ルーチン由来のタスクからは作れない（§4.1。変更は S-02 で行う）
+            ...(task.routineId === null
+              ? [{ label: "ルーチン化", onSelect: () => onBeginEdit(task, "routinize") }]
+              : []),
             {
               label: "中断",
               onSelect: () => onOperate(task, "suspend"),
@@ -487,6 +502,19 @@ function TaskRow({
             },
           ]}
         />
+        {/* ルーチン化ポップオーバー（O-12 / §4.1） */}
+        {editing === "routinize" && (
+          <RoutinizePopover
+            task={task}
+            sections={sections}
+            now={now}
+            onSubmit={(choice) => {
+              onRoutinize(task, choice);
+              onEndEdit();
+            }}
+            onClose={onEndEdit}
+          />
+        )}
       </td>
     </tr>
   );

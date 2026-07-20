@@ -1,11 +1,23 @@
 // ルーチン管理のユースケース（S-02 / 画面定義書02 §5）
 import type { RoutineRepository } from "@/usecases/ports/routine-repository";
+import type { TaskRepository } from "@/usecases/ports/task-repository";
 import type { Routine, RoutineError, RoutineId } from "@/domain/routine/routine";
+import {
+  routineInputFromTask,
+  type RoutineFromTaskChoice,
+  type RoutineFromTaskError,
+} from "@/domain/routine/routine-from-task";
 import { validateRoutineInput, type RoutineInput } from "@/domain/routine/routine-input";
 import { compareByName } from "@/domain/shared/name-order";
 import { err, ok, type Result } from "@/domain/shared/result";
+import type { TaskId } from "@/domain/task/task";
 
 export type RoutineUsecaseError = RoutineError | "routine_not_found";
+
+export type CreateRoutineFromTaskError =
+  | RoutineUsecaseError
+  | RoutineFromTaskError
+  | "task_not_found";
 
 /**
  * 一覧（画面定義書02 §3）。
@@ -54,6 +66,24 @@ export async function setRoutineActive(
 
   await repo.setActive(id, isActive);
   return ok(id);
+}
+
+/**
+ * タスクからのルーチン化（F-305 / 画面定義書01 §4.1・O-12, 画面定義書02 O-5）。
+ * 名前・見積もり・モード・プロジェクトを引き継ぎ、開始日は翌日にする（当日の二重展開を防ぐ）
+ */
+export async function createRoutineFromTask(
+  deps: Readonly<{ routines: RoutineRepository; tasks: TaskRepository }>,
+  taskId: TaskId,
+  choice: RoutineFromTaskChoice
+): Promise<Result<Routine, CreateRoutineFromTaskError>> {
+  const task = await deps.tasks.findById(taskId);
+  if (task === null) return err("task_not_found");
+
+  const input = routineInputFromTask(task, choice);
+  if (!input.ok) return input;
+
+  return createRoutine(deps.routines, input.value);
 }
 
 /** 削除（O-4）。展開済みタスクは routine_id を NULL にして残る（ログ保全） */

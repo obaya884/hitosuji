@@ -16,6 +16,7 @@ import { currentTaskId, keepSelection, moveSelection } from "@/domain/task/selec
 import { taskStatus } from "@/domain/task/status";
 import { editEndedAt, editStartedAt } from "@/domain/task/punch-edit";
 import { validateEstimateMinutes, validateTaskName } from "@/domain/task/task-edit";
+import type { RoutineFromTaskChoice } from "@/domain/routine/routine-from-task";
 import type { Task } from "@/domain/task/task";
 import { PlusIcon } from "@/app/_components/icons";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
@@ -23,6 +24,7 @@ import { inputBase } from "@/app/_lib/ui";
 import { useNow } from "@/app/_lib/use-now";
 import {
   addTaskAction,
+  createRoutineFromTaskAction,
   deleteTaskAction,
   duplicateTaskAction,
   finishTaskAction,
@@ -157,6 +159,8 @@ export function DailyBoard({
   // 直前に削除したタスク（Undo 用。O-8）
   const [deleted, setDeleted] = useState<Task | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** 完了通知（ルーチン化 O-12 など。画面定義書01 §8） */
+  const [notice, setNotice] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
   // 実行中タスクの経過（F-205）と終了予定時刻（F-104）のため毎分更新する。
@@ -306,6 +310,19 @@ export function DailyBoard({
           ? await suspendTaskAction(task.id, new Date())
           : await postponeTaskAction(task.id);
       if (!result.ok) setError(result.message);
+    });
+  }
+
+  /**
+   * ルーチン化（O-12 / §4.1）。デイリーの表示は変わらないので楽観的更新はせず、
+   * サーバ確定を待って完了トーストを出す
+   */
+  function routinize(task: Task, choice: RoutineFromTaskChoice) {
+    setError(null);
+    startTransition(async () => {
+      const result = await createRoutineFromTaskAction(task.id, choice);
+      if (result.ok) setNotice(`「${task.name}」をルーチン化しました（明日から展開）`);
+      else setError(result.message);
     });
   }
 
@@ -510,7 +527,7 @@ export function DailyBoard({
       {showHelp && <ShortcutHelp onClose={() => setShowHelp(false)} />}
 
       {/* トースト置き場（画面定義書01 §8）。Undo とエラーが同時に出ても重ならないよう1箇所にまとめる */}
-      {(deleted !== null || error !== null) && (
+      {(deleted !== null || notice !== null || error !== null) && (
         <div className="fixed bottom-4 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-2">
           {/* 削除の Undo トースト（O-8）。key で削除のたびに再マウントし、表示時間を毎回リセットする */}
           {deleted !== null && (
@@ -522,6 +539,10 @@ export function DailyBoard({
               onAction={undoDelete}
               onClose={() => setDeleted(null)}
             />
+          )}
+          {/* 操作完了の通知（ルーチン化など） */}
+          {notice !== null && (
+            <Toast key={notice} message={notice} variant="info" onClose={() => setNotice(null)} />
           )}
           {/* 永続化失敗のエラートースト。key はメッセージ文字列でよい
               （同一メッセージの連続発生でタイマーが延長されなくても実害はないため） */}
@@ -545,6 +566,7 @@ export function DailyBoard({
         sections={sections}
         onAssign={assign}
         onOperate={operate}
+        onRoutinize={routinize}
         editing={editing}
         onBeginEdit={(task, field) => setEditing({ taskId: task.id, field })}
         onEndEdit={() => setEditing(null)}
