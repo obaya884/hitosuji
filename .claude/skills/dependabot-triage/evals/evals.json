@@ -1,0 +1,26 @@
+{
+  "skill_name": "dependabot-triage",
+  "evals": [
+    {
+      "id": 0,
+      "name": "mixed-version-batch",
+      "prompt": "hitosuji リポで Dependabot の依存更新PRが4件開いている。下の gh 出力を踏まえてトリアージして。close/merge/dismiss は実際には実行せず、各PRの判断（マージ/クローズ/ローカル検証/見送り）と根拠、実行するとしたらどの gh コマンドかを提示するだけにして。\n\n$ gh pr list --repo obaya884/hitosuji --state open\n#4  chore(deps-dev): bump eslint from 9.39.5 to 10.7.0                    dependabot/npm_and_yarn/eslint-10.7.0\n#3  chore(deps-dev): bump @types/node from 20.19.43 to 26.1.1             dependabot/npm_and_yarn/types/node-26.1.1\n#2  chore(deps-dev): bump typescript from 5.9.3 to 7.0.2                  dependabot/npm_and_yarn/typescript-7.0.2\n#1  chore(deps): bump the minor-and-patch group with 2 updates           dependabot/npm_and_yarn/minor-and-patch-...\n\n$ gh pr checks 1   # react/react-dom 19.2.4 -> 19.2.7 (patch group)\nverify  pass    ;  Vercel  pass\n$ gh pr checks 2   # typescript 5.9.3 -> 7.0.2\nverify  fail    ;  Vercel  fail   (build/型チェックが落ちている)\n$ gh pr checks 3   # @types/node 20 -> 26\nverify  pass    ;  Vercel  pass\n$ gh pr checks 4   # eslint 9 -> 10\nverify  pass    ;  Vercel  pass\n\n補足: 本番の Node ランタイムは 24 系。CI(.github/workflows/ci.yml) は lint/build/test を回すが、eslint はビルドとは別に npm run lint で走る。",
+      "expected_output": "PRごとの判断: #1(react patch, CI緑)=マージ候補だが merge=本番デプロイなので合図待ち; #2(typescript7, build落ち)=close; #3(@types/node 26)=ランタイム24を追い越すため見送り(close); #4(eslint10)=CIのbuildはeslintを検証しないためローカルで npm run lint を回して判断。close は @dependabot ignore を使わず普通のクローズ。",
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "security-alerts",
+      "prompt": "hitosuji の GitHub security タブに Dependabot アラートが2件出ている。下の情報でどう対処するか計画して。overrides の追加や dismiss は実際には実行せず、方針と（実行するなら）具体的なコマンドを提示するだけにして。\n\n$ gh api repos/obaya884/hitosuji/dependabot/alerts (open)\n- #2 postcss  medium  scope=runtime  vulnerable <8.5.10  patched 8.5.10  \"XSS via Unescaped </style> in CSS Stringify Output\"  経路: next@16.2.10 が同梱する古い postcss（最上位の @tailwindcss/postcss は既に 8.5.19）\n- #1 esbuild  medium  scope=development  vulnerable <=0.24.2  patched 0.25.0  \"esbuild dev server が任意オリジンからの要求に応答\"  経路: drizzle-kit@0.31.10(最新) -> @esbuild-kit/esm-loader -> esbuild@0.18\n\n補足: CI は lint/build/test を回すが drizzle-kit の generate/migrate は回さない。@esbuild-kit は esbuild 0.18 前提。",
+      "expected_output": "postcss=overrides で ^8.5.10 に固定して根治(CIのbuildで検証可)。esbuild=上流に修正なし・drizzle-kitはesbuildのdev serveを使わない到達不能パスで、overrideは@esbuild-kitを壊すがCIで検出できないため、not_used理由でdismissし技術改善計画で追跡。dismissはアウトバウンドなので合図を待つ。",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "simple-green-group",
+      "prompt": "Dependabot の minor-and-patch グループPR（#12, 依存3件の minor/patch 更新）が来て、CI の verify ジョブも Vercel も緑。これマージしていい? 手順を教えて。",
+      "expected_output": "CI緑なのでマージ候補だが、このリポでは マージ=main への push=本番デプロイ のためオーナーの合図を待つ、と必ず述べる。合図後に gh pr merge --squash --delete-branch → git pull → npm ci の手順。勝手にマージしない。",
+      "files": []
+    }
+  ]
+}
