@@ -1,4 +1,4 @@
-import { expandRoutinesFor } from "@/usecases/routine/expand-routines";
+import { expandRoutinesFor } from "@/usecases/routine/expand";
 import { listDailyList } from "@/usecases/task/daily-list-usecases";
 import { applyCarryOver } from "@/usecases/task/relocation-usecases";
 import { isValidLogicalDate } from "@/domain/shared/logical-date";

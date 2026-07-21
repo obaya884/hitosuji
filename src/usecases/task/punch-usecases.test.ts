@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import type { Section } from "@/domain/section/section";
 import { taskStatus } from "@/domain/task/status";
 import type { Task } from "@/domain/task/task";
-import { inMemorySectionRepository } from "@/usecases/section/testing/in-memory-section-repository";
+import { inMemorySectionRepository } from "@/usecases/section/testing/in-memory-repository";
 import { finishTask, startTask, undoStart, updateTaskPunch } from "./punch-usecases";
-import { inMemoryTaskRepository } from "./testing/in-memory-task-repository";
+import { inMemoryTaskRepository } from "./testing/in-memory-repository";
 
 function task(over: Partial<Task> & { id: number }): Task {
   return {

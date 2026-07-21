@@ -15,8 +15,8 @@ import {
 import { currentTaskId, keepSelection, moveSelection } from "@/domain/task/selection";
 import { taskStatus } from "@/domain/task/status";
 import { editEndedAt, editStartedAt } from "@/domain/task/punch-edit";
-import { validateEstimateMinutes, validateTaskName } from "@/domain/task/task-edit";
-import type { RoutineFromTaskChoice } from "@/domain/routine/routine-from-task";
+import { validateEstimateMinutes, validateTaskName } from "@/domain/task/edit";
+import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
 import type { Task } from "@/domain/task/task";
 import { PlusIcon } from "@/app/_components/icons";
 import { formatClock } from "@/app/_lib/format";

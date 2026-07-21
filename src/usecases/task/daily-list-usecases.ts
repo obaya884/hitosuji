@@ -15,7 +15,7 @@ import {
   validateEstimateMinutes,
   validateTaskName,
   type TaskEditError,
-} from "@/domain/task/task-edit";
+} from "@/domain/task/edit";
 import type { Task, TaskId } from "@/domain/task/task";
 
 export type DailyListDeps = Readonly<{

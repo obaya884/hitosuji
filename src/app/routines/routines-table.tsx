@@ -4,12 +4,12 @@ import { useState, useTransition } from "react";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import { describeRecurrence, type Routine } from "@/domain/routine/routine";
-import type { RoutineInput } from "@/domain/routine/routine-input";
+import type { RoutineInput } from "@/domain/routine/input";
 import {
   sortRoutines,
   type RoutineSortDirection,
   type RoutineSortKey,
-} from "@/domain/routine/routine-order";
+} from "@/domain/routine/order";
 import { sectionAt, type Section } from "@/domain/section/section";
 import { formatEstimate } from "@/app/_lib/format";
 import { btnSecondary, linkAccent, linkMuted, noticeDanger } from "@/app/_lib/ui";

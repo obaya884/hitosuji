@@ -7,7 +7,7 @@ import {
   setRoutineActive,
   updateRoutine,
 } from "@/usecases/routine/routine-usecases";
-import type { RoutineInput } from "@/domain/routine/routine-input";
+import type { RoutineInput } from "@/domain/routine/input";
 import { createRoutineRepository } from "@/infrastructure/db/repositories/drizzle-routine-repository";
 
 // 合成ルート: リポジトリ実装をユースケースへ注入する（アーキテクチャ定義書 §3）

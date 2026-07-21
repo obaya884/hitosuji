@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateRoutineInput, type RoutineInput } from "./routine-input";
+import { validateRoutineInput, type RoutineInput } from "./input";
 
 function input(over: Partial<RoutineInput> = {}): RoutineInput {
   return {

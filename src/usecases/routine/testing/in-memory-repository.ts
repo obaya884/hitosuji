@@ -2,7 +2,7 @@
 // 古典学派の「本物と同じ契約を満たす偽物」であってモックではない（アーキテクチャ定義書 §8）
 import type { RoutineRepository, RoutineTaskSeed } from "@/usecases/ports/routine-repository";
 import type { Routine, RoutineId } from "@/domain/routine/routine";
-import type { ValidRoutineInput } from "@/domain/routine/routine-input";
+import type { ValidRoutineInput } from "@/domain/routine/input";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 
 export type InMemoryRoutineRepository = RoutineRepository & {

@@ -7,8 +7,8 @@ import type { SectionRepository } from "@/usecases/ports/section-repository";
 import type { Routine } from "@/domain/routine/routine";
 import type { Section } from "@/domain/section/section";
 import type { Task } from "@/domain/task/task";
-import { expandRoutinesFor } from "./expand-routines";
-import { inMemoryTaskRepository } from "@/usecases/task/testing/in-memory-task-repository";
+import { expandRoutinesFor } from "./expand";
+import { inMemoryTaskRepository } from "@/usecases/task/testing/in-memory-repository";
 
 const sections: Section[] = [
   { id: 1, name: "深夜", startTime: "00:00", isArchived: false },

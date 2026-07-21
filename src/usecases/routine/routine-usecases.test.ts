@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { RoutineFromTaskChoice } from "@/domain/routine/routine-from-task";
+import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
 import type { Task } from "@/domain/task/task";
-import { inMemoryTaskRepository } from "@/usecases/task/testing/in-memory-task-repository";
+import { inMemoryTaskRepository } from "@/usecases/task/testing/in-memory-repository";
 import { createRoutineFromTask } from "./routine-usecases";
-import { inMemoryRoutineRepository } from "./testing/in-memory-routine-repository";
+import { inMemoryRoutineRepository } from "./testing/in-memory-repository";
 
 function task(over: Partial<Task> & { id: number }): Task {
   return {

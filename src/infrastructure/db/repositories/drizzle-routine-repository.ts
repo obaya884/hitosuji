@@ -5,7 +5,7 @@ import type {
 } from "@/usecases/ports/routine-repository";
 import { normalizeStartTime } from "@/domain/section/section";
 import type { RecurrenceType, Routine, RoutineId } from "@/domain/routine/routine";
-import type { ValidRoutineInput } from "@/domain/routine/routine-input";
+import type { ValidRoutineInput } from "@/domain/routine/input";
 import { db as defaultDb, type Database } from "@/infrastructure/db";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import { routineSkips, routines, tasks } from "@/infrastructure/db/schema";

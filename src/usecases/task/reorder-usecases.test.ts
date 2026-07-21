@@ -3,7 +3,7 @@ import type { SectionRepository } from "@/usecases/ports/section-repository";
 import type { Section } from "@/domain/section/section";
 import type { Task } from "@/domain/task/task";
 import { moveTaskByOneStep, moveTaskTo, setTaskSection } from "./reorder-usecases";
-import { inMemoryTaskRepository } from "./testing/in-memory-task-repository";
+import { inMemoryTaskRepository } from "./testing/in-memory-repository";
 
 function task(over: Partial<Task> & { id: number }): Task {
   return {

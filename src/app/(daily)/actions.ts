@@ -20,14 +20,14 @@ import {
   postponeTask,
   restoreTask,
   suspendTask,
-} from "@/usecases/task/task-operations";
+} from "@/usecases/task/operations";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import type { Task } from "@/domain/task/task";
 import { moveTaskByOneStep, setTaskSection } from "@/usecases/task/reorder-usecases";
 import { createRoutineFromTask } from "@/usecases/routine/routine-usecases";
 import { applyCarryOverAfterPunch } from "@/usecases/task/relocation-usecases";
 import { formatClock, todayLogicalDate } from "@/app/_lib/format";
-import type { RoutineFromTaskChoice } from "@/domain/routine/routine-from-task";
+import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
 import { createRoutineRepository } from "@/infrastructure/db/repositories/drizzle-routine-repository";
 import { createSectionRepository } from "@/infrastructure/db/repositories/drizzle-section-repository";
 import { createTaskRepository } from "@/infrastructure/db/repositories/drizzle-task-repository";

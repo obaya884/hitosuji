@@ -9,8 +9,8 @@ import {
   postponeTask,
   restoreTask,
   suspendTask,
-} from "./task-operations";
-import { inMemoryTaskRepository } from "./testing/in-memory-task-repository";
+} from "./operations";
+import { inMemoryTaskRepository } from "./testing/in-memory-repository";
 
 function task(over: Partial<Task> & { id: number }): Task {
   return {

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Mode } from "../mode/mode";
 import type { Project } from "../project/project";
 import { compareByName } from "../shared/name-order";
-import { sortRoutines, type RoutineSortMasters } from "./routine-order";
+import { sortRoutines, type RoutineSortMasters } from "./order";
 import type { Routine } from "./routine";
 
 function routine(over: Partial<Routine> & { id: number }): Routine {
@@ -177,7 +177,7 @@ describe("sortRoutines（画面定義書02 §3.1）", () => {
       routine({ id: 4, name: "同時刻2", scheduledStartTime: "10:00" }),
     ];
 
-    // listRoutines（src/usecases/routine/routine-usecases.ts）と同じ並べ替え式
+    // listRoutines（src/usecases/routine/usecases.ts）と同じ並べ替え式
     const expected = [...input].sort(
       (a, b) => a.scheduledStartTime.localeCompare(b.scheduledStartTime) || compareByName(a, b)
     );

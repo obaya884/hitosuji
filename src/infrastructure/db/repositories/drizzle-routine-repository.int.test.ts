@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import type { ValidRoutineInput } from "@/domain/routine/routine-input";
+import type { ValidRoutineInput } from "@/domain/routine/input";
 import { routines, tasks } from "@/infrastructure/db/schema";
 import { createTestDb, truncateAll } from "@/infrastructure/db/testing/test-db";
 import { createRoutineRepository } from "./drizzle-routine-repository";

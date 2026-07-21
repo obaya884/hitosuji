@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import { WEEKDAY_BITS, toggleWeekday, type RecurrenceType, type Routine } from "@/domain/routine/routine";
-import type { RoutineInput } from "@/domain/routine/routine-input";
+import type { RoutineInput } from "@/domain/routine/input";
 import { btnPrimary, inputBase, linkMuted } from "@/app/_lib/ui";
 
 type Props = Readonly<{

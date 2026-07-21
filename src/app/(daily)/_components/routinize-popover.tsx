@@ -9,7 +9,7 @@ import {
 import {
   defaultChoiceFromTask,
   type RoutineFromTaskChoice,
-} from "@/domain/routine/routine-from-task";
+} from "@/domain/routine/from-task";
 import { sectionAt } from "@/domain/section/section";
 import type { Section } from "@/domain/section/section";
 import { parseClockTime } from "@/domain/task/punch-edit";

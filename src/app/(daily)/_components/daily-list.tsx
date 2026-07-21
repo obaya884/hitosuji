@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
-import type { RoutineFromTaskChoice } from "@/domain/routine/routine-from-task";
+import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
 import type { Section } from "@/domain/section/section";
 import { sectionTotalMinutes, type DailyGroup } from "@/domain/task/daily-list";
 import {

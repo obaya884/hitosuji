@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateEstimateMinutes, validateTaskName } from "./task-edit";
+import { validateEstimateMinutes, validateTaskName } from "./edit";
 
 describe("validateTaskName（画面定義書01 §8: 空のタスク名は確定不可）", () => {
   it("前後の空白を除去して返す", () => {

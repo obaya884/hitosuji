@@ -1,5 +1,5 @@
 import type { Routine, RoutineId } from "@/domain/routine/routine";
-import type { ValidRoutineInput } from "@/domain/routine/routine-input";
+import type { ValidRoutineInput } from "@/domain/routine/input";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 
 /** 展開で生成するタスク（データモデル定義書 §4.1-3） */

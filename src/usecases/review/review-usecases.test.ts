@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ModeRepository } from "@/usecases/ports/mode-repository";
 import type { ProjectRepository } from "@/usecases/ports/project-repository";
-import { inMemoryTaskRepository } from "@/usecases/task/testing/in-memory-task-repository";
+import { inMemoryTaskRepository } from "@/usecases/task/testing/in-memory-repository";
 import type { Mode } from "@/domain/mode/mode";
 import type { Task } from "@/domain/task/task";
 import { listDailyReview } from "./review-usecases";

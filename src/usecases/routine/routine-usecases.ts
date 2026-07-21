@@ -6,8 +6,8 @@ import {
   routineInputFromTask,
   type RoutineFromTaskChoice,
   type RoutineFromTaskError,
-} from "@/domain/routine/routine-from-task";
-import { validateRoutineInput, type RoutineInput } from "@/domain/routine/routine-input";
+} from "@/domain/routine/from-task";
+import { validateRoutineInput, type RoutineInput } from "@/domain/routine/input";
 import { compareByName } from "@/domain/shared/name-order";
 import { err, ok, type Result } from "@/domain/shared/result";
 import type { TaskId } from "@/domain/task/task";

@@ -2,7 +2,7 @@
 import { actualMinutes, type Task } from "../task/task";
 import { addDays, weekdayIndex, type LogicalDate } from "../shared/logical-date";
 import { err, ok, type Result } from "../shared/result";
-import type { RoutineInput } from "./routine-input";
+import type { RoutineInput } from "./input";
 import { weekdayBitOf, type RecurrenceType } from "./routine";
 
 export type RoutineFromTaskError = "estimate_required" | "routine_derived_task";
