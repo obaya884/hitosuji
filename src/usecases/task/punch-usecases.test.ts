@@ -3,7 +3,7 @@ import type { Section } from "@/domain/section/section";
 import { taskStatus } from "@/domain/task/status";
 import type { Task } from "@/domain/task/task";
 import { inMemorySectionRepository } from "@/usecases/section/testing/in-memory-section-repository";
-import { finishTask, startTask, updateTaskPunch } from "./punch-usecases";
+import { finishTask, startTask, undoStart, updateTaskPunch } from "./punch-usecases";
 import { inMemoryTaskRepository } from "./testing/in-memory-task-repository";
 
 function task(over: Partial<Task> & { id: number }): Task {
@@ -176,6 +176,75 @@ describe("startTask の割り込み（F-201 / データモデル定義書 §4.2�
 
     await punch(repo, 2);
     expect(repo.rows.filter((t) => taskStatus(t) === "running").map((t) => t.id)).toEqual([2]);
+  });
+});
+
+describe("undoStart（F-210: 開始打刻の取り消し）", () => {
+  const startedAt = new Date("2026-07-19T08:30:00Z");
+  const undo = (
+    repo: ReturnType<typeof inMemoryTaskRepository>,
+    taskId: number,
+    sections: readonly Section[] = []
+  ) => undoStart(depsOf(repo, sections), { taskId, nowClock, today });
+
+  it("実行中タスクの started_at を null に戻して未実行にする", async () => {
+    const repo = inMemoryTaskRepository([task({ id: 1, startedAt })]);
+    expect((await undo(repo, 1)).ok).toBe(true);
+    expect(repo.rows[0].startedAt).toBeNull();
+    expect(taskStatus(repo.rows[0])).toBe("not_started");
+  });
+
+  it("未実行・完了タスクは取り消せない", async () => {
+    const notStarted = inMemoryTaskRepository([task({ id: 1 })]);
+    expect(await undo(notStarted, 1)).toEqual({ ok: false, error: "not_running" });
+
+    const completed = inMemoryTaskRepository([
+      task({ id: 1, startedAt, endedAt: new Date("2026-07-19T09:00:00Z") }),
+    ]);
+    expect(await undo(completed, 1)).toEqual({ ok: false, error: "not_running" });
+  });
+
+  it("存在しないタスクはエラー", async () => {
+    const repo = inMemoryTaskRepository([]);
+    expect(await undo(repo, 99)).toEqual({ ok: false, error: "task_not_found" });
+  });
+
+  it("今日のタスクは現在時刻を含むセクションの先頭へ並べ直す（§4.5）", async () => {
+    const sections: Section[] = [
+      { id: 1, name: "午前", startTime: "09:00", isArchived: false },
+      { id: 2, name: "夜", startTime: "18:00", isArchived: false },
+    ];
+    // nowClock = 18:00 なので「夜」へ移る
+    const repo = inMemoryTaskRepository([task({ id: 1, sectionId: 1, startedAt })]);
+
+    expect((await undo(repo, 1, sections)).ok).toBe(true);
+    expect(repo.rows[0].sectionId).toBe(2);
+    expect(repo.rows[0].startedAt).toBeNull();
+  });
+
+  it("今日以外のタスクは並べ直さず打刻のクリアだけ行う（§4.5）", async () => {
+    const sections: Section[] = [{ id: 2, name: "夜", startTime: "18:00", isArchived: false }];
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, taskDate: "2026-07-18", sectionId: 1, startedAt }),
+    ]);
+
+    expect((await undo(repo, 1, sections)).ok).toBe(true);
+    expect(repo.rows[0].startedAt).toBeNull();
+    expect(repo.rows[0].sectionId).toBe(1); // 並べ直さない
+  });
+
+  it("割り込みで開始していた場合も波及なし: 直前の完了タスクと再開タスクは残す", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, startedAt, endedAt: new Date("2026-07-19T09:00:00Z"), sortOrder: 1000 }), // 割り込みで終了した直前タスク
+      task({ id: 2, startedAt: new Date("2026-07-19T09:00:00Z"), sortOrder: 2000 }), // 割り込みで開始した実行中タスク
+      task({ id: 3, splitParentId: 1, sortOrder: 1500 }), // 生成済みの再開タスク（未実行）
+    ]);
+
+    expect((await undo(repo, 2)).ok).toBe(true);
+
+    expect(repo.rows.find((r) => r.id === 2)?.startedAt).toBeNull(); // 当該タスクだけ未実行へ
+    expect(repo.rows.find((r) => r.id === 1)?.endedAt).not.toBeNull(); // 直前タスクは完了のまま
+    expect(repo.rows.find((r) => r.id === 3)).toBeDefined(); // 再開タスクは残る
   });
 });
 

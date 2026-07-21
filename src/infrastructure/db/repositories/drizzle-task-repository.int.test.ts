@@ -461,3 +461,59 @@ describe("relocate（F-113 / データモデル定義書 §4.4: 自動セクシ�
     expect(after.sectionId).toBe(night.id);
   });
 });
+
+describe("undoStart（F-210 / データモデル定義書 §4.5: 開始打刻の取り消し）", () => {
+  it("started_at を null に戻し、並べ直しを同じトランザクションで反映する", async () => {
+    const [morning, night] = await db
+      .insert(sections)
+      .values([
+        { name: "朝", startTime: "06:00" },
+        { name: "夜", startTime: "18:00" },
+      ])
+      .returning();
+    const [target] = await db
+      .insert(tasks)
+      .values([
+        {
+          taskDate: "2026-07-19",
+          name: "実行中タスク",
+          sortOrder: 1000,
+          sectionId: morning.id,
+          startedAt: new Date("2026-07-19T09:00:00Z"),
+        },
+      ])
+      .returning();
+
+    await repo.undoStart(target.id, [{ taskId: target.id, sectionId: night.id, sortOrder: 500 }]);
+
+    const [after] = await repo.listByDate("2026-07-19");
+    expect(after.startedAt).toBeNull();
+    expect(after.sectionId).toBe(night.id);
+    expect(after.sortOrder).toBe(500);
+  });
+
+  it("並べ直しなし（今日以外）は started_at のクリアだけ行う", async () => {
+    const [morning] = await db
+      .insert(sections)
+      .values([{ name: "朝", startTime: "06:00" }])
+      .returning();
+    const [target] = await db
+      .insert(tasks)
+      .values([
+        {
+          taskDate: "2026-07-18",
+          name: "前日の実行中タスク",
+          sortOrder: 1000,
+          sectionId: morning.id,
+          startedAt: new Date("2026-07-18T09:00:00Z"),
+        },
+      ])
+      .returning();
+
+    await repo.undoStart(target.id, null);
+
+    const [after] = await repo.listByDate("2026-07-18");
+    expect(after.startedAt).toBeNull();
+    expect(after.sectionId).toBe(morning.id); // 並べ直さない
+  });
+});

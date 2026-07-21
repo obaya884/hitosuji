@@ -11,6 +11,7 @@ import {
 import {
   finishTask,
   startTask,
+  undoStart,
   updateTaskPunch,
 } from "@/usecases/task/punch-usecases";
 import {
@@ -88,6 +89,18 @@ export async function startTaskAction(id: number, now: Date): Promise<DailyActio
   if (!result.ok) return { ok: false, message: PUNCH_ERROR_MESSAGES[result.error] };
   // 開始したタスクより前に残っている未実行タスクを繰り下げる（F-113 §4.2-b）
   await applyCarryOverAfterPunch(punchDeps, { date: today, today, nowClock });
+  revalidatePath("/");
+  return { ok: true };
+}
+
+/** 開始打刻の取り消し（F-210 / O-13）。now はクライアントの現在時刻を受け取る */
+export async function undoStartAction(id: number, now: Date): Promise<DailyActionResult> {
+  const result = await undoStart(punchDeps, {
+    taskId: id,
+    nowClock: formatClock(now),
+    today: todayLogicalDate(now),
+  });
+  if (!result.ok) return { ok: false, message: PUNCH_ERROR_MESSAGES[result.error] };
   revalidatePath("/");
   return { ok: true };
 }

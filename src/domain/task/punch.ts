@@ -43,6 +43,11 @@ export function canStart(task: Task): Result<Task, PunchError> {
   return taskStatus(task) === "not_started" ? ok(task) : err("already_started");
 }
 
+/** 開始打刻を取り消せるのは実行中タスクのみ（F-210）。完了・未実行は対象外 */
+export function canUndoStart(task: Task): Result<Task, PunchError> {
+  return taskStatus(task) === "running" ? ok(task) : err("not_running");
+}
+
 /** 終了・中断できるのは実行中タスクのみ（F-201/F-204） */
 export function canFinish(task: Task, now: Date): Result<Task, PunchError> {
   if (taskStatus(task) !== "running") return err("not_running");

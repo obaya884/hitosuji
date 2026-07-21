@@ -38,6 +38,7 @@ import {
   setTaskProjectAction,
   setTaskSectionAction,
   startTaskAction,
+  undoStartAction,
   updateTaskEstimateAction,
   updateTaskPunchAction,
   type DailyActionResult,
@@ -66,6 +67,7 @@ type OptimisticAction =
   | Readonly<{ type: "rename"; id: number; name: string }>
   | Readonly<{ type: "estimate"; id: number; minutes: number }>
   | Readonly<{ type: "start"; id: number; at: Date }>
+  | Readonly<{ type: "unstart"; id: number }>
   | Readonly<{ type: "finish"; id: number; at: Date }>
   | Readonly<{ type: "punch"; id: number; startedAt: Date; endedAt: Date | null }>
   | Readonly<{
@@ -94,6 +96,9 @@ function applyOptimisticAction(
     // 割り込み時の「実行中タスクの終了・再開タスク生成」はサーバ確定後に反映される
     case "start":
       return withTaskUpdated(groups, action.id, (t) => ({ ...t, startedAt: action.at }));
+    // 未実行への並べ直し（§4.5）はサーバ確定後に反映される。まず打刻だけ消す
+    case "unstart":
+      return withTaskUpdated(groups, action.id, (t) => ({ ...t, startedAt: null }));
     case "finish":
       return withTaskUpdated(groups, action.id, (t) => ({ ...t, endedAt: action.at }));
     case "punch":
@@ -254,6 +259,11 @@ export function DailyBoard({
     } else {
       run({ type: "finish", id: task.id, at: now }, () => finishTaskAction(task.id, now));
     }
+  }
+
+  /** 開始打刻の取り消し（O-13 / F-210）。実行中タスクを未実行へ戻す。now はクライアントのものを送る */
+  function unstart(task: Task) {
+    run({ type: "unstart", id: task.id }, () => undoStartAction(task.id, new Date()));
   }
 
   /** 開始・終了時刻のインライン修正（F-203）。HH:MM の解釈は利用者のタイムゾーンで行う */
@@ -466,7 +476,14 @@ export function DailyBoard({
           if (selected !== null) operate(selected, "delete");
           return;
         case "u":
-          undoDelete();
+          // 直前の削除の取り消しが保留中（Undoトースト表示中）ならそれを優先する。
+          // 削除すると選択が現在地（実行中タスク）へ移るため、優先しないと U が開始取消に化ける（FB-37 動作確認）。
+          // 保留がなく実行中タスクを選択中なら開始の取り消し、それ以外は削除の取り消し（O-13）
+          if (deleted === null && selected !== null && taskStatus(selected) === "running") {
+            unstart(selected);
+          } else {
+            undoDelete();
+          }
           return;
         case "t":
           router.push("/");

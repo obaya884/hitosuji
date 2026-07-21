@@ -118,6 +118,16 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
       rows[i] = { ...rows[i], endedAt };
     },
 
+    // 開始打刻の取り消し（F-210）。started_at を null に戻し、並べ直しがあれば反映する
+    undoStart: async (id: TaskId, relocation?: Relocations | null) => {
+      const i = indexOf(id);
+      rows[i] = { ...rows[i], startedAt: null };
+      for (const row of relocation ?? []) {
+        const j = indexOf(row.taskId);
+        rows[j] = { ...rows[j], sectionId: row.sectionId, sortOrder: row.sortOrder };
+      }
+    },
+
     suspend: async (command: SuspendCommand) => {
       for (const row of command.renumber ?? []) {
         const j = indexOf(row.taskId);

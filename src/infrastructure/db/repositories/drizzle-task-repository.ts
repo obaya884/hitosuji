@@ -171,6 +171,21 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
       await db.update(tasks).set({ endedAt, updatedAt: new Date() }).where(eq(tasks.id, id));
     },
 
+    // 開始打刻の取り消し（F-210）。started_at を null に戻し、未実行への並べ直しがあれば
+    // 同一トランザクションで反映する（データモデル定義書 §4.5）
+    async undoStart(id: TaskId, relocation?: Relocations | null) {
+      const now = new Date();
+      if (relocation === undefined || relocation === null || relocation.length === 0) {
+        await db.update(tasks).set({ startedAt: null, updatedAt: now }).where(eq(tasks.id, id));
+        return;
+      }
+
+      await db.transaction(async (tx) => {
+        await tx.update(tasks).set({ startedAt: null, updatedAt: now }).where(eq(tasks.id, id));
+        await applyRelocations(tx, relocation);
+      });
+    },
+
     // 中断は「終了 → 再開タスク生成」を1トランザクションで行う（データモデル定義書 §4.2）
     async suspend(command: SuspendCommand) {
       await db.transaction(async (tx) => {

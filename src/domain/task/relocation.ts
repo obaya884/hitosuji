@@ -169,6 +169,45 @@ export function planCarryOver(
   );
 }
 
+/**
+ * 開始打刻の取り消し（F-210 / データモデル定義書 §4.5）。取り消したタスクを未実行として
+ * 「現在位置」＝現在時刻を含むセクションの未実行タスクの先頭へ置く。表示日が今日のときだけ呼ぶ。
+ * 移動が不要（すでにその位置）または現在時刻がどのセクションにも属さないなら空配列
+ */
+export function relocationOnUndoStart(
+  task: Task,
+  sameDayTasks: readonly Task[],
+  sections: readonly Section[],
+  nowClock: string
+): Relocation[] {
+  const destination = sectionAt(sections, nowClock);
+  if (destination === undefined) return [];
+
+  // 移動先セクションのタスク（取り消す当該タスク自身は除く）を並び順で
+  const siblings = sameDayTasks
+    .filter((t) => t.sectionId === destination.id && t.id !== task.id)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+
+  // 未実行タスクの先頭の直前に入る（完了・実行中のログの後ろ）。実行中は最大1件で
+  // それが取り消し対象なので、siblings に実行中は残っていない
+  const firstNotStarted = siblings.findIndex((t) => taskStatus(t) === "not_started");
+  const index = firstNotStarted === -1 ? siblings.length : firstNotStarted;
+
+  const sortOrder = insertBetweenSortOrder(
+    siblings[index - 1]?.sortOrder ?? null,
+    siblings[index]?.sortOrder ?? null
+  );
+
+  // 中間値が尽きたら移動先セクション全体を振り直す（§3.5 の再採番）
+  if (!sortOrder.ok) {
+    const reordered = [...siblings.slice(0, index), task, ...siblings.slice(index)];
+    const sortOrders = renumberSortOrders(reordered.length);
+    return changedOnly(reordered, destination.id, (_, i) => sortOrders[i]);
+  }
+
+  return changedOnly([task], destination.id, () => sortOrder.value);
+}
+
 /** 実際に section_id か sort_order が変わる行だけを Relocation にする（無駄な UPDATE を避ける） */
 function changedOnly(
   tasks: readonly Task[],

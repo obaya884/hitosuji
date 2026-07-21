@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canFinish, canStart, resumeEstimateMinutes, resumeTaskDraft } from "./punch";
+import { canFinish, canStart, canUndoStart, resumeEstimateMinutes, resumeTaskDraft } from "./punch";
 import type { Task } from "./task";
 
 function task(over: Partial<Task> & { id: number }): Task {
@@ -86,5 +86,21 @@ describe("canFinish（F-201/F-204: 終了・中断は実行中タスクのみ）
       ok: false,
       error: "ended_before_started",
     });
+  });
+});
+
+describe("canUndoStart（F-210: 開始を取り消せるのは実行中タスクのみ）", () => {
+  it("実行中タスクは開始を取り消せる", () => {
+    expect(canUndoStart(task({ id: 1, startedAt })).ok).toBe(true);
+  });
+
+  it("未実行タスクは取り消せない", () => {
+    expect(canUndoStart(task({ id: 1 }))).toEqual({ ok: false, error: "not_running" });
+  });
+
+  it("完了タスクは対象外", () => {
+    expect(
+      canUndoStart(task({ id: 1, startedAt, endedAt: new Date("2026-07-19T08:30:00Z") }))
+    ).toEqual({ ok: false, error: "not_running" });
   });
 });

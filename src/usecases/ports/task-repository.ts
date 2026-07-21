@@ -85,6 +85,11 @@ export type TaskRepository = Readonly<{
     relocation?: Relocations | null
   ): Promise<void>;
   finish(id: TaskId, endedAt: Date): Promise<void>;
+  /**
+   * 開始打刻の取り消し（F-210 / データモデル定義書 §4.5）。`started_at` を null に戻す。
+   * 未実行への並べ直し（今日のみ）があれば同一トランザクションで反映する
+   */
+  undoStart(id: TaskId, relocation?: Relocations | null): Promise<void>;
   /** 並び替え（O-6）。振り直しを伴う場合も1トランザクションで反映する */
   move(command: MoveCommand): Promise<void>;
   /** 自動セクション移動（F-113）。まとめて1トランザクションで反映する */

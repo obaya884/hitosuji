@@ -3,9 +3,9 @@ import type { SectionRepository } from "@/usecases/ports/section-repository";
 import type { TaskRepository } from "@/usecases/ports/task-repository";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import { err, ok, type Result } from "@/domain/shared/result";
-import { canFinish, canStart, resumeTaskDraft, type PunchError } from "@/domain/task/punch";
+import { canFinish, canStart, canUndoStart, resumeTaskDraft, type PunchError } from "@/domain/task/punch";
 import { placeNewTask } from "@/domain/task/placement";
-import { relocationOnPunchEdit, relocationOnStart } from "@/domain/task/relocation";
+import { relocationOnPunchEdit, relocationOnStart, relocationOnUndoStart } from "@/domain/task/relocation";
 import type { TaskId } from "@/domain/task/task";
 
 export type PunchUsecaseError = PunchError | "task_not_found";
@@ -91,6 +91,39 @@ export async function startTask(
     },
     relocation: relocations,
   });
+  return ok(target.id);
+}
+
+/**
+ * 開始打刻の取り消し（F-210 / データモデル定義書 §4.5）。
+ * 実行中タスクの `started_at` を null に戻す。表示日が今日なら未実行として「現在位置」
+ * （現在時刻を含むセクションの未実行先頭）へ並べ直し、今日でなければ打刻のクリアだけ行う。
+ * 割り込みで開始していた場合も波及させず、当該タスクだけを未実行に戻す（局所操作）。
+ * 現在時刻はクライアントから受け取る（サーバ時刻を使わない）
+ */
+export async function undoStart(
+  deps: PunchDeps,
+  input: Readonly<{ taskId: TaskId; nowClock: string; today: LogicalDate }>
+): Promise<Result<TaskId, PunchUsecaseError>> {
+  const repo = deps.tasks;
+  const target = await repo.findById(input.taskId);
+  if (target === null) return err("task_not_found");
+
+  const undoable = canUndoStart(target);
+  if (!undoable.ok) return undoable;
+
+  // 今日のタスクだけ未実行として並べ直す（今日以外は現在位置・これから領域が定義できない）
+  const relocations =
+    target.taskDate === input.today
+      ? relocationOnUndoStart(
+          target,
+          await repo.listByDate(target.taskDate),
+          await deps.sections.listAll(),
+          input.nowClock
+        )
+      : [];
+
+  await repo.undoStart(target.id, relocations.length === 0 ? null : relocations);
   return ok(target.id);
 }
 
