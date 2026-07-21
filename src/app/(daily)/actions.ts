@@ -42,11 +42,12 @@ export type DailyActionResult = Readonly<{ ok: true } | { ok: false; message: st
 
 export async function addTaskAction(
   input: Readonly<{ date: LogicalDate; name: string }>
-): Promise<DailyActionResult> {
+): Promise<Readonly<{ ok: true; createdId: number } | { ok: false; message: string }>> {
   const result = await addTask(taskRepo, input);
   if (!result.ok) return { ok: false, message: "タスク名を入力してください" };
   revalidatePath("/");
-  return { ok: true };
+  // 追加したタスクを選択するため採番結果を返す（画面定義書01 §3.4 / FB-29）
+  return { ok: true, createdId: result.value.id };
 }
 
 export async function renameTaskAction(

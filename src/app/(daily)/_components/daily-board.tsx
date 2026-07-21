@@ -202,15 +202,21 @@ export function DailyBoard({
     });
   }
 
-  // §3.4: Enter で追加 → 欄はクリアされフォーカスは残る（連続追加）。空のままの Enter は何もしない
+  // §3.4: Enter で追加 → 欄はクリアし、追加したタスクを選択（FB-29）。連続入力は N で欄に戻る。
+  // 空のままの Enter は何もしない。欄からのフォーカス外しは呼び出し側で行う（ref をレンダー中に読まない）
   function add() {
     const trimmed = name.trim();
     if (trimmed === "") return;
 
     setName("");
-    run({ type: "append", task: optimisticTask(date, trimmed) }, () =>
-      addTaskAction({ date, name: trimmed })
-    );
+    setError(null);
+    startTransition(async () => {
+      // 追加行は楽観的に即表示。採番はサーバが決めるため選択は確定後に寄せる
+      dispatchOptimistic({ type: "append", task: optimisticTask(date, trimmed) });
+      const result = await addTaskAction({ date, name: trimmed });
+      if (!result.ok) setError(result.message);
+      else setSelectedId(result.createdId); // 追加したタスクを選択（§3.4 / FB-29）
+    });
   }
 
   function rename(task: Task, raw: string) {
@@ -382,7 +388,11 @@ export function DailyBoard({
   }
 
   const onKeyDown = inlineEditKeyHandler({
-    onEnter: add,
+    // 追加できたときだけ欄からフォーカスを外し、追加行の操作へ移る（§3.4 / FB-29）
+    onEnter: (input) => {
+      if (name.trim() !== "") input.blur();
+      add();
+    },
     onEscape: (input) => input.blur(), // Esc でフォーカスを外しリスト操作へ戻る
   });
 
