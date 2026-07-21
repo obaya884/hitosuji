@@ -9,6 +9,13 @@ export default defineConfig({
     alias: { "@": path.resolve(import.meta.dirname, "src") },
   },
   test: {
+    // カバレッジは補助指標（数値ゲートは設けない）。詳細はアーキテクチャ定義書 §8
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "text-summary"],
+      include: ["src/**/*.ts"],
+      exclude: ["src/**/*.test.ts", "src/**/*.int.test.ts", "src/**/testing/**"],
+    },
     projects: [
       {
         extends: true,
