@@ -200,6 +200,9 @@ describe("duplicateAndStartTask（F-208: 複製して開始）", () => {
     const result = await duplicateAndStartTask(repos(repo), { taskId: 1, ...input });
     expect(result.ok && result.value).toEqual(
       expect.objectContaining({
+        name: "T1", // 名前を引き継ぐ（O-11）
+        modeId: 2, // モードを引き継ぐ
+        projectId: 3, // プロジェクトを引き継ぐ
         sectionId: 2, // 現在時刻（09:30）を含む午前へ
         sortOrder: 6000, // 午前の末尾（5000 の次）
         estimateMinutes: 45, // 満額を引き継ぐ
@@ -255,6 +258,21 @@ describe("duplicateAndStartTask（F-208: 複製して開始）", () => {
     });
     expect(result.ok && result.value.sectionId).toBe(1); // 現在時刻の午前ではなく複製元の朝
     expect(result.ok && result.value.sortOrder).toBe(2000); // 朝の末尾
+  });
+
+  it("有効なセクションが1つも無いときは複製元と同じセクションへ置く（§4.2-a 退避）", async () => {
+    // sectionAt は有効セクションが1つも無いときだけ undefined を返す（§3.1: 早朝は最後のセクションに属す）
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }), // 完了
+    ]);
+    const noSections = { ...sectionRepo, listAll: async () => [] };
+
+    const result = await duplicateAndStartTask(
+      { tasks: repo, sections: noSections },
+      { taskId: 1, ...input }
+    );
+    expect(result.ok && result.value.sectionId).toBe(1); // セクションが無いので複製元のまま
+    expect(result.ok && result.value.sortOrder).toBe(2000); // 複製元セクションの末尾
   });
 
   it("ルーチン由来の完了タスクを複製しても routine_id は引き継がない", async () => {
