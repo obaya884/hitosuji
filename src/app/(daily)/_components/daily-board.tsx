@@ -413,6 +413,9 @@ export function DailyBoard({
       // テキスト入力中・IME変換中はショートカット無効（画面定義書01 §6）
       const target = e.target as HTMLElement | null;
       if (e.isComposing || target?.tagName === "INPUT" || target?.tagName === "TEXTAREA") return;
+      // 編集中（インライン編集・選択ポップオーバー表示中）は行操作キーを無効化する。
+      // ポップオーバーは J/K/Enter を自前で拾うため、ここで素通しさせない（F-112）
+      if (editing !== null) return;
       // 修飾キーは Shift のみ使用する（§6）。Cmd/Ctrl 併用時はブラウザの既定動作に任せる
       if (e.metaKey || e.ctrlKey || e.altKey) return;
 
