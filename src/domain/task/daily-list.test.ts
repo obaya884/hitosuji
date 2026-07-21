@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { Section } from "../section/section";
 import {
   groupTasksBySection,
+  sectionTotalMinutes,
   taskProgress,
-  totalEstimateMinutes,
   withTaskAppended,
   withTaskMoved,
 } from "./daily-list";
@@ -96,10 +96,31 @@ describe("groupTasksBySection（画面定義書01 §3.2: 表示順はセクシ�
   });
 });
 
-describe("totalEstimateMinutes（F-110: セクション見積合計）", () => {
-  it("見積もりを合計する（未設定=0分はそのまま加算されない）", () => {
+describe("sectionTotalMinutes（F-110: セクション時間合計。完了は実績・未完了は見積もり）", () => {
+  it("未完了は見積もりを合計する（未設定=0分はそのまま加算されない）", () => {
     const tasks = [task({ id: 1, estimateMinutes: 30 }), task({ id: 2, estimateMinutes: 0 })];
-    expect(totalEstimateMinutes(tasks)).toBe(30);
+    expect(sectionTotalMinutes(tasks)).toBe(30);
+  });
+
+  it("完了タスクは見積もりでなく実績で数える", () => {
+    const tasks = [
+      // 見積もり30分だが実績は18分（08:30-08:48）
+      task({
+        id: 1,
+        estimateMinutes: 30,
+        startedAt: new Date("2026-07-19T08:30:00+09:00"),
+        endedAt: new Date("2026-07-19T08:48:00+09:00"),
+      }),
+      task({ id: 2, estimateMinutes: 45 }), // 未実行 → 見積もり
+    ];
+    expect(sectionTotalMinutes(tasks)).toBe(18 + 45);
+  });
+
+  it("実行中タスクは見積もりで数える（完了打刻まで実績に切り替わらない）", () => {
+    const tasks = [
+      task({ id: 1, estimateMinutes: 30, startedAt: new Date("2026-07-19T09:00:00+09:00") }),
+    ];
+    expect(sectionTotalMinutes(tasks)).toBe(30);
   });
 });
 

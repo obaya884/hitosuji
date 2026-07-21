@@ -1,7 +1,7 @@
 // デイリーリストの表示順（画面定義書01 §3.2 / データモデル定義書 §3.5）
 // 表示順は「セクション（start_time 順）→ sort_order」。未分類はリスト先頭のインボックス
 import { sectionRanges, sortByStartTime, type Section } from "../section/section";
-import type { Task, TaskId } from "./task";
+import { actualMinutes, type Task, type TaskId } from "./task";
 
 export type DailyGroup = Readonly<{
   /** null = 未分類（インボックス） */
@@ -48,9 +48,13 @@ export function groupTasksBySection(
   ];
 }
 
-/** セクションの見積もり合計（分）。F-110 の「見積 2:30/3:00」の分子 */
-export function totalEstimateMinutes(tasks: readonly Task[]): number {
-  return tasks.reduce((sum, t) => sum + t.estimateMinutes, 0);
+/**
+ * セクションの時間合計（分）。F-110 の「合計 2:30/3:00」の分子。
+ * 完了タスクは実績、未完了（実行中・未実行）は見積もりを合算する（画面定義書01 §3.2）。
+ * 実行中は見積もりで数え、完了打刻で実績へ切り替わる（actualMinutes は完了時のみ非null）
+ */
+export function sectionTotalMinutes(tasks: readonly Task[]): number {
+  return tasks.reduce((sum, t) => sum + (actualMinutes(t) ?? t.estimateMinutes), 0);
 }
 
 /**

@@ -5,8 +5,12 @@ import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { RoutineFromTaskChoice } from "@/domain/routine/routine-from-task";
 import type { Section } from "@/domain/section/section";
-import { totalEstimateMinutes, type DailyGroup } from "@/domain/task/daily-list";
-import { sectionCapacityMinutes } from "@/domain/task/projection";
+import { sectionTotalMinutes, type DailyGroup } from "@/domain/task/daily-list";
+import {
+  sectionCapacityMinutes,
+  sectionEndAt,
+  sectionRemainingMinutes,
+} from "@/domain/task/projection";
 import { taskStatus } from "@/domain/task/status";
 import { actualMinutes, elapsedMinutes, type Task } from "@/domain/task/task";
 import { CheckIcon, PlayIcon, StopIcon } from "@/app/_components/icons";
@@ -39,6 +43,8 @@ type Props = Readonly<{
   onEndEdit: () => void;
   /** 毎分更新される現在時刻。実行中タスクの経過表示に使う（F-205） */
   now: Date;
+  /** 表示日が今日か。セクション残り時間は今日のみ表示する（§3.2） */
+  isToday: boolean;
   /** 画面上端の固定領域の高さ（px）。選択行の追従がその裏で止まらないようにする（§2 / §5） */
   stickyHeight: number;
 }>;
@@ -82,6 +88,7 @@ export function DailyList({
   onBeginEdit,
   onEndEdit,
   now,
+  isToday,
   stickyHeight,
 }: Props) {
   const modeById = new Map(modes.map((m) => [m.id, m]));
@@ -117,7 +124,7 @@ export function DailyList({
       {groups.map((group) => (
         <tbody key={group.section?.id ?? "unclassified"}>
           {/* 0件のセクションは見出し行だけを置く（§3.2 / FB-26） */}
-          <GroupHeading group={group} />
+          <GroupHeading group={group} now={now} isToday={isToday} />
           {group.tasks.map((task, index) => (
             <TaskRow
               key={task.id}
@@ -151,14 +158,29 @@ export function DailyList({
   );
 }
 
-function GroupHeading({ group }: Readonly<{ group: DailyGroup }>) {
-  const total = totalEstimateMinutes(group.tasks);
+function GroupHeading({
+  group,
+  now,
+  isToday,
+}: Readonly<{ group: DailyGroup; now: Date; isToday: boolean }>) {
+  // 分子: 完了は実績・未完了は見積もり（§3.2）
+  const total = sectionTotalMinutes(group.tasks);
   // セクション枠の長さ（F-110 の分母）。未分類とアーカイブ済みセクションでは枠が定まらない
   const capacity =
     group.section === null || group.endTime === null
       ? null
       : sectionCapacityMinutes(group.section.startTime, group.endTime);
-  const excess = capacity === null ? 0 : total - capacity;
+
+  // 残り時間（F-110）: (終了時刻 − 現在時刻) − 未完了見積もり。
+  // 現在時刻依存のため、表示日=今日で、かつ now が終了時刻より前のときだけ表示する（§3.2）
+  const endAt =
+    group.section === null || group.endTime === null
+      ? null
+      : sectionEndAt(now, group.section.startTime, group.endTime);
+  const remaining =
+    endAt !== null && isToday && now.getTime() < endAt.getTime()
+      ? sectionRemainingMinutes(endAt, group.tasks, now)
+      : null;
 
   return (
     <tr className="border-y border-line-strong bg-band">
@@ -181,19 +203,21 @@ function GroupHeading({ group }: Readonly<{ group: DailyGroup }>) {
               <span className="ml-3 flex items-center gap-2">
                 <TaskProgress tasks={group.tasks} />
               </span>
+              {/* 時間合計（完了は実績・未完了は見積もり） / セクション枠（F-110。日付・時刻に依らず表示する） */}
               <span className="ml-1 text-xs text-ink-muted tabular-nums">
-                見積 <span className="font-mono">{formatEstimate(total)}</span>
-                {capacity !== null && (
-                  <span className="font-mono">
-                    /{formatDuration(capacity)}{" "}
-                    {/* 合計が枠を超えたら警告色（F-110） */}
-                    <span className={excess > 0 ? "text-danger" : ""}>
-                      ({excess > 0 ? "+" : "-"}
-                      {formatDuration(Math.abs(excess))})
-                    </span>
-                  </span>
-                )}
+                合計 <span className="font-mono">{formatEstimate(total)}</span>
+                {capacity !== null && <span className="font-mono">/{formatDuration(capacity)}</span>}
               </span>
+              {/* 残り時間（F-110 / FB-34）: 溢れていると `-`（FB-31）で警告色（FB-32） */}
+              {remaining !== null && (
+                <span className="text-xs text-ink-muted tabular-nums">
+                  残り{" "}
+                  <span className={`font-mono ${remaining < 0 ? "text-danger" : ""}`}>
+                    {remaining < 0 ? "-" : "+"}
+                    {formatDuration(Math.abs(remaining))}
+                  </span>
+                </span>
+              )}
             </>
           )}
         </span>

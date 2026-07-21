@@ -49,8 +49,36 @@ export function isOverMidnight(end: Date, baseDate: Date): boolean {
 }
 
 /**
+ * セクション終了時刻を絶対時刻（Date）で返す。基準時刻 now と同じ暦日の壁時計で解釈し、
+ * 日をまたぐ枠（終了 ≤ 開始）は翌日へずらす（punch-edit の applyClockTime と同じくローカル時刻前提。
+ * 終了予定時刻 F-104 の判定と時間帯の扱いを揃える）。
+ * セクション残り時間は表示日=今日のときだけ出す（画面定義書01 §3.2）ため、now の暦日 = 表示日となる
+ */
+export function sectionEndAt(now: Date, startTime: string, endTime: string): Date {
+  const [hours, minutes] = endTime.split(":").map(Number);
+  const end = new Date(now);
+  end.setHours(hours, minutes, 0, 0);
+  if (endTime <= startTime) end.setTime(end.getTime() + 24 * 60 * 60_000);
+  return end;
+}
+
+/**
+ * セクションの残り時間（分, F-110）= (セクション終了時刻 − now) − そのセクションの未完了見積もり。
+ * 終了予定時刻（F-104）のセクション版で、マイナスはそのセクションに予定が収まらないこと（データモデル定義書 §4.3）。
+ * 現在時刻依存のため、意味を持つ（表示日=今日・now < 終了時刻）のは呼び出し側で判定する（画面定義書01 §3.2）
+ */
+export function sectionRemainingMinutes(
+  sectionEndAt: Date,
+  tasks: readonly Task[],
+  now: Date
+): number {
+  const untilEnd = Math.floor((sectionEndAt.getTime() - now.getTime()) / 60_000);
+  return untilEnd - remainingMinutes(tasks, now);
+}
+
+/**
  * セクション枠の長さ（分）。開始時刻から終了時刻まで（日をまたぐ場合は24時間を足す）。
- * F-110 の「見積 2:30/3:00」の分母
+ * F-110 の「合計 2:30/3:00」の分母
  */
 export function sectionCapacityMinutes(startTime: string, endTime: string): number {
   const toMinutes = (hhmm: string) => {

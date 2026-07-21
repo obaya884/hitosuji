@@ -5,6 +5,8 @@ import {
   projectedEndTime,
   remainingMinutes,
   sectionCapacityMinutes,
+  sectionEndAt,
+  sectionRemainingMinutes,
 } from "./projection";
 import type { Task } from "./task";
 
@@ -110,5 +112,55 @@ describe("sectionCapacityMinutes（F-110: セクション枠の長さ）", () =>
 
   it("有効セクションが1件で先頭へ折り返す場合は24時間", () => {
     expect(sectionCapacityMinutes("06:00", "06:00")).toBe(24 * 60);
+  });
+});
+
+describe("sectionEndAt（F-110: セクション終了時刻の絶対時刻）", () => {
+  it("基準時刻と同じ暦日の壁時計として終了時刻を返す", () => {
+    // 基準 2026-07-19 09:00、終了 12:00 → 同日 12:00
+    expect(sectionEndAt(at(9, 0), "09:00", "12:00").getTime()).toBe(at(12, 0).getTime());
+  });
+
+  it("日をまたぐ枠（終了 ≤ 開始）は翌日へずらす", () => {
+    // 夜 18:00–00:00 は基準日翌日の 0:00
+    const end = sectionEndAt(at(20, 0), "18:00", "00:00");
+    expect(end.getTime()).toBe(new Date(2026, 6, 20, 0, 0).getTime());
+  });
+
+  it("開始=終了（1件で先頭へ折り返す枠）は翌日の同時刻", () => {
+    const end = sectionEndAt(at(8, 0), "06:00", "06:00");
+    expect(end.getTime()).toBe(new Date(2026, 6, 20, 6, 0).getTime());
+  });
+});
+
+describe("sectionRemainingMinutes（F-110: セクションの残り時間 / データモデル定義書 §4.3）", () => {
+  // セクション終了 12:00、現在 9:00（終了まで180分）
+  const end = at(12, 0);
+
+  it("(終了まで − 未完了見積もり) を返す。余りはプラス", () => {
+    const tasks = [task({ id: 1, estimateMinutes: 30 }), task({ id: 2, estimateMinutes: 45 })];
+    // 180 − 75 = 105
+    expect(sectionRemainingMinutes(end, tasks, at(9, 0))).toBe(105);
+  });
+
+  it("未完了見積もりが終了までを超えると残りはマイナス（枠に収まらない）", () => {
+    const tasks = [task({ id: 1, estimateMinutes: 120 }), task({ id: 2, estimateMinutes: 120 })];
+    // 180 − 240 = -60
+    expect(sectionRemainingMinutes(end, tasks, at(9, 0))).toBe(-60);
+  });
+
+  it("完了タスクは未完了見積もりに含めない", () => {
+    const tasks = [
+      task({ id: 1, estimateMinutes: 60, startedAt: at(8, 0), endedAt: at(8, 40) }),
+      task({ id: 2, estimateMinutes: 45 }),
+    ];
+    // 180 − 45 = 135
+    expect(sectionRemainingMinutes(end, tasks, at(9, 0))).toBe(135);
+  });
+
+  it("実行中タスクは残り見積もり（見積もり − 経過）で算入する", () => {
+    const tasks = [task({ id: 1, estimateMinutes: 30, startedAt: at(8, 50) })]; // 経過10分・残り20分
+    // 180 − 20 = 160
+    expect(sectionRemainingMinutes(end, tasks, at(9, 0))).toBe(160);
   });
 });

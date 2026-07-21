@@ -587,6 +587,7 @@ export function DailyBoard({
         selectedId={selectedId}
         onSelect={setSelectedId}
         now={now}
+        isToday={isToday}
         stickyHeight={stickyHeight}
       />
     </>
