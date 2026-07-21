@@ -1,0 +1,52 @@
+name: CI
+
+# PR と main への push で lint・build・test を自動実行する（技術改善計画 T-01）。
+# Dependabot の依存更新 PR もここで検証される。マージ（＝本番デプロイ）は手動のまま。
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    # 統合テスト用 Postgres。docker-compose の db-test と同条件（DB=hitosuji_test）。
+    # 5433 で公開し TEST_DATABASE_URL の既定（localhost:5433）に合わせる。
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: hitosuji
+          POSTGRES_PASSWORD: hitosuji
+          POSTGRES_DB: hitosuji_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U hitosuji -d hitosuji_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # 統合テストの接続先。マイグレーションは vitest の globalSetup が自動適用する。
+      TEST_DATABASE_URL: postgresql://hitosuji:hitosuji@localhost:5433/hitosuji_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Vercel 本番の既定ランタイムに合わせる
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+      - run: npm test
