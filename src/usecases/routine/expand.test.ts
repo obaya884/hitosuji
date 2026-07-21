@@ -164,6 +164,19 @@ describe("expandRoutinesFor（データモデル定義書 §4.1）", () => {
     expect(expanded).toEqual([]);
   });
 
+  it("未来日は展開する（当日以降が対象。§4.1-0）", async () => {
+    const { repo, expanded } = recordingRoutineRepo([routine({ id: 1 })]);
+
+    const count = await expandRoutinesFor(
+      { routines: repo, sections: sectionRepo, tasks: inMemoryTaskRepository() },
+      "2026-07-20", // TODAY より後
+      TODAY
+    );
+
+    expect(count).toBe(1);
+    expect(expanded.map((s) => [s.routineId, s.taskDate])).toEqual([[1, "2026-07-20"]]);
+  });
+
   it("該当するルーチンがなければ何もしない", async () => {
     const { repo, expanded } = recordingRoutineRepo([routine({ id: 1, isActive: false })]);
 

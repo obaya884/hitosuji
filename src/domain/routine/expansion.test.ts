@@ -76,6 +76,12 @@ describe("occursOn — monthly（月末超過は月末に丸める）", () => {
     expect(occursOn(r, "2028-02-29")).toBe(true);
     expect(occursOn(r, "2028-02-28")).toBe(false);
   });
+
+  it("monthDay 未設定（マスタ不整合）なら該当しない", () => {
+    expect(occursOn(routine({ id: 1, recurrenceType: "monthly", monthDay: null }), "2026-07-25")).toBe(
+      false
+    );
+  });
 });
 
 describe("occursOn — interval（start_date を起算日とする n日ごと）", () => {
@@ -99,6 +105,12 @@ describe("occursOn — interval（start_date を起算日とする n日ごと）
       startDate: "2026-07-25",
     });
     expect(occursOn(r, "2026-08-04")).toBe(true);
+  });
+
+  it("intervalDays が未設定・0以下（マスタ不整合）なら該当しない", () => {
+    const base = { id: 1, recurrenceType: "interval" as const, startDate: "2026-07-19" };
+    expect(occursOn(routine({ ...base, intervalDays: null }), "2026-07-19")).toBe(false);
+    expect(occursOn(routine({ ...base, intervalDays: 0 }), "2026-07-19")).toBe(false);
   });
 });
 
@@ -156,5 +168,27 @@ describe("routinesToExpand（§4.1-0/2: 過去日は展開しない・生成順�
       routine({ id: 3, recurrenceType: "weekly", weekdays: 0b0000001 }), // 月曜のみ
     ];
     expect(routinesToExpand(routines, SUNDAY, SUNDAY).map((r) => r.id)).toEqual([1]);
+  });
+});
+
+describe("routinesToExpand — スキップの除外（F-304 / §3.6）", () => {
+  it("その日にスキップされたルーチンは展開対象から除外する", () => {
+    const routines = [routine({ id: 1 }), routine({ id: 2 })];
+    expect(routinesToExpand(routines, SUNDAY, SUNDAY, [1]).map((r) => r.id)).toEqual([2]);
+  });
+
+  it("該当日でも全ルーチンをスキップ指定すれば0件になる", () => {
+    const routines = [routine({ id: 1 }), routine({ id: 2 })];
+    expect(routinesToExpand(routines, SUNDAY, SUNDAY, [1, 2])).toEqual([]);
+  });
+
+  it("非該当のIDを渡しても展開結果は変わらない", () => {
+    const routines = [routine({ id: 1 }), routine({ id: 2 })];
+    expect(routinesToExpand(routines, SUNDAY, SUNDAY, [999]).map((r) => r.id)).toEqual([1, 2]);
+  });
+
+  it("スキップ指定を省略すると全該当ルーチンを展開する（既定の後方互換）", () => {
+    const routines = [routine({ id: 1 }), routine({ id: 2 })];
+    expect(routinesToExpand(routines, SUNDAY, SUNDAY).map((r) => r.id)).toEqual([1, 2]);
   });
 });

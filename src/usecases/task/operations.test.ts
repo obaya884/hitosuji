@@ -71,6 +71,25 @@ describe("suspendTask（F-204: 中断）", () => {
       error: "not_running",
     });
   });
+
+  it("現在時刻が開始時刻より前なら中断できない（開始≦終了。再開タスクも作らない）", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, startedAt: new Date("2026-07-19T10:00:00Z") }), // now(09:00) より後に開始
+    ]);
+    expect(await suspendTask(repo, { taskId: 1, now })).toEqual({
+      ok: false,
+      error: "ended_before_started",
+    });
+    expect(repo.rows).toHaveLength(1); // 再開タスクは作られない
+  });
+
+  it("存在しないタスクは中断できない", async () => {
+    const repo = inMemoryTaskRepository([]);
+    expect(await suspendTask(repo, { taskId: 99, now })).toEqual({
+      ok: false,
+      error: "task_not_found",
+    });
+  });
 });
 
 describe("duplicateTask（F-111: 複製）", () => {
@@ -168,6 +187,14 @@ describe("duplicateTask（F-111: 複製）", () => {
 
     const ordered = [...repo.rows].sort((a, b) => a.sortOrder - b.sortOrder);
     expect(ordered.map((t) => t.id)).toEqual([1, 3, 2]); // 複製(id:3)が id:2 の直前に入る
+  });
+
+  it("存在しないタスクは複製できない", async () => {
+    const repo = inMemoryTaskRepository([]);
+    expect(await duplicateTask(repos(repo), { taskId: 99 })).toEqual({
+      ok: false,
+      error: "task_not_found",
+    });
   });
 });
 
@@ -304,6 +331,19 @@ describe("duplicateAndStartTask（F-208: 複製して開始）", () => {
       error: "task_not_found",
     });
   });
+
+  it("割り込み先の実行中タスクを現在時刻で終了できない（開始≦終了）ならエラー", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }), // 完了（複製元）
+      task({ id: 2, sectionId: 2, startedAt: new Date("2026-07-19T10:00:00Z"), sortOrder: 5000 }), // now より後に開始した実行中
+    ]);
+
+    expect(await duplicateAndStartTask(repos(repo), { taskId: 1, ...input })).toEqual({
+      ok: false,
+      error: "ended_before_started",
+    });
+    expect(repo.rows).toHaveLength(2); // 複製・再開タスクは作られない
+  });
 });
 
 describe("postponeTask（F-107: 先送り）", () => {
@@ -378,5 +418,32 @@ describe("deleteTask / restoreTask（O-8: 削除と取り消し）", () => {
       ok: false,
       error: "task_not_found",
     });
+  });
+
+  it("ルーチン由来タスクの削除はその日のスキップを記録する（F-304: 再展開を防ぐ）", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, routineId: 7, taskDate: "2026-07-19" }),
+    ]);
+
+    await deleteTask(repo, { taskId: 1 });
+    expect(repo.skips).toEqual([{ routineId: 7, taskDate: "2026-07-19" }]);
+  });
+
+  it("非ルーチンタスクの削除ではスキップを記録しない", async () => {
+    const repo = inMemoryTaskRepository([task({ id: 1, routineId: null })]);
+    await deleteTask(repo, { taskId: 1 });
+    expect(repo.skips).toEqual([]);
+  });
+
+  it("ルーチン由来タスクの復元はスキップを解除する（F-304: 再展開を許す）", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, routineId: 7, taskDate: "2026-07-19" }),
+    ]);
+
+    const deleted = await deleteTask(repo, { taskId: 1 });
+    expect(repo.skips).toHaveLength(1);
+
+    if (deleted.ok) await restoreTask(repo, deleted.value);
+    expect(repo.skips).toEqual([]);
   });
 });

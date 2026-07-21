@@ -78,6 +78,11 @@ describe("editStartedAt（F-203: 開始 ≦ 終了 の整合性チェック）",
   it("未実行タスクには開始時刻がない", () => {
     expect(editStartedAt(task({ id: 1 }), "08:00")).toEqual({ ok: false, error: "not_punched" });
   });
+
+  it("時刻として成立しない入力は invalid_time を伝播する", () => {
+    const t = task({ id: 1, startedAt: at(8, 0) });
+    expect(editStartedAt(t, "99:99")).toEqual({ ok: false, error: "invalid_time" });
+  });
 });
 
 describe("editEndedAt（F-203: 開始 ≦ 終了 の整合性チェック）", () => {
@@ -100,5 +105,10 @@ describe("editEndedAt（F-203: 開始 ≦ 終了 の整合性チェック）", (
 
   it("開始打刻のないタスクは終了時刻を持てない（ck_tasks_time と同じ制約）", () => {
     expect(editEndedAt(task({ id: 1 }), "09:00")).toEqual({ ok: false, error: "no_started_at" });
+  });
+
+  it("時刻として成立しない入力は invalid_time を伝播する", () => {
+    const t = task({ id: 1, startedAt: at(8, 0), endedAt: at(8, 30) });
+    expect(editEndedAt(t, "abc")).toEqual({ ok: false, error: "invalid_time" });
   });
 });
