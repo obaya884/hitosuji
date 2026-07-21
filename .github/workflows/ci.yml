@@ -38,9 +38,9 @@ jobs:
       TEST_DATABASE_URL: postgresql://hitosuji:hitosuji@localhost:5433/hitosuji_test
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           # Vercel 本番の既定ランタイムに合わせる
           node-version: 24
