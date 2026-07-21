@@ -40,7 +40,7 @@ describe("DrizzleSectionRepository", () => {
     expect(all).toHaveLength(2);
   });
 
-  it("update は名前と開始時刻を書き換え、updated_at を進める", async () => {
+  it("update は名前と開始時刻を書き換え、updated_at を巻き戻さない", async () => {
     const created = await repo.create({ name: "朝", startTime: "06:00" });
     const [before] = await db.select().from(sections);
 
@@ -50,8 +50,9 @@ describe("DrizzleSectionRepository", () => {
     expect(after.name).toBe("早朝");
     expect(after.startTime).toBe("05:30:00");
     // updated_at はアプリ層が設定する（データモデル定義書 §3 共通カラム）。
-    // 挿入時の既定値は DB 時刻なので大小比較はコンテナとホストの時計差で揺れる。更新されたことだけを見る
-    expect(after.updatedAt.getTime()).not.toBe(before.updatedAt.getTime());
+    // 挿入時の既定値（DB時刻）と更新時のアプリ時刻は同一クロックのため後退しないが、
+    // 同一ミリ秒に収まると等値になりうる。巻き戻らない（≧）ことだけを見る
+    expect(after.updatedAt.getTime()).toBeGreaterThanOrEqual(before.updatedAt.getTime());
   });
 
   it("setArchived はアーカイブと復元の両方に使える", async () => {

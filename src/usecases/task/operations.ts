@@ -1,11 +1,12 @@
 // 中断・複製・複製して開始・先送り・削除のユースケース（F-204 / F-111 / F-208 / F-107 / O-8）
-import type { NewTask, RoutineSkip, TaskRepository } from "@/usecases/ports/task-repository";
+import type { RoutineSkip, TaskRepository } from "@/usecases/ports/task-repository";
 import type { SectionRepository } from "@/usecases/ports/section-repository";
 import { addDays, type LogicalDate } from "@/domain/shared/logical-date";
 import { err, ok, type Result } from "@/domain/shared/result";
 import { sectionAt } from "@/domain/section/section";
 import { duplicateDraft, insertionIndexForDuplicate } from "@/domain/task/duplicate";
 import { canFinish, resumeTaskDraft, type PunchError } from "@/domain/task/punch";
+import { newTaskFromDraft } from "@/usecases/task/from-draft";
 import { taskStatus } from "@/domain/task/status";
 import { orderTasksForDisplay } from "@/domain/task/daily-list";
 import { placeNewTask } from "@/domain/task/placement";
@@ -48,16 +49,11 @@ export async function suspendTask(
   await repo.suspend({
     taskId: target.id,
     endedAt: input.now,
-    resumeTask: {
+    resumeTask: newTaskFromDraft(draft, {
       taskDate: target.taskDate,
-      name: draft.name,
-      estimateMinutes: draft.estimateMinutes,
       sectionId: target.sectionId,
-      modeId: draft.modeId,
-      projectId: draft.projectId,
       sortOrder: placed.sortOrder,
-      splitParentId: draft.splitParentId,
-    },
+    }),
     renumber: placed.renumber,
   });
   return ok(target.id);
@@ -92,16 +88,12 @@ export async function duplicateTask(
 
   const draft = duplicateDraft(target);
   const created = await repos.tasks.create(
-    {
+    // sectionId は挿入位置のセクションに従う（F-111）
+    newTaskFromDraft(draft, {
       taskDate: target.taskDate,
-      name: draft.name,
-      estimateMinutes: draft.estimateMinutes,
-      sectionId: placed.sectionId, // 挿入位置のセクションに従う（F-111）
-      modeId: draft.modeId,
-      projectId: draft.projectId,
+      sectionId: placed.sectionId,
       sortOrder: placed.sortOrder,
-      splitParentId: null,
-    },
+    }),
     placed.renumber
   );
   return ok(created);
@@ -141,16 +133,11 @@ export async function duplicateAndStartTask(
   );
 
   const draft = duplicateDraft(target);
-  const newTask: NewTask = {
+  const newTask = newTaskFromDraft(draft, {
     taskDate: target.taskDate,
-    name: draft.name,
-    estimateMinutes: draft.estimateMinutes,
     sectionId: destinationSectionId,
-    modeId: draft.modeId,
-    projectId: draft.projectId,
     sortOrder: startedSortOrder,
-    splitParentId: null,
-  };
+  });
 
   const running = await repos.tasks.findRunning();
   if (running === null) {
@@ -167,16 +154,11 @@ export async function duplicateAndStartTask(
 
   // 割り込み: 実行中タスクを終了し、その再開タスクを複製タスクの直下（同セクション末尾のさらに後ろ）へ置く
   const resume = resumeTaskDraft(running, input.now);
-  const resumeTask: NewTask = {
+  const resumeTask = newTaskFromDraft(resume, {
     taskDate: target.taskDate,
-    name: resume.name,
-    estimateMinutes: resume.estimateMinutes,
     sectionId: destinationSectionId,
-    modeId: resume.modeId,
-    projectId: resume.projectId,
     sortOrder: startedSortOrder + SORT_ORDER_STEP,
-    splitParentId: resume.splitParentId,
-  };
+  });
 
   const created = await repos.tasks.duplicateAndStart({
     newTask,
