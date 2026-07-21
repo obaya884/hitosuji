@@ -4,6 +4,7 @@ import type { TaskRepository } from "@/usecases/ports/task-repository";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import { err, ok, type Result } from "@/domain/shared/result";
 import { canFinish, canStart, canUndoStart, resumeTaskDraft, type PunchError } from "@/domain/task/punch";
+import { newTaskFromDraft } from "@/usecases/task/from-draft";
 import { placeNewTask } from "@/domain/task/placement";
 import { relocationOnPunchEdit, relocationOnStart, relocationOnUndoStart } from "@/domain/task/relocation";
 import type { TaskId } from "@/domain/task/task";
@@ -77,16 +78,11 @@ export async function startTask(
     interruption: {
       runningTaskId: running.id,
       endedAt: input.now, // 終了と開始に同じ時刻を使い、実績に隙間を作らない
-      resumeTask: {
+      resumeTask: newTaskFromDraft(draft, {
         taskDate: target.taskDate,
-        name: draft.name,
-        estimateMinutes: draft.estimateMinutes,
         sectionId: started.sectionId,
-        modeId: draft.modeId,
-        projectId: draft.projectId,
         sortOrder: placed.sortOrder,
-        splitParentId: draft.splitParentId,
-      },
+      }),
       renumber: placed.renumber,
     },
     relocation: relocations,
