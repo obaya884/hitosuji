@@ -4,10 +4,11 @@
 
 version: 2
 updates:
+  # アプリの依存（npm）。CI で自動検証できるため daily で回す
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "daily"
     open-pull-requests-limit: 5
     groups:
       # マイナー・パッチ更新はまとめて1つのPRにする
@@ -15,3 +16,20 @@ updates:
         update-types:
           - "minor"
           - "patch"
+
+  # GitHub Actions（.github/workflows/*）。actions/checkout・setup-node 等を追随
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    groups:
+      # アクション更新はまとめて1つのPRにする
+      actions:
+        patterns:
+          - "*"
+
+  # docker-compose のイメージ（postgres 等）。メジャー更新もPRを立て手動トリアージする
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "daily"
