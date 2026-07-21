@@ -40,6 +40,8 @@ npm run test:int               # 統合のみ
    - `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD`（Basic認証。必ず設定する）
 5. 以後は main への push で自動デプロイ。スキーマ変更時はデプロイ前に手動で `db:migrate` を実行する
 
+Vercel の GitHub 連携により、main 以外への push・PR には自動でプレビューデプロイが作られる（Dependabot の依存更新PR のビルド検証などに利用）。プレビューは本番DBに接続していない。
+
 ## バックアップ（N-06）
 
 週次で `pg_dump` のカスタム形式を取得する。ローカルに Postgres クライアントを入れずに済むよう、`postgres:17-alpine` コンテナのクライアントを使う（本番 Neon と同じ 17 系。サーバより古いクライアントでは dump できない）。
