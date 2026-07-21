@@ -474,10 +474,12 @@ function TaskRow({
       <td className="relative py-2.5">
         <RowMenu
           items={[
-            // ルーチン由来のタスクからは作れない（§4.1。変更は S-02 で行う）
-            ...(task.routineId === null
-              ? [{ label: "ルーチン化", onSelect: () => onBeginEdit(task, "routinize") }]
-              : []),
+            {
+              label: "ルーチン化",
+              onSelect: () => onBeginEdit(task, "routinize"),
+              // ルーチン由来のタスクからは作れない。項目は見せて非活性にする（§4.1 / FB-30）
+              disabled: task.routineId !== null,
+            },
             {
               label: "中断",
               onSelect: () => onOperate(task, "suspend"),

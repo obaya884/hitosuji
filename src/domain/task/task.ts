@@ -34,9 +34,10 @@ export function actualMinutes(task: Task): number | null {
 
 /**
  * 実行中タスクの経過時間（分）。現在時刻は引数で受け取る（domain は now を持たない）。
- * 実績と同じく切り捨て（「n分経過」は n 分を満たしてから表示する）
+ * 実績と同じく切り捨て（「n分経過」は n 分を満たしてから表示する）。
+ * 打刻直後にクライアント時計のズレで now が開始時刻より前になっても負値は返さず 0 とする（FB-28）
  */
 export function elapsedMinutes(task: Task, now: Date): number | null {
   if (task.startedAt === null || task.endedAt !== null) return null;
-  return Math.floor((now.getTime() - task.startedAt.getTime()) / 60000);
+  return Math.max(0, Math.floor((now.getTime() - task.startedAt.getTime()) / 60000));
 }

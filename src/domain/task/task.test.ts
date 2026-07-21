@@ -59,6 +59,11 @@ describe("elapsedMinutes（F-205: 実行中タスクの経過時間）", () => {
     expect(elapsedMinutes(t, new Date("2026-07-19T08:00:45Z"))).toBe(0);
   });
 
+  it("現在時刻が開始時刻より前でも負値ではなく0を返す（FB-28: クライアント時計のズレ対策）", () => {
+    const t = task({ id: 1, startedAt });
+    expect(elapsedMinutes(t, new Date("2026-07-19T07:59:30Z"))).toBe(0);
+  });
+
   it("未実行・完了タスクは経過を持たない", () => {
     expect(elapsedMinutes(task({ id: 1 }), new Date())).toBeNull();
     expect(

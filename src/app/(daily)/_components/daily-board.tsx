@@ -413,13 +413,9 @@ export function DailyBoard({
       if (e.shiftKey) {
         switch (e.key) {
           case "J":
-          case "ArrowDown":
-            e.preventDefault(); // Shift+矢印の既定動作（選択範囲の拡張）を抑える
             moveByStep(1);
             return;
           case "K":
-          case "ArrowUp":
-            e.preventDefault();
             moveByStep(-1);
             return;
           case "H":
@@ -434,13 +430,11 @@ export function DailyBoard({
       }
 
       switch (e.key) {
-        // 選択行の移動（§5）
+        // 選択行の移動（§5。矢印キーは割り当てず J/K のみ。FB-33）
         case "j":
-        case "ArrowDown":
           setSelectedId((current) => moveSelection(orderedTasks, current, 1));
           return;
         case "k":
-        case "ArrowUp":
           setSelectedId((current) => moveSelection(orderedTasks, current, -1));
           return;
         case "c": // 現在地へジャンプ（§5）
