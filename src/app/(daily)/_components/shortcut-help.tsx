@@ -9,7 +9,7 @@ import { floatPanel } from "@/app/_lib/ui";
 const SHORTCUTS = [
   { keys: "J / K", description: "選択行の移動" },
   { keys: "C", description: "現在地へジャンプ（実行中、なければ最初の未実行）", mnemonic: "Current" },
-  { keys: "Enter", description: "開始 →（実行中なら）終了 のトグル" },
+  { keys: "Enter", description: "開始 →（実行中なら）終了 のトグル。完了タスクは複製して開始" },
   { keys: "I", description: "中断（実行中タスクのみ）" },
   { keys: "A", description: "クイック追加欄へフォーカス", mnemonic: "Add" },
   { keys: "R / F2", description: "タスク名編集", mnemonic: "Rename" },

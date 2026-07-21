@@ -1,6 +1,7 @@
 // テスト用のインメモリ TaskRepository。
 // 古典学派の「本物と同じ契約を満たす偽物」であってモックではない（アーキテクチャ定義書 §8）
 import type {
+  DuplicateAndStartCommand,
   MoveCommand,
   NewTask,
   Relocations,
@@ -126,6 +127,37 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
         const j = indexOf(row.taskId);
         rows[j] = { ...rows[j], sectionId: row.sectionId, sortOrder: row.sortOrder };
       }
+    },
+
+    // 複製して開始（F-208 / §4.6）。割り込みなら終了・再開タスク生成も伴う
+    duplicateAndStart: async (command: DuplicateAndStartCommand) => {
+      const { newTask, startedAt, interruption } = command;
+      if (interruption !== null) {
+        const running = indexOf(interruption.runningTaskId);
+        rows[running] = { ...rows[running], endedAt: interruption.endedAt };
+        rows.push({
+          id: nextId++,
+          splitParentId: null,
+          ...interruption.resumeTask,
+          startedAt: null,
+          endedAt: null,
+          comment: null,
+          routineId: null,
+          postponedCount: 0,
+        });
+      }
+      const created: Task = {
+        id: nextId++,
+        splitParentId: null,
+        ...newTask,
+        startedAt,
+        endedAt: null,
+        comment: null,
+        routineId: null,
+        postponedCount: 0,
+      };
+      rows.push(created);
+      return created;
     },
 
     suspend: async (command: SuspendCommand) => {

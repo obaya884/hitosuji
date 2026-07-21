@@ -1,17 +1,22 @@
-// 中断・複製・先送り・削除のユースケース（F-204 / F-111 / F-107 / O-8）
+// 中断・複製・複製して開始・先送り・削除のユースケース（F-204 / F-111 / F-208 / F-107 / O-8）
+import type { NewTask, RoutineSkip, TaskRepository } from "@/usecases/ports/task-repository";
 import type { SectionRepository } from "@/usecases/ports/section-repository";
-import type { RoutineSkip, TaskRepository } from "@/usecases/ports/task-repository";
 import { addDays, type LogicalDate } from "@/domain/shared/logical-date";
 import { err, ok, type Result } from "@/domain/shared/result";
+import { sectionAt } from "@/domain/section/section";
 import { duplicateDraft, insertionIndexForDuplicate } from "@/domain/task/duplicate";
 import { canFinish, resumeTaskDraft, type PunchError } from "@/domain/task/punch";
 import { taskStatus } from "@/domain/task/status";
 import { orderTasksForDisplay } from "@/domain/task/daily-list";
 import { placeNewTask } from "@/domain/task/placement";
-import { appendSortOrder } from "@/domain/task/sort-order";
+import { appendSortOrder, SORT_ORDER_STEP } from "@/domain/task/sort-order";
 import type { Task, TaskId } from "@/domain/task/task";
 
-export type TaskOperationError = PunchError | "task_not_found" | "not_postponable";
+export type TaskOperationError =
+  | PunchError
+  | "task_not_found"
+  | "not_postponable"
+  | "not_completed";
 
 function sortedInSection(tasks: readonly Task[], sectionId: number | null): Task[] {
   return tasks
@@ -99,6 +104,85 @@ export async function duplicateTask(
     },
     placed.renumber
   );
+  return ok(created);
+}
+
+/**
+ * 複製して開始（F-208 / 画面定義書01 O-14 / データモデル定義書 §4.6）。
+ * 完了タスクを複製し、その複製タスクをすぐ開始する「もう一回」。複製元は完了のまま残す。
+ * 複製タスクは開始済みで作るため §4.2-a に従い現在時刻を含むセクションの末尾へ置く
+ * （表示日が今日でないときは §4.2-a を適用せず複製元と同じセクションへ置く）。
+ * 他に実行中タスクがあれば F-201 の割り込み（終了＋再開タスク生成）をそのまま伴う。
+ * 現在時刻はクライアントから受け取る（サーバ時刻を使わない）
+ */
+export async function duplicateAndStartTask(
+  repos: Readonly<{ tasks: TaskRepository; sections: SectionRepository }>,
+  input: Readonly<{ taskId: TaskId; now: Date; nowClock: string; today: LogicalDate }>
+): Promise<Result<Task, TaskOperationError>> {
+  const target = await repos.tasks.findById(input.taskId);
+  if (target === null) return err("task_not_found");
+  if (taskStatus(target) !== "completed") return err("not_completed");
+
+  const [sameDay, sections] = await Promise.all([
+    repos.tasks.listByDate(target.taskDate),
+    repos.sections.listAll(),
+  ]);
+
+  // 複製タスクは開始済みで作る → 開始時の自動セクション移動（§4.2-a）と同じ配置にする。
+  // 現在時刻がどのセクションにも属さない・表示日が今日でないときは複製元のセクションへ置く
+  const destinationSectionId =
+    target.taskDate === input.today
+      ? sectionAt(sections, input.nowClock)?.id ?? target.sectionId
+      : target.sectionId;
+
+  // 末尾採番なので最大値だけ見ればよいが、同ファイルの他操作に合わせて sortedInSection を通す
+  const startedSortOrder = appendSortOrder(
+    sortedInSection(sameDay, destinationSectionId).map((t) => t.sortOrder)
+  );
+
+  const draft = duplicateDraft(target);
+  const newTask: NewTask = {
+    taskDate: target.taskDate,
+    name: draft.name,
+    estimateMinutes: draft.estimateMinutes,
+    sectionId: destinationSectionId,
+    modeId: draft.modeId,
+    projectId: draft.projectId,
+    sortOrder: startedSortOrder,
+    splitParentId: null,
+  };
+
+  const running = await repos.tasks.findRunning();
+  if (running === null) {
+    const created = await repos.tasks.duplicateAndStart({
+      newTask,
+      startedAt: input.now,
+      interruption: null,
+    });
+    return ok(created);
+  }
+
+  const finishable = canFinish(running, input.now);
+  if (!finishable.ok) return finishable;
+
+  // 割り込み: 実行中タスクを終了し、その再開タスクを複製タスクの直下（同セクション末尾のさらに後ろ）へ置く
+  const resume = resumeTaskDraft(running, input.now);
+  const resumeTask: NewTask = {
+    taskDate: target.taskDate,
+    name: resume.name,
+    estimateMinutes: resume.estimateMinutes,
+    sectionId: destinationSectionId,
+    modeId: resume.modeId,
+    projectId: resume.projectId,
+    sortOrder: startedSortOrder + SORT_ORDER_STEP,
+    splitParentId: resume.splitParentId,
+  };
+
+  const created = await repos.tasks.duplicateAndStart({
+    newTask,
+    startedAt: input.now,
+    interruption: { runningTaskId: running.id, endedAt: input.now, resumeTask },
+  });
   return ok(created);
 }
 

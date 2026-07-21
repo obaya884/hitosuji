@@ -16,6 +16,7 @@ import {
 } from "@/usecases/task/punch-usecases";
 import {
   deleteTask,
+  duplicateAndStartTask,
   duplicateTask,
   postponeTask,
   restoreTask,
@@ -185,6 +186,7 @@ export async function setTaskSectionAction(
 const OPERATION_ERROR_MESSAGES: Record<string, string> = {
   ...PUNCH_ERROR_MESSAGES,
   not_postponable: "先送りできるのは未実行タスクだけです",
+  not_completed: "複製して開始できるのは完了タスクだけです",
 };
 
 /** ルーチン化の失敗（画面定義書01 §4.1）。入力値の検証エラーは画面定義書02 §4 の項目に対応する */
@@ -212,6 +214,27 @@ export async function duplicateTaskAction(
 ): Promise<Readonly<{ ok: true; createdId: number } | { ok: false; message: string }>> {
   const result = await duplicateTask({ tasks: taskRepo, sections: sectionRepo }, { taskId: id });
   if (!result.ok) return { ok: false, message: OPERATION_ERROR_MESSAGES[result.error] };
+  revalidatePath("/");
+  return { ok: true, createdId: result.value.id };
+}
+
+/**
+ * 複製して開始（F-208 / O-14）。完了タスクの「もう一回」。生成物の採番はサーバが決めるため
+ * 楽観的更新はしない。開始した複製タスクへ選択を移すため作られたIDを返す。now はクライアントの現在時刻
+ */
+export async function duplicateAndStartTaskAction(
+  id: number,
+  now: Date
+): Promise<Readonly<{ ok: true; createdId: number } | { ok: false; message: string }>> {
+  const today = todayLogicalDate(now);
+  const nowClock = formatClock(now);
+  const result = await duplicateAndStartTask(
+    { tasks: taskRepo, sections: sectionRepo },
+    { taskId: id, now, nowClock, today }
+  );
+  if (!result.ok) return { ok: false, message: OPERATION_ERROR_MESSAGES[result.error] };
+  // 開始により前に残った未実行タスクを現在位置の直後へ繰り下げる（F-113 §4.2-b）
+  await applyCarryOverAfterPunch(punchDeps, { date: today, today, nowClock });
   revalidatePath("/");
   return { ok: true, createdId: result.value.id };
 }

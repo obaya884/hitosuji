@@ -5,6 +5,7 @@ import { taskStatus } from "@/domain/task/status";
 import type { Task } from "@/domain/task/task";
 import {
   deleteTask,
+  duplicateAndStartTask,
   duplicateTask,
   postponeTask,
   restoreTask,
@@ -167,6 +168,123 @@ describe("duplicateTask（F-111: 複製）", () => {
 
     const ordered = [...repo.rows].sort((a, b) => a.sortOrder - b.sortOrder);
     expect(ordered.map((t) => t.id)).toEqual([1, 3, 2]); // 複製(id:3)が id:2 の直前に入る
+  });
+});
+
+describe("duplicateAndStartTask（F-208: 複製して開始）", () => {
+  const sections: Section[] = [
+    { id: 1, name: "朝", startTime: "06:00", isArchived: false },
+    { id: 2, name: "午前", startTime: "09:00", isArchived: false },
+  ];
+  const sectionRepo: SectionRepository = {
+    listAll: async () => sections,
+    create: async () => sections[0],
+    update: async () => {},
+    setArchived: async () => {},
+    referenceCounts: async () => ({}),
+    remove: async () => {},
+  };
+  const repos = (tasks: ReturnType<typeof inMemoryTaskRepository>) => ({
+    tasks,
+    sections: sectionRepo,
+  });
+  // 現在時刻 09:30（午前）を含むセクションへ複製タスクを置く
+  const input = { now, nowClock: "09:30", today: "2026-07-19" as const };
+
+  it("完了タスクを複製し、開始済みで現在時刻を含むセクションの末尾へ置く（複製元は完了のまま）", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 1, estimateMinutes: 45, startedAt, endedAt: now, sortOrder: 1000 }), // 朝・完了
+      task({ id: 2, sectionId: 2, sortOrder: 5000 }), // 午前・未実行
+    ]);
+
+    const result = await duplicateAndStartTask(repos(repo), { taskId: 1, ...input });
+    expect(result.ok && result.value).toEqual(
+      expect.objectContaining({
+        sectionId: 2, // 現在時刻（09:30）を含む午前へ
+        sortOrder: 6000, // 午前の末尾（5000 の次）
+        estimateMinutes: 45, // 満額を引き継ぐ
+        startedAt: now, // 開始済み
+        endedAt: null,
+        splitParentId: null,
+        routineId: null,
+      })
+    );
+    // 複製元は完了のまま残る
+    expect(repo.rows.find((t) => t.id === 1)?.endedAt).toEqual(now);
+  });
+
+  it("他に実行中タスクがあれば割り込みとして扱い、終了＋再開タスクを複製タスクの直下に作る", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }), // 完了（複製元）
+      task({ id: 2, sectionId: 2, estimateMinutes: 30, startedAt, sortOrder: 5000 }), // 午前・実行中
+    ]);
+
+    const result = await duplicateAndStartTask(repos(repo), { taskId: 1, ...input });
+    expect(result.ok).toBe(true);
+
+    // 実行中タスクは現在時刻で終了する
+    expect(repo.rows.find((t) => t.id === 2)?.endedAt).toEqual(now);
+    // 複製タスクは午前の末尾（6000）で開始済み
+    const created = result.ok ? result.value : null;
+    expect(created).toEqual(
+      expect.objectContaining({ sectionId: 2, sortOrder: 6000, startedAt: now })
+    );
+    // 再開タスクは複製タスクの直下（7000）・残り見積もり・未実行
+    const resume = repo.rows.find((t) => t.splitParentId === 2);
+    expect(resume).toEqual(
+      expect.objectContaining({
+        sectionId: 2,
+        sortOrder: 7000,
+        estimateMinutes: 18, // max(30 − 12, 1)
+        startedAt: null,
+      })
+    );
+    // 実行中は常に1件（複製タスクのみ）
+    expect(repo.rows.filter((t) => taskStatus(t) === "running")).toHaveLength(1);
+  });
+
+  it("表示日が今日でないときは複製元と同じセクションへ置く（§4.2-a を適用しない）", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }), // 朝・完了
+    ]);
+
+    const result = await duplicateAndStartTask(repos(repo), {
+      taskId: 1,
+      ...input,
+      today: "2026-07-20", // 表示日は過去日（今日ではない）
+    });
+    expect(result.ok && result.value.sectionId).toBe(1); // 現在時刻の午前ではなく複製元の朝
+    expect(result.ok && result.value.sortOrder).toBe(2000); // 朝の末尾
+  });
+
+  it("ルーチン由来の完了タスクを複製しても routine_id は引き継がない", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 1, routineId: 9, startedAt, endedAt: now, sortOrder: 1000 }),
+    ]);
+    const result = await duplicateAndStartTask(repos(repo), { taskId: 1, ...input });
+    expect(result.ok && result.value.routineId).toBeNull();
+  });
+
+  it("完了タスク以外は複製して開始できない", async () => {
+    const notStarted = inMemoryTaskRepository([task({ id: 1 })]);
+    expect(await duplicateAndStartTask(repos(notStarted), { taskId: 1, ...input })).toEqual({
+      ok: false,
+      error: "not_completed",
+    });
+
+    const running = inMemoryTaskRepository([task({ id: 1, startedAt })]);
+    expect(await duplicateAndStartTask(repos(running), { taskId: 1, ...input })).toEqual({
+      ok: false,
+      error: "not_completed",
+    });
+  });
+
+  it("存在しないタスクはエラー", async () => {
+    const repo = inMemoryTaskRepository([]);
+    expect(await duplicateAndStartTask(repos(repo), { taskId: 99, ...input })).toEqual({
+      ok: false,
+      error: "task_not_found",
+    });
   });
 });
 

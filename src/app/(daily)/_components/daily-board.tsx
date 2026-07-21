@@ -27,6 +27,7 @@ import {
   addTaskAction,
   createRoutineFromTaskAction,
   deleteTaskAction,
+  duplicateAndStartTaskAction,
   duplicateTaskAction,
   finishTaskAction,
   moveTaskByStepAction,
@@ -247,18 +248,33 @@ export function DailyBoard({
     );
   }
 
-  /** 開始 →（実行中なら）終了 のトグル（F-201 / 画面定義書01 §6 の Enter 相当） */
+  /**
+   * Enter の打刻（画面定義書01 §6）。未実行=開始 / 実行中=終了 のトグル、
+   * 完了=複製して開始（F-208 / O-14）。打刻時刻はクライアントの現在時刻を送る（§7）
+   */
   function punch(task: Task) {
     const status = taskStatus(task);
-    if (status === "completed") return; // 完了タスクの再打刻は提供しない
-
-    // 打刻時刻はクライアントの現在時刻を送る（画面定義書01 §7）
     const now = new Date();
-    if (status === "not_started") {
+    if (status === "completed") {
+      duplicateAndStart(task, now); // F-208 / O-14
+    } else if (status === "not_started") {
       run({ type: "start", id: task.id, at: now }, () => startTaskAction(task.id, now));
     } else {
       run({ type: "finish", id: task.id, at: now }, () => finishTaskAction(task.id, now));
     }
+  }
+
+  /**
+   * 複製して開始（F-208 / O-14）。完了タスクの「もう一回」。生成物の採番はサーバが決めるため
+   * 楽観的更新はせず（O-11 と同じ）、開始した複製タスクへ選択を移す
+   */
+  function duplicateAndStart(task: Task, now: Date) {
+    setError(null);
+    startTransition(async () => {
+      const result = await duplicateAndStartTaskAction(task.id, now);
+      if (result.ok) setSelectedId(result.createdId);
+      else setError(result.message);
+    });
   }
 
   /** 開始打刻の取り消し（O-13 / F-210）。実行中タスクを未実行へ戻す。now はクライアントのものを送る */

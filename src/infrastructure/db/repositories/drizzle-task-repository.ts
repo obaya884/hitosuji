@@ -1,5 +1,6 @@
 import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import type {
+  DuplicateAndStartCommand,
   MoveCommand,
   NewTask,
   Relocations,
@@ -183,6 +184,28 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
       await db.transaction(async (tx) => {
         await tx.update(tasks).set({ startedAt: null, updatedAt: now }).where(eq(tasks.id, id));
         await applyRelocations(tx, relocation);
+      });
+    },
+
+    // 複製して開始は「（割り込みなら）終了 → 再開タスク生成 → 複製タスクを開始済みで生成」を
+    // 1トランザクションで行う（F-208 / データモデル定義書 §4.6）
+    async duplicateAndStart(command: DuplicateAndStartCommand) {
+      const { newTask, startedAt, interruption } = command;
+
+      if (interruption === null) {
+        const [row] = await db.insert(tasks).values({ ...newTask, startedAt }).returning();
+        return toDomain(row);
+      }
+
+      return await db.transaction(async (tx) => {
+        const now = new Date();
+        await tx
+          .update(tasks)
+          .set({ endedAt: interruption.endedAt, updatedAt: now })
+          .where(eq(tasks.id, interruption.runningTaskId));
+        const [row] = await tx.insert(tasks).values({ ...newTask, startedAt }).returning();
+        await tx.insert(tasks).values(interruption.resumeTask);
+        return toDomain(row);
       });
     },
 

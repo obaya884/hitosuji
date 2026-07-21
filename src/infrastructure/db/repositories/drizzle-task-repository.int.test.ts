@@ -149,6 +149,136 @@ describe("start の割り込み（F-201: 終了・再開タスク生成・開始
   });
 });
 
+describe("duplicateAndStart（F-208 / データモデル定義書 §4.6: 複製して開始）", () => {
+  it("割り込みなしで、開始済みの複製タスクを生成する", async () => {
+    const startedAt = new Date("2026-07-19T08:00:00Z");
+    const endedAt = new Date("2026-07-19T08:30:00Z");
+    const now = new Date("2026-07-19T09:00:00Z");
+    const [source] = await db
+      .insert(tasks)
+      .values([
+        { taskDate: "2026-07-19", name: "ストレッチ", estimateMinutes: 15, sortOrder: 1000, startedAt, endedAt },
+      ])
+      .returning();
+
+    const created = await repo.duplicateAndStart({
+      newTask: {
+        taskDate: "2026-07-19",
+        name: source.name,
+        estimateMinutes: 15,
+        sectionId: null,
+        modeId: null,
+        projectId: null,
+        sortOrder: 2000,
+        splitParentId: null,
+      },
+      startedAt: now,
+      interruption: null,
+    });
+
+    expect(created).toEqual(
+      expect.objectContaining({ name: "ストレッチ", estimateMinutes: 15, startedAt: now, endedAt: null })
+    );
+    const after = await repo.listByDate("2026-07-19");
+    expect(after).toHaveLength(2);
+    // 複製元は完了のまま
+    expect(after.find((t) => t.id === source.id)?.endedAt).toEqual(endedAt);
+  });
+
+  it("割り込みありで、終了・再開タスク生成・複製の開始が1トランザクションで反映される", async () => {
+    const startedAt = new Date("2026-07-19T08:48:00Z");
+    const now = new Date("2026-07-19T09:00:00Z");
+    const [source, running] = await db
+      .insert(tasks)
+      .values([
+        { taskDate: "2026-07-19", name: "もう一回やる", estimateMinutes: 20, sortOrder: 1000, startedAt, endedAt: now },
+        { taskDate: "2026-07-19", name: "実行中", estimateMinutes: 30, sortOrder: 5000, startedAt },
+      ])
+      .returning();
+
+    const created = await repo.duplicateAndStart({
+      newTask: {
+        taskDate: "2026-07-19",
+        name: source.name,
+        estimateMinutes: 20,
+        sectionId: null,
+        modeId: null,
+        projectId: null,
+        sortOrder: 6000,
+        splitParentId: null,
+      },
+      startedAt: now,
+      interruption: {
+        runningTaskId: running.id,
+        endedAt: now,
+        resumeTask: {
+          taskDate: "2026-07-19",
+          name: "実行中",
+          estimateMinutes: 18,
+          sectionId: null,
+          modeId: null,
+          projectId: null,
+          sortOrder: 7000,
+          splitParentId: running.id,
+        },
+      },
+    });
+
+    const after = await repo.listByDate("2026-07-19");
+    expect(after.find((t) => t.id === running.id)?.endedAt).toEqual(now); // 実行中を終了
+    expect(after.find((t) => t.id === created.id)?.startedAt).toEqual(now); // 複製を開始
+    expect(after.find((t) => t.splitParentId === running.id)).toEqual(
+      expect.objectContaining({ name: "実行中", estimateMinutes: 18, sortOrder: 7000, startedAt: null })
+    );
+  });
+
+  it("再開タスクの生成に失敗したら全体が巻き戻る（トランザクション境界）", async () => {
+    const startedAt = new Date("2026-07-19T08:48:00Z");
+    const now = new Date("2026-07-19T09:00:00Z");
+    const [, running] = await db
+      .insert(tasks)
+      .values([
+        { taskDate: "2026-07-19", name: "複製元", sortOrder: 1000, startedAt, endedAt: now },
+        { taskDate: "2026-07-19", name: "実行中", sortOrder: 5000, startedAt },
+      ])
+      .returning();
+
+    await expect(
+      repo.duplicateAndStart({
+        newTask: {
+          taskDate: "2026-07-19",
+          name: "複製",
+          estimateMinutes: 10,
+          sectionId: null,
+          modeId: null,
+          projectId: null,
+          sortOrder: 6000,
+          splitParentId: null,
+        },
+        startedAt: now,
+        interruption: {
+          runningTaskId: running.id,
+          endedAt: now,
+          resumeTask: {
+            taskDate: "2026-07-19",
+            name: "再開",
+            estimateMinutes: 10,
+            sectionId: 999999, // 存在しないセクション → FK違反
+            modeId: null,
+            projectId: null,
+            sortOrder: 7000,
+            splitParentId: running.id,
+          },
+        },
+      })
+    ).rejects.toThrow();
+
+    const after = await repo.listByDate("2026-07-19");
+    expect(after.find((t) => t.id === running.id)?.endedAt).toBeNull(); // 終了が巻き戻る
+    expect(after).toHaveLength(2); // 複製も再開も作られない
+  });
+});
+
 describe("findRunning（実行中は全日付を通じて最大1件）", () => {
   it("日付をまたいでも実行中タスクを見つける", async () => {
     await db.insert(tasks).values([

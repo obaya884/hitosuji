@@ -68,6 +68,23 @@ export type SuspendCommand = Readonly<{
   renumber: Renumber | null;
 }>;
 
+/**
+ * 複製して開始（F-208 / データモデル定義書 §4.6）。
+ * 完了タスクの複製を開始済み（`startedAt`）で生成する。他に実行中タスクがあれば割り込みとして
+ * 「実行中タスクの終了 → 再開タスクの生成 → 複製タスクの生成」を1トランザクションで行う。
+ * 複製タスク・再開タスクはいずれもセクション末尾へ追加するため振り直しは伴わない
+ */
+export type DuplicateAndStartCommand = Readonly<{
+  /** 複製する新タスク。`startedAt` を打刻して挿入する */
+  newTask: NewTask;
+  startedAt: Date;
+  interruption: Readonly<{
+    runningTaskId: TaskId;
+    endedAt: Date;
+    resumeTask: NewTask;
+  }> | null;
+}>;
+
 export type TaskRepository = Readonly<{
   /** 表示日1日分のみ取得する（画面定義書01 §7 / N-08） */
   listByDate(date: LogicalDate): Promise<Task[]>;
@@ -96,6 +113,11 @@ export type TaskRepository = Readonly<{
   relocate(relocations: Relocations): Promise<void>;
   /** モード・プロジェクトの割り当て（O-5） */
   suspend(command: SuspendCommand): Promise<void>;
+  /**
+   * 複製して開始（F-208 / データモデル定義書 §4.6）。開始済みの複製タスクを生成する。
+   * 割り込みを伴う場合も終了・再開タスク生成・複製生成を1トランザクションで行い、作られた複製タスクを返す
+   */
+  duplicateAndStart(command: DuplicateAndStartCommand): Promise<Task>;
   /**
    * 削除（O-8）。ルーチン由来のタスクを削除するときは、その日を再展開しないよう
    * スキップも同じトランザクションで記録する（F-304 / データモデル定義書 §3.6）
