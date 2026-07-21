@@ -4,14 +4,14 @@ import { useEffect } from "react";
 import { floatPanel } from "@/app/_lib/ui";
 
 // 画面定義書01 §6 の一覧と対応させる（変更時は仕様書を先に更新する）
-// mnemonic は同§6 本表の括弧書き（Rename / Estimate / Begin / Finish / Current / Section / Yank / Undo）と一致させる。
+// mnemonic は同§6 本表の括弧書き（Add / Rename / Estimate / Begin / Finish / Current / Section / Yank / Undo）と一致させる。
 // 表にない由来は創作しない（該当なしのキーは mnemonic を付けない）。
 const SHORTCUTS = [
-  { keys: "↓ / ↑（J / K）", description: "選択行の移動" },
+  { keys: "J / K", description: "選択行の移動" },
   { keys: "C", description: "現在地へジャンプ（実行中、なければ最初の未実行）", mnemonic: "Current" },
   { keys: "Enter", description: "開始 →（実行中なら）終了 のトグル" },
   { keys: "I", description: "中断（実行中タスクのみ）" },
-  { keys: "N", description: "クイック追加欄へフォーカス" },
+  { keys: "A", description: "クイック追加欄へフォーカス", mnemonic: "Add" },
   { keys: "R / F2", description: "タスク名編集", mnemonic: "Rename" },
   { keys: "E", description: "見積もり編集", mnemonic: "Estimate" },
   { keys: "B / F", description: "開始時刻 / 終了時刻の修正", mnemonic: "Begin / Finish" },

@@ -471,8 +471,8 @@ export function DailyBoard({
         case "t":
           router.push("/");
           return;
-        case "n":
-          e.preventDefault(); // 入力欄に "n" が入るのを防ぐ
+        case "a":
+          e.preventDefault(); // 入力欄に "a" が入るのを防ぐ
           quickAddRef.current?.focus();
           return;
         case "r":
