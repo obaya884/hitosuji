@@ -3,6 +3,10 @@ import type { ModeError } from "@/domain/mode/mode";
 import type { ProjectError } from "@/domain/project/project";
 import type { SectionError } from "@/domain/section/section";
 import type { MasterDeletionError } from "@/domain/shared/master-deletion";
+import type { ActionResult } from "@/app/_lib/action-result";
+
+// 共通結果型を再エクスポート（masters の消費側は従来どおり ActionResult を import できる。T-08）
+export type { ActionResult };
 
 export type MasterError = SectionError | ModeError | ProjectError | MasterDeletionError;
 
@@ -18,8 +22,6 @@ const MESSAGES: Record<MasterError, string> = {
   // 参照元はマスタごとに違う（画面定義書03 §4.1）ので、種類を挙げずに言い切る
   has_references: "参照しているデータがあるため削除できません",
 };
-
-export type ActionResult = Readonly<{ ok: true } | { ok: false; message: string }>;
 
 export function failure(error: MasterError): ActionResult {
   return { ok: false, message: MESSAGES[error] };

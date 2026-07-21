@@ -27,6 +27,7 @@ import type { Task } from "@/domain/task/task";
 import { moveTaskByOneStep, setTaskSection } from "@/usecases/task/reorder-usecases";
 import { createRoutineFromTask } from "@/usecases/routine/routine-usecases";
 import { applyCarryOverAfterPunch } from "@/usecases/task/relocation-usecases";
+import type { ActionResult } from "@/app/_lib/action-result";
 import { formatClock, todayLogicalDate } from "@/app/_lib/format";
 import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
 import { createRoutineRepository } from "@/infrastructure/db/repositories/drizzle-routine-repository";
@@ -40,7 +41,7 @@ const routineRepo = createRoutineRepository();
 /** 打刻と自動セクション移動（F-113）はセクションも参照する */
 const punchDeps = { tasks: taskRepo, sections: sectionRepo };
 
-export type DailyActionResult = Readonly<{ ok: true } | { ok: false; message: string }>;
+export type DailyActionResult = ActionResult;
 
 export async function addTaskAction(
   input: Readonly<{ date: LogicalDate; name: string }>
