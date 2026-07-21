@@ -28,6 +28,8 @@ npm run test:unit              # ユニットのみ
 npm run test:int               # 統合のみ
 ```
 
+PR と main への push では GitHub Actions（`.github/workflows/ci.yml`）が lint・build・test を自動実行する（統合テストは Postgres サービスコンテナを建てる）。Dependabot の依存更新PRもここで検証される。技術改善・負債返済などの活動は [技術改善計画](./docs/技術改善計画.md) で管理する。
+
 ## デプロイ（Vercel + Neon）
 
 本番は Vercel（Hobby）+ Neon（Free）で運用している。
