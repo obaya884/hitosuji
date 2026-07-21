@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { moveTaskByStep, reorderTask } from "./reorder";
+import { moveTaskByStep, reorderTask, stepMoveDestination } from "./reorder";
 import type { Task } from "./task";
 
 function task(over: Partial<Task> & { id: number }): Task {
@@ -136,5 +136,60 @@ describe("moveTaskByStep（画面定義書01 §6: Shift+J/K で1つずつ移動�
 
     const last = moveTaskByStep(tasks, 3, 1, [1]);
     expect(last.ok && last.value.sortOrder).toBe(3000); // 変化なし
+  });
+});
+
+describe("stepMoveDestination（画面定義書01 §6: Shift+J/K の移動先。採番せず位置だけ返す）", () => {
+  const tasks = [
+    task({ id: 1, sortOrder: 1000 }),
+    task({ id: 2, sortOrder: 2000 }),
+    task({ id: 3, sortOrder: 3000 }),
+  ];
+
+  it("グループ内で下へ1つは同一セクションの次の位置を返す", () => {
+    expect(stepMoveDestination(tasks, 1, 1, SECTION_ORDER)).toEqual({ sectionId: 1, index: 1 });
+  });
+
+  it("グループ内で上へ1つは同一セクションの前の位置を返す", () => {
+    expect(stepMoveDestination(tasks, 3, -1, SECTION_ORDER)).toEqual({ sectionId: 1, index: 1 });
+  });
+
+  it("グループ末尾から下へは次セクションの先頭（index 0）を返す", () => {
+    const withOther = [...tasks, task({ id: 4, sectionId: 2, sortOrder: 5000 })];
+    expect(stepMoveDestination(withOther, 3, 1, SECTION_ORDER)).toEqual({ sectionId: 2, index: 0 });
+  });
+
+  it("グループ先頭から上へは前セクションの末尾（要素数）を返す", () => {
+    // 未分類に2件置き、末尾＝length（index 2）を返すことを固定する
+    const withUnclassified = [
+      ...tasks,
+      task({ id: 5, sectionId: null, sortOrder: 1000 }),
+      task({ id: 6, sectionId: null, sortOrder: 2000 }),
+    ];
+    expect(stepMoveDestination(withUnclassified, 1, -1, SECTION_ORDER)).toEqual({
+      sectionId: null,
+      index: 2, // 未分類セクションの末尾（2件あるので index 2）
+    });
+  });
+
+  it("未分類のタスクを下へ動かすと次セクションの先頭へ渡る（未分類起点の跨ぎ）", () => {
+    const fromUnclassified = [task({ id: 5, sectionId: null, sortOrder: 1000 }), ...tasks];
+    expect(stepMoveDestination(fromUnclassified, 5, 1, SECTION_ORDER)).toEqual({
+      sectionId: 1,
+      index: 0,
+    });
+  });
+
+  it("タスク0件のセクションへも先頭（index 0）を返す", () => {
+    expect(stepMoveDestination(tasks, 3, 1, SECTION_ORDER)).toEqual({ sectionId: 2, index: 0 });
+  });
+
+  it("リスト全体の端では null（移動しない）", () => {
+    expect(stepMoveDestination(tasks, 1, -1, [1, 2])).toBeNull(); // 先頭で上
+    expect(stepMoveDestination(tasks, 3, 1, [1])).toBeNull(); // 末尾で下
+  });
+
+  it("存在しないタスクは null", () => {
+    expect(stepMoveDestination(tasks, 99, 1, SECTION_ORDER)).toBeNull();
   });
 });

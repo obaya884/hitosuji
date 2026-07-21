@@ -12,6 +12,7 @@ import {
   withTaskUpdated,
   type DailyGroup,
 } from "@/domain/task/daily-list";
+import { stepMoveDestination } from "@/domain/task/reorder";
 import { currentTaskId, keepSelection, moveSelection } from "@/domain/task/selection";
 import { taskStatus } from "@/domain/task/status";
 import { editEndedAt, editStartedAt } from "@/domain/task/punch-edit";
@@ -380,33 +381,14 @@ export function DailyBoard({
 
   /**
    * Shift+J/K での並び替え（画面定義書01 §6）。N-01 が0ms目標に挙げる操作なので楽観更新する。
-   * 移動先はサーバ（moveTaskByStep）と同じ規則で求める: グループ内で1つ動かし、
-   * 端に達したら隣のセクションへ移る（タスク0件のセクションも移動先になる）
+   * 移動先はサーバ確定（moveTaskByStep）と同じ純関数 stepMoveDestination で求める（規則の二重実装を排除）
    */
   function moveByStep(step: 1 | -1) {
     if (selectedId === null) return;
 
-    const groupIndex = optimisticGroups.findIndex((g) =>
-      g.tasks.some((t) => t.id === selectedId)
-    );
-    if (groupIndex === -1) return;
-
-    const group = optimisticGroups[groupIndex];
-    const positionInGroup = group.tasks.findIndex((t) => t.id === selectedId);
-    const nextPosition = positionInGroup + step;
-
-    let destination: Readonly<{ sectionId: number | null; index: number }>;
-    if (nextPosition >= 0 && nextPosition < group.tasks.length) {
-      destination = { sectionId: group.section?.id ?? null, index: nextPosition };
-    } else {
-      const neighborGroup = optimisticGroups[groupIndex + step];
-      if (neighborGroup === undefined) return; // リスト全体の端では動かさない
-      destination = {
-        // 下へ動くなら移動先の先頭、上へ動くなら移動先の末尾に入る
-        sectionId: neighborGroup.section?.id ?? null,
-        index: step === 1 ? 0 : neighborGroup.tasks.length,
-      };
-    }
+    const sectionOrder = optimisticGroups.map((g) => g.section?.id ?? null);
+    const destination = stepMoveDestination(orderedTasks, selectedId, step, sectionOrder);
+    if (destination === null) return; // 移動先なし（リスト全体の端など）
 
     run({ type: "move", id: selectedId, destination }, () =>
       moveTaskByStepAction({ taskId: selectedId, date, step })
