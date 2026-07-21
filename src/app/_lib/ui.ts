@@ -18,7 +18,8 @@ export const inputBase =
   "rounded-control border border-line bg-surface px-2 py-1 text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none";
 
 export const floatPanel =
-  "rounded-float border border-line bg-surface shadow-float";
+  // text-ink を明示し、行のモード色（F-401）を継承しないようにする（FB-38）
+  "rounded-float border border-line bg-surface text-ink shadow-float";
 
 // エラー・警告の帯（Server Action の失敗、前日以前の実行中タスク等）
 export const noticeDanger =
