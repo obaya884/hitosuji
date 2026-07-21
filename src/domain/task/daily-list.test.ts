@@ -6,6 +6,7 @@ import {
   taskProgress,
   withTaskAppended,
   withTaskMoved,
+  withTaskUpdated,
 } from "./daily-list";
 import type { Task } from "./task";
 
@@ -195,5 +196,43 @@ describe("withTaskMoved（N-01: 並び替えを即反映）", () => {
   it("元のグループ列を変更しない", () => {
     withTaskMoved(groups, 2, { sectionId: morning.id, index: 0 });
     expect(groups[1].tasks.map((t) => t.id)).toEqual([1, 2]);
+  });
+
+  it("存在しないタスクIDは元のグループ列をそのまま返す", () => {
+    const moved = withTaskMoved(groups, 999, { sectionId: morning.id, index: 0 });
+    expect(moved.map((g) => g.tasks.map((t) => t.id))).toEqual([[], [1, 2], [3]]);
+  });
+
+  it("移動先セクションが画面に無い（0件で見出しも出ていない）場合は表示を変えない", () => {
+    // sectionId 99 はどのグループにも対応しない → サーバ確定を待つため現状維持
+    const moved = withTaskMoved(groups, 1, { sectionId: 99, index: 0 });
+    expect(moved.map((g) => g.tasks.map((t) => t.id))).toEqual([[], [1, 2], [3]]);
+  });
+});
+
+describe("withTaskUpdated（N-01: インライン編集の楽観的更新。並び順は変えない）", () => {
+  const groups = groupTasksBySection(
+    [
+      task({ id: 1, sectionId: morning.id, sortOrder: 1000, name: "T1" }),
+      task({ id: 2, sectionId: morning.id, sortOrder: 2000, name: "T2" }),
+      task({ id: 3, sectionId: forenoon.id, sortOrder: 1000, name: "T3" }),
+    ],
+    [morning, forenoon]
+  );
+
+  it("一致する行だけ差し替え、他行とセクションを跨いだ並びは不変", () => {
+    const updated = withTaskUpdated(groups, 3, (t) => ({ ...t, name: "改" }));
+    expect(updated[1].tasks.map((t) => t.name)).toEqual(["T1", "T2"]);
+    expect(updated[2].tasks.map((t) => [t.id, t.name])).toEqual([[3, "改"]]);
+  });
+
+  it("該当しないIDでは全行がそのまま", () => {
+    const updated = withTaskUpdated(groups, 999, (t) => ({ ...t, name: "改" }));
+    expect(updated.flatMap((g) => g.tasks).map((t) => t.name)).toEqual(["T1", "T2", "T3"]);
+  });
+
+  it("元のグループ列を変更しない", () => {
+    withTaskUpdated(groups, 1, (t) => ({ ...t, name: "改" }));
+    expect(groups[1].tasks[0].name).toBe("T1");
   });
 });

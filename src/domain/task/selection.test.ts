@@ -75,6 +75,10 @@ describe("moveSelection（画面定義書01 §6: J/K・↑↓ で選択移動）
   it("タスクが0件なら選択なし", () => {
     expect(moveSelection([], 1, 1)).toBeNull();
   });
+
+  it("選択IDが一覧に存在しない場合は先頭へフォールバックする", () => {
+    expect(moveSelection(tasks, 999, 1)).toBe(1);
+  });
 });
 
 describe("keepSelection（削除・日付移動の後も選択を保つ）", () => {

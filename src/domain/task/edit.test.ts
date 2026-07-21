@@ -31,4 +31,11 @@ describe("validateEstimateMinutes（画面定義書01 §3.3/§8: 分整数入力
     expect(validateEstimateMinutes("abc")).toEqual({ ok: false, error: "invalid_estimate" });
     expect(validateEstimateMinutes("1.5")).toEqual({ ok: false, error: "invalid_estimate" });
   });
+
+  it("桁が大きく安全な整数を外れる入力はエラー（正規表現は通るが確定不可）", () => {
+    expect(validateEstimateMinutes("99999999999999999999")).toEqual({
+      ok: false,
+      error: "invalid_estimate",
+    });
+  });
 });

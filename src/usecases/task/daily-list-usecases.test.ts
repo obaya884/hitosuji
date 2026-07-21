@@ -9,6 +9,8 @@ import {
   addTask,
   listDailyList,
   renameTask,
+  setTaskMode,
+  setTaskProject,
   updateTaskEstimate,
 } from "./daily-list-usecases";
 
@@ -141,6 +143,34 @@ describe("updateTaskEstimate（F-103: 見積もりのインライン編集）", 
       error: "invalid_estimate",
     });
     expect(repo.rows[0].estimateMinutes).toBe(30);
+  });
+});
+
+describe("setTaskMode / setTaskProject（O-5 / F-401・F-402: 分類の割り当て）", () => {
+  it("モードを割り当てる（プロジェクトには触れない）", async () => {
+    const repo = inMemoryRepo([task({ id: 1, modeId: null, projectId: 3 })]);
+    expect((await setTaskMode(repo, 1, 7)).ok).toBe(true);
+    expect(repo.rows[0].modeId).toBe(7);
+    expect(repo.rows[0].projectId).toBe(3); // 変わらない
+  });
+
+  it("モードを null で未設定へ戻す", async () => {
+    const repo = inMemoryRepo([task({ id: 1, modeId: 7 })]);
+    expect((await setTaskMode(repo, 1, null)).ok).toBe(true);
+    expect(repo.rows[0].modeId).toBeNull();
+  });
+
+  it("プロジェクトを割り当てる（モードには触れない）", async () => {
+    const repo = inMemoryRepo([task({ id: 1, modeId: 2, projectId: null })]);
+    expect((await setTaskProject(repo, 1, 8)).ok).toBe(true);
+    expect(repo.rows[0].projectId).toBe(8);
+    expect(repo.rows[0].modeId).toBe(2); // 変わらない
+  });
+
+  it("プロジェクトを null で未設定へ戻す", async () => {
+    const repo = inMemoryRepo([task({ id: 1, projectId: 8 })]);
+    expect((await setTaskProject(repo, 1, null)).ok).toBe(true);
+    expect(repo.rows[0].projectId).toBeNull();
   });
 });
 

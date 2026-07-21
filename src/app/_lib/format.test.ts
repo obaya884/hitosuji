@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { formatDuration, formatEstimate, formatLogicalDate } from "./format";
+import {
+  formatClock,
+  formatDuration,
+  formatEstimate,
+  formatLogicalDate,
+  todayLogicalDate,
+} from "./format";
 
 describe("formatEstimate（画面定義書01 §3.3: 見積もり未設定は --:--）", () => {
   it("未設定（0分）は --:-- で表す", () => {
@@ -27,5 +33,33 @@ describe("formatDuration（画面定義書01 §3.3: 1分未満の実績は 0:00�
 describe("formatLogicalDate（画面定義書01 §3.1）", () => {
   it("YYYY-MM-DD(曜) 形式にする", () => {
     expect(formatLogicalDate("2026-07-19", 0)).toBe("2026-07-19(日)");
+  });
+
+  it("曜日インデックスの上端（6=土）も正しく引く", () => {
+    expect(formatLogicalDate("2026-07-25", 6)).toBe("2026-07-25(土)");
+  });
+});
+
+describe("formatClock（画面定義書01 §3.3: 打刻時刻は日本時間 HH:MM）", () => {
+  it("UTC を日本時間（+9h）へ変換してゼロ埋めする", () => {
+    // 2026-07-20T00:05:00Z → JST 09:05
+    expect(formatClock(new Date("2026-07-20T00:05:00Z"))).toBe("09:05");
+  });
+
+  it("JST 深夜0時は 00:00（24:00 ではない）", () => {
+    // 2026-07-20T15:00:00Z → JST 翌 00:00
+    expect(formatClock(new Date("2026-07-20T15:00:00Z"))).toBe("00:00");
+  });
+});
+
+describe("todayLogicalDate（データモデル定義書 §1: 日界は0:00固定・日本時間の暦日）", () => {
+  it("JST 23:59:59 はその日のまま", () => {
+    // 2026-07-20T14:59:59Z → JST 2026-07-20 23:59:59
+    expect(todayLogicalDate(new Date("2026-07-20T14:59:59Z"))).toBe("2026-07-20");
+  });
+
+  it("JST 0:00 を跨ぐと翌日の暦日になる（UTC 深夜帯で日付がずれる境界）", () => {
+    // 2026-07-20T15:00:00Z → JST 2026-07-21 00:00:00
+    expect(todayLogicalDate(new Date("2026-07-20T15:00:00Z"))).toBe("2026-07-21");
   });
 });

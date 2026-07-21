@@ -61,6 +61,13 @@ describe("validateRoutineInput（画面定義書02 §4: 必須項目）", () => 
     const omitted = validateRoutineInput(input({ endDate: "" }));
     expect(omitted.ok && omitted.value.endDate).toBeNull();
   });
+
+  it("終了日が非空だが実在日でなければエラー", () => {
+    expect(validateRoutineInput(input({ endDate: "2026-13-40" }))).toEqual({
+      ok: false,
+      error: "invalid_end_date",
+    });
+  });
 });
 
 describe("validateRoutineInput — 繰り返し種別ごとの必須項目（§4）", () => {

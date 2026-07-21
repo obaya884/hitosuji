@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Section } from "@/domain/section/section";
 import type { Task } from "@/domain/task/task";
 import { inMemorySectionRepository } from "@/usecases/section/testing/in-memory-repository";
-import { applyCarryOver } from "./relocation-usecases";
+import { applyCarryOver, applyCarryOverAfterPunch } from "./relocation-usecases";
 import { inMemoryTaskRepository } from "./testing/in-memory-repository";
 
 function task(over: Partial<Task> & { id: number }): Task {
@@ -77,5 +77,28 @@ describe("applyCarryOver（F-113 / 画面定義書01 §4.2-b）", () => {
     await applyCarryOver(deps, { date: today, today, nowClock: "10:00" });
 
     expect(tasks.rows[0].sectionId).toBeNull();
+  });
+});
+
+describe("applyCarryOverAfterPunch（画面定義書01 §4.2「移動に失敗したとき」: 打刻は成立させる）", () => {
+  it("移動が失敗しても reject せず、打刻フローを止めない（冪等なので後で再試行される）", async () => {
+    // 繰り下げ対象がある状態で relocate だけが失敗するリポジトリ
+    const base = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 1 }), // 朝のやり残し → 繰り下げ対象
+      task({ id: 2, sectionId: 2 }),
+    ]);
+    const failingTasks = {
+      ...base,
+      relocate: async () => {
+        throw new Error("relocate failed");
+      },
+    };
+    const deps = { tasks: failingTasks, sections: inMemorySectionRepository(sections) };
+
+    // 直接 applyCarryOver ならこの状況で失敗するが、After 版は握りつぶす
+    await expect(applyCarryOver(deps, { date: today, today, nowClock: "10:00" })).rejects.toThrow();
+    await expect(
+      applyCarryOverAfterPunch(deps, { date: today, today, nowClock: "10:00" })
+    ).resolves.toBeUndefined();
   });
 });

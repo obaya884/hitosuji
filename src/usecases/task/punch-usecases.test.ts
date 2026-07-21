@@ -177,6 +177,17 @@ describe("startTask の割り込み（F-201 / データモデル定義書 §4.2�
     await punch(repo, 2);
     expect(repo.rows.filter((t) => taskStatus(t) === "running").map((t) => t.id)).toEqual([2]);
   });
+
+  it("割り込み先の実行中タスクを現在時刻で終了できない（開始≦終了）なら開始せずエラー", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, startedAt: new Date("2026-07-19T10:00:00Z"), sortOrder: 1000 }), // now(09:00) より後に開始
+      task({ id: 2, sortOrder: 2000 }),
+    ]);
+
+    expect(await punch(repo, 2)).toEqual({ ok: false, error: "ended_before_started" });
+    expect(repo.rows.find((t) => t.id === 2)?.startedAt).toBeNull(); // 開始されない
+    expect(repo.rows).toHaveLength(2); // 再開タスクも作られない
+  });
 });
 
 describe("undoStart（F-210: 開始打刻の取り消し）", () => {
@@ -274,6 +285,14 @@ describe("finishTask（F-201: 終了打刻）", () => {
       error: "ended_before_started",
     });
   });
+
+  it("存在しないタスクは終了できない", async () => {
+    const repo = inMemoryTaskRepository([]);
+    expect(await finishTask(repo, { taskId: 99, now })).toEqual({
+      ok: false,
+      error: "task_not_found",
+    });
+  });
 });
 
 describe("updateTaskPunch（F-203: 打刻時刻の修正）", () => {
@@ -330,6 +349,14 @@ describe("updateTaskPunch（F-203: 打刻時刻の修正）", () => {
     expect(await editPunch(repo, { taskId: 1, startedAt, endedAt: null })).toEqual({
       ok: false,
       error: "not_running",
+    });
+  });
+
+  it("存在しないタスクの打刻は修正できない", async () => {
+    const repo = inMemoryTaskRepository([]);
+    expect(await editPunch(repo, { taskId: 99, startedAt, endedAt })).toEqual({
+      ok: false,
+      error: "task_not_found",
     });
   });
 

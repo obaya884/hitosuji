@@ -1,8 +1,16 @@
 import { describe, expect, it } from "vitest";
 import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
+import type { RoutineInput } from "@/domain/routine/input";
+import type { Routine } from "@/domain/routine/routine";
 import type { Task } from "@/domain/task/task";
 import { inMemoryTaskRepository } from "@/usecases/task/testing/in-memory-repository";
-import { createRoutineFromTask } from "./routine-usecases";
+import {
+  createRoutineFromTask,
+  deleteRoutine,
+  listRoutines,
+  setRoutineActive,
+  updateRoutine,
+} from "./routine-usecases";
 import { inMemoryRoutineRepository } from "./testing/in-memory-repository";
 
 function task(over: Partial<Task> & { id: number }): Task {
@@ -20,6 +28,41 @@ function task(over: Partial<Task> & { id: number }): Task {
     routineId: null,
     splitParentId: null,
     postponedCount: 0,
+    ...over,
+  };
+}
+
+function routineRow(over: Partial<Routine> & { id: number }): Routine {
+  return {
+    name: `R${over.id}`,
+    estimateMinutes: 20,
+    scheduledStartTime: "06:30",
+    modeId: null,
+    projectId: null,
+    recurrenceType: "daily",
+    weekdays: null,
+    monthDay: null,
+    intervalDays: null,
+    startDate: "2026-07-01",
+    endDate: null,
+    isActive: true,
+    ...over,
+  };
+}
+
+function input(over: Partial<RoutineInput> = {}): RoutineInput {
+  return {
+    name: "朝食",
+    estimateMinutes: 20,
+    scheduledStartTime: "06:30",
+    modeId: null,
+    projectId: null,
+    recurrenceType: "daily",
+    weekdays: null,
+    monthDay: null,
+    intervalDays: null,
+    startDate: "2026-07-19",
+    endDate: null,
     ...over,
   };
 }
@@ -96,5 +139,94 @@ describe("createRoutineFromTask（F-305 / 画面定義書01 §4.1）", () => {
 
     expect(result).toEqual({ ok: false, error: "weekdays_required" });
     expect(routines.rows).toHaveLength(0);
+  });
+});
+
+describe("listRoutines（画面定義書02 §3: 開始想定時刻の昇順・同時刻は名前の自然順）", () => {
+  it("開始想定時刻の昇順に並べ、同時刻は名前の自然順にする", async () => {
+    const routines = inMemoryRoutineRepository([
+      routineRow({ id: 1, name: "掃除", scheduledStartTime: "12:00" }),
+      routineRow({ id: 2, name: "10.夜筋トレ", scheduledStartTime: "06:30" }),
+      routineRow({ id: 3, name: "02.朝食", scheduledStartTime: "06:30" }),
+    ]);
+
+    expect((await listRoutines(routines)).map((r) => r.id)).toEqual([3, 2, 1]);
+  });
+
+  it("空なら空配列", async () => {
+    expect(await listRoutines(inMemoryRoutineRepository())).toEqual([]);
+  });
+});
+
+describe("updateRoutine（画面定義書02 O-2: 編集は未展開の日から反映）", () => {
+  it("既存ルーチンを更新する", async () => {
+    const routines = inMemoryRoutineRepository([routineRow({ id: 1, name: "朝食" })]);
+
+    const result = await updateRoutine(routines, 1, input({ name: "朝の支度" }));
+
+    expect(result).toEqual({ ok: true, value: 1 });
+    expect(routines.rows[0].name).toBe("朝の支度");
+  });
+
+  it("存在しないルーチンは routine_not_found", async () => {
+    const routines = inMemoryRoutineRepository([routineRow({ id: 1 })]);
+
+    expect(await updateRoutine(routines, 999, input())).toEqual({
+      ok: false,
+      error: "routine_not_found",
+    });
+  });
+
+  it("入力が不正なら検証エラーを返し、永続化しない", async () => {
+    const routines = inMemoryRoutineRepository([routineRow({ id: 1, name: "朝食" })]);
+
+    const result = await updateRoutine(
+      routines,
+      1,
+      input({ recurrenceType: "weekly", weekdays: 0 })
+    );
+
+    expect(result).toEqual({ ok: false, error: "weekdays_required" });
+    expect(routines.rows[0].name).toBe("朝食"); // 更新されていない
+  });
+});
+
+describe("setRoutineActive（画面定義書02 O-3: 有効/無効の切替）", () => {
+  it("有効を無効へ、無効を有効へ切り替える", async () => {
+    const routines = inMemoryRoutineRepository([routineRow({ id: 1, isActive: true })]);
+
+    expect(await setRoutineActive(routines, 1, false)).toEqual({ ok: true, value: 1 });
+    expect(routines.rows[0].isActive).toBe(false);
+
+    expect(await setRoutineActive(routines, 1, true)).toEqual({ ok: true, value: 1 });
+    expect(routines.rows[0].isActive).toBe(true);
+  });
+
+  it("存在しないルーチンは routine_not_found", async () => {
+    const routines = inMemoryRoutineRepository([routineRow({ id: 1 })]);
+
+    expect(await setRoutineActive(routines, 999, false)).toEqual({
+      ok: false,
+      error: "routine_not_found",
+    });
+  });
+});
+
+describe("deleteRoutine（画面定義書02 O-4: 削除。展開済みタスクは残る）", () => {
+  it("既存ルーチンを削除する", async () => {
+    const routines = inMemoryRoutineRepository([routineRow({ id: 1 }), routineRow({ id: 2 })]);
+
+    expect(await deleteRoutine(routines, 1)).toEqual({ ok: true, value: 1 });
+    expect(routines.rows.map((r) => r.id)).toEqual([2]);
+  });
+
+  it("存在しないルーチンは routine_not_found", async () => {
+    const routines = inMemoryRoutineRepository([routineRow({ id: 1 })]);
+
+    expect(await deleteRoutine(routines, 999)).toEqual({
+      ok: false,
+      error: "routine_not_found",
+    });
+    expect(routines.rows).toHaveLength(1);
   });
 });
