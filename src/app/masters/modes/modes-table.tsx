@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useRef, useState } from "react";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { useDismiss } from "@/app/_lib/use-dismiss";
 import {
@@ -13,8 +13,8 @@ import {
 } from "@/app/_lib/ui";
 import { PlusIcon } from "@/app/_components/icons";
 import { MODE_COLORS, modeColorName, type Mode } from "@/domain/mode/mode";
-import { DeleteMasterButton } from "../_components/delete-master-button";
-import type { ActionResult } from "../_lib/action-result";
+import { ArchivedMasterSection } from "../_components/archived-master-section";
+import { useMasterAction } from "../_lib/use-master-action";
 import {
   createModeAction,
   deleteModeAction,
@@ -90,17 +90,7 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
   const [editing, setEditing] = useState<Editing | null>(null);
   const [newColor, setNewColor] = useState<string>(MODE_COLORS[0]);
   const [colorPickerId, setColorPickerId] = useState<number | "new" | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
-
-  function run(action: () => Promise<ActionResult>, onSuccess?: () => void) {
-    setError(null);
-    startTransition(async () => {
-      const result = await action();
-      if (result.ok) onSuccess?.();
-      else setError(result.message);
-    });
-  }
+  const { error, setError, isPending, run } = useMasterAction();
 
   /**
    * 保存の経路は blur の1本だけにする（画面定義書03 §4「編集方式」）。
@@ -311,47 +301,28 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
         </tbody>
       </table>
 
-      {archived.length > 0 && (
-        <details className="mt-6">
-          <summary className="cursor-pointer text-sm text-ink-muted">
-            アーカイブ済み（{archived.length}）
-          </summary>
-          <table className="mt-2 w-full text-sm">
-            <tbody>
-              {archived.map((mode) => (
-                <tr key={mode.id} className="border-b border-line text-ink-muted">
-                  <td className="w-48 py-2">
-                    <span className="inline-flex items-center gap-2">
-                      <span
-                        style={{ backgroundColor: mode.color }}
-                        className="inline-block h-3 w-10 shrink-0 rounded-control opacity-50"
-                        aria-hidden
-                      />
-                      <span className="text-xs">{modeColorName(mode.color)}</span>
-                    </span>
-                  </td>
-                  <td className="py-2">{mode.name}</td>
-                  <td className="w-32 py-2 text-right whitespace-nowrap">
-                    <button
-                      onClick={() => run(() => setModeArchivedAction(mode.id, false))}
-                      disabled={isPending}
-                      className={`px-2 ${linkAccent}`}
-                    >
-                      復元
-                    </button>
-                    {deletableIds.includes(mode.id) && (
-                      <DeleteMasterButton
-                        onDelete={() => run(() => deleteModeAction(mode.id))}
-                        disabled={isPending}
-                      />
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </details>
-      )}
+      <ArchivedMasterSection
+        archived={archived}
+        deletableIds={deletableIds}
+        isPending={isPending}
+        renderCells={(mode) => (
+          <>
+            <td className="w-48 py-2">
+              <span className="inline-flex items-center gap-2">
+                <span
+                  style={{ backgroundColor: mode.color }}
+                  className="inline-block h-3 w-10 shrink-0 rounded-control opacity-50"
+                  aria-hidden
+                />
+                <span className="text-xs">{modeColorName(mode.color)}</span>
+              </span>
+            </td>
+            <td className="py-2">{mode.name}</td>
+          </>
+        )}
+        onRestore={(id) => run(() => setModeArchivedAction(id, false))}
+        onDelete={(id) => run(() => deleteModeAction(id))}
+      />
     </section>
   );
 }
