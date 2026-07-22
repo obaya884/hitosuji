@@ -38,8 +38,13 @@ jobs:
               per_page: 100,
             });
 
+            // 新規追加された *.sql のみを対象にする（本番へ流す新しいマイグレーションと 1:1）。
+            // 既存マイグレーションの削除・リネームは通常起きず、起きても「追加」ではないため対象外。
             const needsSchemaUpdate = files.some(
-              (f) => f.filename.startsWith(MIGRATIONS_DIR) && f.filename.endsWith('.sql'),
+              (f) =>
+                f.status === 'added' &&
+                f.filename.startsWith(MIGRATIONS_DIR) &&
+                f.filename.endsWith('.sql'),
             );
 
             if (needsSchemaUpdate) {
