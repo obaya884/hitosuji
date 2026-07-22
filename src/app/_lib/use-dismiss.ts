@@ -1,7 +1,7 @@
 import { useEffect, type RefObject } from "react";
 
 /**
- * ポップオーバー等を「外側クリック＋Escape」で閉じる共通フック（画面定義書 00_共通 §7 / §3）。
+ * ポップオーバー等を「外側クリック＋Escape」で閉じる共通フック（画面定義書 00_共通 §2.1 / §3）。
  *
  * - `ref` を渡すと、その要素の外側での `mousedown` で `onClose` を呼ぶ。`null` を渡すと外側クリックは
  *   監視しない（スクリムの `onClick` で外側を扱う場合など）

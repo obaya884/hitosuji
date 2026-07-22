@@ -43,6 +43,7 @@ import {
   undoStartAction,
   updateTaskEstimateAction,
   updateTaskPunchAction,
+  type CreatingActionResult,
   type DailyActionResult,
 } from "../actions";
 import { DailyList, type EditingCell } from "./daily-list";
@@ -52,11 +53,6 @@ import { ShortcutHelp } from "./shortcut-help";
 import { StaleRunningBanner } from "./stale-running-banner";
 import { Toast } from "./toast";
 import { useDailyShortcuts } from "./use-daily-shortcuts";
-
-/** 生成系アクション（複製・複製して開始・クイック追加）の結果。成功時に採番された生成物 id を返す */
-type CreatingActionResult = Readonly<
-  { ok: true; createdId: number } | { ok: false; message: string }
->;
 
 type Props = Readonly<{
   date: LogicalDate;
@@ -206,7 +202,8 @@ export function DailyBoard({
   // 「現在地」（実行中、なければ最初の未実行）へ自動的に戻る
   const selectedId = keepSelection(orderedTasks, rawSelectedId);
 
-  function run(optimistic: OptimisticAction, action: () => Promise<DailyActionResult>) {
+  // 引数順は runSelectingCreated と揃えて action を先頭にする（読み違い防止）
+  function run(action: () => Promise<DailyActionResult>, optimistic: OptimisticAction) {
     setError(null);
     startTransition(async () => {
       dispatchOptimistic(optimistic);
@@ -252,8 +249,9 @@ export function DailyBoard({
     if (!validated.ok) return; // 空名は確定不可（§8）。編集は破棄して元の名前に戻る
     if (validated.value === task.name) return;
 
-    run({ type: "rename", id: task.id, name: validated.value }, () =>
-      renameTaskAction(task.id, validated.value)
+    run(
+      () => renameTaskAction(task.id, validated.value),
+      { type: "rename", id: task.id, name: validated.value }
     );
   }
 
@@ -265,8 +263,9 @@ export function DailyBoard({
     }
     if (validated.value === task.estimateMinutes) return;
 
-    run({ type: "estimate", id: task.id, minutes: validated.value }, () =>
-      updateTaskEstimateAction(task.id, raw)
+    run(
+      () => updateTaskEstimateAction(task.id, raw),
+      { type: "estimate", id: task.id, minutes: validated.value }
     );
   }
 
@@ -280,9 +279,9 @@ export function DailyBoard({
     if (status === "completed") {
       duplicateAndStart(task, now); // F-208 / O-14
     } else if (status === "not_started") {
-      run({ type: "start", id: task.id, at: now }, () => startTaskAction(task.id, now));
+      run(() => startTaskAction(task.id, now), { type: "start", id: task.id, at: now });
     } else {
-      run({ type: "finish", id: task.id, at: now }, () => finishTaskAction(task.id, now));
+      run(() => finishTaskAction(task.id, now), { type: "finish", id: task.id, at: now });
     }
   }
 
@@ -296,7 +295,7 @@ export function DailyBoard({
 
   /** 開始打刻の取り消し（O-13 / F-210）。実行中タスクを未実行へ戻す。now はクライアントのものを送る */
   function unstart(task: Task) {
-    run({ type: "unstart", id: task.id }, () => undoStartAction(task.id, new Date()));
+    run(() => undoStartAction(task.id, new Date()), { type: "unstart", id: task.id });
   }
 
   /** 開始・終了時刻のインライン修正（F-203）。HH:MM の解釈は利用者のタイムゾーンで行う */
@@ -316,39 +315,46 @@ export function DailyBoard({
 
     // 移動先セクションの判定に使う HH:MM は、利用者のタイムゾーンで整形して送る（§4.2-c）。
     // 「今日」の判定に使う現在時刻も、他の打刻と同じくクライアントのものを送る
-    run({ type: "punch", id: task.id, ...punch }, () =>
-      updateTaskPunchAction(task.id, punch, formatClock(punch.startedAt), new Date())
+    run(
+      () => updateTaskPunchAction(task.id, punch, formatClock(punch.startedAt), new Date()),
+      { type: "punch", id: task.id, ...punch }
     );
   }
 
   /** モード・プロジェクト・セクションの割り当て（O-5） */
   function assign(task: Task, field: "mode" | "project" | "section", id: number | null) {
     if (field === "mode") {
-      run({ type: "mode", id: task.id, modeId: id }, () => setTaskModeAction(task.id, id));
+      run(() => setTaskModeAction(task.id, id), { type: "mode", id: task.id, modeId: id });
       return;
     }
     if (field === "project") {
-      run({ type: "project", id: task.id, projectId: id }, () =>
-        setTaskProjectAction(task.id, id)
-      );
+      run(() => setTaskProjectAction(task.id, id), {
+        type: "project",
+        id: task.id,
+        projectId: id,
+      });
       return;
     }
     // セクション移動は移動先末尾への並び替え。表示上の位置はクライアントで決まるので楽観更新する
     const destination = optimisticGroups.find((g) => (g.section?.id ?? null) === id);
-    run(
-      { type: "move", id: task.id, destination: { sectionId: id, index: destination?.tasks.length ?? 0 } },
-      () => setTaskSectionAction({ taskId: task.id, date, sectionId: id })
-    );
+    run(() => setTaskSectionAction({ taskId: task.id, date, sectionId: id }), {
+      type: "move",
+      id: task.id,
+      destination: { sectionId: id, index: destination?.tasks.length ?? 0 },
+    });
   }
 
   /** 中断・複製・先送り・削除（F-204 / F-111 / F-107 / O-8） */
   function operate(task: Task, operation: "suspend" | "duplicate" | "postpone" | "delete") {
     if (operation === "delete") {
-      run({ type: "remove", id: task.id }, async () => {
-        const result = await deleteTaskAction(task.id);
-        if (result.ok) setDeleted(result.deleted);
-        return result;
-      });
+      run(
+        async () => {
+          const result = await deleteTaskAction(task.id);
+          if (result.ok) setDeleted(result.deleted);
+          return result;
+        },
+        { type: "remove", id: task.id }
+      );
       return;
     }
 
@@ -405,9 +411,11 @@ export function DailyBoard({
     const destination = stepMoveDestination(orderedTasks, selectedId, step, sectionOrder);
     if (destination === null) return; // 移動先なし（リスト全体の端など）
 
-    run({ type: "move", id: selectedId, destination }, () =>
-      moveTaskByStepAction({ taskId: selectedId, date, step })
-    );
+    run(() => moveTaskByStepAction({ taskId: selectedId, date, step }), {
+      type: "move",
+      id: selectedId,
+      destination,
+    });
   }
 
   const onKeyDown = inlineEditKeyHandler({
