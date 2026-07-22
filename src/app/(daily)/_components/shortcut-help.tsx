@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useDismiss } from "@/app/_lib/use-dismiss";
 import { floatPanel } from "@/app/_lib/ui";
 
 // 画面定義書01 §6 の一覧と対応させる（変更時は仕様書を先に更新する）
@@ -29,13 +29,8 @@ const SHORTCUTS = [
 type Props = Readonly<{ onClose: () => void }>;
 
 export function ShortcutHelp({ onClose }: Props) {
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  // Esc で閉じる（外側クリックは下のスクリムの onClick が扱うため ref は渡さない）
+  useDismiss(null, onClose);
 
   return (
     <div

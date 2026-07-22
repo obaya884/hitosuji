@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
+import { useDismiss } from "@/app/_lib/use-dismiss";
 import {
   btnSecondary,
   floatPanel,
@@ -46,21 +47,8 @@ function ColorPickerPopover({
   const ref = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState<string | null>(null);
 
-  useEffect(() => {
-    function onPointerDown(e: MouseEvent) {
-      if (ref.current !== null && !ref.current.contains(e.target as Node)) onClose();
-    }
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [onClose]);
+  // 外側クリック＋Esc で閉じる
+  useDismiss(ref, onClose);
 
   return (
     <div ref={ref} className={`absolute z-10 mt-1 flex w-56 flex-wrap gap-1.5 p-2 ${floatPanel}`}>
