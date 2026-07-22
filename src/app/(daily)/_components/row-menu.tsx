@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { EllipsisIcon } from "@/app/_components/icons";
 import { floatPanel } from "@/app/_lib/ui";
+import { useDismiss } from "@/app/_lib/use-dismiss";
 import { useFlipUp } from "@/app/_lib/use-flip-up";
 
 export type RowMenuItem = Readonly<{
@@ -20,23 +21,8 @@ export function RowMenu({ items }: Readonly<{ items: readonly RowMenuItem[] }>) 
   // 画面下部の行では上向きに開く（§7「ポップオーバーの表示位置」）
   const { ref: panelRef, positionClass } = useFlipUp<HTMLDivElement>(open);
 
-  useEffect(() => {
-    if (!open) return;
-
-    function onPointerDown(e: MouseEvent) {
-      if (ref.current !== null && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
+  // 外側クリック＋Esc で閉じる。常時マウントのため open のときだけ購読する
+  useDismiss(ref, () => setOpen(false), { enabled: open });
 
   return (
     <div ref={ref} className="relative">

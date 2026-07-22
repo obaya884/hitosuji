@@ -27,6 +27,7 @@ import type { Task } from "@/domain/task/task";
 import { moveTaskByOneStep, setTaskSection } from "@/usecases/task/reorder-usecases";
 import { createRoutineFromTask } from "@/usecases/routine/routine-usecases";
 import { applyCarryOverAfterPunch } from "@/usecases/task/relocation-usecases";
+import type { ActionResult } from "@/app/_lib/action-result";
 import { formatClock, todayLogicalDate } from "@/app/_lib/format";
 import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
 import { createRoutineRepository } from "@/infrastructure/db/repositories/drizzle-routine-repository";
@@ -40,11 +41,16 @@ const routineRepo = createRoutineRepository();
 /** 打刻と自動セクション移動（F-113）はセクションも参照する */
 const punchDeps = { tasks: taskRepo, sections: sectionRepo };
 
-export type DailyActionResult = Readonly<{ ok: true } | { ok: false; message: string }>;
+export type DailyActionResult = ActionResult;
+
+/** 生成系アクション（追加・複製・複製して開始）の結果。成功時に採番された生成物 id を返す */
+export type CreatingActionResult = Readonly<
+  { ok: true; createdId: number } | { ok: false; message: string }
+>;
 
 export async function addTaskAction(
   input: Readonly<{ date: LogicalDate; name: string }>
-): Promise<Readonly<{ ok: true; createdId: number } | { ok: false; message: string }>> {
+): Promise<CreatingActionResult> {
   const result = await addTask(taskRepo, input);
   if (!result.ok) return { ok: false, message: "タスク名を入力してください" };
   revalidatePath("/");
@@ -209,9 +215,7 @@ export async function suspendTaskAction(id: number, now: Date): Promise<DailyAct
 }
 
 /** 複製（F-111）。複製後に選択行を移すため、作られたタスクのIDを返す（O-11） */
-export async function duplicateTaskAction(
-  id: number
-): Promise<Readonly<{ ok: true; createdId: number } | { ok: false; message: string }>> {
+export async function duplicateTaskAction(id: number): Promise<CreatingActionResult> {
   const result = await duplicateTask({ tasks: taskRepo, sections: sectionRepo }, { taskId: id });
   if (!result.ok) return { ok: false, message: OPERATION_ERROR_MESSAGES[result.error] };
   revalidatePath("/");
@@ -225,7 +229,7 @@ export async function duplicateTaskAction(
 export async function duplicateAndStartTaskAction(
   id: number,
   now: Date
-): Promise<Readonly<{ ok: true; createdId: number } | { ok: false; message: string }>> {
+): Promise<CreatingActionResult> {
   const today = todayLogicalDate(now);
   const nowClock = formatClock(now);
   const result = await duplicateAndStartTask(

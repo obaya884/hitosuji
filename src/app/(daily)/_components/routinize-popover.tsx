@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   toggleWeekday,
   WEEKDAY_BITS,
@@ -16,6 +16,7 @@ import { parseClockTime } from "@/domain/task/punch-edit";
 import type { Task } from "@/domain/task/task";
 import { formatClock } from "@/app/_lib/format";
 import { btnPrimary, floatPanel, inputBase } from "@/app/_lib/ui";
+import { useDismiss } from "@/app/_lib/use-dismiss";
 import { useFlipUp } from "@/app/_lib/use-flip-up";
 
 const RECURRENCE_LABELS: Readonly<Record<RecurrenceType, string>> = {
@@ -57,22 +58,8 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
   );
   const [timeError, setTimeError] = useState<string | null>(null);
 
-  useEffect(() => {
-    function onPointerDown(e: MouseEvent) {
-      if (ref.current !== null && !ref.current.contains(e.target as Node)) onClose();
-    }
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-    // ref は useFlipUp が返す固定の参照（毎回同じオブジェクト）
-  }, [onClose, ref]);
+  // 外側クリック＋Esc で閉じる
+  useDismiss(ref, onClose);
 
   /** 入力された時刻を `HH:MM` へ整形する（不正なら元の入力のまま返す） */
   function normalized(current: RoutineFromTaskChoice): string {

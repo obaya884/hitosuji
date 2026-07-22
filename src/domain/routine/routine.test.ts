@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { describeRecurrence, toggleWeekday, type Routine } from "./routine";
+import {
+  describeRecurrence,
+  hasWeekday,
+  toggleWeekday,
+  weekdayBitOf,
+  type Routine,
+} from "./routine";
 
 function routine(over: Partial<Routine> & { id: number }): Routine {
   return {
@@ -58,6 +64,52 @@ describe("describeRecurrence（画面定義書02 §3: 繰り返しルールの�
   it("終了日があると要約の末尾に「〜終了日」を付ける", () => {
     const r = routine({ id: 1, recurrenceType: "daily", endDate: "2026-12-31" });
     expect(describeRecurrence(r)).toBe("毎日 〜2026-12-31");
+  });
+});
+
+describe("weekdayBitOf（データモデル定義書 §3.4: 曜日ビットマスク bit0=月 … bit6=日。日曜=0 の index をビット位置へ）", () => {
+  it("月曜(1)は bit0、日曜(0)は bit6 に対応する", () => {
+    expect(weekdayBitOf(1)).toBe(0); // 月
+    expect(weekdayBitOf(0)).toBe(6); // 日
+  });
+
+  it("火〜土(2〜6)は bit1〜bit5 に順に対応する", () => {
+    expect([2, 3, 4, 5, 6].map(weekdayBitOf)).toEqual([1, 2, 3, 4, 5]); // 火・水・木・金・土
+  });
+});
+
+describe("hasWeekday（データモデル定義書 §4.1: weekly 展開の曜日該当判定。index は日曜=0 の並び）", () => {
+  it("該当曜日のビットが立っていれば true、非該当は false", () => {
+    const monday = 0b0000001; // 月(bit0)
+    expect(hasWeekday(monday, 1)).toBe(true); // 月曜(index1)
+    expect(hasWeekday(monday, 0)).toBe(false); // 日曜(index0)は非該当
+  });
+
+  it("日曜(bit6)も正しく判定する（off-by-one しない）", () => {
+    const sunday = 0b1000000; // 日(bit6)
+    expect(hasWeekday(sunday, 0)).toBe(true); // 日曜(index0)
+    expect(hasWeekday(sunday, 6)).toBe(false); // 土曜(index6)は非該当
+  });
+
+  it("全曜日マスクは index 0〜6 すべてで true（全曜日の該当を担保）", () => {
+    const all = 0b1111111;
+    expect([0, 1, 2, 3, 4, 5, 6].map((i) => hasWeekday(all, i))).toEqual([
+      true, // 日
+      true, // 月
+      true, // 火
+      true, // 水
+      true, // 木
+      true, // 金
+      true, // 土
+    ]);
+  });
+
+  it("複数曜日のマスクは該当する全曜日で true", () => {
+    const mwf = 0b0010101; // 月・水・金
+    expect(hasWeekday(mwf, 1)).toBe(true); // 月
+    expect(hasWeekday(mwf, 3)).toBe(true); // 水
+    expect(hasWeekday(mwf, 5)).toBe(true); // 金
+    expect(hasWeekday(mwf, 2)).toBe(false); // 火は非該当
   });
 });
 

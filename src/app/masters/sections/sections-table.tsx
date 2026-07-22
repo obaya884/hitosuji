@@ -1,18 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
-import {
-  btnSecondary,
-  inputBase,
-  linkAccent,
-  linkMuted,
-  noticeDanger,
-} from "@/app/_lib/ui";
+import { btnSecondary, inputBase, linkAccent, linkMuted, noticeDanger } from "@/app/_lib/ui";
 import { PlusIcon } from "@/app/_components/icons";
 import type { Section } from "@/domain/section/section";
-import { DeleteMasterButton } from "../_components/delete-master-button";
-import type { ActionResult } from "../_lib/action-result";
+import { ArchivedMasterSection } from "../_components/archived-master-section";
+import { useMasterAction } from "../_lib/use-master-action";
 import {
   archiveSectionAction,
   createSectionAction,
@@ -36,17 +30,7 @@ type Editing =
 
 export function SectionsTable({ ranges, archived, deletableIds }: Props) {
   const [editing, setEditing] = useState<Editing | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
-
-  function run(action: () => Promise<ActionResult>, onSuccess?: () => void) {
-    setError(null);
-    startTransition(async () => {
-      const result = await action();
-      if (result.ok) onSuccess?.();
-      else setError(result.message);
-    });
-  }
+  const { error, setError, isPending, run } = useMasterAction();
 
   /**
    * 保存の経路は blur の1本だけにする（画面定義書03 §4「編集方式」）。
@@ -252,38 +236,19 @@ export function SectionsTable({ ranges, archived, deletableIds }: Props) {
         </tbody>
       </table>
 
-      {archived.length > 0 && (
-        <details className="mt-6">
-          <summary className="cursor-pointer text-sm text-ink-muted">
-            アーカイブ済み（{archived.length}）
-          </summary>
-          <table className="mt-2 w-full text-sm">
-            <tbody>
-              {archived.map((row) => (
-                <tr key={row.id} className="border-b border-line text-ink-muted">
-                  <td className="py-2">{row.name}</td>
-                  <td className="w-40 py-2 font-mono tabular-nums">{row.startTime}</td>
-                  <td className="w-32 py-2 text-right whitespace-nowrap">
-                    <button
-                      onClick={() => run(() => restoreSectionAction(row.id))}
-                      disabled={isPending}
-                      className={`px-2 ${linkAccent}`}
-                    >
-                      復元
-                    </button>
-                    {deletableIds.includes(row.id) && (
-                      <DeleteMasterButton
-                        onDelete={() => run(() => deleteSectionAction(row.id))}
-                        disabled={isPending}
-                      />
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </details>
-      )}
+      <ArchivedMasterSection
+        archived={archived}
+        deletableIds={deletableIds}
+        isPending={isPending}
+        renderCells={(row) => (
+          <>
+            <td className="py-2">{row.name}</td>
+            <td className="w-40 py-2 font-mono tabular-nums">{row.startTime}</td>
+          </>
+        )}
+        onRestore={(id) => run(() => restoreSectionAction(id))}
+        onDelete={(id) => run(() => deleteSectionAction(id))}
+      />
     </section>
   );
 }
