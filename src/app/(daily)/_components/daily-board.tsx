@@ -5,14 +5,15 @@ import { useEffect, useMemo, useOptimistic, useRef, useState, useTransition } fr
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { Section } from "@/domain/section/section";
-import { addDays, weekdayIndex, type LogicalDate } from "@/domain/shared/logical-date";
+import { weekdayIndex, type LogicalDate } from "@/domain/shared/logical-date";
 import {
   withTaskAppended,
   withTaskMoved,
   withTaskUpdated,
   type DailyGroup,
 } from "@/domain/task/daily-list";
-import { currentTaskId, keepSelection, moveSelection } from "@/domain/task/selection";
+import { stepMoveDestination } from "@/domain/task/reorder";
+import { keepSelection } from "@/domain/task/selection";
 import { taskStatus } from "@/domain/task/status";
 import { editEndedAt, editStartedAt } from "@/domain/task/punch-edit";
 import { validateEstimateMinutes, validateTaskName } from "@/domain/task/edit";
@@ -42,14 +43,16 @@ import {
   undoStartAction,
   updateTaskEstimateAction,
   updateTaskPunchAction,
+  type CreatingActionResult,
   type DailyActionResult,
 } from "../actions";
-import { DailyList, type EditField, type EditingCell } from "./daily-list";
+import { DailyList, type EditingCell } from "./daily-list";
 import { DailySummary } from "./daily-summary";
 import { DateNav } from "@/app/_components/date-nav";
 import { ShortcutHelp } from "./shortcut-help";
 import { StaleRunningBanner } from "./stale-running-banner";
 import { Toast } from "./toast";
+import { useDailyShortcuts } from "./use-daily-shortcuts";
 
 type Props = Readonly<{
   date: LogicalDate;
@@ -199,12 +202,31 @@ export function DailyBoard({
   // 「現在地」（実行中、なければ最初の未実行）へ自動的に戻る
   const selectedId = keepSelection(orderedTasks, rawSelectedId);
 
-  function run(optimistic: OptimisticAction, action: () => Promise<DailyActionResult>) {
+  // 引数順は runSelectingCreated と揃えて action を先頭にする（読み違い防止）
+  function run(action: () => Promise<DailyActionResult>, optimistic: OptimisticAction) {
     setError(null);
     startTransition(async () => {
       dispatchOptimistic(optimistic);
       const result = await action();
       if (!result.ok) setError(result.message);
+    });
+  }
+
+  /**
+   * 生成系（複製・複製して開始・クイック追加）の共通処理。採番をサーバが決めるため
+   * 生成物の選択は確定後に寄せる（O-11）: 成功なら `createdId` へ選択を移し、失敗なら `setError`。
+   * `optimistic` を渡すと確定前に楽観更新を反映する（クイック追加の即時表示用）
+   */
+  function runSelectingCreated(
+    action: () => Promise<CreatingActionResult>,
+    optimistic?: OptimisticAction
+  ) {
+    setError(null);
+    startTransition(async () => {
+      if (optimistic !== undefined) dispatchOptimistic(optimistic);
+      const result = await action();
+      if (result.ok) setSelectedId(result.createdId);
+      else setError(result.message);
     });
   }
 
@@ -215,13 +237,10 @@ export function DailyBoard({
     if (trimmed === "") return;
 
     setName("");
-    setError(null);
-    startTransition(async () => {
-      // 追加行は楽観的に即表示。採番はサーバが決めるため選択は確定後に寄せる
-      dispatchOptimistic({ type: "append", task: optimisticTask(date, trimmed) });
-      const result = await addTaskAction({ date, name: trimmed });
-      if (!result.ok) setError(result.message);
-      else setSelectedId(result.createdId); // 追加したタスクを選択（§3.4 / FB-29）
+    // 追加行は楽観的に即表示し、確定後に追加したタスクを選択する（§3.4 / FB-29）
+    runSelectingCreated(() => addTaskAction({ date, name: trimmed }), {
+      type: "append",
+      task: optimisticTask(date, trimmed),
     });
   }
 
@@ -230,8 +249,9 @@ export function DailyBoard({
     if (!validated.ok) return; // 空名は確定不可（§8）。編集は破棄して元の名前に戻る
     if (validated.value === task.name) return;
 
-    run({ type: "rename", id: task.id, name: validated.value }, () =>
-      renameTaskAction(task.id, validated.value)
+    run(
+      () => renameTaskAction(task.id, validated.value),
+      { type: "rename", id: task.id, name: validated.value }
     );
   }
 
@@ -243,8 +263,9 @@ export function DailyBoard({
     }
     if (validated.value === task.estimateMinutes) return;
 
-    run({ type: "estimate", id: task.id, minutes: validated.value }, () =>
-      updateTaskEstimateAction(task.id, raw)
+    run(
+      () => updateTaskEstimateAction(task.id, raw),
+      { type: "estimate", id: task.id, minutes: validated.value }
     );
   }
 
@@ -258,9 +279,9 @@ export function DailyBoard({
     if (status === "completed") {
       duplicateAndStart(task, now); // F-208 / O-14
     } else if (status === "not_started") {
-      run({ type: "start", id: task.id, at: now }, () => startTaskAction(task.id, now));
+      run(() => startTaskAction(task.id, now), { type: "start", id: task.id, at: now });
     } else {
-      run({ type: "finish", id: task.id, at: now }, () => finishTaskAction(task.id, now));
+      run(() => finishTaskAction(task.id, now), { type: "finish", id: task.id, at: now });
     }
   }
 
@@ -269,17 +290,12 @@ export function DailyBoard({
    * 楽観的更新はせず（O-11 と同じ）、開始した複製タスクへ選択を移す
    */
   function duplicateAndStart(task: Task, now: Date) {
-    setError(null);
-    startTransition(async () => {
-      const result = await duplicateAndStartTaskAction(task.id, now);
-      if (result.ok) setSelectedId(result.createdId);
-      else setError(result.message);
-    });
+    runSelectingCreated(() => duplicateAndStartTaskAction(task.id, now));
   }
 
   /** 開始打刻の取り消し（O-13 / F-210）。実行中タスクを未実行へ戻す。now はクライアントのものを送る */
   function unstart(task: Task) {
-    run({ type: "unstart", id: task.id }, () => undoStartAction(task.id, new Date()));
+    run(() => undoStartAction(task.id, new Date()), { type: "unstart", id: task.id });
   }
 
   /** 開始・終了時刻のインライン修正（F-203）。HH:MM の解釈は利用者のタイムゾーンで行う */
@@ -299,52 +315,58 @@ export function DailyBoard({
 
     // 移動先セクションの判定に使う HH:MM は、利用者のタイムゾーンで整形して送る（§4.2-c）。
     // 「今日」の判定に使う現在時刻も、他の打刻と同じくクライアントのものを送る
-    run({ type: "punch", id: task.id, ...punch }, () =>
-      updateTaskPunchAction(task.id, punch, formatClock(punch.startedAt), new Date())
+    run(
+      () => updateTaskPunchAction(task.id, punch, formatClock(punch.startedAt), new Date()),
+      { type: "punch", id: task.id, ...punch }
     );
   }
 
   /** モード・プロジェクト・セクションの割り当て（O-5） */
   function assign(task: Task, field: "mode" | "project" | "section", id: number | null) {
     if (field === "mode") {
-      run({ type: "mode", id: task.id, modeId: id }, () => setTaskModeAction(task.id, id));
+      run(() => setTaskModeAction(task.id, id), { type: "mode", id: task.id, modeId: id });
       return;
     }
     if (field === "project") {
-      run({ type: "project", id: task.id, projectId: id }, () =>
-        setTaskProjectAction(task.id, id)
-      );
+      run(() => setTaskProjectAction(task.id, id), {
+        type: "project",
+        id: task.id,
+        projectId: id,
+      });
       return;
     }
     // セクション移動は移動先末尾への並び替え。表示上の位置はクライアントで決まるので楽観更新する
     const destination = optimisticGroups.find((g) => (g.section?.id ?? null) === id);
-    run(
-      { type: "move", id: task.id, destination: { sectionId: id, index: destination?.tasks.length ?? 0 } },
-      () => setTaskSectionAction({ taskId: task.id, date, sectionId: id })
-    );
+    run(() => setTaskSectionAction({ taskId: task.id, date, sectionId: id }), {
+      type: "move",
+      id: task.id,
+      destination: { sectionId: id, index: destination?.tasks.length ?? 0 },
+    });
   }
 
   /** 中断・複製・先送り・削除（F-204 / F-111 / F-107 / O-8） */
   function operate(task: Task, operation: "suspend" | "duplicate" | "postpone" | "delete") {
     if (operation === "delete") {
-      run({ type: "remove", id: task.id }, async () => {
-        const result = await deleteTaskAction(task.id);
-        if (result.ok) setDeleted(result.deleted);
-        return result;
-      });
+      run(
+        async () => {
+          const result = await deleteTaskAction(task.id);
+          if (result.ok) setDeleted(result.deleted);
+          return result;
+        },
+        { type: "remove", id: task.id }
+      );
       return;
     }
 
-    // 生成物の採番はサーバが決めるため楽観更新はしない
+    if (operation === "duplicate") {
+      // 複製したタスクを選択する（O-11）。採番はサーバが決めるため楽観更新はしない
+      runSelectingCreated(() => duplicateTaskAction(task.id));
+      return;
+    }
+
+    // 中断・先送りは楽観更新せずサーバ確定を待つ
     setError(null);
     startTransition(async () => {
-      if (operation === "duplicate") {
-        const result = await duplicateTaskAction(task.id);
-        if (result.ok) setSelectedId(result.createdId); // 複製したタスクを選択する（O-11）
-        else setError(result.message);
-        return;
-      }
-
       const result =
         operation === "suspend"
           ? await suspendTaskAction(task.id, new Date())
@@ -380,37 +402,20 @@ export function DailyBoard({
 
   /**
    * Shift+J/K での並び替え（画面定義書01 §6）。N-01 が0ms目標に挙げる操作なので楽観更新する。
-   * 移動先はサーバ（moveTaskByStep）と同じ規則で求める: グループ内で1つ動かし、
-   * 端に達したら隣のセクションへ移る（タスク0件のセクションも移動先になる）
+   * 移動先はサーバ確定（moveTaskByStep）と同じ純関数 stepMoveDestination で求める（規則の二重実装を排除）
    */
   function moveByStep(step: 1 | -1) {
     if (selectedId === null) return;
 
-    const groupIndex = optimisticGroups.findIndex((g) =>
-      g.tasks.some((t) => t.id === selectedId)
-    );
-    if (groupIndex === -1) return;
+    const sectionOrder = optimisticGroups.map((g) => g.section?.id ?? null);
+    const destination = stepMoveDestination(orderedTasks, selectedId, step, sectionOrder);
+    if (destination === null) return; // 移動先なし（リスト全体の端など）
 
-    const group = optimisticGroups[groupIndex];
-    const positionInGroup = group.tasks.findIndex((t) => t.id === selectedId);
-    const nextPosition = positionInGroup + step;
-
-    let destination: Readonly<{ sectionId: number | null; index: number }>;
-    if (nextPosition >= 0 && nextPosition < group.tasks.length) {
-      destination = { sectionId: group.section?.id ?? null, index: nextPosition };
-    } else {
-      const neighborGroup = optimisticGroups[groupIndex + step];
-      if (neighborGroup === undefined) return; // リスト全体の端では動かさない
-      destination = {
-        // 下へ動くなら移動先の先頭、上へ動くなら移動先の末尾に入る
-        sectionId: neighborGroup.section?.id ?? null,
-        index: step === 1 ? 0 : neighborGroup.tasks.length,
-      };
-    }
-
-    run({ type: "move", id: selectedId, destination }, () =>
-      moveTaskByStepAction({ taskId: selectedId, date, step })
-    );
+    run(() => moveTaskByStepAction({ taskId: selectedId, date, step }), {
+      type: "move",
+      id: selectedId,
+      destination,
+    });
   }
 
   const onKeyDown = inlineEditKeyHandler({
@@ -424,122 +429,23 @@ export function DailyBoard({
 
   // Undo トーストの自動消去（O-8）は Toast コンポーネント側に一元化してある（画面定義書01 §8 / FB-15）
 
-  useEffect(() => {
-    function onKeyDownGlobal(e: KeyboardEvent) {
-      // テキスト入力中・IME変換中はショートカット無効（画面定義書01 §6）
-      const target = e.target as HTMLElement | null;
-      if (e.isComposing || target?.tagName === "INPUT" || target?.tagName === "TEXTAREA") return;
-      // 編集中（インライン編集・選択ポップオーバー表示中）は行操作キーを無効化する。
-      // ポップオーバーは J/K/Enter を自前で拾うため、ここで素通しさせない（F-112）
-      if (editing !== null) return;
-      // 修飾キーは Shift のみ使用する（§6）。Cmd/Ctrl 併用時はブラウザの既定動作に任せる
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-
-      const selected = orderedTasks.find((t) => t.id === selectedId) ?? null;
-      const requestEdit = (field: EditField) => {
-        if (selected === null) return;
-        // 押したキー自体が編集欄へ入力されないように既定動作を止める
-        e.preventDefault();
-        setEditing({ taskId: selected.id, field });
-      };
-
-      // ? は Shift+/ で入力されるため、Shift 分岐より先に処理する
-      if (e.key === "?") {
-        setShowHelp((v) => !v);
-        return;
-      }
-
-      if (e.shiftKey) {
-        switch (e.key) {
-          case "J":
-            moveByStep(1);
-            return;
-          case "K":
-            moveByStep(-1);
-            return;
-          case "H":
-            router.push(`/?date=${addDays(date, -1)}`);
-            return;
-          case "L":
-            router.push(`/?date=${addDays(date, 1)}`);
-            return;
-          default:
-            return;
-        }
-      }
-
-      switch (e.key) {
-        // 選択行の移動（§5。矢印キーは割り当てず J/K のみ。FB-33）
-        case "j":
-          setSelectedId((current) => moveSelection(orderedTasks, current, 1));
-          return;
-        case "k":
-          setSelectedId((current) => moveSelection(orderedTasks, current, -1));
-          return;
-        case "c": // 現在地へジャンプ（§5）
-          setSelectedId(currentTaskId(orderedTasks));
-          return;
-        case "Enter":
-          // ボタンにフォーカスが残っている場合はブラウザがそのボタンを押すので、
-          // ここで打刻すると二重に発火する（打刻ボタンを押した直後など）
-          if (target?.tagName === "BUTTON") return;
-          if (selected !== null) punch(selected); // 開始 →（実行中なら）終了
-          return;
-        case "i":
-          if (selected !== null) operate(selected, "suspend");
-          return;
-        case "y":
-          if (selected !== null) operate(selected, "duplicate");
-          return;
-        case "d":
-          if (selected !== null) operate(selected, "delete");
-          return;
-        case "u":
-          // 直前の削除の取り消しが保留中（Undoトースト表示中）ならそれを優先する。
-          // 削除すると選択が現在地（実行中タスク）へ移るため、優先しないと U が開始取消に化ける（FB-37 動作確認）。
-          // 保留がなく実行中タスクを選択中なら開始の取り消し、それ以外は削除の取り消し（O-13）
-          if (deleted === null && selected !== null && taskStatus(selected) === "running") {
-            unstart(selected);
-          } else {
-            undoDelete();
-          }
-          return;
-        case "t":
-          router.push("/");
-          return;
-        case "a":
-          e.preventDefault(); // 入力欄に "a" が入るのを防ぐ
-          quickAddRef.current?.focus();
-          return;
-        case "r":
-        case "F2":
-          requestEdit("name");
-          return;
-        case "e":
-          requestEdit("estimate");
-          return;
-        case "b":
-          requestEdit("startedAt");
-          return;
-        case "f":
-          requestEdit("endedAt");
-          return;
-        case "m":
-          requestEdit("mode");
-          return;
-        case "p":
-          requestEdit("project");
-          return;
-        case "s":
-          requestEdit("section");
-          return;
-        default:
-          return;
-      }
-    }
-
-    window.addEventListener("keydown", onKeyDownGlobal);
-    return () => window.removeEventListener("keydown", onKeyDownGlobal);
+  // グローバルキーボードショートカット（§6）。配線はフックへ切り出し（挙動は不変・T-14）
+  useDailyShortcuts({
+    editing,
+    orderedTasks,
+    selectedId,
+    deleted,
+    date,
+    quickAddRef,
+    router,
+    setEditing,
+    setShowHelp,
+    setSelectedId,
+    moveByStep,
+    punch,
+    operate,
+    unstart,
+    undoDelete,
   });
 
   return (

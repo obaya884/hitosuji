@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { CheckIcon } from "@/app/_components/icons";
 import { floatPanel } from "@/app/_lib/ui";
+import { useDismiss } from "@/app/_lib/use-dismiss";
 import { useFlipUp } from "@/app/_lib/use-flip-up";
 
 export type PopoverOption = Readonly<{
@@ -32,15 +33,8 @@ export function SelectPopover({ options, selectedId, onSelect, onClose }: Props)
     Math.max(0, options.findIndex((o) => o.id === selectedId))
   );
 
-  // 外側クリックで閉じる
-  useEffect(() => {
-    function onPointerDown(e: MouseEvent) {
-      if (ref.current !== null && !ref.current.contains(e.target as Node)) onClose();
-    }
-    document.addEventListener("mousedown", onPointerDown);
-    return () => document.removeEventListener("mousedown", onPointerDown);
-    // ref は useFlipUp が返す固定の参照（毎回同じオブジェクト）
-  }, [onClose, ref]);
+  // 外側クリックで閉じる（Escape は下のキーナビ effect が IME 判定込みで扱うため escape:false）
+  useDismiss(ref, onClose, { escape: false });
 
   // キーボード操作（F-112）。ポップオーバーはフォーカスを掴まないため document で拾う。
   // 表示中は背後の行操作キーが無効化される（daily-board 側で editing 中は素通し）

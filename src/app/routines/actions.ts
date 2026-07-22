@@ -9,12 +9,13 @@ import {
 } from "@/usecases/routine/routine-usecases";
 import type { RoutineInput } from "@/domain/routine/input";
 import { createRoutineRepository } from "@/infrastructure/db/repositories/drizzle-routine-repository";
+import type { ActionResult } from "@/app/_lib/action-result";
 
 // 合成ルート: リポジトリ実装をユースケースへ注入する（アーキテクチャ定義書 §3）
 const repo = createRoutineRepository();
 const PATH = "/routines";
 
-export type RoutineActionResult = Readonly<{ ok: true } | { ok: false; message: string }>;
+export type RoutineActionResult = ActionResult;
 
 const MESSAGES: Record<string, string> = {
   name_required: "名前を入力してください",
