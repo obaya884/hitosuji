@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { sections, tasks } from "@/infrastructure/db/schema";
 import { createTestDb, truncateAll } from "@/infrastructure/db/testing/test-db";
@@ -78,6 +79,17 @@ describe("DrizzleSectionRepository", () => {
     await repo.setDayStart(forenoon.id);
     const afterSwitch = await repo.listAll();
     expect(afterSwitch.filter((s) => s.isDayStart).map((s) => s.id)).toEqual([forenoon.id]);
+  });
+
+  it("部分ユニーク索引が有効セクション内の日界2件を拒否する", async () => {
+    const morning = await repo.create({ name: "朝", startTime: "06:00" });
+    const forenoon = await repo.create({ name: "午前", startTime: "09:00" });
+    await repo.setDayStart(morning.id);
+
+    // setDayStart を経由せず直接2件目を立てると索引違反で失敗する
+    await expect(
+      db.update(sections).set({ isDayStart: true }).where(eq(sections.id, forenoon.id))
+    ).rejects.toThrow();
   });
 
   // 画面定義書03 §4.1: セクションの参照元はタスクのみ（ルーチンは開始想定時刻から導出する）

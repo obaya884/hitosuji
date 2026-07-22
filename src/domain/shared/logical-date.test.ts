@@ -43,6 +43,10 @@ describe("applyDayStart（F-116: 日界を踏まえて論理日付を決める�
     expect(applyDayStart("2026-07-21", 359, 360)).toBe("2026-07-20");
   });
 
+  it("深夜0時ちょうど（壁時計 00:00）も日界前なら前の暦日", () => {
+    expect(applyDayStart("2026-07-21", 0, 360)).toBe("2026-07-20");
+  });
+
   it("壁時計分が日界以上ならその暦日のまま", () => {
     expect(applyDayStart("2026-07-21", 360, 360)).toBe("2026-07-21");
     expect(applyDayStart("2026-07-21", 1000, 360)).toBe("2026-07-21");

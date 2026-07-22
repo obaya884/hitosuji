@@ -1,6 +1,6 @@
 // デイリーリストの表示順（画面定義書01 §3.2 / データモデル定義書 §3.5）
 // 表示順は「セクション（start_time 順）→ sort_order」。未分類はリスト先頭のインボックス
-import { dayStartOffset, dayStartTimeOf, sectionRanges, type Section } from "../section/section";
+import { byDayStartOrder, dayStartTimeOf, sectionRanges, type Section } from "../section/section";
 import { actualMinutes, type Task, type TaskId } from "./task";
 
 export type DailyGroup = Readonly<{
@@ -35,9 +35,8 @@ export function groupTasksBySection(
     .filter((s): s is Section => s !== undefined && s.isArchived);
 
   // 表示順は日界セクションを先頭にした回転（F-116 / §3.1）。日界 00:00（既定）なら start_time 昇順に一致する
-  const anchor = dayStartTimeOf(sections);
   const shown = [...sections.filter((s) => !s.isArchived), ...usedArchived].sort(
-    (a, b) => dayStartOffset(a.startTime, anchor) - dayStartOffset(b.startTime, anchor)
+    byDayStartOrder(dayStartTimeOf(sections))
   );
 
   const groups: DailyGroup[] = shown.map((section) => ({

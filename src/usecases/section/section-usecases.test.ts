@@ -177,6 +177,15 @@ describe("setDayStartSection（F-116: 日界セクションの切り替え）", 
     expect(repo.rows.find((s) => s.id === archived.id)?.isDayStart ?? false).toBe(false);
     expect(repo.rows.find((s) => s.id === morning.id)?.isDayStart).toBe(true);
   });
+
+  it("存在しない id は no-op で ok を返す（日界は変わらない）", async () => {
+    const dayStart: Section = { ...morning, isDayStart: true };
+    const repo = inMemoryRepo([dayStart, forenoon]);
+
+    expect((await setDayStartSection(repo, 999)).ok).toBe(true);
+    expect(repo.rows.find((s) => s.id === morning.id)?.isDayStart).toBe(true);
+    expect(repo.rows.filter((s) => s.isDayStart)).toHaveLength(1);
+  });
 });
 
 describe("restoreSection", () => {

@@ -1,6 +1,6 @@
 // 終了予定時刻と残時間（F-104 / データモデル定義書 §4.3）
 // DBには保存しない導出値。現在時刻は引数で受け取る（domain は now を持たない）
-import { startMinutes } from "../section/section";
+import { offsetFromDayStart, startMinutes } from "../section/section";
 import { taskStatus } from "./status";
 import { elapsedMinutes, type Task } from "./task";
 
@@ -80,7 +80,7 @@ export function sectionEndAt(
   dayStartMinutes = 0
 ): Date {
   const base = logicalBaseMidnight(now, dayStartMinutes);
-  const startOffset = (startMinutes(startTime) - dayStartMinutes + 1440) % 1440;
+  const startOffset = offsetFromDayStart(startMinutes(startTime), dayStartMinutes);
   const startAbs = base.getTime() + (dayStartMinutes + startOffset) * 60_000;
   return new Date(startAbs + sectionCapacityMinutes(startTime, endTime) * 60_000);
 }

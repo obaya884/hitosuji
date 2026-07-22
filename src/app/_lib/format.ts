@@ -1,4 +1,5 @@
 // 表示フォーマット（画面定義書01 §3.3）
+import { startMinutes } from "@/domain/section/section";
 import { applyDayStart } from "@/domain/shared/logical-date";
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"] as const;
@@ -61,8 +62,7 @@ export function todayLogicalDate(now: Date = new Date(), dayStartTime = "00:00")
     day: "2-digit",
   }).format(now);
 
-  const [h, m] = dayStartTime.split(":").map(Number);
-  const dayStartMinutes = h * 60 + m;
-  if (dayStartMinutes === 0) return calendarDate; // 既定（深夜 00:00）は現状どおり暦日
+  const dayStartMinutes = startMinutes(dayStartTime);
+  if (dayStartMinutes === 0) return calendarDate; // 既定（深夜 00:00）は現状どおり暦日（Intl 呼び出しも省く）
   return applyDayStart(calendarDate, jstMinuteOfDay(now), dayStartMinutes);
 }

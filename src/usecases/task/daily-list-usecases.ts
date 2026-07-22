@@ -5,7 +5,7 @@ import type { SectionRepository } from "@/usecases/ports/section-repository";
 import type { TaskRepository } from "@/usecases/ports/task-repository";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
-import { sortByStartTime, type Section } from "@/domain/section/section";
+import { byDayStartOrder, dayStartTimeOf, type Section } from "@/domain/section/section";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import { sortByName } from "@/domain/shared/name-order";
 import { err, ok, type Result } from "@/domain/shared/result";
@@ -51,13 +51,13 @@ export async function listDailyList(
   // 実行中タスクが表示日より前の日付にあるなら、終了打刻の失念として警告する（§8）
   const staleRunningTask = running !== null && running.taskDate < date ? running : null;
 
-  // 選択肢・表示の並び順は name 昇順（モード・プロジェクト）/ start_time 昇順（セクション）に揃える（画面定義書03 §4）
+  // 選択肢・表示の並び順は name 昇順（モード・プロジェクト）/ セクションは日界起点の回転で見出しと揃える（F-116 / §3.2）
   return {
     date,
     groups: groupTasksBySection(tasks, sections),
     modes: sortByName(modes),
     projects: sortByName(projects),
-    sections: sortByStartTime(sections),
+    sections: [...sections].sort(byDayStartOrder(dayStartTimeOf(sections))),
     staleRunningTask,
   };
 }

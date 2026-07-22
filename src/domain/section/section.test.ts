@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   activeSections,
+  byDayStartOrder,
   canArchive,
   dayStartOffset,
   dayStartTimeOf,
-  rotateFromDayStart,
   sectionAt,
   sectionRanges,
   validateSectionInput,
@@ -135,12 +135,25 @@ describe("canArchive（画面定義書03 §3.1: 有効なセクションは最�
   });
 });
 
-describe("dayStartTimeOf / rotateFromDayStart（F-116: 日界セクション起点の回転）", () => {
+describe("dayStartTimeOf / byDayStartOrder（F-116: 日界セクション起点の回転）", () => {
   const dayStartMorning = section({ id: 1, name: "朝", startTime: "06:00", isDayStart: true });
+  const order = (sections: Section[], dayStart: string) =>
+    [...sections].sort(byDayStartOrder(dayStart)).map((s) => s.startTime);
 
   it("日界セクションの開始時刻を返す。指定がなければ 00:00 にフォールバック", () => {
     expect(dayStartTimeOf([midnight, morning, forenoon])).toBe("00:00");
     expect(dayStartTimeOf([dayStartMorning, forenoon, midnight])).toBe("06:00");
+  });
+
+  it("アーカイブ済みの日界セクションは無視して 00:00 にフォールバックする", () => {
+    const archivedDayStart = section({
+      id: 1,
+      name: "朝",
+      startTime: "06:00",
+      isDayStart: true,
+      isArchived: true,
+    });
+    expect(dayStartTimeOf([archivedDayStart, forenoon])).toBe("00:00");
   });
 
   it("dayStartOffset は日界からの巡回距離（分）を返す", () => {
@@ -148,9 +161,8 @@ describe("dayStartTimeOf / rotateFromDayStart（F-116: 日界セクション起�
     expect(dayStartOffset("00:00", "06:00")).toBe(1080); // 06:00 から見て 00:00 は 18時間後
   });
 
-  it("日界を先頭に (start − 日界 + 24h) % 24h 昇順で回転する", () => {
-    const sections = [midnight, dayStartMorning, forenoon]; // 00:00 / 06:00(日界) / 09:00
-    expect(rotateFromDayStart(sections).map((s) => s.startTime)).toEqual([
+  it("日界を先頭に (start − 日界 + 24h) % 24h 昇順で並べる", () => {
+    expect(order([midnight, dayStartMorning, forenoon], "06:00")).toEqual([
       "06:00",
       "09:00",
       "00:00",
@@ -158,15 +170,10 @@ describe("dayStartTimeOf / rotateFromDayStart（F-116: 日界セクション起�
   });
 
   it("日界が 00:00（既定）なら start_time 昇順に一致する", () => {
-    const dayStartMidnight = section({ id: 3, name: "深夜", startTime: "00:00", isDayStart: true });
-    expect(rotateFromDayStart([forenoon, dayStartMidnight, morning]).map((s) => s.startTime)).toEqual(
-      ["00:00", "06:00", "09:00"]
-    );
+    expect(order([forenoon, midnight, morning], "00:00")).toEqual(["00:00", "06:00", "09:00"]);
   });
 
-  it("dayStartTime を明示するとその起点で回す", () => {
-    expect(
-      rotateFromDayStart([midnight, morning, forenoon], "09:00").map((s) => s.startTime)
-    ).toEqual(["09:00", "00:00", "06:00"]);
+  it("日界を明示するとその起点で回す", () => {
+    expect(order([midnight, morning, forenoon], "09:00")).toEqual(["09:00", "00:00", "06:00"]);
   });
 });

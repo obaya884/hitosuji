@@ -59,21 +59,23 @@ export function dayStartTimeOf(sections: readonly Section[]): string {
   return dayStart ? dayStart.startTime : "00:00";
 }
 
-/** 日界からの巡回オフセット（分）。`(start_time − 日界 + 24h) % 24h`。回転の並び順の基準（F-116） */
+/** 日界（分）からの巡回オフセット（分）。`(分 − 日界 + 24h) % 24h`。回転の並び順の基準（F-116） */
+export function offsetFromDayStart(minutes: number, dayStartMinutes: number): number {
+  return (minutes - dayStartMinutes + 1440) % 1440;
+}
+
+/** セクション開始時刻の日界からの巡回オフセット（分）。`offsetFromDayStart` の "HH:MM" 版 */
 export function dayStartOffset(startTime: string, dayStartTime: string): number {
-  return (startMinutes(startTime) - startMinutes(dayStartTime) + 1440) % 1440;
+  return offsetFromDayStart(startMinutes(startTime), startMinutes(dayStartTime));
 }
 
 /**
- * 日界セクションを先頭にした巡回順で有効セクションを並べる（F-116 / データモデル定義書 §3.1）。
+ * 日界セクションを先頭にした巡回順の比較子（F-116 / データモデル定義書 §3.1）。
  * 並びは `(start_time − 日界 + 24h) % 24h` 昇順。日界が 00:00（既定）なら start_time 昇順と一致する。
- * これは表示順の回転のみで、sectionRanges（枠の終了時刻）は巡回不変のため影響しない。
+ * 有効・アーカイブ済みを問わず並べ替える（表示順の回転のみで、sectionRanges の枠導出は巡回不変のため無影響）。
  */
-export function rotateFromDayStart(sections: readonly Section[], dayStartTime?: string): Section[] {
-  const anchor = dayStartTime ?? dayStartTimeOf(sections);
-  return [...activeSections(sections)].sort(
-    (a, b) => dayStartOffset(a.startTime, anchor) - dayStartOffset(b.startTime, anchor)
-  );
+export function byDayStartOrder(dayStartTime: string): (a: Section, b: Section) => number {
+  return (a, b) => dayStartOffset(a.startTime, dayStartTime) - dayStartOffset(b.startTime, dayStartTime);
 }
 
 /**

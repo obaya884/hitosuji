@@ -120,6 +120,12 @@ describe("F-116: 折返し表記・超過警告を日界（論理日）基準で
     expect(isOverMidnight(at(5, 0), at(2, 0), DAY_START)).toBe(false); // 前日の日界=当日06:00までは収まる
     expect(isOverMidnight(at(7, 0), at(2, 0), DAY_START)).toBe(true);
   });
+
+  it("ちょうど次の日界（翌 06:00）で超過＝true。折返し表記は論理日の暦日0:00起点なので 30:00", () => {
+    const nextDayStart = new Date(2026, 6, 20, 6, 0); // 07-19 の論理日の終わり = 翌 06:00
+    expect(isOverMidnight(nextDayStart, at(23, 0), DAY_START)).toBe(true);
+    expect(formatProjectedEnd(nextDayStart, at(23, 0), DAY_START)).toBe("30:00");
+  });
 });
 
 describe("sectionCapacityMinutes（F-110: セクション枠の長さ）", () => {
@@ -162,6 +168,12 @@ describe("sectionEndAt（F-110: セクション終了時刻の絶対時刻）", 
   it("日界 06:00 の日界セクション（朝 06:00–09:00）は当日 09:00 で終わる（F-116）", () => {
     const end = sectionEndAt(at(20, 0), "06:00", "09:00", 6 * 60);
     expect(end.getTime()).toBe(new Date(2026, 6, 19, 9, 0).getTime());
+  });
+
+  it("日界より前（深夜帯）の now では、深夜枠は翌暦日ではなく直近の日界で閉じる（F-116）", () => {
+    // now 07-19 02:00・日界 06:00 → 論理日は 07-18。深夜(00:00–06:00)の終わりは当日(07-19) 06:00
+    const end = sectionEndAt(at(2, 0), "00:00", "06:00", 6 * 60);
+    expect(end.getTime()).toBe(new Date(2026, 6, 19, 6, 0).getTime());
   });
 });
 
