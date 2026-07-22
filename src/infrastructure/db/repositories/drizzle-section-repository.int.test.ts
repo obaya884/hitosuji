@@ -22,6 +22,7 @@ describe("DrizzleSectionRepository", () => {
       name: "朝",
       startTime: "06:00",
       isArchived: false,
+      isDayStart: false,
     });
   });
 
@@ -62,6 +63,21 @@ describe("DrizzleSectionRepository", () => {
 
     await repo.setArchived(created.id, false);
     expect((await repo.listAll())[0].isArchived).toBe(false);
+  });
+
+  // F-116: 日界セクションは有効内でちょうど1件（部分ユニーク索引 uq_sections_day_start_active）
+  it("setDayStart は1件だけ日界にし、切り替えると前の日界を下ろす", async () => {
+    const morning = await repo.create({ name: "朝", startTime: "06:00" });
+    const forenoon = await repo.create({ name: "午前", startTime: "09:00" });
+
+    await repo.setDayStart(morning.id);
+    const afterFirst = await repo.listAll();
+    expect(afterFirst.filter((s) => s.isDayStart).map((s) => s.id)).toEqual([morning.id]);
+
+    // 切り替え。索引を破らずに前の日界が下りることを確認する
+    await repo.setDayStart(forenoon.id);
+    const afterSwitch = await repo.listAll();
+    expect(afterSwitch.filter((s) => s.isDayStart).map((s) => s.id)).toEqual([forenoon.id]);
   });
 
   // 画面定義書03 §4.1: セクションの参照元はタスクのみ（ルーチンは開始想定時刻から導出する）

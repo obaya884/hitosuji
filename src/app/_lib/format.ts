@@ -1,7 +1,9 @@
 // 表示フォーマット（画面定義書01 §3.3）
+import { applyDayStart } from "@/domain/shared/logical-date";
+
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"] as const;
 
-// 日界は0:00固定・日本時間で運用する（データモデル定義書 §1）
+// 運用タイムゾーンは日本時間。日界（1日の開始時刻）は日界セクションで定める（F-116 / データモデル定義書 §1）
 export const APP_TIME_ZONE = "Asia/Tokyo";
 
 /** 分を `H:MM` へ */
@@ -34,13 +36,33 @@ export function formatLogicalDate(date: string, weekday: number): string {
   return `${date}(${WEEKDAYS[weekday]})`;
 }
 
-/** 表示中の「今日」。日界は 0:00 固定なので日本時間の暦日をそのまま使う */
-export function todayLogicalDate(now: Date = new Date()): string {
+/** 現在時刻の日本時間での「0時からの分」（日界判定に使う。F-116） */
+function jstMinuteOfDay(now: Date): number {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: APP_TIME_ZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now);
+  const value = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? "0");
+  return value("hour") * 60 + value("minute");
+}
+
+/**
+ * 表示中の「今日」（論理日付）。日界（F-116）を踏まえて解決する。
+ * 現在時刻の日本時間が日界時刻より前なら前の暦日を今日とする。既定 "00:00" では暦日と一致する。
+ */
+export function todayLogicalDate(now: Date = new Date(), dayStartTime = "00:00"): string {
   // en-CA は YYYY-MM-DD 形式
-  return new Intl.DateTimeFormat("en-CA", {
+  const calendarDate = new Intl.DateTimeFormat("en-CA", {
     timeZone: APP_TIME_ZONE,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   }).format(now);
+
+  const [h, m] = dayStartTime.split(":").map(Number);
+  const dayStartMinutes = h * 60 + m;
+  if (dayStartMinutes === 0) return calendarDate; // 既定（深夜 00:00）は現状どおり暦日
+  return applyDayStart(calendarDate, jstMinuteOfDay(now), dayStartMinutes);
 }

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { addDays, isValidLogicalDate, parseLogicalDate, weekdayIndex } from "./logical-date";
+import {
+  addDays,
+  applyDayStart,
+  isValidLogicalDate,
+  parseLogicalDate,
+  weekdayIndex,
+} from "./logical-date";
 
 describe("isValidLogicalDate（データモデル定義書 §1: task_date は YYYY-MM-DD の論理日付）", () => {
   it("形式と実在日を検証する", () => {
@@ -28,6 +34,23 @@ describe("addDays（F-106: 前日・翌日への移動）", () => {
     expect(addDays("2026-07-01", -1)).toBe("2026-06-30");
     expect(addDays("2026-12-31", 1)).toBe("2027-01-01");
     expect(addDays("2028-02-28", 1)).toBe("2028-02-29");
+  });
+});
+
+describe("applyDayStart（F-116: 日界を踏まえて論理日付を決める）", () => {
+  it("壁時計分が日界より前なら前の暦日", () => {
+    // 日界 06:00（=360分）で 05:59（=359分）は前日
+    expect(applyDayStart("2026-07-21", 359, 360)).toBe("2026-07-20");
+  });
+
+  it("壁時計分が日界以上ならその暦日のまま", () => {
+    expect(applyDayStart("2026-07-21", 360, 360)).toBe("2026-07-21");
+    expect(applyDayStart("2026-07-21", 1000, 360)).toBe("2026-07-21");
+  });
+
+  it("日界 0 なら常に暦日と一致する", () => {
+    expect(applyDayStart("2026-07-21", 0, 0)).toBe("2026-07-21");
+    expect(applyDayStart("2026-07-21", 5, 0)).toBe("2026-07-21");
   });
 });
 

@@ -15,17 +15,19 @@ type Props = Readonly<{
   now: Date;
   /** 当日を表示しているときのみ表示する（画面定義書01 §3.1） */
   isToday: boolean;
+  /** 日界（分）。終了予定の折返し・超過警告の起点（F-116） */
+  dayStartMinutes: number;
 }>;
 
 /**
  * 終了予定時刻・現在時刻・残時間（F-104）と1日全体のタスク進捗（F-114）。
  * 毎分＋操作の都度、クライアントで再計算する（画面定義書01 §3.1）
  */
-export function DailySummary({ groups, now, isToday }: Props) {
+export function DailySummary({ groups, now, isToday, dayStartMinutes }: Props) {
   const tasks = groups.flatMap((g) => g.tasks);
   const remaining = remainingMinutes(tasks, now);
   const end = projectedEndTime(tasks, now);
-  const overMidnight = isOverMidnight(end, now);
+  const overMidnight = isOverMidnight(end, now, dayStartMinutes);
 
   return (
     // 本文より1段階大きい文字で、日付ナビの直後に左寄せで並べる（§3.1）
@@ -40,7 +42,7 @@ export function DailySummary({ groups, now, isToday }: Props) {
           <span>
             <span className="font-sans text-sm text-ink-muted">終了予定 </span>
             <span className={overMidnight ? "font-medium text-danger" : "font-medium"}>
-              {formatProjectedEnd(end, now)}
+              {formatProjectedEnd(end, now, dayStartMinutes)}
             </span>
           </span>
           <span>

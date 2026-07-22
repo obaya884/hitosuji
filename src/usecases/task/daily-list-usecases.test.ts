@@ -19,6 +19,7 @@ const emptySectionRepo: SectionRepository = {
   create: async () => ({ id: 1, name: "", startTime: "00:00", isArchived: false }),
   update: async () => {},
   setArchived: async () => {},
+  setDayStart: async () => {},
   referenceCounts: async () => ({}),
   remove: async () => {},
 };

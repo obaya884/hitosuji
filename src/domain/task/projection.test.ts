@@ -101,6 +101,27 @@ describe("isOverMidnight（F-104: 警告色の判定）", () => {
   });
 });
 
+describe("F-116: 折返し表記・超過警告を日界（論理日）基準で測る", () => {
+  const DAY_START = 6 * 60; // 日界 06:00
+
+  it("日界 06:00 で翌 03:00 終了は 27:00 表記（暦日ではなく論理日起点）", () => {
+    const end = new Date(2026, 6, 20, 3, 0);
+    expect(formatProjectedEnd(end, at(23, 0), DAY_START)).toBe("27:00");
+  });
+
+  it("日界 06:00 では次の日界（翌 06:00）を越えるまで警告しない", () => {
+    expect(isOverMidnight(new Date(2026, 6, 20, 3, 0), at(23, 0), DAY_START)).toBe(false);
+    expect(isOverMidnight(new Date(2026, 6, 20, 7, 0), at(23, 0), DAY_START)).toBe(true);
+  });
+
+  it("日界より前（深夜帯）の now は論理日が前の暦日になり、起点も前の暦日", () => {
+    // 日界 06:00 で now 02:00（論理日は前日）。05:00 終了は前日 0:00 起点で 29:00
+    expect(formatProjectedEnd(at(5, 0), at(2, 0), DAY_START)).toBe("29:00");
+    expect(isOverMidnight(at(5, 0), at(2, 0), DAY_START)).toBe(false); // 前日の日界=当日06:00までは収まる
+    expect(isOverMidnight(at(7, 0), at(2, 0), DAY_START)).toBe(true);
+  });
+});
+
 describe("sectionCapacityMinutes（F-110: セクション枠の長さ）", () => {
   it("開始から終了までの分数を返す", () => {
     expect(sectionCapacityMinutes("06:00", "09:00")).toBe(180);
@@ -130,6 +151,17 @@ describe("sectionEndAt（F-110: セクション終了時刻の絶対時刻）", 
   it("開始=終了（1件で先頭へ折り返す枠）は翌日の同時刻", () => {
     const end = sectionEndAt(at(8, 0), "06:00", "06:00");
     expect(end.getTime()).toBe(new Date(2026, 6, 20, 6, 0).getTime());
+  });
+
+  it("日界 06:00 のとき、回転で末尾に来る深夜(00:00–06:00)は翌暦日に敷かれる（F-116）", () => {
+    // now 07-19 20:00、日界 06:00。深夜は論理日の末尾＝翌 00:00–06:00
+    const end = sectionEndAt(at(20, 0), "00:00", "06:00", 6 * 60);
+    expect(end.getTime()).toBe(new Date(2026, 6, 20, 6, 0).getTime());
+  });
+
+  it("日界 06:00 の日界セクション（朝 06:00–09:00）は当日 09:00 で終わる（F-116）", () => {
+    const end = sectionEndAt(at(20, 0), "06:00", "09:00", 6 * 60);
+    expect(end.getTime()).toBe(new Date(2026, 6, 19, 9, 0).getTime());
   });
 });
 

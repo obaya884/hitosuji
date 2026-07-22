@@ -7,6 +7,7 @@ import {
   deleteSection,
   listSections,
   restoreSection,
+  setDayStartSection,
   updateSection,
 } from "./section-usecases";
 
@@ -34,6 +35,13 @@ function inMemoryRepo(
     setArchived: async (id: SectionId, isArchived: boolean) => {
       const i = rows.findIndex((r) => r.id === id);
       rows[i] = { ...rows[i], isArchived };
+    },
+    setDayStart: async (id: SectionId) => {
+      for (let i = 0; i < rows.length; i++) {
+        if (rows[i].isDayStart) rows[i] = { ...rows[i], isDayStart: false };
+      }
+      const i = rows.findIndex((r) => r.id === id);
+      if (i >= 0) rows[i] = { ...rows[i], isDayStart: true };
     },
     referenceCounts: async (ids: readonly SectionId[]) =>
       Object.fromEntries(ids.filter((id) => id in counts).map((id) => [id, counts[id]])),
@@ -136,6 +144,38 @@ describe("archiveSection（有効セクション最低1件）", () => {
       error: "last_active_section",
     });
     expect(repo.rows[0].isArchived).toBe(false);
+  });
+
+  it("日界セクションはアーカイブできない（F-116）", async () => {
+    const dayStart: Section = { ...morning, isDayStart: true };
+    const repo = inMemoryRepo([dayStart, forenoon]);
+    expect(await archiveSection(repo, dayStart.id)).toEqual({
+      ok: false,
+      error: "day_start_section",
+    });
+    expect(repo.rows[0].isArchived).toBe(false);
+  });
+});
+
+describe("setDayStartSection（F-116: 日界セクションの切り替え）", () => {
+  it("指定した有効セクションを日界にし、他の日界は下ろす（1件だけ）", async () => {
+    const oldDayStart: Section = { ...morning, isDayStart: true };
+    const repo = inMemoryRepo([oldDayStart, forenoon]);
+
+    expect((await setDayStartSection(repo, forenoon.id)).ok).toBe(true);
+    expect(repo.rows.find((s) => s.id === forenoon.id)?.isDayStart).toBe(true);
+    expect(repo.rows.find((s) => s.id === morning.id)?.isDayStart).toBe(false);
+    expect(repo.rows.filter((s) => s.isDayStart)).toHaveLength(1);
+  });
+
+  it("アーカイブ済みセクションは日界にしない（何も変えない）", async () => {
+    const archived: Section = { id: 3, name: "旧", startTime: "12:00", isArchived: true };
+    const dayStart: Section = { ...morning, isDayStart: true };
+    const repo = inMemoryRepo([dayStart, archived]);
+
+    expect((await setDayStartSection(repo, archived.id)).ok).toBe(true);
+    expect(repo.rows.find((s) => s.id === archived.id)?.isDayStart ?? false).toBe(false);
+    expect(repo.rows.find((s) => s.id === morning.id)?.isDayStart).toBe(true);
   });
 });
 

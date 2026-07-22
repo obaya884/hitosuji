@@ -6,6 +6,7 @@ import { createModeRepository } from "@/infrastructure/db/repositories/drizzle-m
 import { createProjectRepository } from "@/infrastructure/db/repositories/drizzle-project-repository";
 import { createRoutineRepository } from "@/infrastructure/db/repositories/drizzle-routine-repository";
 import { createSectionRepository } from "@/infrastructure/db/repositories/drizzle-section-repository";
+import { dayStartTimeOf } from "@/domain/section/section";
 import { RoutinesTable } from "./routines-table";
 import { todayLogicalDate } from "../_lib/format";
 
@@ -30,7 +31,8 @@ export default async function RoutinesPage() {
         allModes={[...modeView.active, ...modeView.archived]}
         allProjects={[...projectView.active, ...projectView.archived]}
         sections={sectionView.ranges.map((r) => r.section)}
-        today={todayLogicalDate()}
+        // 「今日」は日界（F-116）を踏まえる。展開済み一覧の読み込みで得たセクションから導出する
+        today={todayLogicalDate(new Date(), dayStartTimeOf(sectionView.ranges.map((r) => r.section)))}
       />
     </>
   );

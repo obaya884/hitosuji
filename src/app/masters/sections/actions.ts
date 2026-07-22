@@ -6,6 +6,7 @@ import {
   createSection,
   deleteSection,
   restoreSection,
+  setDayStartSection,
   updateSection,
 } from "@/usecases/section/section-usecases";
 import type { SectionId } from "@/domain/section/section";
@@ -37,6 +38,14 @@ export async function updateSectionAction(
 
 export async function archiveSectionAction(id: SectionId): Promise<ActionResult> {
   const result = await archiveSection(repo, id);
+  if (!result.ok) return failure(result.error);
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/** 日界セクション（1日の開始。F-116）を切り替える（画面定義書03 §3.1） */
+export async function setDayStartSectionAction(id: SectionId): Promise<ActionResult> {
+  const result = await setDayStartSection(repo, id);
   if (!result.ok) return failure(result.error);
   revalidatePath(PATH);
   return { ok: true };

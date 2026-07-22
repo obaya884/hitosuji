@@ -103,6 +103,7 @@ describe("duplicateTask（F-111: 複製）", () => {
     create: async () => sections[0],
     update: async () => {},
     setArchived: async () => {},
+    setDayStart: async () => {},
     referenceCounts: async () => ({}),
     remove: async () => {},
   };
@@ -208,6 +209,7 @@ describe("duplicateAndStartTask（F-208: 複製して開始）", () => {
     create: async () => sections[0],
     update: async () => {},
     setArchived: async () => {},
+    setDayStart: async () => {},
     referenceCounts: async () => ({}),
     remove: async () => {},
   };
