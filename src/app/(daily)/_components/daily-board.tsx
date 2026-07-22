@@ -5,7 +5,7 @@ import { useEffect, useMemo, useOptimistic, useRef, useState, useTransition } fr
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { Section } from "@/domain/section/section";
-import { addDays, weekdayIndex, type LogicalDate } from "@/domain/shared/logical-date";
+import { weekdayIndex, type LogicalDate } from "@/domain/shared/logical-date";
 import {
   withTaskAppended,
   withTaskMoved,
@@ -13,7 +13,7 @@ import {
   type DailyGroup,
 } from "@/domain/task/daily-list";
 import { stepMoveDestination } from "@/domain/task/reorder";
-import { currentTaskId, keepSelection, moveSelection } from "@/domain/task/selection";
+import { keepSelection } from "@/domain/task/selection";
 import { taskStatus } from "@/domain/task/status";
 import { editEndedAt, editStartedAt } from "@/domain/task/punch-edit";
 import { validateEstimateMinutes, validateTaskName } from "@/domain/task/edit";
@@ -45,12 +45,18 @@ import {
   updateTaskPunchAction,
   type DailyActionResult,
 } from "../actions";
-import { DailyList, type EditField, type EditingCell } from "./daily-list";
+import { DailyList, type EditingCell } from "./daily-list";
 import { DailySummary } from "./daily-summary";
 import { DateNav } from "@/app/_components/date-nav";
 import { ShortcutHelp } from "./shortcut-help";
 import { StaleRunningBanner } from "./stale-running-banner";
 import { Toast } from "./toast";
+import { useDailyShortcuts } from "./use-daily-shortcuts";
+
+/** 生成系アクション（複製・複製して開始・クイック追加）の結果。成功時に採番された生成物 id を返す */
+type CreatingActionResult = Readonly<
+  { ok: true; createdId: number } | { ok: false; message: string }
+>;
 
 type Props = Readonly<{
   date: LogicalDate;
@@ -209,6 +215,24 @@ export function DailyBoard({
     });
   }
 
+  /**
+   * 生成系（複製・複製して開始・クイック追加）の共通処理。採番をサーバが決めるため
+   * 生成物の選択は確定後に寄せる（O-11）: 成功なら `createdId` へ選択を移し、失敗なら `setError`。
+   * `optimistic` を渡すと確定前に楽観更新を反映する（クイック追加の即時表示用）
+   */
+  function runSelectingCreated(
+    action: () => Promise<CreatingActionResult>,
+    optimistic?: OptimisticAction
+  ) {
+    setError(null);
+    startTransition(async () => {
+      if (optimistic !== undefined) dispatchOptimistic(optimistic);
+      const result = await action();
+      if (result.ok) setSelectedId(result.createdId);
+      else setError(result.message);
+    });
+  }
+
   // §3.4: Enter で追加 → 欄はクリアし、追加したタスクを選択（FB-29）。連続入力は N で欄に戻る。
   // 空のままの Enter は何もしない。欄からのフォーカス外しは呼び出し側で行う（ref をレンダー中に読まない）
   function add() {
@@ -216,13 +240,10 @@ export function DailyBoard({
     if (trimmed === "") return;
 
     setName("");
-    setError(null);
-    startTransition(async () => {
-      // 追加行は楽観的に即表示。採番はサーバが決めるため選択は確定後に寄せる
-      dispatchOptimistic({ type: "append", task: optimisticTask(date, trimmed) });
-      const result = await addTaskAction({ date, name: trimmed });
-      if (!result.ok) setError(result.message);
-      else setSelectedId(result.createdId); // 追加したタスクを選択（§3.4 / FB-29）
+    // 追加行は楽観的に即表示し、確定後に追加したタスクを選択する（§3.4 / FB-29）
+    runSelectingCreated(() => addTaskAction({ date, name: trimmed }), {
+      type: "append",
+      task: optimisticTask(date, trimmed),
     });
   }
 
@@ -270,12 +291,7 @@ export function DailyBoard({
    * 楽観的更新はせず（O-11 と同じ）、開始した複製タスクへ選択を移す
    */
   function duplicateAndStart(task: Task, now: Date) {
-    setError(null);
-    startTransition(async () => {
-      const result = await duplicateAndStartTaskAction(task.id, now);
-      if (result.ok) setSelectedId(result.createdId);
-      else setError(result.message);
-    });
+    runSelectingCreated(() => duplicateAndStartTaskAction(task.id, now));
   }
 
   /** 開始打刻の取り消し（O-13 / F-210）。実行中タスクを未実行へ戻す。now はクライアントのものを送る */
@@ -336,16 +352,15 @@ export function DailyBoard({
       return;
     }
 
-    // 生成物の採番はサーバが決めるため楽観更新はしない
+    if (operation === "duplicate") {
+      // 複製したタスクを選択する（O-11）。採番はサーバが決めるため楽観更新はしない
+      runSelectingCreated(() => duplicateTaskAction(task.id));
+      return;
+    }
+
+    // 中断・先送りは楽観更新せずサーバ確定を待つ
     setError(null);
     startTransition(async () => {
-      if (operation === "duplicate") {
-        const result = await duplicateTaskAction(task.id);
-        if (result.ok) setSelectedId(result.createdId); // 複製したタスクを選択する（O-11）
-        else setError(result.message);
-        return;
-      }
-
       const result =
         operation === "suspend"
           ? await suspendTaskAction(task.id, new Date())
@@ -406,122 +421,23 @@ export function DailyBoard({
 
   // Undo トーストの自動消去（O-8）は Toast コンポーネント側に一元化してある（画面定義書01 §8 / FB-15）
 
-  useEffect(() => {
-    function onKeyDownGlobal(e: KeyboardEvent) {
-      // テキスト入力中・IME変換中はショートカット無効（画面定義書01 §6）
-      const target = e.target as HTMLElement | null;
-      if (e.isComposing || target?.tagName === "INPUT" || target?.tagName === "TEXTAREA") return;
-      // 編集中（インライン編集・選択ポップオーバー表示中）は行操作キーを無効化する。
-      // ポップオーバーは J/K/Enter を自前で拾うため、ここで素通しさせない（F-112）
-      if (editing !== null) return;
-      // 修飾キーは Shift のみ使用する（§6）。Cmd/Ctrl 併用時はブラウザの既定動作に任せる
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-
-      const selected = orderedTasks.find((t) => t.id === selectedId) ?? null;
-      const requestEdit = (field: EditField) => {
-        if (selected === null) return;
-        // 押したキー自体が編集欄へ入力されないように既定動作を止める
-        e.preventDefault();
-        setEditing({ taskId: selected.id, field });
-      };
-
-      // ? は Shift+/ で入力されるため、Shift 分岐より先に処理する
-      if (e.key === "?") {
-        setShowHelp((v) => !v);
-        return;
-      }
-
-      if (e.shiftKey) {
-        switch (e.key) {
-          case "J":
-            moveByStep(1);
-            return;
-          case "K":
-            moveByStep(-1);
-            return;
-          case "H":
-            router.push(`/?date=${addDays(date, -1)}`);
-            return;
-          case "L":
-            router.push(`/?date=${addDays(date, 1)}`);
-            return;
-          default:
-            return;
-        }
-      }
-
-      switch (e.key) {
-        // 選択行の移動（§5。矢印キーは割り当てず J/K のみ。FB-33）
-        case "j":
-          setSelectedId((current) => moveSelection(orderedTasks, current, 1));
-          return;
-        case "k":
-          setSelectedId((current) => moveSelection(orderedTasks, current, -1));
-          return;
-        case "c": // 現在地へジャンプ（§5）
-          setSelectedId(currentTaskId(orderedTasks));
-          return;
-        case "Enter":
-          // ボタンにフォーカスが残っている場合はブラウザがそのボタンを押すので、
-          // ここで打刻すると二重に発火する（打刻ボタンを押した直後など）
-          if (target?.tagName === "BUTTON") return;
-          if (selected !== null) punch(selected); // 開始 →（実行中なら）終了
-          return;
-        case "i":
-          if (selected !== null) operate(selected, "suspend");
-          return;
-        case "y":
-          if (selected !== null) operate(selected, "duplicate");
-          return;
-        case "d":
-          if (selected !== null) operate(selected, "delete");
-          return;
-        case "u":
-          // 直前の削除の取り消しが保留中（Undoトースト表示中）ならそれを優先する。
-          // 削除すると選択が現在地（実行中タスク）へ移るため、優先しないと U が開始取消に化ける（FB-37 動作確認）。
-          // 保留がなく実行中タスクを選択中なら開始の取り消し、それ以外は削除の取り消し（O-13）
-          if (deleted === null && selected !== null && taskStatus(selected) === "running") {
-            unstart(selected);
-          } else {
-            undoDelete();
-          }
-          return;
-        case "t":
-          router.push("/");
-          return;
-        case "a":
-          e.preventDefault(); // 入力欄に "a" が入るのを防ぐ
-          quickAddRef.current?.focus();
-          return;
-        case "r":
-        case "F2":
-          requestEdit("name");
-          return;
-        case "e":
-          requestEdit("estimate");
-          return;
-        case "b":
-          requestEdit("startedAt");
-          return;
-        case "f":
-          requestEdit("endedAt");
-          return;
-        case "m":
-          requestEdit("mode");
-          return;
-        case "p":
-          requestEdit("project");
-          return;
-        case "s":
-          requestEdit("section");
-          return;
-        default:
-          return;
-      }
-    }
-
-    window.addEventListener("keydown", onKeyDownGlobal);
-    return () => window.removeEventListener("keydown", onKeyDownGlobal);
+  // グローバルキーボードショートカット（§6）。配線はフックへ切り出し（挙動は不変・T-14）
+  useDailyShortcuts({
+    editing,
+    orderedTasks,
+    selectedId,
+    deleted,
+    date,
+    quickAddRef,
+    router,
+    setEditing,
+    setShowHelp,
+    setSelectedId,
+    moveByStep,
+    punch,
+    operate,
+    unstart,
+    undoDelete,
   });
 
   return (
