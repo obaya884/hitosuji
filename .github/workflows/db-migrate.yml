@@ -1,6 +1,6 @@
 name: DB migrate (production)
 
-# 本番DBへ Drizzle マイグレーションを手動適用する（技術改善計画 T-22 / 案A・段階1）。
+# 本番DBへ Drizzle マイグレーションを手動適用する（技術改善計画 T-22 / 案A）。
 # 実行は workflow_dispatch（Actions タブの「Run workflow」ボタン）に限定し、
 # db-migrate Environment の承認ゲートを通す。デプロイは従来どおり別途手動（Vercel）。
 #
