@@ -12,7 +12,7 @@
       "id": 1,
       "name": "security-alerts",
       "prompt": "hitosuji の GitHub security タブに Dependabot アラートが2件出ている。下の情報でどう対処するか計画して。overrides の追加や dismiss は実際には実行せず、方針と（実行するなら）具体的なコマンドを提示するだけにして。\n\n$ gh api repos/obaya884/hitosuji/dependabot/alerts (open)\n- #2 postcss  medium  scope=runtime  vulnerable <8.5.10  patched 8.5.10  \"XSS via Unescaped </style> in CSS Stringify Output\"  経路: next@16.2.10 が同梱する古い postcss（最上位の @tailwindcss/postcss は既に 8.5.19）\n- #1 esbuild  medium  scope=development  vulnerable <=0.24.2  patched 0.25.0  \"esbuild dev server が任意オリジンからの要求に応答\"  経路: drizzle-kit@0.31.10(最新) -> @esbuild-kit/esm-loader -> esbuild@0.18\n\n補足: CI は lint/build/test を回すが drizzle-kit の generate/migrate は回さない。@esbuild-kit は esbuild 0.18 前提。",
-      "expected_output": "postcss=overrides で ^8.5.10 に固定して根治(CIのbuildで検証可)。esbuild=上流に修正なし・drizzle-kitはesbuildのdev serveを使わない到達不能パスで、overrideは@esbuild-kitを壊すがCIで検出できないため、not_used理由でdismissし技術改善計画で追跡。dismissはアウトバウンドなので合図を待つ。",
+      "expected_output": "postcss=overrides で ^8.5.10 に固定して根治(CIのbuildで検証可)。esbuild=上流に修正なし・drizzle-kitはesbuildのdev serveを使わない到達不能パスで、overrideは@esbuild-kitを壊すがCIで検出できないため、not_used理由でdismissし技術改善バックログで追跡。dismissはアウトバウンドなので合図を待つ。",
       "files": []
     },
     {
