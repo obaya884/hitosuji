@@ -77,18 +77,24 @@ jobs:
             // ── migrate 実行を促す注意コメント（T-22 の運用明瞭化）──
             // 隠しマーカーで自分のコメントを一意に識別し、重複投稿を防ぐ（sticky comment）。
             const MARKER = '<!-- schema-migrate-reminder -->';
+            const branch = context.payload.pull_request.head.ref;
+            const workflowUrl = `https://github.com/${owner}/${repo}/actions/workflows/db-migrate.yml`;
             const body = [
               MARKER,
-              '### ⚠️ スキーマ更新（本番マイグレーション）が必要な PR です',
+              '> [!WARNING]',
+              '> **スキーマ更新（本番マイグレーション）が必要な PR です。** マージ（＝本番デプロイ）の前に、本番DBへマイグレーションを適用してください。',
               '',
-              'この PR は新規マイグレーションを含みます。**マージ＝本番デプロイ**の前に、本番DBへマイグレーションを適用してください。',
+              '**手順:**',
               '',
-              '1. Actions → **DB migrate (production)** → **Run workflow** で、**この PR のブランチを選んで**実行（`confirm` に `migrate` と入力）',
+              `1. [**DB migrate (production) を実行**](${workflowUrl}) → ブランチ **\`${branch}\`** を選び、\`confirm\` に \`migrate\` と入力`,
               '2. `db-migrate` Environment の承認 → 適用の成功を確認',
               '3. 成功後にこの PR をマージ（＝ Vercel が自動デプロイ）',
               '',
-              '`migrate → マージ（デプロイ）` の順を守ること（逆順だと新コードが未作成テーブルを参照して壊れる）。',
-              '詳細: `docs/スキーマ更新パイプライン検討.md` / CLAUDE.md「本番マイグレーションの手順」。',
+              'CLI なら1行（ブランチ指定込み）:',
+              '',
+              '```',
+              `gh workflow run db-migrate.yml --ref ${branch} -f confirm=migrate`,
+              '```',
             ].join('\n');
 
             const comments = await github.paginate(github.rest.issues.listComments, {
@@ -100,10 +106,13 @@ jobs:
             const existing = comments.find((c) => c.body && c.body.includes(MARKER));
 
             if (needsSchemaUpdate) {
-              // 未投稿なら1件だけ投稿。既にあれば内容固定のため何もしない。
+              // 未投稿なら1件だけ投稿。既にあれば文面が変わったときのみ更新（重複投稿しない）。
               if (!existing) {
                 await github.rest.issues.createComment({ owner, repo, issue_number, body });
                 core.info('migrate 実行の注意コメントを投稿しました');
+              } else if (existing.body !== body) {
+                await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+                core.info('migrate 実行の注意コメントを更新しました');
               }
             } else if (existing) {
               // マイグレーションが無くなったらコメントも取り下げる（ラベルと同じ追随）。
