@@ -7,10 +7,15 @@ name: DB migrate (production)
 # ── 事前設定（GitHub 側・オーナーが手動で行う。これが無いと動かない）──
 #   Settings → Environments → "db-migrate" を作成し、
 #     - Required reviewers にオーナーを設定（＝承認ゲート）
-#     - Deployment branches を main のみに制限（任意ブランチからの dispatch を防ぐ）
 #     - Secret: MIGRATE_DATABASE_URL = Neon の接続文字列（★Pooled を外した unpooled）
 #   ※ アプリ実行用の pooled URL とは別物。migrate は unpooled を使う
 #     （CLAUDE.md「本番マイグレーションの手順」/ スキーマ更新パイプライン検討.md §4）
+#
+# ── 運用（migrate → deploy の順を保つ）──
+#   デプロイは main への push で Vercel が自動で行うため、migrate は「先に」回す必要がある。
+#   新規マイグレーションを持つ PR ブランチを選んで Run workflow → 成功を確認 → マージ（＝デプロイ）。
+#   ※ Deployment branches は main 限定にしないこと。main 限定にすると先にマージ（＝デプロイ）が
+#     要る前提になり順序が逆転する。branch 制限はデプロイをパイプラインが握る案B で導入する。
 #
 # 退避点: Neon の PITR（自動）に依拠する。pg_dump のダンプは実データを含むため、
 #         public リポジトリの artifact には保存しない（検討ドキュメント §5）。

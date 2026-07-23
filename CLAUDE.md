@@ -149,7 +149,7 @@ BASIC_AUTH_PASSWORD='...'
 3. `set -a; . ./.env.migrate; set +a; npm run db:migrate`
 4. `migrations applied successfully!` を確認したら `.env.migrate` を削除し、push する
 
-> リモート（GitHub Actions）で手動実行する代替手段もある（Actions → **DB migrate (production)** の「Run workflow」）。migrate 専用の `db-migrate` Environment の承認ゲートと `MIGRATE_DATABASE_URL`（unpooled）シークレットの設定が前提。詳細は [docs/スキーマ更新パイプライン検討.md](./docs/スキーマ更新パイプライン検討.md)（技術改善計画 T-22 案A・段階1）。デプロイ（push）は従来どおり別途。
+> リモート（GitHub Actions）で手動実行する代替手段もある（Actions → **DB migrate (production)** の「Run workflow」）。migrate 専用の `db-migrate` Environment の承認ゲートと `MIGRATE_DATABASE_URL`（unpooled）シークレットの設定が前提。**新規マイグレーションを持つ PR ブランチを選んで実行 → 成功後にマージ（＝デプロイ）**、の順で回す（migrate → deploy の順を保つ）。詳細は [docs/スキーマ更新パイプライン検討.md](./docs/スキーマ更新パイプライン検討.md)（技術改善計画 T-22 案A・段階1）。
 
 ## 規約
 
