@@ -1,0 +1,74 @@
+name: Label schema migration
+
+# 新規マイグレーションを含む PR に「スキーマ更新」ラベルを付ける（技術改善計画 T-21）。
+# 狙い: マージ＝本番デプロイの前に、本番マイグレーション（手動適用）の実行漏れを防ぐ注意喚起。
+# ラベルの付与／除去のみで CI を fail させず・マージもブロックしない（CLAUDE.md「本番マイグレーションの手順」）。
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+# ラベル操作に issues/PR への書き込みが要る。他は最小権限に絞る。
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: label-schema-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const LABEL = 'スキーマ更新';
+            // 新規マイグレーション SQL の追加を「スキーマ更新が必要」の判定条件とする。
+            const MIGRATIONS_DIR = 'src/infrastructure/db/migrations/';
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner,
+              repo,
+              pull_number: issue_number,
+              per_page: 100,
+            });
+
+            // 新規追加された *.sql のみを対象にする（本番へ流す新しいマイグレーションと 1:1）。
+            // 既存マイグレーションの削除・リネームは通常起きず、起きても「追加」ではないため対象外。
+            const needsSchemaUpdate = files.some(
+              (f) =>
+                f.status === 'added' &&
+                f.filename.startsWith(MIGRATIONS_DIR) &&
+                f.filename.endsWith('.sql'),
+            );
+
+            if (needsSchemaUpdate) {
+              // ラベルが未作成なら初回に作る（以降は既存を再利用）。
+              try {
+                await github.rest.issues.getLabel({ owner, repo, name: LABEL });
+              } catch (e) {
+                if (e.status !== 404) throw e;
+                await github.rest.issues.createLabel({
+                  owner,
+                  repo,
+                  name: LABEL,
+                  color: 'D93F0B',
+                  description: 'マージ前に本番マイグレーションの手動適用が必要',
+                });
+              }
+              await github.rest.issues.addLabels({ owner, repo, issue_number, labels: [LABEL] });
+              core.info(`「${LABEL}」ラベルを付与しました`);
+            } else {
+              // 後続コミットでマイグレーションが消えた場合に追随してラベルを外す。
+              try {
+                await github.rest.issues.removeLabel({ owner, repo, issue_number, name: LABEL });
+                core.info(`「${LABEL}」ラベルを外しました`);
+              } catch (e) {
+                if (e.status !== 404) throw e; // 付いていなければ 404 → 何もしない
+              }
+            }
