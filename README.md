@@ -117,7 +117,7 @@ npm run db:sync-masters -- backups/hitosuji_YYYYMMDD_HHMMSS.dump [対象DB名]  
 - マスタ・ルーチン・タスクの内容ハッシュ（md5）が本番と一致
 - 復元DBへアプリを向けて、デイリー・ルーチン・マスタの各画面が本番と同じ内容で表示されること
 
-GitHub Actions cron による自動化は実運用を開始してから検討する。
+GitHub Actions cron による自動化は方式を決定済み（案A＝`age` 暗号化＋プライベートリポジトリへの週次 cron）。方式・設計は [docs/データバックアップ自動化検討.md](./docs/データバックアップ自動化検討.md)（T-25）が正。実装は運用の負担を見てから着手する。
 
 ## ライセンス
 
