@@ -34,6 +34,8 @@ concurrency:
 jobs:
   migrate:
     runs-on: ubuntu-latest
+    # 適用が何らかの理由でハングしても concurrency group を長時間占有しないよう上限を置く。
+    timeout-minutes: 10
     # この environment に紐付けることで承認ゲートを通し、MIGRATE_DATABASE_URL も
     # この environment スコープのシークレットに限定される（pull_request では走らない）。
     environment: production
@@ -60,4 +62,10 @@ jobs:
           # Neon の unpooled 接続文字列（production Environment のシークレット）。
           # drizzle.config.ts は DATABASE_URL を読むためこの名前で渡す。ログには出さない。
           DATABASE_URL: ${{ secrets.MIGRATE_DATABASE_URL }}
-        run: npm run db:migrate
+        run: |
+          # 未設定なら空文字列が渡り分かりにくい接続エラーになるため、先に明示的に止める（値は出さない）。
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "MIGRATE_DATABASE_URL（production Environment のシークレット）が未設定です。中止します。" >&2
+            exit 1
+          fi
+          npm run db:migrate
