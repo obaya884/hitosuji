@@ -1,0 +1,78 @@
+name: DB migrate (production)
+
+# 本番DBへ Drizzle マイグレーションを手動適用する（技術改善計画 T-22 / 案A）。
+# 実行は workflow_dispatch（Actions タブの「Run workflow」ボタン）に限定し、
+# db-migrate Environment の承認ゲートを通す。デプロイは従来どおり別途手動（Vercel）。
+#
+# ── 事前設定（GitHub 側・オーナーが手動で行う。これが無いと動かない）──
+#   Settings → Environments → "db-migrate" を作成し、
+#     - Required reviewers にオーナーを設定（＝承認ゲート）
+#     - Secret: MIGRATE_DATABASE_URL = Neon の接続文字列（★Pooled を外した unpooled）
+#   ※ アプリ実行用の pooled URL とは別物。migrate は unpooled を使う
+#     （CLAUDE.md「本番マイグレーションの手順」/ スキーマ更新パイプライン検討.md §4）
+#
+# ── 運用（migrate → deploy の順を保つ）──
+#   デプロイは main への push で Vercel が自動で行うため、migrate は「先に」回す必要がある。
+#   新規マイグレーションを持つ PR ブランチを選んで Run workflow → 成功を確認 → マージ（＝デプロイ）。
+#   ※ Deployment branches は main 限定にしないこと。main 限定にすると先にマージ（＝デプロイ）が
+#     要る前提になり順序が逆転する。branch 制限はデプロイをパイプラインが握る案B で導入する。
+#
+# 退避点: Neon の PITR（自動）に依拠する。pg_dump のダンプは実データを含むため、
+#         public リポジトリの artifact には保存しない（検討ドキュメント §5）。
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: '本番DBへ migrate を適用します。実行するには migrate と入力してください'
+        required: true
+        type: string
+
+# マイグレーション適用はコード取得のみでよい。書き込み権限は与えない。
+permissions:
+  contents: read
+
+concurrency:
+  # 本番への多重適用を防ぐ。実行中は後続を待たせる（進行中はキャンセルしない）。
+  group: db-migrate-production
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    # 適用が何らかの理由でハングしても concurrency group を長時間占有しないよう上限を置く。
+    timeout-minutes: 10
+    # この environment に紐付けることで承認ゲートを通し、MIGRATE_DATABASE_URL も
+    # この environment スコープのシークレットに限定される（pull_request では走らない）。
+    # Vercel が使う "Production" 環境とは分け、migrate 専用の "db-migrate" を用いる。
+    environment: db-migrate
+
+    steps:
+      - name: 確認入力の検証
+        if: ${{ inputs.confirm != 'migrate' }}
+        run: |
+          echo "確認入力が 'migrate' ではありません。中止します。" >&2
+          exit 1
+
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          # 本番（Vercel）の既定ランタイムに合わせる
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: マイグレーション適用
+        env:
+          # Neon の unpooled 接続文字列（db-migrate Environment のシークレット）。
+          # drizzle.config.ts は DATABASE_URL を読むためこの名前で渡す。ログには出さない。
+          DATABASE_URL: ${{ secrets.MIGRATE_DATABASE_URL }}
+        run: |
+          # 未設定なら空文字列が渡り分かりにくい接続エラーになるため、先に明示的に止める（値は出さない）。
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "MIGRATE_DATABASE_URL（db-migrate Environment のシークレット）が未設定です。中止します。" >&2
+            exit 1
+          fi
+          npm run db:migrate
