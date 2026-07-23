@@ -1,13 +1,16 @@
 ---
 name: dependabot-triage
 description: >-
-  依存パッケージの更新をどうするか判断したいときに使う。GitHub の Dependabot が上げた
+  依存パッケージの更新やセキュリティ指摘をどうさばくか判断したいときに使う。GitHub の Dependabot が上げた
   bump PR（あるライブラリを X から Y に上げる、eslint/typescript/esbuild/postcss/drizzle-kit/@types/node
   等の major/minor/patch）を「マージするか・閉じるか」、CIが赤い/緑だがどう扱うか、複数の更新PRの
-  どれを入れどれを閉じるか、を決めたい場面はすべてこれ。あわせて GitHub Security の脆弱性アラートを
-  「dismiss するか・overrides で直すか」迷う場面も含む。「dependabot」「bump」「脆弱性」「アラート」の語が
-  無くても、パッケージ名や version 番号が絡む更新・セキュリティ判断ならこれを使う。「このPR見て」でも中身が
-  依存更新なら使う。使わない場面: 自作コードのレビュー、機能実装、CI設定やビルド高速化、デプロイ手順、gh CLI の使い方。
+  どれを入れどれを閉じるか、を決めたい場面はすべてこれ。あわせて GitHub Security の脆弱性アラート（Dependabot）を
+  「dismiss するか・overrides で直すか」、および code-scanning（CodeQL 静的解析）アラート（例:
+  missing-workflow-permissions のような rule 指摘）を「コード・設定を直して根治するか・dismiss するか」迷う場面も含む。
+  「dependabot」「bump」「脆弱性」「アラート」「code scanning」「CodeQL」「コードスキャン」の語が無くても、
+  パッケージ名や version 番号が絡む更新・セキュリティ判断、あるいは GitHub の Security タブ
+  （Dependabot alerts / code scanning）の指摘への対処ならこれを使う。「このPR見て」でも中身が依存更新なら使う。
+  使わない場面: 自作コードのレビュー、機能実装、CI設定やビルド高速化、デプロイ手順、gh CLI の使い方。
   merge＝本番デプロイの規律を守り、close/merge/dismiss を安全に進める。
 ---
 
@@ -20,7 +23,7 @@ Dependabot の依存更新PR・セキュリティアラートを、機械的検�
 ## 最優先の規律（絶対に飛ばさない）
 
 - **マージ＝main への push＝本番デプロイ**。CI が緑でも、マージは**オーナーの明示的な合図を待つ**。自分の判断で merge/deploy しない
-- **アラートの dismiss もアウトバウンド操作**。実行前にオーナーに一声かける
+- **アラートの dismiss もアウトバウンド操作**。Dependabot・code-scanning のどちらも、実行前にオーナーに一声かける
 - **close は実行してよい**（差し戻しではなく、後述の理由付きクローズ）
 - 挙動を変えない依存追随・ツール整備は `docs/技術改善計画.md` に **T-XX** で記録する（[CLAUDE.md](../../../CLAUDE.md) の軸分け）
 
@@ -92,12 +95,12 @@ npm ci                                # マージ後の lockfile に依存を合
 - 合図が出るまではマージしない。複数PRを取り込むなら「先に全部ローカル検証 → まとめて合図をもらう」と本番デプロイ回数を絞れる
 - 挙動を変えない更新なら `docs/技術改善計画.md` に完了記録として T-XX を残す
 
-### 6. セキュリティアラート
+### 6. セキュリティアラート（Dependabot＝依存の脆弱性）
 
-アラートは「**到達可能性**」と「**上流にクリーンな修正があるか**」で対処が変わる。
+依存アラートは「**到達可能性**」と「**上流にクリーンな修正があるか**」で対処が変わる。
 
 1. transitive か直接依存か、dev か runtime scope か、**脆弱コードが実行経路に乗るか**を見る
-2. **overrides で安全に直せる** → `package.json` の `overrides` で修正版に固定し `npm install`。CI の build で回帰なしを確認してからオーナーに諮る（例: `postcss` を `^8.5.10` に固定して Next 同梱の古い版を dedupe）
+2. **overrides で安全に直せる** → `package.json` の `overrides` で修正版に固定し `npm install`。CI の build で回帰なしを確認してからオーナーに諮る（例: `postcss` を `^8.5.10` に固定して Next 同梱の古い版を dedupe。`sharp` を `^0.35.0` に固定して libvips 脆弱性を解消）
 3. **上流に修正が無く、脆弱経路が到達不能** → 理由付きで **dismiss**（オーナー合図後）:
 
 ```bash
@@ -110,6 +113,34 @@ gh api --method PATCH /repos/obaya884/hitosuji/dependabot/alerts/<N> \
 - **CI で検出できない壊し方をする override は避ける**（例: `@esbuild-kit` が古い esbuild を前提とする場合、esbuild を上げると `drizzle-kit generate/migrate` が壊れるが CI は気づけない → override せず dismiss＋追跡）
 - dismiss したものは `docs/技術改善計画.md` に T-XX で追跡（根治条件と再確認のトリガーを書く）
 
+### 7. code-scanning アラート（CodeQL 静的解析）
+
+これは §6 とは**別物**。依存の版問題ではなく、**自分のコード・ワークフロー設定**への静的解析の指摘。API・エンドポイント・dismiss 語彙も Dependabot とは違うので混同しない。
+
+このリポの CodeQL は**ワークフローファイルを持たず GitHub の default setup**（Security タブの Code scanning → Default setup）で動く。対象は `actions`（GitHub Actions ワークフロー）と `javascript-typescript`。`.github/workflows/` に CodeQL の YAML は無いのが正常で、設定変更は GitHub UI 側で行う。
+
+**棚卸し**:
+
+```bash
+gh api repos/obaya884/hitosuji/code-scanning/alerts \
+  --jq '.[] | select(.state=="open") | {num:.number, rule:.rule.id, sev:.rule.security_severity_level, path:.most_recent_instance.location.path}'
+```
+
+**判断軸**は「**真の欠陥・設定漏れ**（コードやワークフローを直して根治）」か「**false positive・到達不能・テスト専用**（dismiss）」か。依存アラートの「版を上げる／固定する」とは発想が違い、直すのは自分のコード側。
+
+- **根治できる（合図後の PR）** → コード・ワークフローを直して push。default setup が再スキャンし、指摘が消えれば**アラートは自動クローズ**する（手で閉じない）。挙動を変えない設定修正なら `docs/技術改善計画.md` に **T-XX** で記録
+  - 例: `actions/missing-workflow-permissions`（ワークフローに `permissions:` ブロックが無く GITHUB_TOKEN が広すぎる）→ 該当 `.github/workflows/*.yml` に最小権限の `permissions:` を足せば根治
+- **false positive・到達不能・テスト専用 → dismiss**（オーナー合図後のアウトバウンド操作）:
+
+```bash
+gh api --method PATCH /repos/obaya884/hitosuji/code-scanning/alerts/<N> \
+  -f state=dismissed -f dismissed_reason="won't fix" \
+  -f dismissed_comment="<false positive の根拠 / 到達不能の理由 と、再確認のトリガー>"
+```
+
+- `dismissed_reason` は **`false positive` / `won't fix` / `used in tests` の3値のみ**（Dependabot の `not_used`/`tolerable_risk`/`inaccurate` とは**別語彙**。取り違えると API が弾く）
+- dismiss したものは §6 と同様 `docs/技術改善計画.md` に **T-XX** で追跡（根治条件と再確認トリガーを書く）
+
 ## 別件 WIP を混ぜない
 
 トリアージのために別ブランチへ切り替える前に、作業ツリーの未コミット変更を確認する。無関係な WIP があれば `git stash` で退避するか、コミットは**対象ファイルだけを個別に `git add`** して混入を防ぐ。トリアージのコミットに別件の変更を巻き込まない。
@@ -117,7 +148,8 @@ gh api --method PATCH /repos/obaya884/hitosuji/dependabot/alerts/<N> \
 ## 完了の確認
 
 - version-update PR: 想定どおり残 open が減っている（`gh pr list`）
-- security: `gh api .../dependabot/alerts` の open が想定数（修正版は自動クローズ、dismiss は dismissed 表示）
+- security（Dependabot）: `gh api .../dependabot/alerts` の open が想定数（修正版は自動クローズ、dismiss は dismissed 表示）
+- security（code-scanning）: `gh api .../code-scanning/alerts` の open が想定数（根治の push は再スキャンで自動クローズ、dismiss は dismissed 表示）
 - マージした変更は main の CI が緑、本番デプロイが Ready
 
 ## 参考
