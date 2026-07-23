@@ -12,6 +12,11 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# GITHUB_TOKEN を最小権限に絞る（CodeQL: actions/missing-workflow-permissions・技術改善計画 T-24）。
+# verify ジョブは checkout のみで、コード取得に必要な contents: read で足りる。
+permissions:
+  contents: read
+
 jobs:
   verify:
     runs-on: ubuntu-latest
