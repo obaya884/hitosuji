@@ -48,19 +48,26 @@ Vercel の GitHub 連携により、main 以外への push・PR には自動で�
 
 **マージ＝本番デプロイ**なので、スキーマ変更を含む PR は**マージ前に本番へマイグレーションを適用する**（順序: `migrate → マージ（デプロイ）`。逆順だと新コードが未作成テーブルを参照して壊れる）。
 
-- 新規マイグレーション（`src/infrastructure/db/migrations/*.sql`）を含む PR には、CI が自動で**「スキーマ更新」ラベル**と**実行を促す注意コメント**を付ける（[技術改善計画](./docs/技術改善計画.md) T-21）。
-- マイグレーションの適用は次のどちらか:
-  - **リモート（推奨）**: Actions → **DB migrate (production)** → **Run workflow** で、**その PR のブランチを選んで**実行（`confirm` に `migrate` と入力 → `db-migrate` Environment の承認）。成功を確認してからマージする。
-  - **ローカル**: [CLAUDE.md](./CLAUDE.md)「本番マイグレーションの手順」（`.env.migrate` 経由で `npm run db:migrate`）。
-- 方式・設計の詳細は [docs/スキーマ更新パイプライン検討.md](./docs/スキーマ更新パイプライン検討.md)（T-22。案A を採用し、自動化の案B・Cは個人開発の規模では過剰につき見送り）。
+新規マイグレーション（`src/infrastructure/db/migrations/*.sql`）を含む PR には、CI が自動で**「スキーマ更新」ラベル**と**実行を促す注意コメント**を付ける（[技術改善計画](./docs/技術改善計画.md) T-21）。適用は次のどちらか。方式・設計の背景は [docs/スキーマ更新パイプライン検討.md](./docs/スキーマ更新パイプライン検討.md)（T-22。案A を採用し、自動化の案B・Cは個人開発の規模では過剰につき見送り）。
 
-### リモート実行の前提設定（GitHub Environment）
+### リモート（推奨）
 
-リモート実行には、migrate 専用の Environment を用意する（Vercel の "Production" とは分ける）。
+Actions → **DB migrate (production)** → **Run workflow** で、**その PR のブランチ**を選んで実行（`confirm` に `migrate` と入力）→ `db-migrate` Environment の承認 → 成功を確認 → **マージ**。
+
+前提設定（初回のみ・GitHub 側。migrate 専用の Environment を Vercel の "Production" とは分けて用意する）:
 
 - Settings → Environments → **`db-migrate`** を作成し、**Required reviewers** にオーナーを設定（承認ゲート）
 - Secret **`MIGRATE_DATABASE_URL`** = Neon の接続文字列（**Pooled を外した unpooled**）を登録
 - Deployment branches は制限しない（PR ブランチから実行するため。理由は検討ドキュメント §3）
+
+### ローカル
+
+接続文字列を**コマンドライン引数に書かない**（履歴に平文で残るため）。`.env.migrate` 経由で渡す。
+
+1. Neon コンソール → Connection Details から接続文字列を取得（**Pooled connection のチェックを外す**）
+2. `.env.migrate` に `DATABASE_URL='...'` の1行で保存（`&` を含むためシングルクォート必須。`vercel env pull` では取れない＝Sensitive）
+3. `set -a; . ./.env.migrate; set +a; npm run db:migrate`
+4. `migrations applied successfully!` を確認したら `.env.migrate` を削除し、**マージ**
 
 ## バックアップ（N-06）
 
@@ -68,7 +75,7 @@ Vercel の GitHub 連携により、main 以外への push・PR には自動で�
 
 ### 取得
 
-接続文字列は**コマンドライン引数に書かない**（シェル履歴に平文で残るため）。[CLAUDE.md](./CLAUDE.md) の「本番マイグレーションの手順」と同じく `.env.migrate` 経由で渡す。
+接続文字列は**コマンドライン引数に書かない**（シェル履歴に平文で残るため）。「スキーマ更新（本番マイグレーション）」のローカル手順と同じく `.env.migrate` 経由で渡す。
 
 ```bash
 # Neon コンソール → Connection Details（Pooled のチェックを外す）で取得した接続文字列を

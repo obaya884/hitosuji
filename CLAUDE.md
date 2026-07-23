@@ -139,17 +139,10 @@ BASIC_AUTH_PASSWORD='...'
 
 ## 本番マイグレーションの手順
 
-スキーマ変更を含むデプロイは、**必ず「本番へ適用 → push」の順**で行う（逆順だと新コードが存在しないテーブルを参照して本番が壊れる）。
+スキーマ変更を含むデプロイは、**必ず「本番へ適用 → マージ（＝デプロイ）」の順**で行う（マージ＝本番デプロイ。逆順だと新コードが存在しないテーブルを参照して本番が壊れる）。
 
-1. Neon コンソール → Connection Details から接続文字列を取得（**Pooled connection のチェックを外す**）
-2. `.env.migrate` に `DATABASE_URL='...'` の1行で保存する（`&` を含むためシングルクォート必須）
-   - **接続文字列をコマンドライン引数に直接書かない**。会話履歴・シェル履歴に平文で残る
-   - `.env.production` 系を使わない理由は「環境変数」節を参照
-   - `vercel env pull` では取得できない（Sensitive 指定の変数は `[SENSITIVE]` になる）
-3. `set -a; . ./.env.migrate; set +a; npm run db:migrate`
-4. `migrations applied successfully!` を確認したら `.env.migrate` を削除し、push する
-
-> リモート（GitHub Actions）で手動実行する代替手段もある（Actions → **DB migrate (production)** の「Run workflow」）。migrate 専用の `db-migrate` Environment の承認ゲートと `MIGRATE_DATABASE_URL`（unpooled）シークレットの設定が前提。**新規マイグレーションを持つ PR ブランチを選んで実行 → 成功後にマージ（＝デプロイ）**、の順で回す（migrate → deploy の順を保つ）。詳細は [docs/スキーマ更新パイプライン検討.md](./docs/スキーマ更新パイプライン検討.md)（技術改善計画 T-22 案A）。
+- **具体的な手順（リモート推奨／ローカル）は [README](./README.md)「スキーマ更新（本番マイグレーション）」が正**。方式・設計の背景は [docs/スキーマ更新パイプライン検討.md](./docs/スキーマ更新パイプライン検討.md)（T-22）
+- 接続文字列を**平文で残さない**: ローカル適用は `.env.migrate`（`DATABASE_URL='...'` の1行）経由で渡しコマンドライン引数に直接書かない、リモート適用は `db-migrate` Environment の unpooled シークレットを使う。`.env.production` 系を使わない理由は「環境変数」節を参照
 
 ## 規約
 
