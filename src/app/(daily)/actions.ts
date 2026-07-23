@@ -28,7 +28,8 @@ import { moveTaskByOneStep, setTaskSection } from "@/usecases/task/reorder-useca
 import { createRoutineFromTask } from "@/usecases/routine/routine-usecases";
 import { applyCarryOverAfterPunch } from "@/usecases/task/relocation-usecases";
 import type { ActionResult } from "@/app/_lib/action-result";
-import { formatClock, todayLogicalDate } from "@/app/_lib/format";
+import { formatClock } from "@/app/_lib/format";
+import { resolveToday } from "@/app/_lib/today";
 import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
 import { createRoutineRepository } from "@/infrastructure/db/repositories/drizzle-routine-repository";
 import { createSectionRepository } from "@/infrastructure/db/repositories/drizzle-section-repository";
@@ -90,7 +91,8 @@ const PUNCH_ERROR_MESSAGES: Record<string, string> = {
 
 /** 開始打刻（F-201）。now はクライアントの現在時刻を受け取る */
 export async function startTaskAction(id: number, now: Date): Promise<DailyActionResult> {
-  const today = todayLogicalDate(now);
+  // 「今日」は日界（F-116）を踏まえて解決する（サーバ側で日界セクションを読む）
+  const today = await resolveToday(sectionRepo, now);
   const nowClock = formatClock(now);
   const result = await startTask(punchDeps, { taskId: id, now, nowClock, today });
   if (!result.ok) return { ok: false, message: PUNCH_ERROR_MESSAGES[result.error] };
@@ -105,7 +107,7 @@ export async function undoStartAction(id: number, now: Date): Promise<DailyActio
   const result = await undoStart(punchDeps, {
     taskId: id,
     nowClock: formatClock(now),
-    today: todayLogicalDate(now),
+    today: await resolveToday(sectionRepo, now),
   });
   if (!result.ok) return { ok: false, message: PUNCH_ERROR_MESSAGES[result.error] };
   revalidatePath("/");
@@ -115,7 +117,7 @@ export async function undoStartAction(id: number, now: Date): Promise<DailyActio
 export async function finishTaskAction(id: number, now: Date): Promise<DailyActionResult> {
   const result = await finishTask(taskRepo, { taskId: id, now });
   if (!result.ok) return { ok: false, message: PUNCH_ERROR_MESSAGES[result.error] };
-  const today = todayLogicalDate(now);
+  const today = await resolveToday(sectionRepo, now);
   await applyCarryOverAfterPunch(punchDeps, { date: today, today, nowClock: formatClock(now) });
   revalidatePath("/");
   return { ok: true };
@@ -136,8 +138,8 @@ export async function updateTaskPunchAction(
     taskId: id,
     ...punch,
     startClock,
-    // 「今日」の判定は他の打刻アクションと同じくクライアントの現在時刻から導く
-    today: todayLogicalDate(now),
+    // 「今日」の判定は他の打刻アクションと同じくクライアントの現在時刻＋日界（F-116）から導く
+    today: await resolveToday(sectionRepo, now),
   });
   if (!result.ok) return { ok: false, message: PUNCH_ERROR_MESSAGES[result.error] };
   revalidatePath("/");
@@ -230,7 +232,7 @@ export async function duplicateAndStartTaskAction(
   id: number,
   now: Date
 ): Promise<CreatingActionResult> {
-  const today = todayLogicalDate(now);
+  const today = await resolveToday(sectionRepo, now);
   const nowClock = formatClock(now);
   const result = await duplicateAndStartTask(
     { tasks: taskRepo, sections: sectionRepo },

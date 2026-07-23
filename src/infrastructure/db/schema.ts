@@ -30,6 +30,8 @@ export const sections = pgTable(
     name: text("name").notNull(),
     startTime: time("start_time").notNull(),
     isArchived: boolean("is_archived").notNull().default(false),
+    // 日界セクション（1日の開始。F-116）。有効セクション内でちょうど1件が true
+    isDayStart: boolean("is_day_start").notNull().default(false),
     ...timestamps,
   },
   (t) => [
@@ -37,6 +39,10 @@ export const sections = pgTable(
     uniqueIndex("uq_sections_start_time_active")
       .on(t.startTime)
       .where(sql`is_archived = false`),
+    // 日界セクションは有効セクション内で最大1件（データモデル定義書 §3.1）
+    uniqueIndex("uq_sections_day_start_active")
+      .on(t.isDayStart)
+      .where(sql`is_archived = false AND is_day_start = true`),
   ]
 );
 

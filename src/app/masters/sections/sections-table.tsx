@@ -12,6 +12,7 @@ import {
   createSectionAction,
   deleteSectionAction,
   restoreSectionAction,
+  setDayStartSectionAction,
   updateSectionAction,
 } from "./actions";
 
@@ -143,6 +144,8 @@ export function SectionsTable({ ranges, archived, deletableIds }: Props) {
 
   const newRow = (key: string) => (
     <tr key={key} className="border-b border-line">
+      {/* 日界の選択は保存後に行う（新規行では空） */}
+      <td className="py-1" />
       <td className="py-1 pr-2">
         <input
           autoFocus
@@ -189,6 +192,7 @@ export function SectionsTable({ ranges, archived, deletableIds }: Props) {
       <div className="flex items-center justify-between">
         <p className="text-xs text-ink-muted">
           編集できるのは開始時刻だけです（終了時刻は次のセクションの開始から自動導出）。並び順は開始時刻順です。
+          先頭のラジオで「1日の開始（日界）」になるセクションを選べます（F-116）。
         </p>
         <button
           onClick={() => {
@@ -211,6 +215,7 @@ export function SectionsTable({ ranges, archived, deletableIds }: Props) {
       <table className="mt-2 w-full text-sm">
         <thead>
           <tr className="border-b border-line-strong text-left text-xs text-ink-muted">
+            <th className="w-16 py-2 font-normal">日界</th>
             <th className="py-2 font-normal">名前</th>
             <th className="w-40 py-2 font-normal">時間帯</th>
             <th className="w-32 py-2" />
@@ -219,13 +224,26 @@ export function SectionsTable({ ranges, archived, deletableIds }: Props) {
         <tbody>
           {ranges.map((row) => (
             <tr key={row.id} className="border-b border-line">
+              <td className="py-2">
+                {/* 1日の開始（日界）セクションの選択（F-116 / 画面定義書03 §3.1） */}
+                <input
+                  type="radio"
+                  name="dayStart"
+                  aria-label={`${row.name}を1日の開始にする`}
+                  checked={row.isDayStart ?? false}
+                  disabled={isPending}
+                  onChange={() => run(() => setDayStartSectionAction(row.id))}
+                />
+              </td>
               <td className="py-2">{nameCell(row)}</td>
               <td className="py-2">{startTimeCell(row)}</td>
               <td className="py-2 text-right whitespace-nowrap">
                 <button
                   onClick={() => run(() => archiveSectionAction(row.id))}
-                  disabled={isPending}
-                  className={`px-2 ${linkMuted}`}
+                  // 日界セクションはアーカイブ不可（先に別セクションを日界に指定する。§3.1）
+                  disabled={isPending || (row.isDayStart ?? false)}
+                  title={row.isDayStart ? "日界セクションはアーカイブできません" : undefined}
+                  className={`px-2 ${linkMuted} disabled:opacity-40`}
                 >
                   アーカイブ
                 </button>

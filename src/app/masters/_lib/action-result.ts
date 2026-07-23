@@ -16,6 +16,7 @@ const MESSAGES: Record<MasterError, string> = {
   invalid_start_time: "開始時刻を HH:MM 形式で入力してください",
   duplicate_start_time: "同じ開始時刻の有効なセクションがあります",
   last_active_section: "有効なセクションは最低1件必要です",
+  day_start_section: "日界セクションはアーカイブできません（先に別のセクションを日界に指定してください）",
   invalid_color: "色はプリセットから選択してください",
   not_found: "対象が見つかりません（画面を再読み込みしてください）",
   not_archived: "削除できるのはアーカイブ済みのものだけです",

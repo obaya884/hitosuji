@@ -45,6 +45,8 @@ type Props = Readonly<{
   now: Date;
   /** 表示日が今日か。セクション残り時間は今日のみ表示する（§3.2） */
   isToday: boolean;
+  /** 日界（分）。セクション終了時刻を論理日の区切りで測る起点（F-116） */
+  dayStartMinutes: number;
   /** 画面上端の固定領域の高さ（px）。選択行の追従がその裏で止まらないようにする（§2 / §5） */
   stickyHeight: number;
 }>;
@@ -89,6 +91,7 @@ export function DailyList({
   onEndEdit,
   now,
   isToday,
+  dayStartMinutes,
   stickyHeight,
 }: Props) {
   const modeById = new Map(modes.map((m) => [m.id, m]));
@@ -124,7 +127,12 @@ export function DailyList({
       {groups.map((group) => (
         <tbody key={group.section?.id ?? "unclassified"}>
           {/* 0件のセクションは見出し行だけを置く（§3.2 / FB-26） */}
-          <GroupHeading group={group} now={now} isToday={isToday} />
+          <GroupHeading
+            group={group}
+            now={now}
+            isToday={isToday}
+            dayStartMinutes={dayStartMinutes}
+          />
           {group.tasks.map((task, index) => (
             <TaskRow
               key={task.id}
@@ -162,7 +170,8 @@ function GroupHeading({
   group,
   now,
   isToday,
-}: Readonly<{ group: DailyGroup; now: Date; isToday: boolean }>) {
+  dayStartMinutes,
+}: Readonly<{ group: DailyGroup; now: Date; isToday: boolean; dayStartMinutes: number }>) {
   // 分子: 完了は実績・未完了は見積もり（§3.2）
   const total = sectionTotalMinutes(group.tasks);
   // セクション枠の長さ（F-110 の分母）。未分類とアーカイブ済みセクションでは枠が定まらない
@@ -176,7 +185,7 @@ function GroupHeading({
   const endAt =
     group.section === null || group.endTime === null
       ? null
-      : sectionEndAt(now, group.section.startTime, group.endTime);
+      : sectionEndAt(now, group.section.startTime, group.endTime, dayStartMinutes);
   const remaining =
     endAt !== null && isToday && now.getTime() < endAt.getTime()
       ? sectionRemainingMinutes(endAt, group.tasks, now)

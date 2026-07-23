@@ -10,6 +10,8 @@ export type Section = Readonly<{
   name: string;
   startTime: string; // "HH:MM"
   isArchived: boolean;
+  // 日界セクション（1日の開始。F-116）。省略時は非日界として扱う（フォールバックは "00:00"＝現状踏襲）
+  isDayStart?: boolean;
 }>;
 
 /** 一覧表示用の枠。endTime は次セクションの開始時刻（最後のセクションは先頭へ折り返す） */
@@ -18,13 +20,24 @@ export type SectionRange = Readonly<{
   endTime: string;
 }>;
 
-export type SectionError = NameError | "invalid_start_time" | "duplicate_start_time" | "last_active_section";
+export type SectionError =
+  | NameError
+  | "invalid_start_time"
+  | "duplicate_start_time"
+  | "last_active_section"
+  | "day_start_section";
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 /** DB の time 型（"HH:MM:SS"）と入力値（"HH:MM"）の差を吸収する */
 export function normalizeStartTime(raw: string): string {
   return raw.slice(0, 5);
+}
+
+/** "HH:MM" を0時からの分に変換する */
+export function startMinutes(time: string): number {
+  const [h, m] = normalizeStartTime(time).split(":").map(Number);
+  return h * 60 + m;
 }
 
 export function isValidStartTime(value: string): boolean {
@@ -38,6 +51,31 @@ export function sortByStartTime(sections: readonly Section[]): Section[] {
 
 export function activeSections(sections: readonly Section[]): Section[] {
   return sortByStartTime(sections.filter((s) => !s.isArchived));
+}
+
+/** 日界セクションの開始時刻（F-116）。指定がなければ "00:00"（現状の 0:00 固定を踏襲するフォールバック） */
+export function dayStartTimeOf(sections: readonly Section[]): string {
+  const dayStart = activeSections(sections).find((s) => s.isDayStart);
+  return dayStart ? dayStart.startTime : "00:00";
+}
+
+/** 日界（分）からの巡回オフセット（分）。`(分 − 日界 + 24h) % 24h`。回転の並び順の基準（F-116） */
+export function offsetFromDayStart(minutes: number, dayStartMinutes: number): number {
+  return (minutes - dayStartMinutes + 1440) % 1440;
+}
+
+/** セクション開始時刻の日界からの巡回オフセット（分）。`offsetFromDayStart` の "HH:MM" 版 */
+export function dayStartOffset(startTime: string, dayStartTime: string): number {
+  return offsetFromDayStart(startMinutes(startTime), startMinutes(dayStartTime));
+}
+
+/**
+ * 日界セクションを先頭にした巡回順の比較子（F-116 / データモデル定義書 §3.1）。
+ * 並びは `(start_time − 日界 + 24h) % 24h` 昇順。日界が 00:00（既定）なら start_time 昇順と一致する。
+ * 有効・アーカイブ済みを問わず並べ替える（表示順の回転のみで、sectionRanges の枠導出は巡回不変のため無影響）。
+ */
+export function byDayStartOrder(dayStartTime: string): (a: Section, b: Section) => number {
+  return (a, b) => dayStartOffset(a.startTime, dayStartTime) - dayStartOffset(b.startTime, dayStartTime);
 }
 
 /**
@@ -90,11 +128,18 @@ export function validateSectionInput(
   return ok({ name: name.value, startTime });
 }
 
-/** 有効なセクションは最低1件必要（全件アーカイブ不可。画面定義書03 §3.1） */
+/**
+ * アーカイブ可否（画面定義書03 §3.1）。
+ * - 有効なセクションは最低1件必要（全件アーカイブ不可）
+ * - 日界セクションはアーカイブ不可（先に別の有効セクションを日界に指定する。F-116）
+ */
 export function canArchive(
   sections: readonly Section[],
   targetId: SectionId
 ): Result<SectionId, SectionError> {
+  const target = sections.find((s) => s.id === targetId);
+  if (target?.isDayStart) return err("day_start_section");
+
   const remaining = activeSections(sections).filter((s) => s.id !== targetId);
   if (remaining.length === 0) return err("last_active_section");
   return ok(targetId);

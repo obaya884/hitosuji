@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
-import type { Section } from "@/domain/section/section";
+import { dayStartTimeOf, startMinutes, type Section } from "@/domain/section/section";
 import { weekdayIndex, type LogicalDate } from "@/domain/shared/logical-date";
 import {
   withTaskAppended,
@@ -181,6 +181,9 @@ export function DailyBoard({
     g.tasks.some((t) => taskStatus(t) === "running")
   );
   const now = useNow(hasRunning || isToday);
+
+  // 日界（分）。終了予定・セクション残りの起点を論理日の区切りに合わせる（F-116）
+  const dayStartMinutes = useMemo(() => startMinutes(dayStartTimeOf(sections)), [sections]);
 
   // 固定領域の高さを実測する（内容で変わりうるので ResizeObserver で追う）
   useEffect(() => {
@@ -467,7 +470,12 @@ export function DailyBoard({
             サマリは日付の直後へ左寄せで続ける（§3.1 / FB-22）。? だけ右端に置く */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <DateNav date={date} weekday={weekdayIndex(date)} isToday={isToday} basePath="/" />
-          <DailySummary groups={optimisticGroups} now={now} isToday={isToday} />
+          <DailySummary
+            groups={optimisticGroups}
+            now={now}
+            isToday={isToday}
+            dayStartMinutes={dayStartMinutes}
+          />
           <button
             type="button"
             onClick={() => setShowHelp(true)}
@@ -540,6 +548,7 @@ export function DailyBoard({
         onSelect={setSelectedId}
         now={now}
         isToday={isToday}
+        dayStartMinutes={dayStartMinutes}
         stickyHeight={stickyHeight}
       />
     </>
