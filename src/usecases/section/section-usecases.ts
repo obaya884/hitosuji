@@ -66,6 +66,20 @@ export async function archiveSection(
   return ok(id);
 }
 
+/**
+ * 日界セクション（1日の開始。F-116）を切り替える（画面定義書03 §3.1）。
+ * 対象は有効セクションのみ。切替は1件を立て他を下ろす（repo 側で原子的に処理）。
+ */
+export async function setDayStartSection(
+  repo: SectionRepository,
+  id: SectionId
+): Promise<Result<SectionId, SectionError>> {
+  const target = (await repo.listAll()).find((s) => s.id === id);
+  if (target === undefined || target.isArchived) return ok(id);
+  await repo.setDayStart(id);
+  return ok(id);
+}
+
 /** 復元は有効セクションへの復帰なので、開始時刻の重複検査が要る */
 export async function restoreSection(
   repo: SectionRepository,

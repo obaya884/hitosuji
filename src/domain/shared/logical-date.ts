@@ -34,6 +34,19 @@ export function toLogicalDate(date: Date): LogicalDate {
   return `${y}-${m}-${d}`;
 }
 
+/**
+ * 日界（分）を踏まえて論理日付を決める（F-116）。
+ * 現在時刻の壁時計分（0時からの分）が日界より前なら、論理日付は前の暦日になる。
+ * 日界が 0（既定の 00:00）なら常に暦日と一致する。
+ */
+export function applyDayStart(
+  calendarDate: LogicalDate,
+  minuteOfDay: number,
+  dayStartMinutes: number
+): LogicalDate {
+  return minuteOfDay < dayStartMinutes ? addDays(calendarDate, -1) : calendarDate;
+}
+
 /** 曜日（0=日）。表示用の曜日名は presentation で解決する */
 export function weekdayIndex(date: LogicalDate): number {
   const [y, m, d] = date.split("-").map(Number);

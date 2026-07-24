@@ -30,6 +30,8 @@ export const sections = pgTable(
     name: text("name").notNull(),
     startTime: time("start_time").notNull(),
     isArchived: boolean("is_archived").notNull().default(false),
+    // 日界セクション（1日の開始。F-116）。有効セクション内でちょうど1件が true
+    isDayStart: boolean("is_day_start").notNull().default(false),
     ...timestamps,
   },
   (t) => [
@@ -37,6 +39,10 @@ export const sections = pgTable(
     uniqueIndex("uq_sections_start_time_active")
       .on(t.startTime)
       .where(sql`is_archived = false`),
+    // 日界セクションは有効セクション内で最大1件（データモデル定義書 §3.1）
+    uniqueIndex("uq_sections_day_start_active")
+      .on(t.isDayStart)
+      .where(sql`is_archived = false AND is_day_start = true`),
   ]
 );
 
@@ -70,6 +76,7 @@ export const routines = pgTable(
     projectId: integer("project_id").references(() => projects.id),
     recurrenceType: text("recurrence_type").notNull(),
     weekdays: integer("weekdays"), // weekly用ビットマスク（bit0=月 … bit6=日）
+    weekInterval: integer("week_interval"), // weekly用。n週おき（NULL/1=毎週）
     monthDay: integer("month_day"), // monthly用。月末超過は月末に丸め
     intervalDays: integer("interval_days"), // interval用。n日ごと
     startDate: date("start_date").notNull(), // interval の起算日を兼ねる
@@ -81,6 +88,10 @@ export const routines = pgTable(
     check(
       "ck_routines_recurrence_type",
       sql`recurrence_type IN ('daily', 'weekly', 'monthly', 'interval')`
+    ),
+    check(
+      "ck_routines_week_interval",
+      sql`week_interval IS NULL OR (week_interval BETWEEN 1 AND 53)`
     ),
   ]
 );

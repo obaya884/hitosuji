@@ -21,7 +21,7 @@ export function inMemorySectionRepository(
     listAll: async () => [...rows],
 
     create: async (input: SectionInput) => {
-      const created: Section = { id: nextId++, ...input, isArchived: false };
+      const created: Section = { id: nextId++, ...input, isArchived: false, isDayStart: false };
       rows.push(created);
       return created;
     },
@@ -34,6 +34,15 @@ export function inMemorySectionRepository(
     setArchived: async (id: SectionId, isArchived: boolean) => {
       const index = indexOf(id);
       if (index >= 0) rows[index] = { ...rows[index], isArchived };
+    },
+
+    setDayStart: async (id: SectionId) => {
+      // 本物（drizzle）と同じく先に全て下ろしてから対象を立てる
+      for (let i = 0; i < rows.length; i++) {
+        if (rows[i].isDayStart) rows[i] = { ...rows[i], isDayStart: false };
+      }
+      const index = indexOf(id);
+      if (index >= 0) rows[index] = { ...rows[index], isDayStart: true };
     },
 
     referenceCounts: async () => ({}),

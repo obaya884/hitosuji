@@ -47,12 +47,18 @@ export function SelectPopover({ options, selectedId, onSelect, onClose }: Props)
         onClose();
       } else if (e.key === "j") {
         e.preventDefault();
+        e.stopPropagation();
         setActiveIndex((i) => Math.min(options.length - 1, i + 1));
       } else if (e.key === "k") {
         e.preventDefault();
+        e.stopPropagation();
         setActiveIndex((i) => Math.max(0, i - 1));
       } else if (e.key === "Enter") {
+        // 確定の Enter を背後（window）の打刻ショートカットへ伝播させない（FB-42）。
+        // グローバル側は editing でガードするが、確定に伴う再レンダー／リスナー再登録の
+        // タイミングでガードをすり抜けて打刻が発火するため、ここで伝播を断つ
         e.preventDefault();
+        e.stopPropagation();
         const option = options[activeIndex];
         if (option !== undefined) {
           onSelect(option.id);

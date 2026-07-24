@@ -2,8 +2,8 @@
 
 タスクシュート時間術を実践するためのシングルユーザー向けタスク管理Webアプリ。オーナー本人が自分のために作り、自分だけで使っている。
 
-- 仕様: [要求定義書](./docs/要求定義書.md) / [要件定義書](./docs/要件定義書.md) / [データモデル定義書](./docs/データモデル定義書.md) / [画面定義書](./docs/画面定義書/)
-- 実装の進め方: [実装計画](./docs/実装計画.md) / [ユーザーフィードバック管理簿](./docs/ユーザーフィードバック.md) / [技術改善計画](./docs/技術改善計画.md)
+- 仕様: [要求定義書](./docs/仕様/11_要求定義書.md) / [要件定義書](./docs/仕様/12_要件定義書.md) / [データモデル定義書](./docs/仕様/14_データモデル定義書.md) / [画面定義書](./docs/仕様/13_画面定義書/)
+- 案件の管理: [要件バックログ](./docs/案件/22_要件バックログ.md)（プロダクト軸）/ [技術改善バックログ](./docs/案件/23_技術改善バックログ.md)（技術軸）/ [ユーザーフィードバック管理簿](./docs/案件/21_ユーザーフィードバック.md)（FB 軸）/ [実装計画](./docs/案件/archive_24_実装計画.md)（MVP 期アーカイブ）
 - 開発規約・アーキテクチャ: [CLAUDE.md](./CLAUDE.md)
 
 ## 開発環境セットアップ
@@ -20,7 +20,7 @@ npm run dev                    # http://localhost:3000
 
 ファビコンは環境で色が変わる（要件定義書 §2.3 / FB-17）。**本番は紺・ローカルは琥珀**なので、両方をタブで開いていても見分けられる（判定は `VERCEL_ENV`。実体は `src/app/icon.tsx`）。
 
-テスト（アーキテクチャ・テスト戦略は [docs/アーキテクチャ定義書.md](./docs/アーキテクチャ定義書.md)）:
+テスト（アーキテクチャ・テスト戦略は [docs/仕様/15_アーキテクチャ定義書.md](./docs/仕様/15_アーキテクチャ定義書.md)）:
 
 ```bash
 npm test                       # 全テスト（統合テストは db-test コンテナが必要）
@@ -28,7 +28,7 @@ npm run test:unit              # ユニットのみ
 npm run test:int               # 統合のみ
 ```
 
-PR と main への push では GitHub Actions（`.github/workflows/ci.yml`）が lint・build・test を自動実行する（統合テストは Postgres サービスコンテナを建てる）。Dependabot の依存更新PRもここで検証される。技術改善・負債返済などの活動は [技術改善計画](./docs/技術改善計画.md) で管理する。
+PR と main への push では GitHub Actions（`.github/workflows/ci.yml`）が lint・build・test を自動実行する（統合テストは Postgres サービスコンテナを建てる）。Dependabot の依存更新PRもここで検証される。技術改善・負債返済などの活動は [技術改善バックログ](./docs/案件/23_技術改善バックログ.md) で管理する。
 
 ## デプロイ（Vercel + Neon）
 
@@ -40,9 +40,34 @@ PR と main への push では GitHub Actions（`.github/workflows/ci.yml`）が
 4. [Vercel](https://vercel.com) でリポジトリをインポートし、環境変数を設定
    - `DATABASE_URL`（Neon の接続文字列）
    - `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD`（Basic認証。必ず設定する）
-5. 以後は main への push で自動デプロイ。スキーマ変更時はデプロイ前に手動で `db:migrate` を実行する
+5. 以後は main への push で自動デプロイ。スキーマ変更時はデプロイ前にマイグレーションを適用する（→「スキーマ更新（本番マイグレーション）」節）
 
 Vercel の GitHub 連携により、main 以外への push・PR には自動でプレビューデプロイが作られる（Dependabot の依存更新PR のビルド検証などに利用）。プレビューは本番DBに接続していない。
+
+## スキーマ更新（本番マイグレーション）
+
+**マージ＝本番デプロイ**なので、スキーマ変更を含む PR は**マージ前に本番へマイグレーションを適用する**（順序: `migrate → マージ（デプロイ）`。逆順だと新コードが未作成テーブルを参照して壊れる）。
+
+新規マイグレーション（`src/infrastructure/db/migrations/*.sql`）を含む PR には、CI が自動で**「スキーマ更新」ラベル**と**実行を促す注意コメント**を付ける（[技術改善バックログ完了記録](./docs/案件/closed_23_技術改善バックログ.md) T-21）。適用は次のどちらか。方式・設計の背景は [docs/検討/32_スキーマ更新パイプライン検討.md](./docs/検討/32_スキーマ更新パイプライン検討.md)（T-22。案A を採用し、自動化の案B・Cは個人開発の規模では過剰につき見送り）。
+
+### リモート（推奨）
+
+Actions → **DB migrate (production)** → **Run workflow** で、**その PR のブランチ**を選んで実行（`confirm` に `migrate` と入力）→ `db-migrate` Environment の承認 → 成功を確認 → **マージ**。
+
+前提設定（初回のみ・GitHub 側。migrate 専用の Environment を Vercel の "Production" とは分けて用意する）:
+
+- Settings → Environments → **`db-migrate`** を作成し、**Required reviewers** にオーナーを設定（承認ゲート）
+- Secret **`MIGRATE_DATABASE_URL`** = Neon の接続文字列（**Pooled を外した unpooled**）を登録
+- Deployment branches は制限しない（PR ブランチから実行するため。理由は検討ドキュメント §3）
+
+### ローカル
+
+接続文字列を**コマンドライン引数に書かない**（履歴に平文で残るため）。`.env.migrate` 経由で渡す。
+
+1. Neon コンソール → Connection Details から接続文字列を取得（**Pooled connection のチェックを外す**）
+2. `.env.migrate` に `DATABASE_URL='...'` の1行で保存（`&` を含むためシングルクォート必須。`vercel env pull` では取れない＝Sensitive）
+3. `set -a; . ./.env.migrate; set +a; npm run db:migrate`
+4. `migrations applied successfully!` を確認したら `.env.migrate` を削除し、**マージ**
 
 ## バックアップ（N-06）
 
@@ -50,7 +75,7 @@ Vercel の GitHub 連携により、main 以外への push・PR には自動で�
 
 ### 取得
 
-接続文字列は**コマンドライン引数に書かない**（シェル履歴に平文で残るため）。[CLAUDE.md](./CLAUDE.md) の「本番マイグレーションの手順」と同じく `.env.migrate` 経由で渡す。
+接続文字列は**コマンドライン引数に書かない**（シェル履歴に平文で残るため）。「スキーマ更新（本番マイグレーション）」のローカル手順と同じく `.env.migrate` 経由で渡す。
 
 ```bash
 # Neon コンソール → Connection Details（Pooled のチェックを外す）で取得した接続文字列を
@@ -84,15 +109,9 @@ npm run db:sync-masters -- backups/hitosuji_YYYYMMDD_HHMMSS.dump [対象DB名]  
 
 対象DBのマスタ・ルーチンは**洗い替え**になり、それらを参照する開発用のタスクも消える（実行前に確認プロンプトが出る）。スキーマはマイグレーションで作った側を正とし、データのみを流し込む（`--data-only`）。部分リストアではシーケンスが進まないため、実行後に各テーブルの最大IDへ合わせ直している。Neon のロール（`neondb_owner`）はローカルに存在しないため `--no-owner --no-privileges` を付けている（この2つがないと所有者エラーになる）。他の Postgres へ移す場合も同じダンプをそのまま `pg_restore` できる（N-06② ロックイン回避）。
 
-### リストア実演の結果（2026-07-20）
+### 自動化
 
-本番から取得したダンプをローカルへ復元し、次を確認済み:
-
-- 全テーブルの行数が本番と完全一致（sections 10 / modes 13 / projects 7 / routines 10 / routine_skips 0 / tasks 13 / マイグレーション履歴 2）
-- マスタ・ルーチン・タスクの内容ハッシュ（md5）が本番と一致
-- 復元DBへアプリを向けて、デイリー・ルーチン・マスタの各画面が本番と同じ内容で表示されること
-
-GitHub Actions cron による自動化は実運用を開始してから検討する。
+GitHub Actions cron による自動化は暗号化方式を確定済み（`age` 非対称暗号）・保存先は2案併記で保留（R2/B2 or S3/GCS+OIDC）。方式・設計は [docs/検討/33_データバックアップ自動化検討.md](./docs/検討/33_データバックアップ自動化検討.md)（T-25）が正。実装は運用の負担を見てから着手する。
 
 ## ライセンス
 

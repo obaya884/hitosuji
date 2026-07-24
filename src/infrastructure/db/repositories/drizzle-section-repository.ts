@@ -13,6 +13,7 @@ function toDomain(row: Row): Section {
     // time 型は "HH:MM:SS" で返るのでドメインの表現（"HH:MM"）へ揃える
     startTime: normalizeStartTime(row.startTime),
     isArchived: row.isArchived,
+    isDayStart: row.isDayStart,
   };
 }
 
@@ -40,6 +41,22 @@ export function createSectionRepository(db: Database = defaultDb): SectionReposi
         .update(sections)
         .set({ isArchived, updatedAt: new Date() })
         .where(eq(sections.id, id));
+    },
+
+    // 日界セクション（F-116）を1件だけ立てる。先に全て下ろしてから対象を立て、
+    // 部分ユニーク索引（有効内で is_day_start=true は最大1件）を一瞬も破らないようにする
+    async setDayStart(id: SectionId) {
+      await db.transaction(async (tx) => {
+        const now = new Date();
+        await tx
+          .update(sections)
+          .set({ isDayStart: false, updatedAt: now })
+          .where(eq(sections.isDayStart, true));
+        await tx
+          .update(sections)
+          .set({ isDayStart: true, updatedAt: now })
+          .where(eq(sections.id, id));
+      });
     },
 
     // 参照元はタスクのみ（ルーチンは開始想定時刻からセクションを導出する。画面定義書03 §4.1）

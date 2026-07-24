@@ -21,6 +21,7 @@ const sectionRepo: SectionRepository = {
   create: async () => sections[0],
   update: async () => {},
   setArchived: async () => {},
+  setDayStart: async () => {},
   referenceCounts: async () => ({}),
   remove: async () => {},
 };
@@ -34,6 +35,7 @@ function routine(over: Partial<Routine> & { id: number }): Routine {
     projectId: null,
     recurrenceType: "daily",
     weekdays: null,
+    weekInterval: null,
     monthDay: null,
     intervalDays: null,
     startDate: "2026-01-01",

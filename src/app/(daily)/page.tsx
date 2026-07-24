@@ -7,7 +7,8 @@ import { createProjectRepository } from "@/infrastructure/db/repositories/drizzl
 import { createRoutineRepository } from "@/infrastructure/db/repositories/drizzle-routine-repository";
 import { createSectionRepository } from "@/infrastructure/db/repositories/drizzle-section-repository";
 import { createTaskRepository } from "@/infrastructure/db/repositories/drizzle-task-repository";
-import { formatClock, todayLogicalDate } from "@/app/_lib/format";
+import { formatClock } from "@/app/_lib/format";
+import { resolveToday } from "@/app/_lib/today";
 import { DailyBoard } from "./_components/daily-board";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +25,8 @@ const deps = {
 export default async function Home({
   searchParams,
 }: Readonly<{ searchParams: Promise<{ date?: string }> }>) {
-  const today = todayLogicalDate();
+  // 「今日」は日界（F-116）を踏まえて解決する（現在時刻が日界より前なら前の暦日）
+  const today = await resolveToday(deps.sections);
   const requested = (await searchParams).date;
   const date = requested !== undefined && isValidLogicalDate(requested) ? requested : today;
 
@@ -42,6 +44,7 @@ export default async function Home({
     <>
       <DailyBoard
         date={date}
+        today={today}
         isToday={date === today}
         groups={view.groups}
         modes={view.modes}

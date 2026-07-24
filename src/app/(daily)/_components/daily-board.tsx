@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
-import type { Section } from "@/domain/section/section";
+import { dayStartTimeOf, startMinutes, type Section } from "@/domain/section/section";
 import { weekdayIndex, type LogicalDate } from "@/domain/shared/logical-date";
 import {
   withTaskAppended,
@@ -13,7 +13,7 @@ import {
   type DailyGroup,
 } from "@/domain/task/daily-list";
 import { stepMoveDestination } from "@/domain/task/reorder";
-import { keepSelection } from "@/domain/task/selection";
+import { keepSelection, selectionAfterFinish } from "@/domain/task/selection";
 import { taskStatus } from "@/domain/task/status";
 import { editEndedAt, editStartedAt } from "@/domain/task/punch-edit";
 import { validateEstimateMinutes, validateTaskName } from "@/domain/task/edit";
@@ -56,6 +56,8 @@ import { useDailyShortcuts } from "./use-daily-shortcuts";
 
 type Props = Readonly<{
   date: LogicalDate;
+  /** 今日（日界考慮済み。F-116）。datepicker の「今日」強調に渡す（F-117） */
+  today: LogicalDate;
   isToday: boolean;
   groups: readonly DailyGroup[];
   modes: readonly Mode[];
@@ -151,6 +153,7 @@ function optimisticTask(date: LogicalDate, name: string): Task {
 
 export function DailyBoard({
   date,
+  today,
   isToday,
   groups,
   modes,
@@ -163,6 +166,8 @@ export function DailyBoard({
   const [rawSelectedId, setSelectedId] = useState<number | null>(null);
   const [editing, setEditing] = useState<EditingCell | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+  // datepicker（F-117）の開閉。日付クリックと G（Go to date）の両方から開くため board で持つ
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const quickAddRef = useRef<HTMLInputElement>(null);
   // 固定領域の高さ。選択行のスクロール追従（§5）が固定領域の裏で止まらないようにするため実測する
   const stickyRef = useRef<HTMLDivElement>(null);
@@ -181,6 +186,9 @@ export function DailyBoard({
     g.tasks.some((t) => taskStatus(t) === "running")
   );
   const now = useNow(hasRunning || isToday);
+
+  // 日界（分）。終了予定・セクション残りの起点を論理日の区切りに合わせる（F-116）
+  const dayStartMinutes = useMemo(() => startMinutes(dayStartTimeOf(sections)), [sections]);
 
   // 固定領域の高さを実測する（内容で変わりうるので ResizeObserver で追う）
   useEffect(() => {
@@ -282,6 +290,11 @@ export function DailyBoard({
       run(() => startTaskAction(task.id, now), { type: "start", id: task.id, at: now });
     } else {
       run(() => finishTaskAction(task.id, now), { type: "finish", id: task.id, at: now });
+      // 終了打刻で完了したら選択行を次の未実行タスクへ送る（F-211 / §5）。この時点の
+      // orderedTasks は楽観的更新の適用前で終了対象がまだ実行中として残るため、currentTaskId で
+      // はなく selectionAfterFinish を使う。送り先がなければ据え置く（setSelectedId しない）
+      const next = selectionAfterFinish(orderedTasks);
+      if (next !== null) setSelectedId(next);
     }
   }
 
@@ -432,6 +445,7 @@ export function DailyBoard({
   // グローバルキーボードショートカット（§6）。配線はフックへ切り出し（挙動は不変・T-14）
   useDailyShortcuts({
     editing,
+    pickerOpen: showDatePicker,
     orderedTasks,
     selectedId,
     deleted,
@@ -441,6 +455,7 @@ export function DailyBoard({
     setEditing,
     setShowHelp,
     setSelectedId,
+    openDatePicker: () => setShowDatePicker(true),
     moveByStep,
     punch,
     operate,
@@ -466,8 +481,19 @@ export function DailyBoard({
         {/* 日付ナビ＋サマリ（画面定義書01 §2）。
             サマリは日付の直後へ左寄せで続ける（§3.1 / FB-22）。? だけ右端に置く */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <DateNav date={date} weekday={weekdayIndex(date)} isToday={isToday} basePath="/" />
-          <DailySummary groups={optimisticGroups} now={now} isToday={isToday} />
+          <DateNav
+            date={date}
+            weekday={weekdayIndex(date)}
+            isToday={isToday}
+            basePath="/"
+            picker={{ today, open: showDatePicker, onOpenChange: setShowDatePicker }}
+          />
+          <DailySummary
+            groups={optimisticGroups}
+            now={now}
+            isToday={isToday}
+            dayStartMinutes={dayStartMinutes}
+          />
           <button
             type="button"
             onClick={() => setShowHelp(true)}
@@ -540,6 +566,7 @@ export function DailyBoard({
         onSelect={setSelectedId}
         now={now}
         isToday={isToday}
+        dayStartMinutes={dayStartMinutes}
         stickyHeight={stickyHeight}
       />
     </>

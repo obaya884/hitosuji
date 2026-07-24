@@ -34,6 +34,16 @@ export function moveSelection(
   return orderedTasks[next].id;
 }
 
+/**
+ * 終了打刻でタスクを完了した後に選択を送る先＝表示順で最初の未実行タスク（画面定義書01 §5 / F-211）。
+ * 呼び出し側は楽観的更新の適用前のスナップショットを渡すため、終了したばかりのタスクはまだ実行中として
+ * 含まれる。currentTaskId（実行中を優先）だとその行を選び直してしまうので、実行中を無視して未実行だけを
+ * 見る。送り先がなければ null を返す（呼び出し側は選択を完了行に据え置く）
+ */
+export function selectionAfterFinish(orderedTasks: readonly Task[]): TaskId | null {
+  return orderedTasks.find((t) => taskStatus(t) === "not_started")?.id ?? null;
+}
+
 /** 選択が実在するタスクを指しているかを保つ（削除・日付移動の後に使う） */
 export function keepSelection(
   orderedTasks: readonly Task[],

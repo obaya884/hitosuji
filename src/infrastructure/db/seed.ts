@@ -9,7 +9,8 @@ const SEED_SECTIONS = [
   { name: "午前", startTime: "09:00" },
   { name: "午後", startTime: "12:00" },
   { name: "夜", startTime: "18:00" },
-  { name: "深夜", startTime: "00:00" },
+  // 既定の日界セクション（1日の開始 = 深夜 0:00。現状の 0:00 固定を踏襲。F-116）
+  { name: "深夜", startTime: "00:00", isDayStart: true },
 ];
 
 // 色は画面定義書03 §3.2 のプリセットから選ぶ（プリセット外だと画面で編集できなくなる）

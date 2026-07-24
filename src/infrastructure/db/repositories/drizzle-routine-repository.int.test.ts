@@ -18,6 +18,7 @@ function input(over: Partial<ValidRoutineInput> = {}): ValidRoutineInput {
     projectId: null,
     recurrenceType: "daily",
     weekdays: null,
+    weekInterval: null,
     monthDay: null,
     intervalDays: null,
     startDate: "2026-07-19",
@@ -46,6 +47,7 @@ describe("DrizzleRoutineRepository", () => {
       projectId: null,
       recurrenceType: "daily",
       weekdays: null,
+      weekInterval: null,
       monthDay: null,
       intervalDays: null,
       startDate: "2026-07-19",
@@ -54,17 +56,20 @@ describe("DrizzleRoutineRepository", () => {
     });
   });
 
-  it("繰り返し種別ごとの項目を保存できる", async () => {
-    await repo.create(input({ recurrenceType: "weekly", weekdays: 0b0010101 }));
+  it("繰り返し種別ごとの項目を保存できる（週間隔も往復する。FB-44）", async () => {
+    // 隔週（week_interval=2）を明示し、新設カラムが DB を往復して復元されることを確認する
+    await repo.create(input({ recurrenceType: "weekly", weekdays: 0b0010101, weekInterval: 2 }));
     await repo.create(input({ recurrenceType: "monthly", monthDay: 25 }));
     await repo.create(input({ recurrenceType: "interval", intervalDays: 3 }));
 
     const all = await repo.listAll();
-    expect(all.map((r) => [r.recurrenceType, r.weekdays, r.monthDay, r.intervalDays])).toEqual(
+    expect(
+      all.map((r) => [r.recurrenceType, r.weekdays, r.weekInterval, r.monthDay, r.intervalDays])
+    ).toEqual(
       expect.arrayContaining([
-        ["weekly", 0b0010101, null, null],
-        ["monthly", null, 25, null],
-        ["interval", null, null, 3],
+        ["weekly", 0b0010101, 2, null, null],
+        ["monthly", null, null, 25, null],
+        ["interval", null, null, null, 3],
       ])
     );
   });

@@ -7,7 +7,7 @@ import { createProjectRepository } from "@/infrastructure/db/repositories/drizzl
 import { createRoutineRepository } from "@/infrastructure/db/repositories/drizzle-routine-repository";
 import { createSectionRepository } from "@/infrastructure/db/repositories/drizzle-section-repository";
 import { RoutinesTable } from "./routines-table";
-import { todayLogicalDate } from "../_lib/format";
+import { todayFromSections } from "../_lib/today";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +30,8 @@ export default async function RoutinesPage() {
         allModes={[...modeView.active, ...modeView.archived]}
         allProjects={[...projectView.active, ...projectView.archived]}
         sections={sectionView.ranges.map((r) => r.section)}
-        today={todayLogicalDate()}
+        // 「今日」は日界（F-116）を踏まえる。読み込み済みのセクションから導出する（二重 fetch を避ける）
+        today={todayFromSections(sectionView.ranges.map((r) => r.section))}
       />
     </>
   );

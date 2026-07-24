@@ -1,76 +1,56 @@
-# 技術改善計画
+# 技術改善バックログ完了記録
 
-- 作成日: 2026-07-22
-- 目的: 技術負債の返済・リファクタリング・開発ツール整備など、**プロダクト挙動を変えない技術活動**を、要求（F-XXX / N-XX）とは別軸で管理・計画する
-- 関連文書: [アーキテクチャ定義書](./アーキテクチャ定義書.md)（設計・テスト戦略）/ [実装計画](./実装計画.md)（プロダクト機能の計画）
+- 作成日: 2026-07-24
+- 目的: 完了した技術活動（T-XX）を原文のまま保管する。ライブ台帳は[技術改善バックログ](./23_技術改善バックログ.md)（未着手・進行中・保留のみを持つ）
+- エントリは完了への状態更新と同じコミットで本書へ移す（並びは完了日の新しい順）。判断の経緯は従来どおり [log_23_技術改善バックログ.md](./log_23_技術改善バックログ.md) が持つ
 
-## この文書の守備範囲
+## T-28 docs 全文書への一意採番の導入（2026-07-24）
 
-プロダクトの**挙動**に関わる変更は扱わない（それは要求 → 要件 → 画面/データモデルの軸で、着手前に該当文書を先に直す）。ここに書くのは、ユーザーから見た挙動を変えずに**開発の健全性を上げる活動**——依存追随・CI/ツール整備・内部設計の改善・テスト補強・調査など。
+- 種別: 改善（docs 構造）/ 優先度: 中
+- 背景: T-27 の台帳分離に続く docs 構造の整備。文書ファイルに順序・識別の番号がなく（画面定義書 00〜04 のみ採番済み）、一覧性と参照の安定性に欠けていた
+- 対応: **docs 全体で一意な2桁ブロック採番**を導入（0X=画面定義書内〔現状維持〕/ 1X=仕様 / 2X=案件 / 3X=検討）。並びは仕様=FB着手の判定順（11 要求 → 12 要件 → 13 画面 → 14 データモデル → 15 アーキテクチャ）、案件=流入順（21 FB → 22 要件BL → 23 技術改善BL → 24 実装計画）、検討=作成順（31 バンドル → 32 スキーマ更新 → 33 バックアップ → 34 AI並行開発）。`log_` / `closed_` / `guide_` は親の番号を引き継ぐ。全19ファイル/ディレクトリを `git mv` し、docs・README・CLAUDE.md・`.claude/`（agents 4本・dependabot-triage）の参照を全追随。体系は CLAUDE.md「最重要ルール」に明文化
+- 結果: 挙動不変（docs・エージェント定義のみ）。文中の「画面定義書01」呼称・H1 タイトル・FB/T/F/N の ID は不変。git は全ファイルを rename として認識し履歴が連続
+- 関連: 本書 T-27（台帳分離）/ [CLAUDE.md](../../CLAUDE.md)「最重要ルール」
 
-- 採番は **T-XX**（Technical）。1系列で通し、種別で区別する
-- 種別: `負債返済` / `改善` / `ツール整備` / `調査`
-- 優先度: `高` / `中` / `様子見`
-- 状態: `未着手` / `進行中` / `完了` / `保留`
-- 判断の経緯は本文に書かず、[log_技術改善計画.md](./log_技術改善計画.md) へ日付順に積む（CLAUDE.md「書き方の規約」に従う）
-- リファクタ観点の棚卸しは `refactor-scout`（読み取り専用サブエージェント）が T-XX 案のドラフトを起票し、オーナー確認のうえメインセッションが本書へ記入する（CLAUDE.md「起動の契機」参照）
+## T-27 案件台帳の完了分をアーカイブへ分離（2026-07-24）
 
----
+- 種別: 改善（docs 構造）/ 優先度: 中
+- 背景: ユーザーフィードバック管理簿（43件中38件が対応済み）と技術改善バックログ（26件中18件が完了）は完了エントリが本文に線形蓄積する構造で、AI が起票・着手のたびに開くファイルなのに、ライブに読みたい未完了分が完了分のノイズに埋もれていた
+- 対応: 既存の「ライブ台帳 vs 完了アーカイブ」パターン（要件バックログ／実装計画）を両台帳へ適用。`closed_<文書名>.md` を隣接新設して完了エントリを**原文のまま**移し、ライブ台帳は未完了のみに（FB管理簿の着手手順も `guide_21_ユーザーフィードバック.md` へ分離）。「完了・対応済みへの状態更新と同じコミットでアーカイブへ移す」を運用ルール・CLAUDE.md に明文化
+- 結果: 挙動不変（docs のみ）。FB-XX / T-XX の番号・記述は温存し、完了 T を名指しする既存リンクは本書へ付け替え
+- 関連: [ユーザーフィードバック管理簿](./21_ユーザーフィードバック.md) / [要件バックログ](./22_要件バックログ.md) / [CLAUDE.md](../../CLAUDE.md)「書き方の規約」
 
-# これからの計画
+## T-22 本番スキーマ更新をリモートで実行するワークフロー（案A 採用・2026-07-23）
 
-## T-02 eslint 10 への追随（保留）
+- 種別: ツール整備（当初は調査）/ 優先度: 中
+- 背景: 本番マイグレーションは手元での手動実行だった（[CLAUDE.md](../../CLAUDE.md)「本番マイグレーションの手順」）。これをリモート（GitHub Actions）で完結させ、接続情報を Environment シークレットに置きたかった
+- 方式判断: 実現方式 A（実行のリモート化・`workflow_dispatch`）→ B（マージ契機の自動 migrate→deploy）→ C（expand/contract）のうち、**個人開発の規模では A で必要十分**と判断し A を採用。B・C は過剰につき見送り（将来の two-way door として検討ドキュメント §3 に記録）。難所は migrate 実行そのものではなく (1) Vercel 自動デプロイとの順序保証、(2) public リポジトリでのシークレット露出、の2点。**詳細は [32_スキーマ更新パイプライン検討.md](../検討/32_スキーマ更新パイプライン検討.md) が正**
+- 対応: ①`.github/workflows/db-migrate.yml`（`workflow_dispatch` ＋ migrate 専用 `db-migrate` Environment の承認ゲートで `npm run db:migrate`。新規マイグレーションを持つ PR ブランチから実行 → 成功後マージ＝デプロイ。Vercel の "Production" 環境とは分離）②`label-schema-migration.yml` を拡張し、スキーマ更新 PR に migrate 実行を促す注意コメント（`[!WARNING]`＋Run workflow 直リンク＋ブランチ名＋`gh` コマンド、sticky upsert）③README・CLAUDE.md を整理（手順は README が正・重複解消）
+- 結果: 実働確認済み。PR #16（F-116・マイグレーション 0002）で「ラベル → 注意コメント → リモート migrate（`db-migrate` 承認ゲート経由で本番へ 0002 適用）→ マージ（＝デプロイ）」を通しで確認。挙動（プロダクト）不変
+- 関連: 本書 T-01（CI 基盤）/ T-21（スキーマ更新ラベル）/ [CLAUDE.md](../../CLAUDE.md)「本番マイグレーションの手順」
 
-- 種別: 負債返済 / 優先度: 様子見 / 状態: 保留
-- 背景: `eslint-config-next` 同梱の `eslint-plugin-react` が ESLint 10 で削除された context API（`getFilename`）を使っており、eslint 10 では lint がクラッシュして起動しない（依存方向を守らせる `no-restricted-imports` すら実行不可）。Dependabot PR #4 はこの理由でクローズした
-- 対応方針: `eslint-config-next` が ESLint 10 対応版を出したら再挑戦する。それまでは 9 系を維持。次に Dependabot が eslint の新版 PR を出したときに状況を再確認する
+## T-24 CI ワークフローの GITHUB_TOKEN を最小権限に絞る（2026-07-23）
 
-## T-03 E2E テスト（Playwright）導入の検討
+- 種別: ツール整備 / 優先度: 中
+- 背景: CodeQL（GitHub default setup）の code-scanning アラート（medium、`actions/missing-workflow-permissions`）。`.github/workflows/ci.yml` に `permissions:` ブロックが無く、GITHUB_TOKEN が既定の広い権限で発行されていた。verify ジョブは checkout と npm の lint/build/test のみで書き込み権限を要さない
+- 対応: workflow レベルに `permissions: contents: read` を追加し、コード取得に必要な最小権限のみへ絞る。挙動（プロダクト・CI の検証内容）は不変。マージ後、default setup の再スキャンでアラートは自動クローズする
+- 関連: 本書 T-01（CI 基盤）/ [.claude/skills/dependabot-triage](../../.claude/skills/dependabot-triage/SKILL.md) §7
 
-- 種別: 改善（テスト補強）/ 優先度: 様子見 / 状態: 未着手
-- 背景: テストピラミッドの頂点。現状は手動の実運用確認で代替している（[アーキテクチャ定義書](./アーキテクチャ定義書.md) §8）。プロダクト要求（F-XXX / N-XX）には乗らない技術活動のため、実装計画 Phase 3 に置かれたまま行き場がなかったのを本書へ移した
-- 対応方針: 必要性を運用で見極めてから、導入するなら Playwright。手動確認では追えない回帰が出てきた等を着手条件にする
+## T-23 sharp（libvips 継承）の high 脆弱性を overrides で解消（2026-07-23）
 
-## T-05 esbuild dev-serve アラート（dismiss 済み・追跡）
+- 種別: 負債返済 / 優先度: 中
+- 背景: Dependabot セキュリティアラート（high、`sharp` <0.35.0）。上流 libvips 由来の脆弱性 4件（CVE-2026-33327 ほか、untrusted な GIF/TIFF/VIPS 画像のデコード時に影響）。`next@16.2.11` が transitive に同梱する `sharp@0.34.5` が原因。本アプリは `next/image`（`<Image>`）を使わず画像アップロード機能もないため sharp は実行経路に乗らず**到達不能**だが、上流に修正版（0.35.x）があるため dismiss ではなく根治を選んだ
+- 対応: `package.json` の `overrides` で `sharp` を `^0.35.0` に固定。ツリーが `sharp@0.35.3`（libvips 8.18.3 同梱）へ dedupe され、アラートは修正版採用で自動クローズ。0.34→0.35 は minor（prebuilt バイナリ差し替えのみ）で API 破壊なし。CI の build で回帰なしを確認
+- 関連: 本書 T-04（postcss overrides の同型対応）
 
-- 種別: 負債返済 / 優先度: 様子見 / 状態: 保留（dismiss 済み）
-- 背景: Dependabot セキュリティアラート（medium）。`drizzle-kit@0.31.10（最新）→ @esbuild-kit/esm-loader → esbuild@0.18` 経由。脆弱箇所は esbuild の dev serve が任意オリジンからの要求に応じる件だが、drizzle-kit は @esbuild-kit を設定ファイル変換にしか使わず dev serve を起動しない**到達不能パス**。最新 drizzle-kit でも @esbuild-kit を同梱しており上流にクリーンな修正が無い
-- 対応: 理由 `not_used` でアラートを dismiss（`overrides` で esbuild を 0.25+ に上げると @esbuild-kit（0.18 前提）が壊れ、かつ CI で検出できないため見送り）
-- 根治条件: drizzle-kit が @esbuild-kit を外す（または esbuild を上げる）版を出したとき。次に esbuild 系のアラート／更新が来たら再確認する
+## T-21 スキーマ更新が必要な PR に「スキーマ更新」ラベルを自動付与（2026-07-22）
 
-## T-06 worktree を活用した AI 並行開発体制
-
-- 種別: 改善（開発体制）/ 優先度: 中 / 状態: 未着手
-- 背景: 現状は単一ワークツリー・単一セッションで作業しており、別タスクが並行すると変更が交錯する。実際、別セッションで進行中だった作業（`docs/ユーザーフィードバック.md` ほかの WIP）を中断・除外して本作業を進める必要が生じた。複数の作業を安全に並行させる仕組みが無い
-- 目標: `git worktree` でタスクごとに独立したワークツリー／ブランチを持たせ、AI が複数タスクを並行実行できるようにする。それらを束ねる**ヘッドエージェント（オーケストレータ）**がタスク分配・進捗統合・レビュー/検証（verifier・spec-reviewer）の集約とマージ順序の調停を担う形を目指す
-- 着手時に詰める論点:
-  - ブランチ／PR 運用（PR 単位の自動検証は T-01 の CI で既に整備済み。worktree → ブランチ → PR に素直に乗る）
-  - DB の分離（統合テストの `db-test` 共有や開発 DB の競合をどう避けるか）
-  - コンフリクト調停とマージ順序をヘッドエージェントがどう扱うか
-  - **本番デプロイ（main への push）はオーナーの合図を前提とする既存規律を保つ**こと（CLAUDE.md）
-- 関連: [CLAUDE.md](../CLAUDE.md)「サブエージェント運用」節 / 本書 T-01（CI 基盤）
-
-## T-19 Shift+J/K のアーカイブ済みセクション境界で楽観更新とサーバ確定がずれうる
-
-- 種別: 調査 / 優先度: 中 / 状態: 未着手
-- 背景: T-11 のレビュー（spec-reviewer）で判明した既存の潜在論点。Shift+J/K の移動先算出で、サーバ側 `src/usecases/task/reorder-usecases.ts` の `moveTaskByOneStep` が組み立てる `sectionOrder` は `activeSections`（アーカイブ済みを除外）だが、presentation 側 `daily-board.tsx` の `sectionOrder` は `optimisticGroups` 由来で、当日タスクが属するアーカイブ済みセクション（画面定義書01: 当日タスクがある場合のみ表示）を含みうる。タスクがアーカイブ済みセクションに属し、その境界を跨ぐ Shift+J/K を行うと、client は移動先ありと判断するがサーバは `indexOf === -1` で「動かさない」と判定し、楽観更新が巻き戻りうる。**T-11 前後で挙動は同一**（旧 `moveByStep` も `optimisticGroups` 由来）＝ T-11 が生んだ回帰ではない既存の潜在事項
-- 対応方針: まず再現条件と実害（巻き戻りの体感・データ不整合の有無）を切り分ける調査から。修正するならサーバ／client の `sectionOrder` の定義を揃える（アーカイブ済みでも当日タスクを持つセクションを両者に含める等）。**修正は表示・並び挙動を変えるため、着手時は要求軸（要件定義書・画面定義書01）を先に判断する**（本書の守備範囲外＝挙動が絡む）
-
-## T-20 `npm run test:coverage` の `.tmp` 削除競合で Unhandled Rejection
-
-- 種別: 負債返済 / 優先度: 様子見 / 状態: 未着手
-- 背景: T-11/T-12 の検証（verifier）で判明した既存の設定負債。`test:coverage` が unit と integration の2プロジェクトを同一 `coverage.reportsDirectory` で並行実行するため、片方のクリーンアップがもう片方の `coverage/.tmp` を削除する競合が起き `ENOENT`（Unhandled Rejection）がログに出る。プロセスの exit code は 0 のため CI 上は成功扱いだが、ログにエラーが残る。**main でも再現**する既存事項（今回の変更と無関係）。`npx vitest run --coverage --project unit` 単体では正常完走する
-- 対応方針: `vitest.config.ts` の coverage 出力先をプロジェクトごとに分ける、または `test:coverage` を unit → integration の逐次実行にする。挙動（プロダクト）に影響しないツール整備
-
-## T-21 仕様駆動開発フローのテンプレート化
-
-- 種別: ツール整備 / 優先度: 中 / 状態: 進行中
-- 背景: 本リポジトリで実証した仕様駆動開発フロー（docs 体系・ID 体系・書き方の規約・サブエージェント運用）を、他プロジェクトでも再現性高く使えるよう汎用化したい。汎用規則とプロジェクト固有知識が CLAUDE.md・agents に混在しており、そのままコピーしても機能しない
-- 対応方針: `template/` にテンプレート一式を試作（プロセス憲章 README・docs 雛形・CLAUDE.md 雛形・agents 6体〈不変条件を監査する process-reviewer を新設〉・立ち上げ用 `/spec-init` スキル。固有部は `TODO(spec-init)` マーカーで統一）。オーナーレビュー後、別リポジトリ `spec-driven-template`（GitHub Template repository）へ切り出す
-
----
-
-# 完了記録
+- 種別: ツール整備 / 優先度: 中
+- 背景: マージ＝本番デプロイであり、スキーマ変更を含む PR は**マージ前に本番マイグレーションを手動で流す**必要がある（[CLAUDE.md](../../CLAUDE.md)「本番マイグレーションの手順」）。この前提が PR 上で可視化されておらず、流し忘れがデプロイ事故につながりうる
+- 対応: `.github/workflows/label-schema-migration.yml` を新設。`pull_request`（opened / synchronize / reopened）で PR 差分を見て、**新規追加**のマイグレーション（`src/infrastructure/db/migrations/*.sql`・`listFiles` の `status === 'added'`）を含む PR に「スキーマ更新」ラベルを付与し、含まなくなれば外す。`actions/github-script` でラベルの取得／生成／付与／除去を行う（ラベルは初回実行時に workflow が自動生成）
+- 方針: 検出条件は**新規マイグレーション SQL の追加の有無に一本化**（`schema.ts` 変更のみでマイグレーション未生成のケースは別軸の課題として扱わない）。ラベルの付与・除去のみで、**CI は fail させず・マージもブロックしない**（T-01 の「検証のみ・手動マージ」方針と揃え、注意喚起に徹する）
+- 結果: 挙動（プロダクト）不変。PR 上でスキーマ更新の要否が可視化され、本番マイグレーションの流し忘れを防ぐ注意喚起になる
+- 関連: 本書 T-01（CI 基盤）/ [CLAUDE.md](../../CLAUDE.md)「本番マイグレーションの手順」
 
 ## T-09 マスタ表の Action ラッパとアーカイブ済みブロックを共通化（2026-07-22）
 
@@ -118,7 +98,7 @@
 
 - 種別: 改善 / 優先度: 中
 - 背景: 構造が同一の結果型 `Readonly<{ ok: true } | { ok: false; message: string }>` が3箇所（daily `DailyActionResult`／routines `RoutineActionResult`／masters `ActionResult`）に別名で並立していた
-- 対応: 正となる `ActionResult` を `src/app/_lib/action-result.ts` に新設し、3ファイルは再エクスポート/エイリアスに寄せた（`DailyActionResult = ActionResult` 等）。**型名は温存**したため消費側 `.tsx` は不変。**低リスクな型の一本化のみ先行**し、`revalidatePath` 込みの定型ラッパ化・`MESSAGES` 統合（文言差があり挙動＝表示変化になる）・`createdId`/carry-over 等の固有処理は据え置き（[アーキテクチャ定義書](./アーキテクチャ定義書.md) §1 の過剰抽象回避）
+- 対応: 正となる `ActionResult` を `src/app/_lib/action-result.ts` に新設し、3ファイルは再エクスポート/エイリアスに寄せた（`DailyActionResult = ActionResult` 等）。**型名は温存**したため消費側 `.tsx` は不変。**低リスクな型の一本化のみ先行**し、`revalidatePath` 込みの定型ラッパ化・`MESSAGES` 統合（文言差があり挙動＝表示変化になる）・`createdId`/carry-over 等の固有処理は据え置き（[アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md) §1 の過剰抽象回避）
 - 結果: 挙動不変。型定義が1箇所に集約。lint / build / test 緑
 
 ## T-17 カバレッジ計測（`@vitest/coverage-v8`）の導入を確認（2026-07-22）
@@ -153,7 +133,7 @@
 
 - 種別: 改善 / 優先度: 中
 - 背景: ドメイン別ディレクトリに分けたうえで、ファイル名の命名規約が混在していた（`task/` に `task-edit.ts` と `punch.ts` が同居、`routine/` に `routine-order.ts` と `expansion.ts` が同居、各ドメインの `{obj}-usecases.ts` がディレクトリ名と重複）。新規追加のたびに「prefix を付けるか」を都度判断する揺れの元だった。オーナーの気づき（動詞単独ではドメインが読み取れない）を起点に対話で診断し、ディレクトリで文脈が付く前提で「オブジェクト名を繰り返さない」方向に倒すと決めた
-- 対応: [アーキテクチャ定義書](./アーキテクチャ定義書.md) §2「ファイル命名規約」に明文化。ディレクトリ名と重複する prefix を外した（`task-edit.ts`→`edit.ts`、`routine-order.ts`→`order.ts`、`routine-input.ts`→`input.ts`、`routine-from-task.ts`→`from-task.ts`、`expand-routines.ts`→`expand.ts`、`task-operations.ts`→`operations.ts`、`testing/in-memory-*-repository.ts`→`in-memory-repository.ts`）。**据え置き**: 集約の代表型（`task.ts` 等）・横断ディレクトリ（`ports/` `shared/` `repositories/`）・機能別 usecase（`punch-usecases.ts` 等）・集約操作をまとめた `{ドメイン}-usecases.ts`（domain の集約代表と同名衝突するため `-usecases` を維持）。シンボル名（関数・型）の Task/Routine 接頭辞の揺れは今回対象外
+- 対応: [アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md) §2「ファイル命名規約」に明文化。ディレクトリ名と重複する prefix を外した（`task-edit.ts`→`edit.ts`、`routine-order.ts`→`order.ts`、`routine-input.ts`→`input.ts`、`routine-from-task.ts`→`from-task.ts`、`expand-routines.ts`→`expand.ts`、`task-operations.ts`→`operations.ts`、`testing/in-memory-*-repository.ts`→`in-memory-repository.ts`）。**据え置き**: 集約の代表型（`task.ts` 等）・横断ディレクトリ（`ports/` `shared/` `repositories/`）・機能別 usecase（`punch-usecases.ts` 等）・集約操作をまとめた `{ドメイン}-usecases.ts`（domain の集約代表と同名衝突するため `-usecases` を維持）。シンボル名（関数・型）の Task/Routine 接頭辞の揺れは今回対象外
 - 結果: lint / build / test（461件）グリーン。git は全ファイルを rename として認識し履歴・blame が連続する
 
 ## T-04 postcss XSS アラートを overrides で解消（2026-07-22）
@@ -168,9 +148,3 @@
 - 背景: 依存更新（Dependabot）の検証を手動（ブランチ取得 → `npm ci` → lint/build/test）で行っていた。定期的に発生するため機械化したかった。従来の自動チェックは Vercel ビルド（`next build`＝型チェックのみ）だけで、`npm run lint` と `npm test` は走っていなかった
 - 対応: `.github/workflows/ci.yml` を新設。`pull_request` と main への `push` で `npm ci` → `lint` → `build` → `test` を実行。統合テストは Postgres サービスコンテナ（`postgres:17-alpine`、DB=`hitosuji_test`）を建て、`TEST_DATABASE_URL` を渡す（マイグレーションは vitest の globalSetup が自動適用）。Node は本番に合わせて 24
 - 方針: CI は**検証のみ**。Dependabot PR がグリーンでもマージ（＝main への push ＝本番デプロイ）は手動で、オーナーの合図を待つ。自動マージ・CI 必須チェック化（ブランチ保護）はしない
-
----
-
-# 決定ログ
-
-技術活動（T-XX）に関する判断は[log_技術改善計画.md](./log_技術改善計画.md)に日付順で積む。

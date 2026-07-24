@@ -15,6 +15,20 @@
       "when": 1784475848865,
       "tag": "0001_light_vermin",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784689647206,
+      "tag": "0002_clever_moondragon",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1784915876771,
+      "tag": "0003_shiny_wonder_man",
+      "breakpoints": true
     }
   ]
 }

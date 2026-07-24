@@ -1,0 +1,121 @@
+name: Label schema migration
+
+# 新規マイグレーションを含む PR に「スキーマ更新」ラベルを付け、本番マイグレーション実行を
+# 促す注意コメントを1件投稿する（技術改善計画 T-21 / T-22 の運用明瞭化）。
+# 狙い: マージ＝本番デプロイの前に、本番マイグレーション（手動適用）の実行漏れを防ぐ注意喚起。
+# ラベル付与・コメントのみで CI を fail させず・マージもブロックしない（CLAUDE.md「本番マイグレーションの手順」）。
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+# ラベル操作に issues/PR への書き込みが要る。他は最小権限に絞る。
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: label-schema-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v9
+        with:
+          script: |
+            const LABEL = 'スキーマ更新';
+            // 新規マイグレーション SQL の追加を「スキーマ更新が必要」の判定条件とする。
+            const MIGRATIONS_DIR = 'src/infrastructure/db/migrations/';
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner,
+              repo,
+              pull_number: issue_number,
+              per_page: 100,
+            });
+
+            // 新規追加された *.sql のみを対象にする（本番へ流す新しいマイグレーションと 1:1）。
+            // 既存マイグレーションの削除・リネームは通常起きず、起きても「追加」ではないため対象外。
+            const needsSchemaUpdate = files.some(
+              (f) =>
+                f.status === 'added' &&
+                f.filename.startsWith(MIGRATIONS_DIR) &&
+                f.filename.endsWith('.sql'),
+            );
+
+            if (needsSchemaUpdate) {
+              // ラベルが未作成なら初回に作る（以降は既存を再利用）。
+              try {
+                await github.rest.issues.getLabel({ owner, repo, name: LABEL });
+              } catch (e) {
+                if (e.status !== 404) throw e;
+                await github.rest.issues.createLabel({
+                  owner,
+                  repo,
+                  name: LABEL,
+                  color: 'D93F0B',
+                  description: 'マージ前に本番マイグレーションの手動適用が必要',
+                });
+              }
+              await github.rest.issues.addLabels({ owner, repo, issue_number, labels: [LABEL] });
+              core.info(`「${LABEL}」ラベルを付与しました`);
+            } else {
+              // 後続コミットでマイグレーションが消えた場合に追随してラベルを外す。
+              try {
+                await github.rest.issues.removeLabel({ owner, repo, issue_number, name: LABEL });
+                core.info(`「${LABEL}」ラベルを外しました`);
+              } catch (e) {
+                if (e.status !== 404) throw e; // 付いていなければ 404 → 何もしない
+              }
+            }
+
+            // ── migrate 実行を促す注意コメント（T-22 の運用明瞭化）──
+            // 隠しマーカーで自分のコメントを一意に識別し、重複投稿を防ぐ（sticky comment）。
+            const MARKER = '<!-- schema-migrate-reminder -->';
+            const branch = context.payload.pull_request.head.ref;
+            const workflowUrl = `https://github.com/${owner}/${repo}/actions/workflows/db-migrate.yml`;
+            const body = [
+              MARKER,
+              '> [!WARNING]',
+              '> **スキーマ更新（本番マイグレーション）が必要な PR です。** マージ（＝本番デプロイ）の前に、本番DBへマイグレーションを適用してください。',
+              '',
+              '**手順:**',
+              '',
+              `1. [**DB migrate (production) を実行**](${workflowUrl}) → ブランチ **\`${branch}\`** を選び、\`confirm\` に \`migrate\` と入力`,
+              '2. `db-migrate` Environment の承認 → 適用の成功を確認',
+              '3. 成功後にこの PR をマージ（＝ Vercel が自動デプロイ）',
+              '',
+              'CLI なら1行（ブランチ指定込み）:',
+              '',
+              '```',
+              `gh workflow run db-migrate.yml --ref ${branch} -f confirm=migrate`,
+              '```',
+            ].join('\n');
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(MARKER));
+
+            if (needsSchemaUpdate) {
+              // 未投稿なら1件だけ投稿。既にあれば文面が変わったときのみ更新（重複投稿しない）。
+              if (!existing) {
+                await github.rest.issues.createComment({ owner, repo, issue_number, body });
+                core.info('migrate 実行の注意コメントを投稿しました');
+              } else if (existing.body !== body) {
+                await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+                core.info('migrate 実行の注意コメントを更新しました');
+              }
+            } else if (existing) {
+              // マイグレーションが無くなったらコメントも取り下げる（ラベルと同じ追随）。
+              await github.rest.issues.deleteComment({ owner, repo, comment_id: existing.id });
+              core.info('マイグレーションが無くなったため注意コメントを削除しました');
+            }

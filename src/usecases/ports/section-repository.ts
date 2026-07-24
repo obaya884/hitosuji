@@ -7,6 +7,8 @@ export type SectionRepository = Readonly<{
   create(input: SectionInput): Promise<Section>;
   update(id: SectionId, input: SectionInput): Promise<void>;
   setArchived(id: SectionId, isArchived: boolean): Promise<void>;
+  /** 日界セクション（1日の開始。F-116）を1件だけ立てる。他の有効セクションは下ろす */
+  setDayStart(id: SectionId): Promise<void>;
   /** 各セクションを参照するタスクの件数（画面定義書03 §4.1。ルーチンはセクションを参照しない） */
   referenceCounts(ids: readonly SectionId[]): Promise<Readonly<Record<SectionId, number>>>;
   remove(id: SectionId): Promise<void>;
