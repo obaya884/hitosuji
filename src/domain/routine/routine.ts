@@ -17,6 +17,8 @@ export type Routine = Readonly<{
   recurrenceType: RecurrenceType;
   /** weekly のビットマスク（bit0=月 … bit6=日） */
   weekdays: number | null;
+  /** weekly の週間隔（n週おき。1=毎週）。NULL は 1 として扱う（データモデル定義書 §3.4） */
+  weekInterval: number | null;
   /** monthly の日。月末超過は月末に丸める */
   monthDay: number | null;
   /** interval の間隔（n日ごと） */
@@ -34,6 +36,7 @@ export type RoutineError =
   | "invalid_end_date"
   | "end_date_before_start_date"
   | "weekdays_required"
+  | "invalid_week_interval"
   | "invalid_month_day"
   | "invalid_interval_days";
 
@@ -71,7 +74,11 @@ export function describeRecurrence(routine: Routine): string {
         const days = WEEKDAY_BITS.filter(
           (w) => routine.weekdays !== null && (routine.weekdays & (1 << w.bit)) !== 0
         ).map((w) => w.label);
-        return days.length === 0 ? "週次" : `週次(${days.join("・")})`;
+        // week_interval に応じて接頭を変える（1=週次 / 2=隔週 / n=n週ごと）。
+        // NULL・1 以下は毎週扱い（occursOn の判定粒度と揃える）
+        const interval = routine.weekInterval ?? 1;
+        const prefix = interval <= 1 ? "週次" : interval === 2 ? "隔週" : `${interval}週ごと`;
+        return days.length === 0 ? prefix : `${prefix}(${days.join("・")})`;
       }
       case "monthly":
         return `月次(${routine.monthDay}日)`;

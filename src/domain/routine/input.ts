@@ -14,6 +14,7 @@ export type RoutineInput = Readonly<{
   projectId: number | null;
   recurrenceType: RecurrenceType;
   weekdays: number | null;
+  weekInterval: number | null;
   monthDay: number | null;
   intervalDays: number | null;
   startDate: string;
@@ -29,6 +30,7 @@ export type ValidRoutineInput = Readonly<{
   projectId: number | null;
   recurrenceType: RecurrenceType;
   weekdays: number | null;
+  weekInterval: number | null;
   monthDay: number | null;
   intervalDays: number | null;
   startDate: LogicalDate;
@@ -78,6 +80,7 @@ export function validateRoutineInput(
 
 type RecurrenceFields = Readonly<{
   weekdays: number | null;
+  weekInterval: number | null;
   monthDay: number | null;
   intervalDays: number | null;
 }>;
@@ -85,12 +88,27 @@ type RecurrenceFields = Readonly<{
 function validateRecurrence(input: RoutineInput): Result<RecurrenceFields, RoutineError> {
   switch (input.recurrenceType) {
     case "daily":
-      return ok({ weekdays: null, monthDay: null, intervalDays: null });
+      return ok({ weekdays: null, weekInterval: null, monthDay: null, intervalDays: null });
 
-    case "weekly":
+    case "weekly": {
       // 曜日は1つ以上必須（画面定義書02 §4）
       if (input.weekdays === null || input.weekdays === 0) return err("weekdays_required");
-      return ok({ weekdays: input.weekdays, monthDay: null, intervalDays: null });
+      // 週間隔は 1〜53 の整数（1=毎週。上限は1年が触れうる最大週数。データモデル定義書 §3.4）
+      if (
+        input.weekInterval === null ||
+        !Number.isSafeInteger(input.weekInterval) ||
+        input.weekInterval < 1 ||
+        input.weekInterval > 53
+      ) {
+        return err("invalid_week_interval");
+      }
+      return ok({
+        weekdays: input.weekdays,
+        weekInterval: input.weekInterval,
+        monthDay: null,
+        intervalDays: null,
+      });
+    }
 
     case "monthly":
       if (
@@ -101,7 +119,12 @@ function validateRecurrence(input: RoutineInput): Result<RecurrenceFields, Routi
       ) {
         return err("invalid_month_day");
       }
-      return ok({ weekdays: null, monthDay: input.monthDay, intervalDays: null });
+      return ok({
+        weekdays: null,
+        weekInterval: null,
+        monthDay: input.monthDay,
+        intervalDays: null,
+      });
 
     case "interval":
       if (
@@ -111,6 +134,11 @@ function validateRecurrence(input: RoutineInput): Result<RecurrenceFields, Routi
       ) {
         return err("invalid_interval_days");
       }
-      return ok({ weekdays: null, monthDay: null, intervalDays: input.intervalDays });
+      return ok({
+        weekdays: null,
+        weekInterval: null,
+        monthDay: null,
+        intervalDays: input.intervalDays,
+      });
   }
 }

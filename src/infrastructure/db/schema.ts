@@ -76,6 +76,7 @@ export const routines = pgTable(
     projectId: integer("project_id").references(() => projects.id),
     recurrenceType: text("recurrence_type").notNull(),
     weekdays: integer("weekdays"), // weekly用ビットマスク（bit0=月 … bit6=日）
+    weekInterval: integer("week_interval"), // weekly用。n週おき（NULL/1=毎週）
     monthDay: integer("month_day"), // monthly用。月末超過は月末に丸め
     intervalDays: integer("interval_days"), // interval用。n日ごと
     startDate: date("start_date").notNull(), // interval の起算日を兼ねる
@@ -87,6 +88,10 @@ export const routines = pgTable(
     check(
       "ck_routines_recurrence_type",
       sql`recurrence_type IN ('daily', 'weekly', 'monthly', 'interval')`
+    ),
+    check(
+      "ck_routines_week_interval",
+      sql`week_interval IS NULL OR (week_interval BETWEEN 1 AND 53)`
     ),
   ]
 );

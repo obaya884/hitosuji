@@ -16,6 +16,7 @@ function routine(over: Partial<Routine> & { id: number }): Routine {
     projectId: null,
     recurrenceType: "daily",
     weekdays: null,
+    weekInterval: null,
     monthDay: null,
     intervalDays: null,
     startDate: "2026-01-01",
@@ -47,6 +48,15 @@ describe("describeRecurrence（画面定義書02 §3: 繰り返しルールの�
     expect(describeRecurrence(routine({ id: 1, recurrenceType: "weekly", weekdays: 0 }))).toBe(
       "週次"
     );
+  });
+
+  it("週間隔に応じて接頭を変える（1/NULL=週次・2=隔週・n=n週ごと）（FB-44）", () => {
+    const weekly = (weekInterval: number | null) =>
+      routine({ id: 1, recurrenceType: "weekly", weekdays: 0b0000010, weekInterval }); // 火
+    expect(describeRecurrence(weekly(1))).toBe("週次(火)");
+    expect(describeRecurrence(weekly(null))).toBe("週次(火)");
+    expect(describeRecurrence(weekly(2))).toBe("隔週(火)");
+    expect(describeRecurrence(weekly(3))).toBe("3週ごと(火)");
   });
 
   it("月次は「月次(N日)」", () => {

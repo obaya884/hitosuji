@@ -34,6 +34,7 @@ export function RoutineForm({ routine, modes, projects, today, onSubmit, onCance
     routine?.recurrenceType ?? "daily"
   );
   const [weekdays, setWeekdays] = useState(routine?.weekdays ?? 0);
+  const [weekInterval, setWeekInterval] = useState(String(routine?.weekInterval ?? 1));
   const [monthDay, setMonthDay] = useState(String(routine?.monthDay ?? 1));
   const [intervalDays, setIntervalDays] = useState(String(routine?.intervalDays ?? 2));
   const [startDate, setStartDate] = useState(routine?.startDate ?? today);
@@ -50,6 +51,7 @@ export function RoutineForm({ routine, modes, projects, today, onSubmit, onCance
       projectId,
       recurrenceType,
       weekdays: recurrenceType === "weekly" ? weekdays : null,
+      weekInterval: recurrenceType === "weekly" ? Number(weekInterval) : null,
       monthDay: recurrenceType === "monthly" ? Number(monthDay) : null,
       intervalDays: recurrenceType === "interval" ? Number(intervalDays) : null,
       startDate,
@@ -75,7 +77,8 @@ export function RoutineForm({ routine, modes, projects, today, onSubmit, onCance
           <label className="text-sm">
             <span className="text-xs text-ink-muted">見積もり（分）</span>
             <input
-              inputMode="numeric"
+              type="number"
+              min={1}
               value={estimateMinutes}
               onChange={(e) => setEstimateMinutes(e.target.value)}
               className={`mt-1 w-full ${inputBase}`}
@@ -111,25 +114,41 @@ export function RoutineForm({ routine, modes, projects, today, onSubmit, onCance
         </div>
 
         {recurrenceType === "weekly" && (
-          <div className="mt-2 flex flex-wrap gap-2 text-sm">
-            {WEEKDAY_BITS.map((weekday) => (
-              <label key={weekday.bit} className="flex items-center gap-1">
-                <input
-                  type="checkbox"
-                  checked={(weekdays & (1 << weekday.bit)) !== 0}
-                  onChange={() => setWeekdays((v) => toggleWeekday(v, weekday.bit))}
-                  className="accent-accent"
-                />
-                {weekday.label}
-              </label>
-            ))}
+          <div className="mt-2 space-y-2 text-sm">
+            <div className="flex flex-wrap gap-2">
+              {WEEKDAY_BITS.map((weekday) => (
+                <label key={weekday.bit} className="flex items-center gap-1">
+                  <input
+                    type="checkbox"
+                    checked={(weekdays & (1 << weekday.bit)) !== 0}
+                    onChange={() => setWeekdays((v) => toggleWeekday(v, weekday.bit))}
+                    className="accent-accent"
+                  />
+                  {weekday.label}
+                </label>
+              ))}
+            </div>
+            <label className="block">
+              <span className="text-xs text-ink-muted">週間隔</span>
+              <input
+                type="number"
+                min={1}
+                max={53}
+                value={weekInterval}
+                onChange={(e) => setWeekInterval(e.target.value)}
+                className={`ml-2 w-16 ${inputBase}`}
+              />
+              <span className="ml-2 text-xs text-ink-muted">週おき（1=毎週・2=隔週）</span>
+            </label>
           </div>
         )}
 
         {recurrenceType === "monthly" && (
           <label className="mt-2 block text-sm">
             <input
-              inputMode="numeric"
+              type="number"
+              min={1}
+              max={31}
               value={monthDay}
               onChange={(e) => setMonthDay(e.target.value)}
               className={`w-16 ${inputBase}`}
@@ -143,7 +162,8 @@ export function RoutineForm({ routine, modes, projects, today, onSubmit, onCance
         {recurrenceType === "interval" && (
           <label className="mt-2 block text-sm">
             <input
-              inputMode="numeric"
+              type="number"
+              min={1}
               value={intervalDays}
               onChange={(e) => setIntervalDays(e.target.value)}
               className={`w-16 ${inputBase}`}

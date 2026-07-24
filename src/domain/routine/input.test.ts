@@ -10,6 +10,7 @@ function input(over: Partial<RoutineInput> = {}): RoutineInput {
     projectId: null,
     recurrenceType: "daily",
     weekdays: null,
+    weekInterval: 1,
     monthDay: null,
     intervalDays: null,
     startDate: "2026-07-19",
@@ -84,6 +85,18 @@ describe("validateRoutineInput — 繰り返し種別ごとの必須項目（§4
     ).toBe(true);
   });
 
+  it("週次は週間隔が 1〜53 の整数（1=毎週。上限53）（FB-44）", () => {
+    const weekly = (weekInterval: number | null) =>
+      validateRoutineInput(input({ recurrenceType: "weekly", weekdays: 0b0000001, weekInterval }));
+    expect(weekly(0)).toEqual({ ok: false, error: "invalid_week_interval" });
+    expect(weekly(null).ok).toBe(false);
+    expect(weekly(1.5).ok).toBe(false);
+    expect(weekly(54)).toEqual({ ok: false, error: "invalid_week_interval" }); // 上限超過
+    const ok = weekly(2);
+    expect(ok.ok && ok.value.weekInterval).toBe(2);
+    expect(validateRoutineInput(input({ recurrenceType: "weekly", weekdays: 0b0000001, weekInterval: 53 })).ok).toBe(true); // 上限ちょうど
+  });
+
   it("月次は1〜31の日が必要", () => {
     expect(validateRoutineInput(input({ recurrenceType: "monthly", monthDay: 0 }))).toEqual({
       ok: false,
@@ -112,25 +125,28 @@ describe("validateRoutineInput — 繰り返し種別ごとの必須項目（§4
       input({
         recurrenceType: "daily",
         weekdays: 0b0000001,
+        weekInterval: 3,
         monthDay: 25,
         intervalDays: 3,
       })
     );
-    expect(r.ok && [r.value.weekdays, r.value.monthDay, r.value.intervalDays]).toEqual([
-      null,
-      null,
-      null,
-    ]);
+    expect(
+      r.ok && [r.value.weekdays, r.value.weekInterval, r.value.monthDay, r.value.intervalDays]
+    ).toEqual([null, null, null, null]);
   });
 
-  it("週次へ変えたら月次・間隔の値は落ちる", () => {
+  it("週次へ変えたら月次・間隔の値は落ち、曜日・週間隔は残る", () => {
     const r = validateRoutineInput(
-      input({ recurrenceType: "weekly", weekdays: 0b0000001, monthDay: 25, intervalDays: 3 })
+      input({
+        recurrenceType: "weekly",
+        weekdays: 0b0000001,
+        weekInterval: 2,
+        monthDay: 25,
+        intervalDays: 3,
+      })
     );
-    expect(r.ok && [r.value.weekdays, r.value.monthDay, r.value.intervalDays]).toEqual([
-      0b0000001,
-      null,
-      null,
-    ]);
+    expect(
+      r.ok && [r.value.weekdays, r.value.weekInterval, r.value.monthDay, r.value.intervalDays]
+    ).toEqual([0b0000001, 2, null, null]);
   });
 });

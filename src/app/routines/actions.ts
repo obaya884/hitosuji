@@ -26,6 +26,7 @@ const MESSAGES: Record<string, string> = {
   invalid_end_date: "終了日を正しく入力してください",
   end_date_before_start_date: "終了日は開始日以降にしてください",
   weekdays_required: "曜日を1つ以上選んでください",
+  invalid_week_interval: "週間隔は1〜53の整数で入力してください",
   invalid_month_day: "日は1〜31で入力してください",
   invalid_interval_days: "間隔は1日以上で入力してください",
   routine_not_found: "ルーチンが見つかりませんでした",

@@ -1,0 +1,2 @@
+ALTER TABLE "routines" ADD COLUMN "week_interval" integer;--> statement-breakpoint
+ALTER TABLE "routines" ADD CONSTRAINT "ck_routines_week_interval" CHECK (week_interval IS NULL OR (week_interval BETWEEN 1 AND 53));
