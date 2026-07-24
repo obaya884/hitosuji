@@ -25,7 +25,7 @@ Dependabot の依存更新PR・セキュリティアラートを、機械的検�
 - **マージ＝main への push＝本番デプロイ**。CI が緑でも、マージは**オーナーの明示的な合図を待つ**。自分の判断で merge/deploy しない
 - **アラートの dismiss もアウトバウンド操作**。Dependabot・code-scanning のどちらも、実行前にオーナーに一声かける
 - **close は実行してよい**（差し戻しではなく、後述の理由付きクローズ）
-- 挙動を変えない依存追随・ツール整備は `docs/案件/技術改善バックログ.md` に **T-XX** で記録する（[CLAUDE.md](../../../CLAUDE.md) の軸分け）
+- 挙動を変えない依存追随・ツール整備は `docs/案件/23_技術改善バックログ.md` に **T-XX** で記録する（[CLAUDE.md](../../../CLAUDE.md) の軸分け）
 
 ## 手順
 
@@ -93,7 +93,7 @@ npm ci                                # マージ後の lockfile に依存を合
 ```
 
 - 合図が出るまではマージしない。複数PRを取り込むなら「先に全部ローカル検証 → まとめて合図をもらう」と本番デプロイ回数を絞れる
-- 挙動を変えない更新なら `docs/案件/技術改善バックログ.md` に完了記録として T-XX を残す
+- 挙動を変えない更新なら `docs/案件/23_技術改善バックログ.md` に完了記録として T-XX を残す
 
 ### 6. セキュリティアラート（Dependabot＝依存の脆弱性）
 
@@ -111,7 +111,7 @@ gh api --method PATCH /repos/obaya884/hitosuji/dependabot/alerts/<N> \
 
 - `dismissed_reason` は `not_used`（脆弱コード未使用）/ `tolerable_risk`（許容）/ `inaccurate` 等から実態に合うものを選ぶ
 - **CI で検出できない壊し方をする override は避ける**（例: `@esbuild-kit` が古い esbuild を前提とする場合、esbuild を上げると `drizzle-kit generate/migrate` が壊れるが CI は気づけない → override せず dismiss＋追跡）
-- dismiss したものは `docs/案件/技術改善バックログ.md` に T-XX で追跡（根治条件と再確認のトリガーを書く）
+- dismiss したものは `docs/案件/23_技術改善バックログ.md` に T-XX で追跡（根治条件と再確認のトリガーを書く）
 
 ### 7. code-scanning アラート（CodeQL 静的解析）
 
@@ -128,7 +128,7 @@ gh api repos/obaya884/hitosuji/code-scanning/alerts \
 
 **判断軸**は「**真の欠陥・設定漏れ**（コードやワークフローを直して根治）」か「**false positive・到達不能・テスト専用**（dismiss）」か。依存アラートの「版を上げる／固定する」とは発想が違い、直すのは自分のコード側。
 
-- **根治できる（合図後の PR）** → コード・ワークフローを直して push。default setup が再スキャンし、指摘が消えれば**アラートは自動クローズ**する（手で閉じない）。挙動を変えない設定修正なら `docs/案件/技術改善バックログ.md` に **T-XX** で記録
+- **根治できる（合図後の PR）** → コード・ワークフローを直して push。default setup が再スキャンし、指摘が消えれば**アラートは自動クローズ**する（手で閉じない）。挙動を変えない設定修正なら `docs/案件/23_技術改善バックログ.md` に **T-XX** で記録
   - 例: `actions/missing-workflow-permissions`（ワークフローに `permissions:` ブロックが無く GITHUB_TOKEN が広すぎる）→ 該当 `.github/workflows/*.yml` に最小権限の `permissions:` を足せば根治
 - **false positive・到達不能・テスト専用 → dismiss**（オーナー合図後のアウトバウンド操作）:
 
@@ -139,7 +139,7 @@ gh api --method PATCH /repos/obaya884/hitosuji/code-scanning/alerts/<N> \
 ```
 
 - `dismissed_reason` は **`false positive` / `won't fix` / `used in tests` の3値のみ**（Dependabot の `not_used`/`tolerable_risk`/`inaccurate` とは**別語彙**。取り違えると API が弾く）
-- dismiss したものは §6 と同様 `docs/案件/技術改善バックログ.md` に **T-XX** で追跡（根治条件と再確認トリガーを書く）
+- dismiss したものは §6 と同様 `docs/案件/23_技術改善バックログ.md` に **T-XX** で追跡（根治条件と再確認トリガーを書く）
 
 ## 別件 WIP を混ぜない
 
@@ -154,4 +154,4 @@ gh api --method PATCH /repos/obaya884/hitosuji/code-scanning/alerts/<N> \
 
 ## 参考
 - 判断の軸分け・本番デプロイ規律: [CLAUDE.md](../../../CLAUDE.md)
-- 技術活動の台帳: [docs/案件/技術改善バックログ.md](../../../docs/案件/技術改善バックログ.md)
+- 技術活動の台帳: [docs/案件/23_技術改善バックログ.md](../../../docs/案件/23_技術改善バックログ.md)

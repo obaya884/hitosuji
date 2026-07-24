@@ -1,22 +1,30 @@
 # 技術改善バックログ完了記録
 
 - 作成日: 2026-07-24
-- 目的: 完了した技術活動（T-XX）を原文のまま保管する。ライブ台帳は[技術改善バックログ](./技術改善バックログ.md)（未着手・進行中・保留のみを持つ）
-- エントリは完了への状態更新と同じコミットで本書へ移す（並びは完了日の新しい順）。判断の経緯は従来どおり [log_技術改善バックログ.md](./log_技術改善バックログ.md) が持つ
+- 目的: 完了した技術活動（T-XX）を原文のまま保管する。ライブ台帳は[技術改善バックログ](./23_技術改善バックログ.md)（未着手・進行中・保留のみを持つ）
+- エントリは完了への状態更新と同じコミットで本書へ移す（並びは完了日の新しい順）。判断の経緯は従来どおり [log_23_技術改善バックログ.md](./log_23_技術改善バックログ.md) が持つ
+
+## T-28 docs 全文書への一意採番の導入（2026-07-24）
+
+- 種別: 改善（docs 構造）/ 優先度: 中
+- 背景: T-27 の台帳分離に続く docs 構造の整備。文書ファイルに順序・識別の番号がなく（画面定義書 00〜04 のみ採番済み）、一覧性と参照の安定性に欠けていた
+- 対応: **docs 全体で一意な2桁ブロック採番**を導入（0X=画面定義書内〔現状維持〕/ 1X=仕様 / 2X=案件 / 3X=検討）。並びは仕様=FB着手の判定順（11 要求 → 12 要件 → 13 画面 → 14 データモデル → 15 アーキテクチャ）、案件=流入順（21 FB → 22 要件BL → 23 技術改善BL → 24 実装計画）、検討=作成順（31 バンドル → 32 スキーマ更新 → 33 バックアップ → 34 AI並行開発）。`log_` / `closed_` / `guide_` は親の番号を引き継ぐ。全19ファイル/ディレクトリを `git mv` し、docs・README・CLAUDE.md・`.claude/`（agents 4本・dependabot-triage）の参照を全追随。体系は CLAUDE.md「最重要ルール」に明文化
+- 結果: 挙動不変（docs・エージェント定義のみ）。文中の「画面定義書01」呼称・H1 タイトル・FB/T/F/N の ID は不変。git は全ファイルを rename として認識し履歴が連続
+- 関連: 本書 T-27（台帳分離）/ [CLAUDE.md](../../CLAUDE.md)「最重要ルール」
 
 ## T-27 案件台帳の完了分をアーカイブへ分離（2026-07-24）
 
 - 種別: 改善（docs 構造）/ 優先度: 中
 - 背景: ユーザーフィードバック管理簿（43件中38件が対応済み）と技術改善バックログ（26件中18件が完了）は完了エントリが本文に線形蓄積する構造で、AI が起票・着手のたびに開くファイルなのに、ライブに読みたい未完了分が完了分のノイズに埋もれていた
-- 対応: 既存の「ライブ台帳 vs 完了アーカイブ」パターン（要件バックログ／実装計画）を両台帳へ適用。`closed_<文書名>.md` を隣接新設して完了エントリを**原文のまま**移し、ライブ台帳は未完了のみに（FB管理簿の着手手順も `guide_ユーザーフィードバック.md` へ分離）。「完了・対応済みへの状態更新と同じコミットでアーカイブへ移す」を運用ルール・CLAUDE.md に明文化
+- 対応: 既存の「ライブ台帳 vs 完了アーカイブ」パターン（要件バックログ／実装計画）を両台帳へ適用。`closed_<文書名>.md` を隣接新設して完了エントリを**原文のまま**移し、ライブ台帳は未完了のみに（FB管理簿の着手手順も `guide_21_ユーザーフィードバック.md` へ分離）。「完了・対応済みへの状態更新と同じコミットでアーカイブへ移す」を運用ルール・CLAUDE.md に明文化
 - 結果: 挙動不変（docs のみ）。FB-XX / T-XX の番号・記述は温存し、完了 T を名指しする既存リンクは本書へ付け替え
-- 関連: [ユーザーフィードバック管理簿](./ユーザーフィードバック.md) / [要件バックログ](./要件バックログ.md) / [CLAUDE.md](../../CLAUDE.md)「書き方の規約」
+- 関連: [ユーザーフィードバック管理簿](./21_ユーザーフィードバック.md) / [要件バックログ](./22_要件バックログ.md) / [CLAUDE.md](../../CLAUDE.md)「書き方の規約」
 
 ## T-22 本番スキーマ更新をリモートで実行するワークフロー（案A 採用・2026-07-23）
 
 - 種別: ツール整備（当初は調査）/ 優先度: 中
 - 背景: 本番マイグレーションは手元での手動実行だった（[CLAUDE.md](../../CLAUDE.md)「本番マイグレーションの手順」）。これをリモート（GitHub Actions）で完結させ、接続情報を Environment シークレットに置きたかった
-- 方式判断: 実現方式 A（実行のリモート化・`workflow_dispatch`）→ B（マージ契機の自動 migrate→deploy）→ C（expand/contract）のうち、**個人開発の規模では A で必要十分**と判断し A を採用。B・C は過剰につき見送り（将来の two-way door として検討ドキュメント §3 に記録）。難所は migrate 実行そのものではなく (1) Vercel 自動デプロイとの順序保証、(2) public リポジトリでのシークレット露出、の2点。**詳細は [スキーマ更新パイプライン検討.md](../検討/スキーマ更新パイプライン検討.md) が正**
+- 方式判断: 実現方式 A（実行のリモート化・`workflow_dispatch`）→ B（マージ契機の自動 migrate→deploy）→ C（expand/contract）のうち、**個人開発の規模では A で必要十分**と判断し A を採用。B・C は過剰につき見送り（将来の two-way door として検討ドキュメント §3 に記録）。難所は migrate 実行そのものではなく (1) Vercel 自動デプロイとの順序保証、(2) public リポジトリでのシークレット露出、の2点。**詳細は [32_スキーマ更新パイプライン検討.md](../検討/32_スキーマ更新パイプライン検討.md) が正**
 - 対応: ①`.github/workflows/db-migrate.yml`（`workflow_dispatch` ＋ migrate 専用 `db-migrate` Environment の承認ゲートで `npm run db:migrate`。新規マイグレーションを持つ PR ブランチから実行 → 成功後マージ＝デプロイ。Vercel の "Production" 環境とは分離）②`label-schema-migration.yml` を拡張し、スキーマ更新 PR に migrate 実行を促す注意コメント（`[!WARNING]`＋Run workflow 直リンク＋ブランチ名＋`gh` コマンド、sticky upsert）③README・CLAUDE.md を整理（手順は README が正・重複解消）
 - 結果: 実働確認済み。PR #16（F-116・マイグレーション 0002）で「ラベル → 注意コメント → リモート migrate（`db-migrate` 承認ゲート経由で本番へ 0002 適用）→ マージ（＝デプロイ）」を通しで確認。挙動（プロダクト）不変
 - 関連: 本書 T-01（CI 基盤）/ T-21（スキーマ更新ラベル）/ [CLAUDE.md](../../CLAUDE.md)「本番マイグレーションの手順」
@@ -90,7 +98,7 @@
 
 - 種別: 改善 / 優先度: 中
 - 背景: 構造が同一の結果型 `Readonly<{ ok: true } | { ok: false; message: string }>` が3箇所（daily `DailyActionResult`／routines `RoutineActionResult`／masters `ActionResult`）に別名で並立していた
-- 対応: 正となる `ActionResult` を `src/app/_lib/action-result.ts` に新設し、3ファイルは再エクスポート/エイリアスに寄せた（`DailyActionResult = ActionResult` 等）。**型名は温存**したため消費側 `.tsx` は不変。**低リスクな型の一本化のみ先行**し、`revalidatePath` 込みの定型ラッパ化・`MESSAGES` 統合（文言差があり挙動＝表示変化になる）・`createdId`/carry-over 等の固有処理は据え置き（[アーキテクチャ定義書](../仕様/アーキテクチャ定義書.md) §1 の過剰抽象回避）
+- 対応: 正となる `ActionResult` を `src/app/_lib/action-result.ts` に新設し、3ファイルは再エクスポート/エイリアスに寄せた（`DailyActionResult = ActionResult` 等）。**型名は温存**したため消費側 `.tsx` は不変。**低リスクな型の一本化のみ先行**し、`revalidatePath` 込みの定型ラッパ化・`MESSAGES` 統合（文言差があり挙動＝表示変化になる）・`createdId`/carry-over 等の固有処理は据え置き（[アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md) §1 の過剰抽象回避）
 - 結果: 挙動不変。型定義が1箇所に集約。lint / build / test 緑
 
 ## T-17 カバレッジ計測（`@vitest/coverage-v8`）の導入を確認（2026-07-22）
@@ -125,7 +133,7 @@
 
 - 種別: 改善 / 優先度: 中
 - 背景: ドメイン別ディレクトリに分けたうえで、ファイル名の命名規約が混在していた（`task/` に `task-edit.ts` と `punch.ts` が同居、`routine/` に `routine-order.ts` と `expansion.ts` が同居、各ドメインの `{obj}-usecases.ts` がディレクトリ名と重複）。新規追加のたびに「prefix を付けるか」を都度判断する揺れの元だった。オーナーの気づき（動詞単独ではドメインが読み取れない）を起点に対話で診断し、ディレクトリで文脈が付く前提で「オブジェクト名を繰り返さない」方向に倒すと決めた
-- 対応: [アーキテクチャ定義書](../仕様/アーキテクチャ定義書.md) §2「ファイル命名規約」に明文化。ディレクトリ名と重複する prefix を外した（`task-edit.ts`→`edit.ts`、`routine-order.ts`→`order.ts`、`routine-input.ts`→`input.ts`、`routine-from-task.ts`→`from-task.ts`、`expand-routines.ts`→`expand.ts`、`task-operations.ts`→`operations.ts`、`testing/in-memory-*-repository.ts`→`in-memory-repository.ts`）。**据え置き**: 集約の代表型（`task.ts` 等）・横断ディレクトリ（`ports/` `shared/` `repositories/`）・機能別 usecase（`punch-usecases.ts` 等）・集約操作をまとめた `{ドメイン}-usecases.ts`（domain の集約代表と同名衝突するため `-usecases` を維持）。シンボル名（関数・型）の Task/Routine 接頭辞の揺れは今回対象外
+- 対応: [アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md) §2「ファイル命名規約」に明文化。ディレクトリ名と重複する prefix を外した（`task-edit.ts`→`edit.ts`、`routine-order.ts`→`order.ts`、`routine-input.ts`→`input.ts`、`routine-from-task.ts`→`from-task.ts`、`expand-routines.ts`→`expand.ts`、`task-operations.ts`→`operations.ts`、`testing/in-memory-*-repository.ts`→`in-memory-repository.ts`）。**据え置き**: 集約の代表型（`task.ts` 等）・横断ディレクトリ（`ports/` `shared/` `repositories/`）・機能別 usecase（`punch-usecases.ts` 等）・集約操作をまとめた `{ドメイン}-usecases.ts`（domain の集約代表と同名衝突するため `-usecases` を維持）。シンボル名（関数・型）の Task/Routine 接頭辞の揺れは今回対象外
 - 結果: lint / build / test（461件）グリーン。git は全ファイルを rename として認識し履歴・blame が連続する
 
 ## T-04 postcss XSS アラートを overrides で解消（2026-07-22）
