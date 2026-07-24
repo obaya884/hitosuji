@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { currentTaskId, keepSelection, moveSelection } from "./selection";
+import { currentTaskId, keepSelection, moveSelection, selectionAfterFinish } from "./selection";
 import type { Task } from "./task";
 
 function task(over: Partial<Task> & { id: number }): Task {
@@ -78,6 +78,44 @@ describe("moveSelection（画面定義書01 §6: J/K・↑↓ で選択移動）
 
   it("選択IDが一覧に存在しない場合は先頭へフォールバックする", () => {
     expect(moveSelection(tasks, 999, 1)).toBe(1);
+  });
+});
+
+describe("selectionAfterFinish（画面定義書01 §5 / F-211: 終了打刻後は選択を次の未実行へ送る）", () => {
+  it("呼び出し時点のスナップショットに残る実行中タスク（終了対象）を飛ばして最初の未実行を選ぶ", () => {
+    // 実運用では daily-board が楽観的更新の適用前スナップショットを渡すため、いま終了打刻した
+    // タスク（id=2）はまだ実行中として含まれる。currentTaskId（実行中を優先）と違い、実行中を
+    // 無視して未実行を選ぶことを固定する（無視しないと終了したばかりの行を選び直してしまう）
+    const tasks = [
+      task({ id: 1, startedAt, endedAt }),
+      task({ id: 2, startedAt }), // = いま終了打刻した対象（スナップショットではまだ実行中）
+      task({ id: 3 }),
+      task({ id: 4 }),
+    ];
+    expect(selectionAfterFinish(tasks)).toBe(3);
+  });
+
+  it("未実行の後ろに完了が来る入り組んだ並びでも、リスト順で最初の未実行を選ぶ", () => {
+    const tasks = [
+      task({ id: 1, startedAt, endedAt }),
+      task({ id: 2 }), // 最初の未実行
+      task({ id: 3, startedAt, endedAt }),
+      task({ id: 4 }),
+    ];
+    expect(selectionAfterFinish(tasks)).toBe(2);
+  });
+
+  it("未実行が1件だけならそれを選ぶ", () => {
+    expect(selectionAfterFinish([task({ id: 1 })])).toBe(1);
+  });
+
+  it("送り先の未実行タスクがなければ null（呼び出し側は完了行に据え置く）", () => {
+    const tasks = [task({ id: 1, startedAt, endedAt }), task({ id: 2, startedAt, endedAt })];
+    expect(selectionAfterFinish(tasks)).toBeNull();
+  });
+
+  it("タスクが0件なら null", () => {
+    expect(selectionAfterFinish([])).toBeNull();
   });
 });
 

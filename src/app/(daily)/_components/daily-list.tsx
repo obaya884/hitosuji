@@ -353,7 +353,13 @@ function TaskRow({
         {/* 開始 →（実行中なら）終了 のトグル（F-201）。押しやすさのため円形ボタンにする */}
         <button
           type="button"
-          onClick={() => onPunch(task)}
+          onClick={(e) => {
+            // 行クリックの再選択（tr の onClick）が、終了打刻後の選択送り（F-211）を
+            // 上書きしないよう伝播を止める。選択自体はここで明示する（マウス／キーボード等価。§5）
+            e.stopPropagation();
+            onSelect(task.id);
+            onPunch(task);
+          }}
           disabled={status === "completed"}
           aria-label={status === "not_started" ? "開始" : status === "running" ? "終了" : "完了済み"}
           className={`flex h-7 w-7 items-center justify-center rounded-full ${

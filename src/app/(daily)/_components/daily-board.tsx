@@ -13,7 +13,7 @@ import {
   type DailyGroup,
 } from "@/domain/task/daily-list";
 import { stepMoveDestination } from "@/domain/task/reorder";
-import { keepSelection } from "@/domain/task/selection";
+import { keepSelection, selectionAfterFinish } from "@/domain/task/selection";
 import { taskStatus } from "@/domain/task/status";
 import { editEndedAt, editStartedAt } from "@/domain/task/punch-edit";
 import { validateEstimateMinutes, validateTaskName } from "@/domain/task/edit";
@@ -285,6 +285,11 @@ export function DailyBoard({
       run(() => startTaskAction(task.id, now), { type: "start", id: task.id, at: now });
     } else {
       run(() => finishTaskAction(task.id, now), { type: "finish", id: task.id, at: now });
+      // 終了打刻で完了したら選択行を次の未実行タスクへ送る（F-211 / §5）。この時点の
+      // orderedTasks は楽観的更新の適用前で終了対象がまだ実行中として残るため、currentTaskId で
+      // はなく selectionAfterFinish を使う。送り先がなければ据え置く（setSelectedId しない）
+      const next = selectionAfterFinish(orderedTasks);
+      if (next !== null) setSelectedId(next);
     }
   }
 
