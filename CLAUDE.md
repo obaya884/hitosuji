@@ -33,6 +33,8 @@ docs のファイル名は**全体で一意な2桁番号**を持つ（0X=画面�
 
 Next.js 16 (App Router) + TypeScript / Tailwind CSS 4 / Drizzle ORM + node-postgres / PostgreSQL（ローカル: Docker(OrbStack)、本番: Neon 無料枠）/ Vercel 無料枠 / Basic認証（`proxy.ts`）
 
+ランタイム（Node）とDB（PostgreSQL）の版は**本番（Vercel / Neon）が決めた版に他をそろえる**。追随関係と「追い越さない」「Dependabot は最新しか出さないので中間版は手動」の規則は `docs/仕様/15_アーキテクチャ定義書.md` §11 が正。
+
 ## アーキテクチャ
 
 クリーンアーキテクチャ＋関数型DDD。**コード配置・依存方向・テスト戦略の契約は `docs/仕様/15_アーキテクチャ定義書.md` が正**。要点:
