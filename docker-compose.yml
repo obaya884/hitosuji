@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     container_name: hitosuji-db
     ports:
       - "5432:5432"
@@ -13,7 +13,7 @@ services:
 
   # 統合テスト用DB（tmpfs で使い捨て。データは残らない）
   db-test:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     container_name: hitosuji-db-test
     ports:
       - "5433:5432"
