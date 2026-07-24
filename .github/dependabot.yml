@@ -28,8 +28,8 @@ updates:
         patterns:
           - "*"
 
-  # docker-compose のイメージ（postgres 等）。メジャー更新もPRを立て手動トリアージする
-  - package-ecosystem: "docker"
+  # docker-compose.yml のイメージ（postgres 等）。メジャー更新もPRを立て手動トリアージする
+  - package-ecosystem: "docker-compose"
     directory: "/"
     schedule:
       interval: "daily"
