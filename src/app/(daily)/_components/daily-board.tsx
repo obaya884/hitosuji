@@ -420,6 +420,10 @@ export function DailyBoard({
   function moveByStep(step: 1 | -1) {
     if (selectedId === null) return;
 
+    // 移動タスクへ選択を固定する（§5）。未選択（rawSelectedId=null）のままだと移動後に
+    // keepSelection が選択を「現在地（先頭の未実行）」へ再導出し、別タスクへ飛ぶ（FB-50）
+    setSelectedId(selectedId);
+
     // 表示中のセクション順（アーカイブ済み含む）。サーバ確定は displaySectionOrder(sameDay, sections)
     // で同じ順を作る（画面定義書01 O-6）。ここは楽観更新後の並びを使うため optimisticGroups から採る
     const sectionOrder = optimisticGroups.map((g) => g.section?.id ?? null);
