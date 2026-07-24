@@ -23,7 +23,13 @@ export function GlobalNav() {
     // スクロールしても常に見えるよう固定する（要件定義書 §4）。
     // flex 子は既定で伸びきり sticky が効かないため self-start ＋ 画面高で止める
     <nav className="sticky top-0 h-screen w-52 shrink-0 self-start overflow-y-auto border-r border-line px-5 py-6">
-      <p className="px-3 pb-6 text-base font-bold tracking-wide">Hitosuji</p>
+      {/* ロゴ＝ホーム。今日のデイリー（日付なしのルート）へ戻る（FB-45） */}
+      <Link
+        href="/"
+        className="mb-6 block px-3 text-base font-bold tracking-wide text-ink"
+      >
+        Hitosuji
+      </Link>
       <ul className="space-y-1">
         {NAV_ITEMS.map((item) => (
           <li key={item.href}>
