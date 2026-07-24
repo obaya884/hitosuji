@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
-import type { Section } from "@/domain/section/section";
+import { sectionRanges, type Section } from "@/domain/section/section";
 import { sectionTotalMinutes, type DailyGroup } from "@/domain/task/daily-list";
 import {
   sectionCapacityMinutes,
@@ -253,6 +253,30 @@ function toOptions(
   ];
 }
 
+/**
+ * セクション選択肢（O-5 / F-112）。名前の右に時間帯 `開始–終了` を付記する（FB-46）。
+ * 終了時刻は次セクション開始の導出（`sectionRanges`）。候補順は呼び出し側が渡す回転順
+ * （日界起点。F-116）を保つため、並べ替えはせず endTime だけを引く。アーカイブ済みは出さない。
+ */
+function toSectionOptions(sections: readonly Section[]): PopoverOption[] {
+  // sectionRanges も !isArchived で絞る（section.ts activeSections）ため、有効セクションの id は
+  // 必ず載る。get の undefined は Map の戻り型都合のみで、下のフォールバックは実際には描画されない
+  const endTimeById = new Map(sectionRanges(sections).map((r) => [r.section.id, r.endTime]));
+  return [
+    { id: null, label: "未分類" },
+    ...sections
+      .filter((s) => !s.isArchived)
+      .map((s) => {
+        const endTime = endTimeById.get(s.id);
+        return {
+          id: s.id,
+          label: s.name,
+          hint: endTime === undefined ? s.startTime : `${s.startTime}–${endTime}`,
+        };
+      }),
+  ];
+}
+
 /** 見積もり超過は警告色（F-202）。見積もり未設定（0分）は超過判定しない */
 function isOverEstimate(minutes: number, task: Task): boolean {
   return task.estimateMinutes > 0 && minutes > task.estimateMinutes;
@@ -416,7 +440,7 @@ function TaskRow({
             </button>
             {editing === "section" && (
               <SelectPopover
-                options={toOptions(sections, "未分類")}
+                options={toSectionOptions(sections)}
                 selectedId={task.sectionId}
                 onSelect={(id) => onAssign(task, "section", id)}
                 onClose={onEndEdit}

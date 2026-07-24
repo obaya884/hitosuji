@@ -11,6 +11,8 @@ export type PopoverOption = Readonly<{
   label: string;
   /** モードのカラーバー表示に使う */
   color?: string;
+  /** 名前の右に付記する補助表記（セクションの時間帯 `開始–終了` に使う。FB-46） */
+  hint?: string;
 }>;
 
 type Props = Readonly<{
@@ -101,7 +103,16 @@ export function SelectPopover({ options, selectedId, onSelect, onClose }: Props)
             />
           )}
           <span className={option.id === null ? "text-ink-faint" : ""}>{option.label}</span>
-          {option.id === selectedId && <CheckIcon className="ml-auto h-3 w-3 shrink-0" />}
+          {option.hint !== undefined && (
+            // 見出し §3.2 と同じ時間帯表記（弱色・等幅）で右寄せに付記する（FB-46）
+            <span className="ml-auto font-mono text-xs text-ink-muted tabular-nums">
+              {option.hint}
+            </span>
+          )}
+          {option.id === selectedId && (
+            // 右寄せの起点は hint があれば hint 側、なければ Check 側が担う
+            <CheckIcon className={`h-3 w-3 shrink-0 ${option.hint === undefined ? "ml-auto" : ""}`} />
+          )}
         </button>
       ))}
     </div>
