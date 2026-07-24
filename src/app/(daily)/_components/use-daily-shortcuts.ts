@@ -13,6 +13,8 @@ import type { EditField, EditingCell } from "./daily-list";
  */
 export type DailyShortcutParams = Readonly<{
   editing: EditingCell | null;
+  /** datepicker（F-117）の表示中は行操作キーを無効化する（背後へ流さない。§6） */
+  pickerOpen: boolean;
   orderedTasks: readonly Task[];
   /** 表示時に導出された選択行 ID（keepSelection 後の値） */
   selectedId: number | null;
@@ -23,6 +25,8 @@ export type DailyShortcutParams = Readonly<{
   setEditing: Dispatch<SetStateAction<EditingCell | null>>;
   setShowHelp: Dispatch<SetStateAction<boolean>>;
   setSelectedId: Dispatch<SetStateAction<number | null>>;
+  /** `G`（Go to date）で datepicker を開く（§3.1 / §6） */
+  openDatePicker: () => void;
   moveByStep: (step: 1 | -1) => void;
   punch: (task: Task) => void;
   operate: (task: Task, operation: "suspend" | "duplicate" | "postpone" | "delete") => void;
@@ -33,6 +37,7 @@ export type DailyShortcutParams = Readonly<{
 export function useDailyShortcuts(params: DailyShortcutParams): void {
   const {
     editing,
+    pickerOpen,
     orderedTasks,
     selectedId,
     deleted,
@@ -42,6 +47,7 @@ export function useDailyShortcuts(params: DailyShortcutParams): void {
     setEditing,
     setShowHelp,
     setSelectedId,
+    openDatePicker,
     moveByStep,
     punch,
     operate,
@@ -57,6 +63,8 @@ export function useDailyShortcuts(params: DailyShortcutParams): void {
       // 編集中（インライン編集・選択ポップオーバー表示中）は行操作キーを無効化する。
       // ポップオーバーは J/K/Enter を自前で拾うため、ここで素通しさせない（F-112）
       if (editing !== null) return;
+      // datepicker 表示中も同様。カレンダーが自前で拾うキー以外を背後へ流さない（§3.1 / §6）
+      if (pickerOpen) return;
       // 修飾キーは Shift のみ使用する（§6）。Cmd/Ctrl 併用時はブラウザの既定動作に任せる
       if (e.metaKey || e.ctrlKey || e.altKey) return;
 
@@ -131,6 +139,10 @@ export function useDailyShortcuts(params: DailyShortcutParams): void {
           return;
         case "t":
           router.push("/");
+          return;
+        case "g": // 日付を選んでジャンプ（datepicker を開く。§3.1 / §6）
+          e.preventDefault();
+          openDatePicker();
           return;
         case "a":
           e.preventDefault(); // 入力欄に "a" が入るのを防ぐ

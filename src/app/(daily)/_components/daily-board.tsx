@@ -56,6 +56,8 @@ import { useDailyShortcuts } from "./use-daily-shortcuts";
 
 type Props = Readonly<{
   date: LogicalDate;
+  /** 今日（日界考慮済み。F-116）。datepicker の「今日」強調に渡す（F-117） */
+  today: LogicalDate;
   isToday: boolean;
   groups: readonly DailyGroup[];
   modes: readonly Mode[];
@@ -151,6 +153,7 @@ function optimisticTask(date: LogicalDate, name: string): Task {
 
 export function DailyBoard({
   date,
+  today,
   isToday,
   groups,
   modes,
@@ -163,6 +166,8 @@ export function DailyBoard({
   const [rawSelectedId, setSelectedId] = useState<number | null>(null);
   const [editing, setEditing] = useState<EditingCell | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+  // datepicker（F-117）の開閉。日付クリックと G（Go to date）の両方から開くため board で持つ
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const quickAddRef = useRef<HTMLInputElement>(null);
   // 固定領域の高さ。選択行のスクロール追従（§5）が固定領域の裏で止まらないようにするため実測する
   const stickyRef = useRef<HTMLDivElement>(null);
@@ -440,6 +445,7 @@ export function DailyBoard({
   // グローバルキーボードショートカット（§6）。配線はフックへ切り出し（挙動は不変・T-14）
   useDailyShortcuts({
     editing,
+    pickerOpen: showDatePicker,
     orderedTasks,
     selectedId,
     deleted,
@@ -449,6 +455,7 @@ export function DailyBoard({
     setEditing,
     setShowHelp,
     setSelectedId,
+    openDatePicker: () => setShowDatePicker(true),
     moveByStep,
     punch,
     operate,
@@ -474,7 +481,13 @@ export function DailyBoard({
         {/* 日付ナビ＋サマリ（画面定義書01 §2）。
             サマリは日付の直後へ左寄せで続ける（§3.1 / FB-22）。? だけ右端に置く */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <DateNav date={date} weekday={weekdayIndex(date)} isToday={isToday} basePath="/" />
+          <DateNav
+            date={date}
+            weekday={weekdayIndex(date)}
+            isToday={isToday}
+            basePath="/"
+            picker={{ today, open: showDatePicker, onOpenChange: setShowDatePicker }}
+          />
           <DailySummary
             groups={optimisticGroups}
             now={now}

@@ -44,6 +44,7 @@ export default async function Home({
     <>
       <DailyBoard
         date={date}
+        today={today}
         isToday={date === today}
         groups={view.groups}
         modes={view.modes}
