@@ -4,6 +4,16 @@
 - 目的: 完了した技術活動（T-XX）を原文のまま保管する。ライブ台帳は[技術改善バックログ](./23_技術改善バックログ.md)（未着手・進行中・保留のみを持つ）
 - エントリは完了への状態更新と同じコミットで本書へ移す（並びは完了日の新しい順）。判断の経緯は従来どおり [log_23_技術改善バックログ.md](./log_23_技術改善バックログ.md) が持つ
 
+## T-19 Shift+J/K のアーカイブ済みセクション境界で楽観更新とサーバ確定がずれうる（2026-07-25）
+
+- 種別: 調査 → 対応 / 優先度: 中
+- 背景: T-11 のレビュー（spec-reviewer）で判明した既存の潜在論点。Shift+J/K の移動先算出で、サーバ `moveTaskByOneStep` の `sectionOrder` は `activeSections`（アーカイブ済み除外）だが、presentation `daily-board.tsx` は `optimisticGroups` 由来で当日タスクが属するアーカイブ済みセクションを含みうる。その境界を跨ぐ Shift+J/K で、client は移動先ありと楽観更新するがサーバは `indexOf === -1` で「動かさない」と判定し楽観更新が巻き戻る（データ不整合はなく視覚的な巻き戻りのみ・エッジケース）
+- 調査結果: 再現条件（当日タスクを持つアーカイブ済みセクションの境界を跨ぐ Shift+J/K）と実害（視覚的巻き戻りのみ・sort_order は常に妥当でデータ不整合なし）を確定。ローカルでの間欠再現は不要な範囲だが、コード追跡で client/server の `sectionOrder` 定義差を実害の原因と特定
+- オーナー判断: 「表示されているものは跨げる」＝当日タスク付きアーカイブ済みセクションも Shift+J/K の移動先に含める（O-5 の割り当てがアーカイブ済みを除外するのとは役割が異なる）。docs 先行で画面定義書01 O-6 を更新（`log_01_デイリーリスト.md` に決定エントリ）
+- 対応: 移動先セクション順を表示順に統一。`src/domain/task/daily-list.ts` に `displaySectionOrder(tasks, sections)`（＝`groupTasksBySection` の表示順から ID 列を作る純関数）を追加し、`moveTaskByOneStep`（サーバ）がこれを使用（従来の `activeSections` 版を置換）。presentation は同じ規則を `optimisticGroups` から再現。両者とも `groupTasksBySection` に由来し定義の二重実装が解消
+- 結果: 挙動変更（アーカイブ済み境界を跨げるようになった）。docs 反映済み。lint / build / 全テスト（unit 570・int 49）緑。domain・usecases に O-6/T-19 テストを追加（混在ソートの挿入位置・跨ぎの両方向・リスト端 no-move を含む）
+- 関連: [完了記録](./closed_23_技術改善バックログ.md) T-11（移動先算出の domain 一本化）/ 画面定義書01 O-6
+
 ## T-30 `@types/node` を本番ランタイム（Node 24 系）へ追随させる（2026-07-25）
 
 - 種別: 負債返済 / 優先度: 中

@@ -123,6 +123,17 @@ describe("moveTaskByOneStep（画面定義書01 §6: Shift+J/K）", () => {
     expect(repo.rows.find((t) => t.id === 1)?.sectionId).toBe(2);
   });
 
+  it("タスクが1件も無い空の有効セクションへ移動できる（サーバ確定）", async () => {
+    // 朝(1) にだけタスク。午前(2) は空だが有効なので移動先になる（画面定義書01 §3.2）
+    const repo = inMemoryTaskRepository([task({ id: 1, sectionId: 1, sortOrder: 1000 })]);
+
+    await moveTaskByOneStep(
+      { tasks: repo, sections: sectionRepo },
+      { taskId: 1, date: "2026-07-19", step: 1 }
+    );
+    expect(repo.rows.find((t) => t.id === 1)?.sectionId).toBe(2);
+  });
+
   it("未分類のタスクを下へ動かすと最初のセクションへ入る", async () => {
     const repo = inMemoryTaskRepository([
       task({ id: 1, sectionId: null, sortOrder: 1000 }),
@@ -144,6 +155,99 @@ describe("moveTaskByOneStep（画面定義書01 §6: Shift+J/K）", () => {
         { taskId: 99, date: "2026-07-19", step: 1 }
       )
     ).toEqual({ ok: false, error: "task_not_found" });
+  });
+
+  // T-19: 移動先は表示中のセクション順（当日タスク付きアーカイブ済みも含む）。画面定義書01 O-6
+  describe("当日タスクが属するアーカイブ済みセクションも移動先に含む（T-19）", () => {
+    // アーカイブ済みがリスト末尾に来る配置（20:00）
+    const withArchived: SectionRepository = {
+      ...sectionRepo,
+      listAll: async () => [
+        ...sections,
+        { id: 3, name: "旧枠", startTime: "20:00", isArchived: true },
+      ],
+    };
+
+    // アーカイブ済みが有効セクションの「間」に来る配置（中枠 07:30）。跨ぎの鏡像方向を検証する
+    // 表示順: [未分類, 朝(06:00,1), 中枠(07:30,3), 午前(09:00,2)]
+    const withMidArchived: SectionRepository = {
+      ...sectionRepo,
+      listAll: async () => [
+        ...sections,
+        { id: 3, name: "中枠", startTime: "07:30", isArchived: true },
+      ],
+    };
+
+    it("有効セクション末尾から下へ動かすとアーカイブ済みセクションへ入る", async () => {
+      // 午前(2) にいる id:1 の下は、当日タスク(id:2)を持つアーカイブ済み(3, 20:00)
+      const repo = inMemoryTaskRepository([
+        task({ id: 1, sectionId: 2, sortOrder: 1000 }),
+        task({ id: 2, sectionId: 3, sortOrder: 1000 }),
+      ]);
+
+      await moveTaskByOneStep(
+        { tasks: repo, sections: withArchived },
+        { taskId: 1, date: "2026-07-19", step: 1 }
+      );
+      expect(repo.rows.find((t) => t.id === 1)?.sectionId).toBe(3);
+    });
+
+    it("アーカイブ済みセクションのタスクを上へ動かすと隣の有効セクションへ出せる（閉じ込めない）", async () => {
+      const repo = inMemoryTaskRepository([
+        task({ id: 1, sectionId: 3, sortOrder: 1000 }),
+        task({ id: 2, sectionId: 2, sortOrder: 1000 }),
+      ]);
+
+      await moveTaskByOneStep(
+        { tasks: repo, sections: withArchived },
+        { taskId: 1, date: "2026-07-19", step: -1 }
+      );
+      expect(repo.rows.find((t) => t.id === 1)?.sectionId).toBe(2);
+    });
+
+    // 鏡像方向: アーカイブ済みが有効セクションの間（中枠 07:30）にある配置での跨ぎ
+    it("有効セクション先頭から上へ動かすと直上のアーカイブ済みセクションへ入る", async () => {
+      // 午前(2,09:00) の直上は中枠(3,07:30 archived)。表示のため中枠にも当日タスク(id:2)を置く
+      const repo = inMemoryTaskRepository([
+        task({ id: 1, sectionId: 2, sortOrder: 1000 }),
+        task({ id: 2, sectionId: 3, sortOrder: 1000 }),
+      ]);
+
+      await moveTaskByOneStep(
+        { tasks: repo, sections: withMidArchived },
+        { taskId: 1, date: "2026-07-19", step: -1 }
+      );
+      expect(repo.rows.find((t) => t.id === 1)?.sectionId).toBe(3);
+    });
+
+    it("アーカイブ済みセクション末尾から下へ動かすと直下の有効セクションへ入る", async () => {
+      // 中枠(3,07:30 archived) の直下は午前(2,09:00)
+      const repo = inMemoryTaskRepository([
+        task({ id: 1, sectionId: 3, sortOrder: 1000 }),
+        task({ id: 2, sectionId: 2, sortOrder: 1000 }),
+      ]);
+
+      await moveTaskByOneStep(
+        { tasks: repo, sections: withMidArchived },
+        { taskId: 1, date: "2026-07-19", step: 1 }
+      );
+      expect(repo.rows.find((t) => t.id === 1)?.sectionId).toBe(2);
+    });
+
+    it("末尾に来たアーカイブ済みセクションの最下部では下へ動かない（リスト端）", async () => {
+      // 移動先がアーカイブ済みを含む正規メンバーになった結果、端は旧枠(3,20:00)の外縁へ移る
+      const repo = inMemoryTaskRepository([
+        task({ id: 1, sectionId: 3, sortOrder: 1000 }),
+        task({ id: 2, sectionId: 1, sortOrder: 1000 }),
+      ]);
+
+      await moveTaskByOneStep(
+        { tasks: repo, sections: withArchived },
+        { taskId: 1, date: "2026-07-19", step: 1 }
+      );
+      const after = repo.rows.find((t) => t.id === 1);
+      expect([after?.sectionId, after?.sortOrder]).toEqual([3, 1000]); // 位置不変
+    });
   });
 });
 

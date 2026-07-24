@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Section } from "../section/section";
 import {
+  displaySectionOrder,
   groupTasksBySection,
   sectionTotalMinutes,
   taskProgress,
@@ -107,6 +108,37 @@ describe("groupTasksBySection（画面定義書01 §3.2: 表示順はセクシ�
     const night: Section = { id: 4, name: "深夜", startTime: "00:00", isArchived: false };
     const groups = groupTasksBySection([], [forenoon, night, morning]);
     expect(groups.map((g) => g.section?.name ?? "未分類")).toEqual(["未分類", "深夜", "朝", "午前"]);
+  });
+});
+
+describe("displaySectionOrder（画面定義書01 O-6: Shift+J/K の移動先は §3.2 の表示順に一致）", () => {
+  // 有効セクションの「間」に来るアーカイブ済み（07:00）。末尾 append か混在ソートかを識別する
+  const earlyArchived: Section = { id: 5, name: "早枠", startTime: "07:00", isArchived: true };
+
+  it("表示順の section ID 列を未分類 null 先頭で返す", () => {
+    expect(displaySectionOrder([], [forenoon, morning])).toEqual([null, morning.id, forenoon.id]);
+  });
+
+  it("当日タスクが属するアーカイブ済みは start_time 順で有効セクションの間に入る（§3.2）", () => {
+    // 早枠(07:00 archived) は 朝(06:00) と 午前(09:00) の間。末尾ではなく混在ソートされる
+    const order = displaySectionOrder(
+      [task({ id: 1, sectionId: earlyArchived.id })],
+      [morning, forenoon, earlyArchived]
+    );
+    expect(order).toEqual([null, morning.id, earlyArchived.id, forenoon.id]);
+  });
+
+  it("複数のアーカイブ済みセクションも当日タスクがあれば start_time 順で含む", () => {
+    // 朝06:00 → 早枠07:00(archived) → 午前09:00 → 旧枠15:00(archived)
+    const order = displaySectionOrder(
+      [task({ id: 1, sectionId: earlyArchived.id }), task({ id: 2, sectionId: archived.id })],
+      [morning, forenoon, earlyArchived, archived]
+    );
+    expect(order).toEqual([null, morning.id, earlyArchived.id, forenoon.id, archived.id]);
+  });
+
+  it("タスクが属さないアーカイブ済みセクションは移動先に含めない", () => {
+    expect(displaySectionOrder([], [morning, archived])).toEqual([null, morning.id]);
   });
 });
 

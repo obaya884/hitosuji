@@ -1,9 +1,9 @@
 // 並び替えのユースケース（画面定義書01 O-6）
 import type { TaskRepository } from "@/usecases/ports/task-repository";
 import type { SectionRepository } from "@/usecases/ports/section-repository";
-import { activeSections } from "@/domain/section/section";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import { ok, type Result } from "@/domain/shared/result";
+import { displaySectionOrder } from "@/domain/task/daily-list";
 import { moveTaskByStep, reorderTask, type ReorderError } from "@/domain/task/reorder";
 import type { TaskId } from "@/domain/task/task";
 
@@ -40,8 +40,9 @@ export async function moveTaskByOneStep(
     repos.sections.listAll(),
   ]);
 
-  // 表示順のセクション（未分類が先頭。画面定義書01 §3.2）
-  const sectionOrder: (number | null)[] = [null, ...activeSections(sections).map((s) => s.id)];
+  // 移動先は表示中のセクション順に一致させる（画面定義書01 O-6）。当日タスクが属する
+  // アーカイブ済みセクションも表示されるため移動先に含む（presentation の楽観更新と同一規則）
+  const sectionOrder = displaySectionOrder(sameDay, sections);
 
   const reorder = moveTaskByStep(sameDay, input.taskId, input.step, sectionOrder);
   if (!reorder.ok) return reorder;

@@ -52,6 +52,20 @@ export function groupTasksBySection(
 }
 
 /**
+ * 表示順のセクション ID 列（未分類 null を先頭にした回転順。§3.2）。
+ * Shift+J/K の移動先（画面定義書01 O-6）は表示中のセクション順に一致させる。サーバ確定
+ * （`moveTaskByOneStep`）は本関数を使い、presentation の楽観更新（`daily-board`）は同じ規則
+ * （`groupTasksBySection` の表示順）を `optimisticGroups` から再現する（関数ではなく規則を共有）。
+ * 当日タスクが属するアーカイブ済みセクションも表示されるので移動先に含む（有効セクションのみに絞らない）。
+ */
+export function displaySectionOrder(
+  tasks: readonly Task[],
+  sections: readonly Section[]
+): (number | null)[] {
+  return groupTasksBySection(tasks, sections).map((g) => g.section?.id ?? null);
+}
+
+/**
  * セクションの時間合計（分）。F-110 の「合計 2:30/3:00」の分子。
  * 完了タスクは実績、未完了（実行中・未実行）は見積もりを合算する（画面定義書01 §3.2）。
  * 実行中は見積もりで数え、完了打刻で実績へ切り替わる（actualMinutes は完了時のみ非null）
