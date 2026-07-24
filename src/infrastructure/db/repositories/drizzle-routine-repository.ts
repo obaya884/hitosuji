@@ -23,6 +23,7 @@ function toDomain(row: Row): Routine {
     projectId: row.projectId,
     recurrenceType: row.recurrenceType as RecurrenceType,
     weekdays: row.weekdays,
+    weekInterval: row.weekInterval,
     monthDay: row.monthDay,
     intervalDays: row.intervalDays,
     startDate: row.startDate,

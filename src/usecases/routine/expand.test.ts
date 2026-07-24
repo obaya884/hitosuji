@@ -35,6 +35,7 @@ function routine(over: Partial<Routine> & { id: number }): Routine {
     projectId: null,
     recurrenceType: "daily",
     weekdays: null,
+    weekInterval: null,
     monthDay: null,
     intervalDays: null,
     startDate: "2026-01-01",

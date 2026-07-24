@@ -29,6 +29,7 @@ function task(over: Partial<Task> & { id: number }): Task {
 const choice: RoutineFromTaskChoice = {
   recurrenceType: "daily",
   weekdays: null,
+  weekInterval: null,
   monthDay: null,
   intervalDays: null,
   scheduledStartTime: "06:30",
@@ -94,6 +95,7 @@ describe("routineInputFromTask（画面定義書01 §4.1: 引き継ぐ値・開�
         projectId: 3,
         recurrenceType: "daily",
         weekdays: null,
+        weekInterval: null,
         monthDay: null,
         intervalDays: null,
         startDate: "2026-07-20",
@@ -136,6 +138,7 @@ describe("routineInputFromTask（画面定義書01 §4.1: 引き継ぐ値・開�
     const weeklyChoice: RoutineFromTaskChoice = {
       recurrenceType: "weekly",
       weekdays: 0b0010101, // 月・水・金
+      weekInterval: 2, // 隔週（FB-44。ルーチン化からも週間隔を選べる）
       monthDay: null,
       intervalDays: null,
       scheduledStartTime: "10:00",
@@ -145,6 +148,7 @@ describe("routineInputFromTask（画面定義書01 §4.1: 引き継ぐ値・開�
     if (result.ok) {
       expect(result.value.recurrenceType).toBe("weekly");
       expect(result.value.weekdays).toBe(0b0010101);
+      expect(result.value.weekInterval).toBe(2);
       expect(result.value.scheduledStartTime).toBe("10:00");
     }
   });

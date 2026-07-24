@@ -41,6 +41,7 @@ function routineRow(over: Partial<Routine> & { id: number }): Routine {
     projectId: null,
     recurrenceType: "daily",
     weekdays: null,
+    weekInterval: null,
     monthDay: null,
     intervalDays: null,
     startDate: "2026-07-01",
@@ -59,6 +60,7 @@ function input(over: Partial<RoutineInput> = {}): RoutineInput {
     projectId: null,
     recurrenceType: "daily",
     weekdays: null,
+    weekInterval: null,
     monthDay: null,
     intervalDays: null,
     startDate: "2026-07-19",
@@ -70,6 +72,7 @@ function input(over: Partial<RoutineInput> = {}): RoutineInput {
 const choice: RoutineFromTaskChoice = {
   recurrenceType: "daily",
   weekdays: null,
+  weekInterval: null,
   monthDay: 19,
   intervalDays: 2,
   scheduledStartTime: "08:05",

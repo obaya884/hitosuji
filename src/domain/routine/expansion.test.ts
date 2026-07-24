@@ -11,6 +11,7 @@ function routine(over: Partial<Routine> & { id: number }): Routine {
     projectId: null,
     recurrenceType: "daily",
     weekdays: null,
+    weekInterval: null,
     monthDay: null,
     intervalDays: null,
     startDate: "2026-01-01",
@@ -54,6 +55,66 @@ describe("occursOn — weekly（曜日ビットマスク bit0=月 … bit6=日�
     expect(occursOn(routine({ id: 1, recurrenceType: "weekly", weekdays: null }), MONDAY)).toBe(
       false
     );
+  });
+});
+
+describe("occursOn — weekly の週間隔（FB-44 / データモデル定義書 §4.1。start_date の週=第0週・月曜始まり）", () => {
+  const MON0 = "2026-07-20"; // 月（第0週）
+  const MON1 = "2026-07-27"; // 翌週の月（第1週）
+  const MON2 = "2026-08-03"; // 翌々週の月（第2週）
+  const weekly = (weekInterval: number | null, startDate = MON0) =>
+    routine({ id: 1, recurrenceType: "weekly", weekdays: 0b0000001, weekInterval, startDate });
+
+  it("week_interval=1 は毎週該当する", () => {
+    const r = weekly(1);
+    expect(occursOn(r, MON0)).toBe(true);
+    expect(occursOn(r, MON1)).toBe(true);
+    expect(occursOn(r, MON2)).toBe(true);
+  });
+
+  it("week_interval が NULL でも毎週該当する（既存データ互換）", () => {
+    expect(occursOn(weekly(null), MON1)).toBe(true);
+  });
+
+  it("week_interval=2（隔週）は1週おきに該当する", () => {
+    const r = weekly(2);
+    expect(occursOn(r, MON0)).toBe(true); // 第0週
+    expect(occursOn(r, MON1)).toBe(false); // 第1週
+    expect(occursOn(r, MON2)).toBe(true); // 第2週
+  });
+
+  it("週間隔があっても曜日が一致しなければ該当しない", () => {
+    expect(occursOn(weekly(2), "2026-08-04")).toBe(false); // 第2週だが火曜
+  });
+
+  it("起算週は start_date を含む週（曜日は問わない）。週の途中開始でも同週が第0週", () => {
+    // start_date=水(7/22)。第0週の月(7/20)は start_date より前で対象外だが、
+    // 週番号の起点は 7/20 の週。隔週なら第2週の月(8/3)が該当する
+    const r = weekly(2, "2026-07-22");
+    expect(occursOn(r, MON1)).toBe(false); // 第1週
+    expect(occursOn(r, MON2)).toBe(true); // 第2週
+  });
+
+  it("3週ごとは第3週で再び該当する", () => {
+    const r = weekly(3);
+    expect(occursOn(r, MON1)).toBe(false); // 第1週
+    expect(occursOn(r, MON2)).toBe(false); // 第2週
+    expect(occursOn(r, "2026-08-10")).toBe(true); // 第3週
+  });
+
+  it("週番号は年をまたいでもずれない（隔週。2025-12 → 2026-01）", () => {
+    // start_date=2025-12-29(月)＝第0週。第1週の月 1/5 は非該当、第2週の月 1/12 が該当
+    const r = weekly(2, "2025-12-29");
+    expect(occursOn(r, "2026-01-05")).toBe(false); // 第1週
+    expect(occursOn(r, "2026-01-12")).toBe(true); // 第2週
+  });
+
+  it("start_date が日曜（月〜日 週の最終日）でも同週を第0週とする（隔週）", () => {
+    // start_date=2026-07-26(日)。同週の月は 7/20 だが start_date より前で対象外。
+    // 週番号の起点は 7/20 の週。第1週の月 7/27 は非該当、第2週の月 8/3 が該当
+    const r = weekly(2, "2026-07-26");
+    expect(occursOn(r, MON1)).toBe(false); // 第1週（7/27）
+    expect(occursOn(r, MON2)).toBe(true); // 第2週（8/3）
   });
 });
 

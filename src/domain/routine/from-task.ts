@@ -11,6 +11,7 @@ export type RoutineFromTaskError = "estimate_required" | "routine_derived_task";
 export type RoutineFromTaskChoice = Readonly<{
   recurrenceType: RecurrenceType;
   weekdays: number | null;
+  weekInterval: number | null;
   monthDay: number | null;
   intervalDays: number | null;
   scheduledStartTime: string;
@@ -37,6 +38,7 @@ export function defaultChoiceFromTask(
   return {
     recurrenceType: "daily",
     weekdays: 1 << weekdayBit,
+    weekInterval: 1, // 既定は毎週（週次に切り替えたときの初期値）
     monthDay: dayOfMonth(task.taskDate),
     intervalDays: 2,
     scheduledStartTime,
@@ -77,6 +79,7 @@ export function routineInputFromTask(
     projectId: task.projectId,
     recurrenceType: choice.recurrenceType,
     weekdays: choice.weekdays,
+    weekInterval: choice.weekInterval,
     monthDay: choice.monthDay,
     intervalDays: choice.intervalDays,
     // 開始日は翌日（元タスクが今日のリストに既にあるため、当日再展開での重複を防ぐ）

@@ -108,24 +108,39 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
 
       {/* 種別ごとに必要な項目だけ出す（画面定義書02 §4 と同じ構成） */}
       {choice.recurrenceType === "weekly" && (
-        <div className="flex gap-1">
-          {WEEKDAY_BITS.map(({ bit, label }) => (
-            <button
-              key={bit}
-              type="button"
-              onClick={() =>
-                setChoice((c) => ({ ...c, weekdays: toggleWeekday(c.weekdays ?? 0, bit) }))
-              }
-              aria-pressed={((choice.weekdays ?? 0) & (1 << bit)) !== 0}
-              className={`h-6 w-6 rounded-control border text-xs ${
-                ((choice.weekdays ?? 0) & (1 << bit)) !== 0
-                  ? "border-accent bg-accent-weak font-medium"
-                  : "border-line hover:bg-accent-weak"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+        <div className="space-y-2">
+          <div className="flex gap-1">
+            {WEEKDAY_BITS.map(({ bit, label }) => (
+              <button
+                key={bit}
+                type="button"
+                onClick={() =>
+                  setChoice((c) => ({ ...c, weekdays: toggleWeekday(c.weekdays ?? 0, bit) }))
+                }
+                aria-pressed={((choice.weekdays ?? 0) & (1 << bit)) !== 0}
+                className={`h-6 w-6 rounded-control border text-xs ${
+                  ((choice.weekdays ?? 0) & (1 << bit)) !== 0
+                    ? "border-accent bg-accent-weak font-medium"
+                    : "border-line hover:bg-accent-weak"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {/* 週間隔（隔週など。既定1=毎週。FB-44。詳細は画面定義書02 §4） */}
+          <label className="flex items-center gap-2">
+            <span className="text-ink-muted">週間隔</span>
+            <input
+              type="number"
+              min={1}
+              max={53}
+              value={choice.weekInterval ?? 1}
+              onChange={(e) => setChoice((c) => ({ ...c, weekInterval: Number(e.target.value) }))}
+              className={`w-14 ${inputBase}`}
+            />
+            <span className="text-xs text-ink-muted">週おき（1=毎週）</span>
+          </label>
         </div>
       )}
 

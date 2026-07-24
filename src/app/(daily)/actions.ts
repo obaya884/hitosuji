@@ -203,6 +203,7 @@ const ROUTINE_FROM_TASK_ERROR_MESSAGES: Record<string, string> = {
   estimate_required: "見積もりを入力してからルーチン化してください",
   routine_derived_task: "ルーチン由来のタスクはルーチン化できません（ルーチン画面で編集してください）",
   weekdays_required: "曜日を1つ以上選んでください",
+  invalid_week_interval: "週間隔は1〜53の整数で入力してください",
   invalid_start_time: "開始想定時刻を HH:MM で入力してください",
   invalid_interval_days: "間隔は1日以上で入力してください",
   invalid_month_day: "日は1〜31で入力してください",
