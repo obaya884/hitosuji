@@ -4,7 +4,7 @@
   "private": true,
   "license": "AGPL-3.0-or-later",
   "scripts": {
-    "dev": "next dev",
+    "dev": "sh scripts/dev.sh",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
@@ -21,7 +21,9 @@
     "db:restore": "sh scripts/db-restore.sh",
     "db:sync-masters": "sh scripts/db-sync-masters.sh",
     "wt:new": "sh scripts/wt-new.sh",
-    "wt:rm": "sh scripts/wt-rm.sh"
+    "wt:rm": "sh scripts/wt-rm.sh",
+    "ledger:check": "sh scripts/ledger-check.sh",
+    "ledger:move": "sh scripts/ledger-move.sh"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",

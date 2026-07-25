@@ -54,11 +54,41 @@ else
   echo "db-test が停止中のためテストDBの削除をスキップしました（tmpfs のためコンテナ再作成で消えます）"
 fi
 
-git worktree remove "$wt_dir"
+# node_modules・.next を先に落とす（T-32）。git worktree remove の再帰削除は
+# 「削除中に何かがファイルを保持・再作成している」と Directory not empty で落ちる。
+# 実測で7本中4本が失敗し、いずれもエディタが当該 worktree を開いたままだった。
+# この2つはファイル数の大半を占め、かつ gitignore 対象なので上の clean 判定に影響しない。
+# $name は先頭の正規表現で [a-z0-9-] に限定済みのため、パスがディレクトリを脱出することはない
+rm -rf "$wt_dir/node_modules" "$wt_dir/.next"
 
-# squash マージ運用では -d はマージを検出できず失敗する（git 運用ルール §1.2）。その場合はヒントを出して残す
-git branch -d "$name" \
-  || echo "ブランチ $name は未マージ扱い（squash マージ後もこうなる）のため残しました。マージ済みを確認のうえ git branch -D $name で削除してください"
+# .env.local は本体へのシンボリックリンク（T-34）。-f はリンク自体を消すだけで実体には触れないが、
+# 万一実体が置かれていた場合に消さないよう、リンクであることを確かめてから外す
+if [ -L "$wt_dir/.env.local" ]; then
+  rm -f "$wt_dir/.env.local"
+fi
+
+if ! git worktree remove "$wt_dir" 2>/dev/null; then
+  # 外部要因（TS server 等）が掴んでいる間だけ失敗することがあるため一度待って再試行する
+  sleep 2
+  if ! git worktree remove "$wt_dir" 2>/dev/null; then
+    # 最後の砦: 登録を解除してディレクトリを明示削除する。dirty の防護は上の clean 判定が
+    # 既に果たしているので、ここで git の安全装置を迂回しても防護は落ちない
+    echo "git worktree remove が失敗したため、登録解除＋明示削除にフォールバックします" >&2
+    rm -rf "$wt_dir"
+    git worktree prune
+  fi
+fi
+
+# squash マージ運用では -d はマージを検出できず失敗する（git 運用ルール §1.2）。
+# リモートブランチが消えていれば GitHub がマージ時に自動削除した証拠なので -D で消す
+if ! git branch -d "$name" 2>/dev/null; then
+  if git ls-remote --exit-code --heads origin "$name" >/dev/null 2>&1; then
+    echo "ブランチ $name はリモートに残っています（未マージの可能性）。確認のうえ git branch -D $name で削除してください" >&2
+  else
+    git branch -D "$name"
+    echo "ブランチ $name を削除しました（リモートが削除済み＝squash マージ済みと判定）"
+  fi
+fi
 
 rmdir ../hitosuji-wt 2>/dev/null || true  # 最後の worktree を消したら空の親ディレクトリも残さない
 echo "worktree を削除しました: $wt_dir"
