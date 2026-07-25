@@ -64,6 +64,28 @@ export function toggleWeekday(weekdays: number, bit: number): number {
   return weekdays ^ (1 << bit);
 }
 
+/**
+ * 曜日プリセット（画面定義書02 §4）。`weekdays` ビットマスクへの入力補助であり、
+ * 繰り返し種別を増やすものではない（データモデル定義書 §3.4 は無変更）
+ */
+export const WEEKDAY_PRESETS = [
+  { label: "平日", mask: 0b0011111 }, // 月〜金（bit0〜bit4）
+  { label: "土日", mask: 0b1100000 }, // 土・日（bit5・bit6）
+] as const;
+
+/**
+ * `weekdays` がプリセットと**ちょうど一致**するときだけその名前を返す（画面定義書02 §3）。
+ * 余分な曜日を含む場合（例: 月火水木金土）は null を返し、呼び出し側は曜日を列挙する
+ */
+export function weekdayPresetLabel(weekdays: number): string | null {
+  return WEEKDAY_PRESETS.find((preset) => preset.mask === weekdays)?.label ?? null;
+}
+
+/** ビットマスクに含まれる曜日ラベル（月→日の順） */
+function weekdayLabels(weekdays: number): readonly string[] {
+  return WEEKDAY_BITS.filter((w) => (weekdays & (1 << w.bit)) !== 0).map((w) => w.label);
+}
+
 /** 繰り返しルールの人間可読な要約（画面定義書02 §3） */
 export function describeRecurrence(routine: Routine): string {
   const base = (() => {
@@ -71,14 +93,16 @@ export function describeRecurrence(routine: Routine): string {
       case "daily":
         return "毎日";
       case "weekly": {
-        const days = WEEKDAY_BITS.filter(
-          (w) => routine.weekdays !== null && (routine.weekdays & (1 << w.bit)) !== 0
-        ).map((w) => w.label);
         // week_interval に応じて接頭を変える（1=週次 / 2=隔週 / n=n週ごと）。
         // NULL・1 以下は毎週扱い（occursOn の判定粒度と揃える）
         const interval = routine.weekInterval ?? 1;
         const prefix = interval <= 1 ? "週次" : interval === 2 ? "隔週" : `${interval}週ごと`;
-        return days.length === 0 ? prefix : `${prefix}(${days.join("・")})`;
+        const weekdays = routine.weekdays ?? 0;
+        const labels = weekdayLabels(weekdays);
+        if (labels.length === 0) return prefix;
+        // プリセットとちょうど一致するときは列挙をプリセット名に置き換える（FB-53）
+        const daysLabel = weekdayPresetLabel(weekdays) ?? labels.join("・");
+        return `${prefix}(${daysLabel})`;
       }
       case "monthly":
         return `月次(${routine.monthDay}日)`;

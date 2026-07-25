@@ -4,6 +4,9 @@ import {
   hasWeekday,
   toggleWeekday,
   weekdayBitOf,
+  weekdayPresetLabel,
+  WEEKDAY_BITS,
+  WEEKDAY_PRESETS,
   type Routine,
 } from "./routine";
 
@@ -57,6 +60,44 @@ describe("describeRecurrence（画面定義書02 §3: 繰り返しルールの�
     expect(describeRecurrence(weekly(null))).toBe("週次(火)");
     expect(describeRecurrence(weekly(2))).toBe("隔週(火)");
     expect(describeRecurrence(weekly(3))).toBe("3週ごと(火)");
+  });
+
+  it("曜日がプリセットとちょうど一致するときは列挙をプリセット名に置き換える（FB-53）", () => {
+    const weekday = routine({ id: 1, recurrenceType: "weekly", weekdays: 0b0011111 }); // 月〜金
+    expect(describeRecurrence(weekday)).toBe("週次(平日)");
+    const weekend = routine({ id: 2, recurrenceType: "weekly", weekdays: 0b1100000 }); // 土・日
+    expect(describeRecurrence(weekend)).toBe("週次(土日)");
+  });
+
+  it("プリセット名は週間隔の接頭・終了日と独立に効く（FB-53）", () => {
+    const weekly = (weekdays: number, weekInterval: number | null) =>
+      routine({ id: 1, recurrenceType: "weekly", weekdays, weekInterval });
+    expect(describeRecurrence(weekly(0b0011111, null))).toBe("週次(平日)");
+    expect(describeRecurrence(weekly(0b0011111, 2))).toBe("隔週(平日)");
+    expect(describeRecurrence(weekly(0b0011111, 3))).toBe("3週ごと(平日)");
+    expect(describeRecurrence(weekly(0b1100000, 2))).toBe("隔週(土日)");
+    expect(
+      describeRecurrence(
+        routine({ id: 1, recurrenceType: "weekly", weekdays: 0b0011111, endDate: "2026-12-31" })
+      )
+    ).toBe("週次(平日) 〜2026-12-31");
+  });
+
+  it("プリセットとちょうど一致しない曜日は列挙にフォールバックする（境界の網羅は weekdayPresetLabel 側）（FB-53）", () => {
+    const withSaturday = routine({ id: 1, recurrenceType: "weekly", weekdays: 0b0111111 }); // 月〜土
+    expect(describeRecurrence(withSaturday)).toBe("週次(月・火・水・木・金・土)");
+  });
+
+  it("プリセット適用後に個別の曜日を足すと要約は列挙へ戻る（画面定義書02 §4: 押したあとの微調整）", () => {
+    const adjusted = toggleWeekday(0b0011111, 5); // 平日に土を足す
+    const r = routine({ id: 1, recurrenceType: "weekly", weekdays: adjusted });
+    expect(describeRecurrence(r)).toBe("週次(月・火・水・木・金・土)");
+  });
+
+  it("曜日ビットの範囲外（bit7以上）しか立っていない場合は曜日を出さない", () => {
+    expect(
+      describeRecurrence(routine({ id: 1, recurrenceType: "weekly", weekdays: 1 << 7 }))
+    ).toBe("週次");
   });
 
   it("月次は「月次(N日)」", () => {
@@ -136,5 +177,54 @@ describe("toggleWeekday（画面定義書02 §4: 曜日ビットの切り替え�
 
   it("同じビットを2回切り替えると元に戻る（対称）", () => {
     expect(toggleWeekday(toggleWeekday(0b0010101, 3), 3)).toBe(0b0010101);
+  });
+});
+
+describe("WEEKDAY_PRESETS（画面定義書02 §4: 曜日プリセット。bit0=月 … bit6=日）", () => {
+  function maskOf(label: string): number {
+    const preset = WEEKDAY_PRESETS.find((p) => p.label === label);
+    if (preset === undefined) throw new Error(`プリセット「${label}」がない`);
+    return preset.mask;
+  }
+
+  /** マスクに立っている曜日のラベル（月→日の順） */
+  function labelsOf(mask: number): readonly string[] {
+    return WEEKDAY_BITS.filter((w) => (mask & (1 << w.bit)) !== 0).map((w) => w.label);
+  }
+
+  it("プリセットは「平日」「土日」の2つで、その順に並ぶ（UI のボタン表示順）", () => {
+    expect(WEEKDAY_PRESETS.map((p) => p.label)).toEqual(["平日", "土日"]);
+  });
+
+  it("「平日」は月〜金、「土日」は土・日をちょうど含む", () => {
+    expect(labelsOf(maskOf("平日"))).toEqual(["月", "火", "水", "木", "金"]);
+    expect(labelsOf(maskOf("土日"))).toEqual(["土", "日"]);
+  });
+
+  it("展開判定（日曜=0 の index）でも同じ曜日に該当する＝ビットの並びを取り違えていない", () => {
+    const weekday = maskOf("平日");
+    expect(hasWeekday(weekday, 1)).toBe(true); // 月曜(index1)
+    expect(hasWeekday(weekday, 0)).toBe(false); // 日曜(index0)
+    expect(hasWeekday(weekday, 6)).toBe(false); // 土曜(index6)
+    const weekend = maskOf("土日");
+    expect(hasWeekday(weekend, 0)).toBe(true); // 日曜(index0)
+    expect(hasWeekday(weekend, 6)).toBe(true); // 土曜(index6)
+    expect(hasWeekday(weekend, 1)).toBe(false); // 月曜(index1)
+  });
+});
+
+describe("weekdayPresetLabel（画面定義書02 §3: プリセットとちょうど一致するときだけ名前を返す）", () => {
+  it("ちょうど一致すればプリセット名を返す", () => {
+    expect(weekdayPresetLabel(0b0011111)).toBe("平日"); // 月〜金
+    expect(weekdayPresetLabel(0b1100000)).toBe("土日"); // 土・日
+  });
+
+  it("余分な曜日を含む・一部しか立っていない場合は null", () => {
+    expect(weekdayPresetLabel(0b0111111)).toBeNull(); // 月〜土（平日＋土）
+    expect(weekdayPresetLabel(0b1100001)).toBeNull(); // 土日＋月
+    expect(weekdayPresetLabel(0b0001111)).toBeNull(); // 月〜木（平日の一部）
+    expect(weekdayPresetLabel(0b0100000)).toBeNull(); // 土のみ
+    expect(weekdayPresetLabel(0b1111111)).toBeNull(); // 全曜日
+    expect(weekdayPresetLabel(0)).toBeNull(); // 未選択
   });
 });
