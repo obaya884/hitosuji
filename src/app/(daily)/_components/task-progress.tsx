@@ -16,7 +16,7 @@ export function TaskProgress({
   return (
     <>
       <span
-        className={`h-1.5 ${barWidth} shrink-0 overflow-hidden rounded-control bg-line`}
+        className={`h-1.5 ${barWidth} shrink-0 overflow-hidden rounded-control bg-track`}
         aria-hidden
       >
         <span
