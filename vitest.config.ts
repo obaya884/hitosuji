@@ -29,18 +29,17 @@ export default defineConfig({
       // scripts/coverage-summary.sh が読む機械可読出力。lcov ではなく lcovonly なのは
       // 前者が HTML ツリー（coverage/lcov-report）も生成してしまうため
       reporter: ["text", "text-summary", "json-summary", "lcovonly"],
-      include: ["src/**/*.ts"],
+      // presentation も計測対象に含める（T-33）。コンポーネントテストで測れるように
+      // なったため、含めないと T-39 の成果と UI 変更の未カバー箇所が数字に出ない。
+      // include は「未実行ファイルを走査する範囲」しか制御しない点に注意——テストが
+      // 読み込んだファイルは include に関係なく計上されるので、片方だけ含めると
+      // 「テスト済みのファイルだけが分母に入る」非対称集計になる
+      include: ["src/**/*.{ts,tsx}"],
       exclude: [
-        "src/**/*.test.ts",
-        "src/**/*.test.tsx",
+        "src/**/*.test.{ts,tsx}",
         "src/**/*.int.test.ts",
         "src/**/testing/**",
         "src/**/_testing/**",
-        // include は「未実行ファイルを走査する範囲」しか制御せず、テストが読み込んだ
-        // ファイルは include に関係なく計上される。除外しないと「テスト済みの .tsx だけが
-        // 100% で分母に入り、未テストの33ファイルは見えない」非対称集計になる（T-39）。
-        // .tsx を計測対象にするかは T-33 で判断する（この1行を外せば含まる）
-        "src/**/*.tsx",
       ],
     },
     projects: [
