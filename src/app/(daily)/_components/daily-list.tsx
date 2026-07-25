@@ -4,7 +4,11 @@ import { useEffect, useRef } from "react";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
-import { sectionRanges, type Section } from "@/domain/section/section";
+import {
+  currentSectionId as deriveCurrentSectionId,
+  sectionRanges,
+  type Section,
+} from "@/domain/section/section";
 import { sectionTotalMinutes, type DailyGroup } from "@/domain/task/daily-list";
 import {
   formatProjectedStart,
@@ -43,7 +47,7 @@ type Props = Readonly<{
   editing: EditingCell | null;
   onBeginEdit: (task: Task, field: EditField) => void;
   onEndEdit: () => void;
-  /** 毎分更新される現在時刻。実行中タスクの経過表示に使う（F-205） */
+  /** 毎分更新される現在時刻（F-205 / F-120 / F-121） */
   now: Date;
   /** 表示日が今日か。セクション残り時間（§3.2）と予想開始時刻（§3.3）は今日のみ表示する */
   isToday: boolean;
@@ -100,6 +104,8 @@ export function DailyList({
   const projectById = new Map(projects.map((p) => [p.id, p]));
 
   const projectedStarts = projectedStartLabels(groups, now, isToday, dayStartMinutes);
+  // 現在セクションの強調（§3.2 / F-121）。sections 全体が要るため親で1回だけ求める
+  const currentSectionId = deriveCurrentSectionId(sections, formatClock(now), isToday);
 
   return (
     // table-fixed + colgroup で列幅を1箇所に集約する。table-auto のままだと
@@ -136,6 +142,7 @@ export function DailyList({
             now={now}
             isToday={isToday}
             dayStartMinutes={dayStartMinutes}
+            currentSectionId={currentSectionId}
           />
           {group.tasks.map((task, index) => (
             <TaskRow
@@ -198,7 +205,15 @@ function GroupHeading({
   now,
   isToday,
   dayStartMinutes,
-}: Readonly<{ group: DailyGroup; now: Date; isToday: boolean; dayStartMinutes: number }>) {
+  currentSectionId,
+}: Readonly<{
+  group: DailyGroup;
+  now: Date;
+  isToday: boolean;
+  dayStartMinutes: number;
+  /** 現在時刻を含むセクションの id（§3.2 / F-121）。未分類・表示日≠今日は null */
+  currentSectionId: number | null;
+}>) {
   // 分子: 完了は実績・未完了は見積もり（§3.2）
   const total = sectionTotalMinutes(group.tasks);
   // セクション枠の長さ（F-110 の分母）。未分類とアーカイブ済みセクションでは枠が定まらない
@@ -218,8 +233,11 @@ function GroupHeading({
       ? sectionRemainingMinutes(endAt, group.tasks, now)
       : null;
 
+  // 現在セクションの強調（§3.2 / F-121）: 未分類・アーカイブ済みは currentSectionId と一致しない
+  const isCurrentSection = group.section !== null && group.section.id === currentSectionId;
+
   return (
-    <tr className="border-y border-line-strong bg-band">
+    <tr className={`border-y border-line-strong ${isCurrentSection ? "bg-band-now" : "bg-band"}`}>
       {/* 全要素を左寄せで1行に並べる（§3.2「見出し行のレイアウト」。左右分離をやめる） */}
       <td colSpan={7} className="py-2 pl-2">
         <span className="flex items-center gap-2">
