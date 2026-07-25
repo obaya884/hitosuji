@@ -51,4 +51,5 @@ else
 fi
 
 git worktree prune
+rmdir ../hitosuji-wt 2>/dev/null || true  # 最後の worktree を消したら空の親ディレクトリも残さない
 echo "worktree を削除しました: $wt_dir"
