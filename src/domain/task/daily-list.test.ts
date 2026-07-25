@@ -238,6 +238,12 @@ describe("withTaskMoved（N-01: 並び替えを即反映）", () => {
     expect(moved[0].tasks[0].sectionId).toBeNull();
   });
 
+  it("移動先の index が移動元を含む件数でも末尾へ収める（同じセクションを選び直したときの楽観更新）", () => {
+    // daily-board は「移動先グループの件数」をそのまま渡すため、同一セクションでは自分を含む件数になる
+    const moved = withTaskMoved(groups, 1, { sectionId: morning.id, index: 2 });
+    expect(moved[1].tasks.map((t) => t.id)).toEqual([2, 1]);
+  });
+
   it("元のグループ列を変更しない", () => {
     withTaskMoved(groups, 2, { sectionId: morning.id, index: 0 });
     expect(groups[1].tasks.map((t) => t.id)).toEqual([1, 2]);
