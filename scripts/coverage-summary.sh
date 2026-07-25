@@ -162,8 +162,8 @@ if base and os.path.exists(LCOV):
                 "|---|---:|---|",
             ] + rows
         else:
-            # docs・scripts・.tsx だけの変更ではここに来る（計測対象は src/**/*.ts のみ）
-            out.append("変更行に計測対象（`src/**/*.ts`）はありません。")
+            # docs・scripts・設定だけの変更ではここに来る（計測対象は src 配下のみ）
+            out.append("変更行に計測対象（`src/**/*.{ts,tsx}`）はありません。")
 
 print("\n".join(out))
 PY
