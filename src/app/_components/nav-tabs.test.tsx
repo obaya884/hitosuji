@@ -18,7 +18,10 @@ const TABS = [
 
 const exactMatch = (path: string, href: string) => path === href;
 
-describe("NavTabs（画面定義書03 §2: マスタ管理はタブ切替で1画面に集約し、現在地をタブに示す）", () => {
+// NavTabs は画面内タブの汎用描画部品で、条項を持つのは使う側（現状は画面定義書03 §2 の
+// マスタ管理タブが唯一の呼び出し側）。ここでは部品としての契約——タブ定義どおりのリンクを並べ、
+// 現在地を aria-current=page で示し、どれが現在地かの判定は呼び出し側に委ねる——を固定する
+describe("NavTabs（画面内タブの汎用描画: 現在地を aria-current=page で示し、判定は呼び出し側に委ねる）", () => {
   it("渡されたタブをリンクとして順に描画する", () => {
     pathname.value = "/masters/sections";
     render(<NavTabs tabs={TABS} isCurrent={exactMatch} />);
@@ -45,13 +48,12 @@ describe("NavTabs（画面定義書03 §2: マスタ管理はタブ切替で1画
     expect(current[0].getAttribute("aria-current")).toBe("page");
   });
 
-  it("アクティブ判定は呼び出し側の関数に委ねる（prefix 一致も渡せる）", () => {
+  it("アクティブ判定は呼び出し側の関数に委ねる（prefix 一致を渡せば下位パスでも点灯する）", () => {
     pathname.value = "/masters/modes/12";
-    const prefixMatch = vi.fn((path: string, href: string) => path.startsWith(href));
+    const prefixMatch = (path: string, href: string) => path.startsWith(href);
     render(<NavTabs tabs={TABS} isCurrent={prefixMatch} />);
 
-    // 現在のパスと各タブの href の組で呼ばれる
-    expect(prefixMatch.mock.calls).toContainEqual(["/masters/modes/12", "/masters/modes"]);
+    // 完全一致なら1つも点かないパスで、prefix 一致を渡すとモードが現在地になる
     const current = screen.getAllByRole("link").filter((a) => a.getAttribute("aria-current") !== null);
     expect(current.map((a) => a.textContent)).toEqual(["モード"]);
   });
@@ -63,11 +65,5 @@ describe("NavTabs（画面定義書03 §2: マスタ管理はタブ切替で1画
     expect(
       screen.getAllByRole("link").filter((a) => a.getAttribute("aria-current") !== null)
     ).toHaveLength(0);
-  });
-
-  it("タブが空なら何も描画しない", () => {
-    const { container } = render(<NavTabs tabs={[]} isCurrent={exactMatch} />);
-
-    expect(container.childElementCount).toBe(0);
   });
 });

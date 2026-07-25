@@ -17,6 +17,9 @@ function navItems() {
     .filter((a) => a.closest("li") !== null);
 }
 
+// クラスは部分文字列ではなくトークンで見る（`bg-accent` は `hover:bg-accent-weak` の部分文字列でもある）
+const hasClass = (el: Element, token: string) => el.classList.contains(token);
+
 /** aria-current=page が付いている項目のラベル */
 function currentLabels() {
   return navItems()
@@ -84,12 +87,18 @@ describe("GlobalNav（画面定義書00_共通 §1: Navigation Rail はラベル
     expect(currentLabels()).toEqual(["マスタ"]);
   });
 
-  it("スクロールしても見えるようレールを固定する（sticky・画面高で止める）", () => {
+  // 「スクロールしても常に見える」こと自体は幾何なので jsdom では確かめられない（ブラウザ段の宿題）。
+  // ここで固定できるのは、そのために必要なクラスの組が nav に揃っていることまで——
+  // `self-start` は「flex 子は既定で伸びきり sticky が効かない」ための必須要素で、
+  // 落とすと sticky と h-screen が残っていても固定が壊れる（実装コメント参照）
+  it("レールに固定表示のためのクラス一式が付いている（sticky / h-screen / self-start）", () => {
     pathname.value = "/";
     const { container } = render(<GlobalNav />);
 
     const nav = container.querySelector("nav");
-    expect(nav?.className).toContain("sticky");
-    expect(nav?.className).toContain("h-screen");
+    expect(nav).not.toBeNull();
+    for (const token of ["sticky", "top-0", "h-screen", "self-start"]) {
+      expect(hasClass(nav!, token)).toBe(true);
+    }
   });
 });

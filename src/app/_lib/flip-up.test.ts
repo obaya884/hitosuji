@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import { shouldFlipUp } from "./flip-up";
 
-// 実測値を引数で受け取る純関数なので jsdom は不要（ユニット段。アーキテクチャ定義書 §8）。
+// この判定を純関数へ切り出した理由: jsdom はレイアウト計算をせず `offsetHeight`・
+// `getBoundingClientRect()` が常に 0 を返すため、判定式が `use-flip-up.ts` の中にあるうちは
+// component 段でも「常に下向き」しか作れず、00_共通 §2.1 の3条件をどの段でも検証できなかった。
+// 実測値を引数で受け取る形にすれば jsdom も要らないユニット段に落ちる
+// （アーキテクチャ定義書 §8「段の呼び名と境界」。実測値そのものを読む箇所はブラウザ段の担当）。
+//
 // 幾何は「高さ 800 のビューポート」で組み、アンカーは高さ 30 の1行を想定する
 const VIEWPORT = 800;
 const metrics = (anchorTop: number, panelHeight: number, viewportHeight: number = VIEWPORT) =>
@@ -64,5 +69,16 @@ describe("shouldFlipUp（画面定義書00_共通 §2.1: 既定は起点の下�
     expect(
       shouldFlipUp({ panelHeight: 200, anchorTop: 810, anchorBottom: 840, viewportHeight: VIEWPORT })
     ).toBe(true);
+  });
+
+  it("アンカーがビューポート上端より上へ隠れていれば下向きのまま（上の余白が負）", () => {
+    // スクロールで起点の行が画面上に切れた状態。上へ反転しても見えないので下のまま
+    expect(shouldFlipUp(metrics(-50, 900))).toBe(false);
+  });
+
+  it("パネルの高さが 0（まだ測れていない）なら下向きのまま", () => {
+    // jsdom が常に返す値であり、フックの初回レイアウト効果も必ずこの入力を通る。
+    // 「高さ 0 は下に入りきる」と評価されるので反転しない
+    expect(shouldFlipUp(metrics(700, 0))).toBe(false);
   });
 });

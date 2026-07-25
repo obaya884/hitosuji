@@ -34,6 +34,13 @@ function dayCell(day: number): HTMLElement {
 // クラスは部分文字列ではなくトークンで見る（`bg-accent` は `hover:bg-accent-weak` の部分文字列でもある）
 const hasClass = (el: Element, token: string) => el.classList.contains(token);
 
+/** カーソル（未確定の選択日）のリングが付いた日セルのテキスト。常に1つのはず */
+function ringedDays(): (string | null)[] {
+  return dayCells()
+    .filter((b) => hasClass(b, "ring-1"))
+    .map((b) => b.textContent);
+}
+
 describe("DatePicker（画面定義書01 §3.1 / F-117: カレンダーから離れた日付へジャンプする）", () => {
   describe("カレンダーの描画（月グリッド・週の起点は月曜）", () => {
     it("表示月は表示日の属する月（年月を見出しに出す）", () => {
@@ -75,6 +82,12 @@ describe("DatePicker（画面定義書01 §3.1 / F-117: カレンダーから離
       expect(today.getAttribute("aria-current")).toBeNull();
       // 今日でも選択でもない日は強調しない
       expect(hasClass(dayCell(16), "text-accent")).toBe(false);
+    });
+
+    it("開いたときのカーソルは表示日に置く（リングは1つだけ）", () => {
+      renderPicker();
+
+      expect(ringedDays()).toEqual(["20"]);
     });
 
     it("表示月の外の日は薄色で区別する（前月末・翌月頭の埋め）", () => {
@@ -134,6 +147,28 @@ describe("DatePicker（画面定義書01 §3.1 / F-117: カレンダーから離
         expect(onSelect).toHaveBeenCalledExactlyOnceWith(expected);
       });
     }
+
+    it("移動するとカーソルのリングが隣のセルへ移る（リングは常に1つ）", () => {
+      renderPicker();
+      expect(ringedDays()).toEqual(["20"]);
+
+      fireEvent.keyDown(document, { key: "h" });
+      expect(ringedDays()).toEqual(["19"]);
+
+      fireEvent.keyDown(document, { key: "j" });
+      expect(ringedDays()).toEqual(["26"]);
+    });
+
+    it("選択済み（表示日）のセルからカーソルが離れても選択の印はそのまま", () => {
+      const { container } = renderPicker();
+
+      fireEvent.keyDown(document, { key: "l" });
+
+      expect(ringedDays()).toEqual(["21"]);
+      expect(
+        [...container.querySelectorAll('[aria-current="date"]')].map((el) => el.textContent)
+      ).toEqual(["20"]);
+    });
 
     it("移動は重ねられる（カーソルが単一の真実）", () => {
       const { onSelect } = renderPicker();

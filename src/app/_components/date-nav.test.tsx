@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DateNav } from "./date-nav";
 
@@ -14,12 +14,16 @@ vi.mock("next/navigation", () => ({
 const DATE = "2026-07-20"; // 月曜
 const WEEKDAY = 1;
 
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
 function renderNav(props: Partial<React.ComponentProps<typeof DateNav>> = {}) {
-  router.push.mockClear();
-  return render(
-    <DateNav date={DATE} weekday={WEEKDAY} isToday basePath="/" {...props} />
-  );
+  return render(<DateNav date={DATE} weekday={WEEKDAY} isToday basePath="/" {...props} />);
 }
+
+// クラスは部分文字列ではなくトークンで見る（`bg-accent` は `hover:bg-accent-weak` の部分文字列でもある）
+const hasClass = (el: Element, token: string) => el.classList.contains(token);
 
 describe("DateNav（画面定義書01 §3.1: 日付表示と前日/翌日/今日への移動）", () => {
   it("日付は `YYYY-MM-DD(曜)` で表示する", () => {
@@ -142,7 +146,7 @@ describe("DateNav（画面定義書01 §3.1: 日付表示と前日/翌日/今日
       renderNav({ picker: picker(true) });
 
       const today = screen.getByRole("button", { name: "15" });
-      expect(today.classList.contains("text-accent")).toBe(true);
+      expect(hasClass(today, "text-accent")).toBe(true);
     });
   });
 });
