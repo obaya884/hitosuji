@@ -1,6 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState } from "react";
+import { shouldFlipUp } from "./flip-up";
 
 /** 下向き（既定）。静的位置＝アンカーの直下に開く */
 const DOWN = "mt-1";
@@ -30,10 +31,15 @@ export function useFlipUp<T extends HTMLElement>(open = true) {
     const anchor = (panel.offsetParent ?? panel.parentElement)?.getBoundingClientRect();
     if (anchor === undefined) return;
 
-    const spaceBelow = window.innerHeight - anchor.bottom;
-    const spaceAbove = anchor.top;
-    // 下に入りきらず、かつ上の方が広いときだけ反転する（どちらも狭いなら下のまま）
-    setUp(panel.offsetHeight > spaceBelow && spaceAbove > spaceBelow);
+    // 実測値を読むのはここだけ。判定そのものは純関数（`flip-up.ts`）が持つ
+    setUp(
+      shouldFlipUp({
+        panelHeight: panel.offsetHeight,
+        anchorTop: anchor.top,
+        anchorBottom: anchor.bottom,
+        viewportHeight: window.innerHeight,
+      })
+    );
   }, [open]);
 
   return { ref, positionClass: up ? UP : DOWN } as const;
