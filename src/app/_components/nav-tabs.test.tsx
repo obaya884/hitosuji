@@ -43,9 +43,8 @@ describe("NavTabs（画面内タブの汎用描画: 現在地を aria-current=pa
     pathname.value = "/masters/modes";
     render(<NavTabs tabs={TABS} isCurrent={exactMatch} />);
 
-    const current = screen.getAllByRole("link").filter((a) => a.getAttribute("aria-current") !== null);
+    const current = screen.getAllByRole("link", { current: "page" });
     expect(current.map((a) => a.textContent)).toEqual(["モード"]);
-    expect(current[0].getAttribute("aria-current")).toBe("page");
   });
 
   it("アクティブ判定は呼び出し側の関数に委ねる（prefix 一致を渡せば下位パスでも点灯する）", () => {
@@ -54,7 +53,7 @@ describe("NavTabs（画面内タブの汎用描画: 現在地を aria-current=pa
     render(<NavTabs tabs={TABS} isCurrent={prefixMatch} />);
 
     // 完全一致なら1つも点かないパスで、prefix 一致を渡すとモードが現在地になる
-    const current = screen.getAllByRole("link").filter((a) => a.getAttribute("aria-current") !== null);
+    const current = screen.getAllByRole("link", { current: "page" });
     expect(current.map((a) => a.textContent)).toEqual(["モード"]);
   });
 
@@ -62,8 +61,6 @@ describe("NavTabs（画面内タブの汎用描画: 現在地を aria-current=pa
     pathname.value = "/routines";
     render(<NavTabs tabs={TABS} isCurrent={exactMatch} />);
 
-    expect(
-      screen.getAllByRole("link").filter((a) => a.getAttribute("aria-current") !== null)
-    ).toHaveLength(0);
+    expect(screen.queryAllByRole("link", { current: "page" })).toHaveLength(0);
   });
 });

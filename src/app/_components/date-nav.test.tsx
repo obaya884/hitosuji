@@ -14,6 +14,9 @@ vi.mock("next/navigation", () => ({
 const DATE = "2026-07-20"; // 月曜
 const WEEKDAY = 1;
 
+// クラスは部分文字列ではなくトークンで見る（`bg-accent` は `hover:bg-accent-weak` の部分文字列でもある）
+const hasClass = (el: Element, token: string) => el.classList.contains(token);
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -21,9 +24,6 @@ beforeEach(() => {
 function renderNav(props: Partial<React.ComponentProps<typeof DateNav>> = {}) {
   return render(<DateNav date={DATE} weekday={WEEKDAY} isToday basePath="/" {...props} />);
 }
-
-// クラスは部分文字列ではなくトークンで見る（`bg-accent` は `hover:bg-accent-weak` の部分文字列でもある）
-const hasClass = (el: Element, token: string) => el.classList.contains(token);
 
 describe("DateNav（画面定義書01 §3.1: 日付表示と前日/翌日/今日への移動）", () => {
   it("日付は `YYYY-MM-DD(曜)` で表示する", () => {

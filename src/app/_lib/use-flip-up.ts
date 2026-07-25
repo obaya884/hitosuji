@@ -31,7 +31,6 @@ export function useFlipUp<T extends HTMLElement>(open = true) {
     const anchor = (panel.offsetParent ?? panel.parentElement)?.getBoundingClientRect();
     if (anchor === undefined) return;
 
-    // 実測値を読むのはここだけ。判定そのものは純関数（`flip-up.ts`）が持つ
     setUp(
       shouldFlipUp({
         panelHeight: panel.offsetHeight,
