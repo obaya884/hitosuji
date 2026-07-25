@@ -19,6 +19,7 @@ import { editEndedAt, editStartedAt } from "@/domain/task/punch-edit";
 import { validateEstimateMinutes, validateTaskName } from "@/domain/task/edit";
 import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
 import type { Task } from "@/domain/task/task";
+import type { CompletionSnapshot } from "@/usecases/task/punch-usecases";
 import { PlusIcon } from "@/app/_components/icons";
 import { formatClock } from "@/app/_lib/format";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
@@ -34,12 +35,14 @@ import {
   moveTaskByStepAction,
   postponeTaskAction,
   renameTaskAction,
+  restoreCompletionAction,
   restoreTaskAction,
   suspendTaskAction,
   setTaskModeAction,
   setTaskProjectAction,
   setTaskSectionAction,
   startTaskAction,
+  undoCompleteAction,
   undoStartAction,
   updateTaskEstimateAction,
   updateTaskPunchAction,
@@ -74,6 +77,7 @@ type OptimisticAction =
   | Readonly<{ type: "estimate"; id: number; minutes: number }>
   | Readonly<{ type: "start"; id: number; at: Date }>
   | Readonly<{ type: "unstart"; id: number }>
+  | Readonly<{ type: "uncomplete"; id: number }>
   | Readonly<{ type: "finish"; id: number; at: Date }>
   | Readonly<{ type: "punch"; id: number; startedAt: Date; endedAt: Date | null }>
   | Readonly<{
@@ -105,6 +109,13 @@ function applyOptimisticAction(
     // 未実行への並べ直し（§4.5）はサーバ確定後に反映される。まず打刻だけ消す
     case "unstart":
       return withTaskUpdated(groups, action.id, (t) => ({ ...t, startedAt: null }));
+    // 完了の取り消し（§4.7）も並べ直しはサーバ確定後。打刻2列のクリアだけ即時に反映する（O-15）
+    case "uncomplete":
+      return withTaskUpdated(groups, action.id, (t) => ({
+        ...t,
+        startedAt: null,
+        endedAt: null,
+      }));
     case "finish":
       return withTaskUpdated(groups, action.id, (t) => ({ ...t, endedAt: action.at }));
     case "punch":
@@ -122,6 +133,30 @@ function applyOptimisticAction(
     case "remove":
       return groups.map((g) => ({ ...g, tasks: g.tasks.filter((t) => t.id !== action.id) }));
   }
+}
+
+/**
+ * 取り消せる直前の操作。削除（O-8）は復元用に削除したタスクを、完了の取り消し（O-15）は
+ * 完了へ戻すための4列のスナップショット（データモデル定義書 §4.7）を持つ。
+ * `name` はトーストの文言用（削除済みタスクの名前は画面から引けないため保持する）。
+ * delete 枝では `task.name` と重複するが、文言の組み立てから種類分岐を消すため共通で持つ
+ */
+type UndoTarget = Readonly<
+  { name: string } & (
+    | { type: "delete"; task: Task }
+    | { type: "uncomplete"; snapshot: CompletionSnapshot }
+  )
+>;
+
+/**
+ * 取り消しの保留（Undoトースト表示中の1件。画面定義書01 O-13）。削除と完了の取り消しで
+ * **共通の1スロット**に持ち、後から来た操作が前の保留を置き換える。`seq` はトーストの再マウント用
+ */
+type PendingUndo = UndoTarget & Readonly<{ seq: number }>;
+
+function pendingUndoMessage(pending: PendingUndo): string {
+  const phrase = pending.type === "delete" ? "削除しました" : "未実行に戻しました";
+  return `「${pending.name}」を${phrase}`;
 }
 
 const PUNCH_EDIT_MESSAGES: Record<string, string> = {
@@ -173,8 +208,10 @@ export function DailyBoard({
   const stickyRef = useRef<HTMLDivElement>(null);
   const [stickyHeight, setStickyHeight] = useState(0);
   const router = useRouter();
-  // 直前に削除したタスク（Undo 用。O-8）
-  const [deleted, setDeleted] = useState<Task | null>(null);
+  // 直前の操作の取り消し（削除 O-8 / 完了の取り消し O-15 で共通の1スロット。O-13）
+  const [pendingUndo, setPendingUndo] = useState<PendingUndo | null>(null);
+  // トーストを毎回作り直して表示時間をリセットするための連番（同じタスクへ連続で操作しても効くように）
+  const pendingUndoSeq = useRef(0);
   const [error, setError] = useState<string | null>(null);
   /** 完了通知（ルーチン化 O-12 など。画面定義書01 §8） */
   const [notice, setNotice] = useState<string | null>(null);
@@ -236,6 +273,11 @@ export function DailyBoard({
       if (result.ok) setSelectedId(result.createdId);
       else setError(result.message);
     });
+  }
+
+  /** 取り消しの保留を置く（共通の1スロットなので前の保留は置き換わる。O-13） */
+  function holdUndo(undo: UndoTarget) {
+    setPendingUndo({ ...undo, seq: ++pendingUndoSeq.current });
   }
 
   // §3.4: Enter で追加 → 欄はクリアし、追加したタスクを選択（FB-29）。連続入力は N で欄に戻る。
@@ -311,6 +353,24 @@ export function DailyBoard({
     run(() => undoStartAction(task.id, new Date()), { type: "unstart", id: task.id });
   }
 
+  /**
+   * 完了の取り消し（O-15 / F-212）。完了タスクを未実行へ戻す。実績を破棄するので、
+   * 復帰に要る4列のスナップショットを保留スロットへ置いて Undoトーストを出す。
+   * 楽観的更新は打刻のクリアだけ（並べ直しはサーバ確定後。O-13 と同じ扱い）
+   */
+  function uncomplete(task: Task) {
+    run(
+      async () => {
+        const result = await undoCompleteAction(task.id, new Date());
+        if (result.ok) {
+          holdUndo({ type: "uncomplete", name: task.name, snapshot: result.snapshot });
+        }
+        return result;
+      },
+      { type: "uncomplete", id: task.id }
+    );
+  }
+
   /** 開始・終了時刻のインライン修正（F-203）。HH:MM の解釈は利用者のタイムゾーンで行う */
   function editPunch(task: Task, field: "startedAt" | "endedAt", hhmm: string) {
     const edited = field === "startedAt" ? editStartedAt(task, hhmm) : editEndedAt(task, hhmm);
@@ -363,7 +423,9 @@ export function DailyBoard({
       run(
         async () => {
           const result = await deleteTaskAction(task.id);
-          if (result.ok) setDeleted(result.deleted);
+          if (result.ok) {
+            holdUndo({ type: "delete", name: result.deleted.name, task: result.deleted });
+          }
           return result;
         },
         { type: "remove", id: task.id }
@@ -401,14 +463,20 @@ export function DailyBoard({
     });
   }
 
-  /** 削除の取り消し（O-8） */
-  function undoDelete() {
-    if (deleted === null) return;
-    const restoring = deleted;
-    setDeleted(null);
+  /**
+   * 保留中の取り消しを実行する（削除 O-8 / 完了の取り消し O-15。保留は共通の1スロット。O-13）。
+   * どちらも並びが戻るためサーバ確定を待つ（楽観的更新はしない）
+   */
+  function undoPending() {
+    if (pendingUndo === null) return;
+    const undoing = pendingUndo;
+    setPendingUndo(null);
     setError(null);
     startTransition(async () => {
-      const result = await restoreTaskAction(restoring);
+      const result =
+        undoing.type === "delete"
+          ? await restoreTaskAction(undoing.task)
+          : await restoreCompletionAction(undoing.snapshot);
       if (!result.ok) setError(result.message);
     });
   }
@@ -454,7 +522,7 @@ export function DailyBoard({
     pickerOpen: showDatePicker,
     orderedTasks,
     selectedId,
-    deleted,
+    hasPendingUndo: pendingUndo !== null,
     date,
     quickAddRef,
     router,
@@ -466,7 +534,8 @@ export function DailyBoard({
     punch,
     operate,
     unstart,
-    undoDelete,
+    uncomplete,
+    undoPending,
   });
 
   return (
@@ -526,17 +595,18 @@ export function DailyBoard({
       {showHelp && <ShortcutHelp onClose={() => setShowHelp(false)} />}
 
       {/* トースト置き場（画面定義書01 §8）。Undo とエラーが同時に出ても重ならないよう1箇所にまとめる */}
-      {(deleted !== null || notice !== null || error !== null) && (
+      {(pendingUndo !== null || notice !== null || error !== null) && (
         <div className="fixed bottom-4 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-2">
-          {/* 削除の Undo トースト（O-8）。key で削除のたびに再マウントし、表示時間を毎回リセットする */}
-          {deleted !== null && (
+          {/* 取り消しの Undo トースト（削除 O-8 / 完了の取り消し O-15）。
+              key（連番）で操作のたびに再マウントし、表示時間を毎回リセットする */}
+          {pendingUndo !== null && (
             <Toast
-              key={deleted.id}
-              message={`「${deleted.name}」を削除しました`}
+              key={pendingUndo.seq}
+              message={pendingUndoMessage(pendingUndo)}
               variant="undo"
               actionLabel="取り消す"
-              onAction={undoDelete}
-              onClose={() => setDeleted(null)}
+              onAction={undoPending}
+              onClose={() => setPendingUndo(null)}
             />
           )}
           {/* 操作完了の通知（ルーチン化など） */}

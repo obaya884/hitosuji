@@ -18,7 +18,8 @@ export type DailyShortcutParams = Readonly<{
   orderedTasks: readonly Task[];
   /** 表示時に導出された選択行 ID（keepSelection 後の値） */
   selectedId: number | null;
-  deleted: Task | null;
+  /** 取り消しの保留（Undoトースト表示中）があるか。`U` の切り分けで最優先する（O-13） */
+  hasPendingUndo: boolean;
   date: LogicalDate;
   quickAddRef: RefObject<HTMLInputElement | null>;
   router: Readonly<{ push: (href: string) => void }>;
@@ -31,7 +32,8 @@ export type DailyShortcutParams = Readonly<{
   punch: (task: Task) => void;
   operate: (task: Task, operation: "suspend" | "duplicate" | "postpone" | "delete") => void;
   unstart: (task: Task) => void;
-  undoDelete: () => void;
+  uncomplete: (task: Task) => void;
+  undoPending: () => void;
 }>;
 
 export function useDailyShortcuts(params: DailyShortcutParams): void {
@@ -40,7 +42,7 @@ export function useDailyShortcuts(params: DailyShortcutParams): void {
     pickerOpen,
     orderedTasks,
     selectedId,
-    deleted,
+    hasPendingUndo,
     date,
     quickAddRef,
     router,
@@ -52,7 +54,8 @@ export function useDailyShortcuts(params: DailyShortcutParams): void {
     punch,
     operate,
     unstart,
-    undoDelete,
+    uncomplete,
+    undoPending,
   } = params;
 
   useEffect(() => {
@@ -127,16 +130,20 @@ export function useDailyShortcuts(params: DailyShortcutParams): void {
         case "d":
           if (selected !== null) operate(selected, "delete");
           return;
-        case "u":
-          // 直前の削除の取り消しが保留中（Undoトースト表示中）ならそれを優先する。
-          // 削除すると選択が現在地（実行中タスク）へ移るため、優先しないと U が開始取消に化ける（FB-37 動作確認）。
-          // 保留がなく実行中タスクを選択中なら開始の取り消し、それ以外は削除の取り消し（O-13）
-          if (deleted === null && selected !== null && taskStatus(selected) === "running") {
-            unstart(selected);
-          } else {
-            undoDelete();
+        case "u": {
+          // 取り消しの保留（削除 O-8 / 完了の取り消し O-15）が Undoトースト表示中ならそれを最優先する。
+          // 削除すると選択が現在地（実行中タスク）へ移るため、優先しないと U が開始取消に化ける（FB-37 動作確認）
+          if (hasPendingUndo) {
+            undoPending();
+            return;
           }
+          // 保留がなければ選択行の状態で切り分ける（O-13）。未実行タスクの選択中は何もしない
+          if (selected === null) return;
+          const status = taskStatus(selected);
+          if (status === "running") unstart(selected);
+          else if (status === "completed") uncomplete(selected);
           return;
+        }
         case "t":
           router.push("/");
           return;

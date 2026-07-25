@@ -95,7 +95,10 @@ export type TaskRepository = Readonly<{
   rename(id: TaskId, name: string): Promise<void>;
   updateEstimate(id: TaskId, estimateMinutes: number): Promise<void>;
   start(command: StartCommand): Promise<void>;
-  /** 打刻の修正（F-203）。開始時刻の修正に伴う移動（F-113 §4.2-c）があれば同一トランザクションで反映する */
+  /**
+   * 打刻の修正（F-203）。開始時刻の修正に伴う移動（F-113 §4.2-c）があれば同一トランザクションで反映する。
+   * 完了の取り消しの復帰（F-212 / データモデル定義書 §4.7）も、打刻2列＋配置2列の書き戻しとしてここを使う
+   */
   updatePunch(
     id: TaskId,
     punch: Readonly<{ startedAt: Date; endedAt: Date | null }>,
@@ -107,6 +110,11 @@ export type TaskRepository = Readonly<{
    * 未実行への並べ直し（今日のみ）があれば同一トランザクションで反映する
    */
   undoStart(id: TaskId, relocation?: Relocations | null): Promise<void>;
+  /**
+   * 完了の取り消し（F-212 / データモデル定義書 §4.7）。`started_at`・`ended_at` をともに null に戻す。
+   * 未実行への並べ直し（今日のみ）があれば同一トランザクションで反映する
+   */
+  undoComplete(id: TaskId, relocation?: Relocations | null): Promise<void>;
   /** 並び替え（O-6）。振り直しを伴う場合も1トランザクションで反映する */
   move(command: MoveCommand): Promise<void>;
   /** 自動セクション移動（F-113）。まとめて1トランザクションで反映する */

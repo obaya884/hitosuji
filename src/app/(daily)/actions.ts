@@ -10,9 +10,12 @@ import {
 } from "@/usecases/task/daily-list-usecases";
 import {
   finishTask,
+  restoreCompletion,
   startTask,
+  undoComplete,
   undoStart,
   updateTaskPunch,
+  type CompletionSnapshot,
 } from "@/usecases/task/punch-usecases";
 import {
   deleteTask,
@@ -83,6 +86,7 @@ const PUNCH_ERROR_MESSAGES: Record<string, string> = {
   task_not_found: "タスクが見つかりませんでした",
   already_started: "このタスクはすでに開始済みです",
   not_running: "実行中のタスクではありません",
+  not_completed: "完了したタスクではありません",
   ended_before_started: "終了時刻が開始時刻より前になります",
   invalid_time: "時刻は HH:MM 形式で入力してください",
   not_punched: "打刻されていないため修正できません",
@@ -109,6 +113,36 @@ export async function undoStartAction(id: number, now: Date): Promise<DailyActio
     nowClock: formatClock(now),
     today: await resolveToday(sectionRepo, now),
   });
+  if (!result.ok) return { ok: false, message: PUNCH_ERROR_MESSAGES[result.error] };
+  revalidatePath("/");
+  return { ok: true };
+}
+
+/**
+ * 完了の取り消し（F-212 / O-15）。実績を破棄するので、Undo（復帰）に要る4列のスナップショットを返す。
+ * now はクライアントの現在時刻を受け取る
+ */
+export async function undoCompleteAction(
+  id: number,
+  now: Date
+): Promise<
+  Readonly<{ ok: true; snapshot: CompletionSnapshot } | { ok: false; message: string }>
+> {
+  const result = await undoComplete(punchDeps, {
+    taskId: id,
+    nowClock: formatClock(now),
+    today: await resolveToday(sectionRepo, now),
+  });
+  if (!result.ok) return { ok: false, message: PUNCH_ERROR_MESSAGES[result.error] };
+  revalidatePath("/");
+  return { ok: true, snapshot: result.value };
+}
+
+/** 完了の取り消しの取り消し（F-212 / O-15）。スナップショットの4列を書き戻して完了へ復帰させる */
+export async function restoreCompletionAction(
+  snapshot: CompletionSnapshot
+): Promise<DailyActionResult> {
+  const result = await restoreCompletion(taskRepo, snapshot);
   if (!result.ok) return { ok: false, message: PUNCH_ERROR_MESSAGES[result.error] };
   revalidatePath("/");
   return { ok: true };

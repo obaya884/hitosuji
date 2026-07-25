@@ -4,7 +4,7 @@ import {
   planCarryOver,
   relocationOnPunchEdit,
   relocationOnStart,
-  relocationOnUndoStart,
+  relocationOnUndoPunch,
   type Relocation,
 } from "./relocation";
 import type { Task } from "./task";
@@ -161,6 +161,13 @@ describe("planCarryOver（画面定義書01 §4.2-b: 現在位置より前の未
     const overdue = task({ id: 1, sectionId: morning.id, sortOrder: 1000 });
     const result = planCarryOver([overdue], [], "10:00");
     expect(result).toEqual([]);
+  });
+
+  it("実行中タスクが未分類のままなら空配列（現在位置が定まらないため繰り下げない）", () => {
+    const running = task({ id: 1, sectionId: null, sortOrder: 1000, startedAt: started });
+    const overdue = task({ id: 2, sectionId: morning.id, sortOrder: 1000 });
+
+    expect(planCarryOver([running, overdue], sections, "10:00")).toEqual([]);
   });
 
   it("冪等性: 繰り下げ結果を反映した後に再度呼ぶと空配列になる（デイリー表示のたびに走るため）", () => {
@@ -424,13 +431,13 @@ describe("relocationOnPunchEdit（画面定義書01 §4.2-c: 開始時刻の修�
   });
 });
 
-describe("relocationOnUndoStart（画面定義書01 O-13 / データモデル定義書 §4.5: 開始取り消しの戻し先）", () => {
+describe("relocationOnUndoPunch（画面定義書01 O-13 / データモデル定義書 §4.5: 開始の取り消しの戻し先）", () => {
   it("現在時刻を含むセクションの未実行先頭（完了の後ろ・未実行の前）へ置く", () => {
     const running = task({ id: 1, sectionId: morning.id, sortOrder: 1000, startedAt: started });
     const done = task({ id: 2, sectionId: forenoon.id, sortOrder: 1000, ...completed });
     const planned = task({ id: 3, sectionId: forenoon.id, sortOrder: 2000 });
 
-    const result = relocationOnUndoStart(running, [running, done, planned], sections, "10:00");
+    const result = relocationOnUndoPunch(running, [running, done, planned], sections, "10:00");
 
     expect(result).toEqual([{ taskId: 1, sectionId: forenoon.id, sortOrder: 1500 }]);
   });
@@ -439,7 +446,7 @@ describe("relocationOnUndoStart（画面定義書01 O-13 / データモデル定
     const running = task({ id: 1, sectionId: morning.id, sortOrder: 1000, startedAt: started });
     const done = task({ id: 2, sectionId: forenoon.id, sortOrder: 1000, ...completed });
 
-    const result = relocationOnUndoStart(running, [running, done], sections, "10:00");
+    const result = relocationOnUndoPunch(running, [running, done], sections, "10:00");
 
     expect(result).toEqual([{ taskId: 1, sectionId: forenoon.id, sortOrder: 2000 }]);
   });
@@ -447,7 +454,7 @@ describe("relocationOnUndoStart（画面定義書01 O-13 / データモデル定
   it("移動先セクションが空なら先頭（1000）へ置く", () => {
     const running = task({ id: 1, sectionId: morning.id, sortOrder: 1000, startedAt: started });
 
-    const result = relocationOnUndoStart(running, [running], sections, "10:00");
+    const result = relocationOnUndoPunch(running, [running], sections, "10:00");
 
     expect(result).toEqual([{ taskId: 1, sectionId: forenoon.id, sortOrder: 1000 }]);
   });
@@ -457,7 +464,7 @@ describe("relocationOnUndoStart（画面定義書01 O-13 / データモデル定
     const done = task({ id: 2, sectionId: forenoon.id, sortOrder: 1000, ...completed });
     const planned = task({ id: 3, sectionId: forenoon.id, sortOrder: 2000 });
 
-    const result = relocationOnUndoStart(running, [running, done, planned], sections, "10:00");
+    const result = relocationOnUndoPunch(running, [running, done, planned], sections, "10:00");
 
     expect(result).toEqual([]);
   });
@@ -465,7 +472,7 @@ describe("relocationOnUndoStart（画面定義書01 O-13 / データモデル定
   it("現在時刻を含む有効セクションが無ければ空配列（並べ直さない）", () => {
     const running = task({ id: 1, sectionId: morning.id, sortOrder: 1000, startedAt: started });
 
-    expect(relocationOnUndoStart(running, [running], [], "10:00")).toEqual([]);
+    expect(relocationOnUndoPunch(running, [running], [], "10:00")).toEqual([]);
   });
 
   it("中間値が尽きたら移動先セクション全体を振り直す（§3.5）", () => {
@@ -473,12 +480,75 @@ describe("relocationOnUndoStart（画面定義書01 O-13 / データモデル定
     const done = task({ id: 2, sectionId: forenoon.id, sortOrder: 1000, ...completed });
     const planned = task({ id: 3, sectionId: forenoon.id, sortOrder: 1001 });
 
-    const result = relocationOnUndoStart(running, [running, done, planned], sections, "10:00");
+    const result = relocationOnUndoPunch(running, [running, done, planned], sections, "10:00");
 
     // done(1000) は動かず、取り消したタスクを未実行先頭へ、planned を後ろへ振り直す
     expect(result).toEqual([
       { taskId: 1, sectionId: forenoon.id, sortOrder: 2000 },
       { taskId: 3, sectionId: forenoon.id, sortOrder: 3000 },
     ]);
+  });
+});
+
+describe("relocationOnUndoPunch（画面定義書01 O-15 / データモデル定義書 §4.7: 完了の取り消しの戻し先）", () => {
+  it("他に実行中タスクが無ければ、現在時刻を含むセクションの未実行先頭へ置く", () => {
+    const target = task({ id: 1, sectionId: morning.id, sortOrder: 1000, ...completed });
+    const done = task({ id: 2, sectionId: forenoon.id, sortOrder: 1000, ...completed });
+    const planned = task({ id: 3, sectionId: forenoon.id, sortOrder: 2000 });
+
+    const result = relocationOnUndoPunch(target, [target, done, planned], sections, "10:00");
+
+    expect(result).toEqual([{ taskId: 1, sectionId: forenoon.id, sortOrder: 1500 }]);
+  });
+
+  it("他に実行中タスクがあればその直後（＝現在位置）へ置く（§4.7 / §4.2 の現在位置）", () => {
+    const target = task({ id: 1, sectionId: morning.id, sortOrder: 1000, ...completed });
+    // 実行中タスクは現在時刻のセクション（午前）ではなく午後にいる
+    const running = task({ id: 2, sectionId: afternoon.id, sortOrder: 1000, startedAt: started });
+    const planned = task({ id: 3, sectionId: afternoon.id, sortOrder: 2000 });
+
+    const result = relocationOnUndoPunch(target, [target, running, planned], sections, "10:00");
+
+    expect(result).toEqual([{ taskId: 1, sectionId: afternoon.id, sortOrder: 1500 }]);
+  });
+
+  it("実行中タスクがそのセクションの末尾なら、その後ろへ置く", () => {
+    const target = task({ id: 1, sectionId: morning.id, sortOrder: 1000, ...completed });
+    const running = task({ id: 2, sectionId: afternoon.id, sortOrder: 1000, startedAt: started });
+
+    const result = relocationOnUndoPunch(target, [target, running], sections, "10:00");
+
+    expect(result).toEqual([{ taskId: 1, sectionId: afternoon.id, sortOrder: 2000 }]);
+  });
+
+  it("実行中タスクが未分類のままなら空配列（並べ直さない）", () => {
+    const target = task({ id: 1, sectionId: morning.id, sortOrder: 1000, ...completed });
+    const running = task({ id: 2, sectionId: null, sortOrder: 1000, startedAt: started });
+
+    expect(relocationOnUndoPunch(target, [target, running], sections, "10:00")).toEqual([]);
+  });
+
+  it("実行中タスクの直後で中間値が尽きたら移動先セクション全体を振り直す（§3.5）", () => {
+    const target = task({ id: 1, sectionId: morning.id, sortOrder: 1000, ...completed });
+    const running = task({ id: 2, sectionId: afternoon.id, sortOrder: 1000, startedAt: started });
+    const planned = task({ id: 3, sectionId: afternoon.id, sortOrder: 1001 });
+
+    const result = relocationOnUndoPunch(target, [target, running, planned], sections, "10:00");
+
+    // 実行中（1000）は動かさず、戻すタスクをその直後へ、planned を後ろへ振り直す
+    expect(result).toEqual([
+      { taskId: 1, sectionId: afternoon.id, sortOrder: 2000 },
+      { taskId: 3, sectionId: afternoon.id, sortOrder: 3000 },
+    ]);
+  });
+
+  it("実行中タスクの直後に既にいれば空配列（移動不要）", () => {
+    const running = task({ id: 2, sectionId: afternoon.id, sortOrder: 1000, startedAt: started });
+    const target = task({ id: 1, sectionId: afternoon.id, sortOrder: 1500, ...completed });
+    const planned = task({ id: 3, sectionId: afternoon.id, sortOrder: 2000 });
+
+    const result = relocationOnUndoPunch(target, [target, running, planned], sections, "10:00");
+
+    expect(result).toEqual([]);
   });
 });

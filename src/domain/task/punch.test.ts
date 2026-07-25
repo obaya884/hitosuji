@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { canFinish, canStart, canUndoStart, resumeEstimateMinutes, resumeTaskDraft } from "./punch";
+import {
+  canFinish,
+  canStart,
+  canUndoComplete,
+  canUndoStart,
+  resumeEstimateMinutes,
+  resumeTaskDraft,
+} from "./punch";
 import type { Task } from "./task";
 
 function task(over: Partial<Task> & { id: number }): Task {
@@ -102,5 +109,26 @@ describe("canUndoStart（F-210: 開始を取り消せるのは実行中タスク
     expect(
       canUndoStart(task({ id: 1, startedAt, endedAt: new Date("2026-07-19T08:30:00Z") }))
     ).toEqual({ ok: false, error: "not_running" });
+  });
+});
+
+describe("canUndoComplete（F-212: 完了を取り消せるのは完了タスクのみ）", () => {
+  const endedAt = new Date("2026-07-19T08:30:00Z");
+
+  it("完了タスクは完了を取り消せる（打刻2列を絞り込んだタスクをそのまま返す）", () => {
+    // 戻り値は復帰用スナップショット（§4.7）の元データになるので、列の取りこぼしがないことを固定する
+    const completed = task({ id: 1, startedAt, endedAt });
+    expect(canUndoComplete(completed)).toEqual({ ok: true, value: completed });
+  });
+
+  it("未実行タスクは取り消せない", () => {
+    expect(canUndoComplete(task({ id: 1 }))).toEqual({ ok: false, error: "not_completed" });
+  });
+
+  it("実行中タスクは対象外（開始の取り消しが受け持つ）", () => {
+    expect(canUndoComplete(task({ id: 1, startedAt }))).toEqual({
+      ok: false,
+      error: "not_completed",
+    });
   });
 });

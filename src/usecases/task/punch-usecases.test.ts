@@ -3,7 +3,14 @@ import type { Section } from "@/domain/section/section";
 import { taskStatus } from "@/domain/task/status";
 import type { Task } from "@/domain/task/task";
 import { inMemorySectionRepository } from "@/usecases/section/testing/in-memory-repository";
-import { finishTask, startTask, undoStart, updateTaskPunch } from "./punch-usecases";
+import {
+  finishTask,
+  restoreCompletion,
+  startTask,
+  undoComplete,
+  undoStart,
+  updateTaskPunch,
+} from "./punch-usecases";
 import { inMemoryTaskRepository } from "./testing/in-memory-repository";
 
 function task(over: Partial<Task> & { id: number }): Task {
@@ -256,6 +263,190 @@ describe("undoStart（F-210: 開始打刻の取り消し）", () => {
     expect(repo.rows.find((r) => r.id === 2)?.startedAt).toBeNull(); // 当該タスクだけ未実行へ
     expect(repo.rows.find((r) => r.id === 1)?.endedAt).not.toBeNull(); // 直前タスクは完了のまま
     expect(repo.rows.find((r) => r.id === 3)).toBeDefined(); // 再開タスクは残る
+  });
+});
+
+describe("undoComplete（F-212: 完了の取り消し）", () => {
+  const startedAt = new Date("2026-07-19T08:30:00Z");
+  const endedAt = new Date("2026-07-19T09:00:00Z");
+  const completed = { startedAt, endedAt };
+  const undo = (
+    repo: ReturnType<typeof inMemoryTaskRepository>,
+    taskId: number,
+    sections: readonly Section[] = []
+  ) => undoComplete(depsOf(repo, sections), { taskId, nowClock, today });
+
+  it("完了タスクの started_at・ended_at をともに null に戻して未実行にする（§4.7）", async () => {
+    const repo = inMemoryTaskRepository([task({ id: 1, ...completed })]);
+
+    expect((await undo(repo, 1)).ok).toBe(true);
+    expect(repo.rows[0].startedAt).toBeNull();
+    expect(repo.rows[0].endedAt).toBeNull();
+    expect(taskStatus(repo.rows[0])).toBe("not_started");
+  });
+
+  it("復帰に要る4列（打刻2列・セクション・並び順）を返す（§4.7）", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 1, sortOrder: 1500, ...completed }),
+    ]);
+
+    expect(await undo(repo, 1)).toEqual({
+      ok: true,
+      value: { taskId: 1, startedAt, endedAt, sectionId: 1, sortOrder: 1500 },
+    });
+  });
+
+  it("未実行・実行中タスクは取り消せない", async () => {
+    const notStarted = inMemoryTaskRepository([task({ id: 1 })]);
+    expect(await undo(notStarted, 1)).toEqual({ ok: false, error: "not_completed" });
+
+    const running = inMemoryTaskRepository([task({ id: 1, startedAt })]);
+    expect(await undo(running, 1)).toEqual({ ok: false, error: "not_completed" });
+  });
+
+  it("存在しないタスクはエラー", async () => {
+    const repo = inMemoryTaskRepository([]);
+    expect(await undo(repo, 99)).toEqual({ ok: false, error: "task_not_found" });
+  });
+
+  it("今日のタスクは現在位置（現在時刻を含むセクションの未実行先頭）へ並べ直す（§4.7）", async () => {
+    const sections: Section[] = [
+      { id: 1, name: "午前", startTime: "09:00", isArchived: false },
+      { id: 2, name: "夜", startTime: "18:00", isArchived: false },
+    ];
+    // nowClock = 18:00 なので「夜」へ移る
+    const repo = inMemoryTaskRepository([task({ id: 1, sectionId: 1, ...completed })]);
+
+    expect((await undo(repo, 1, sections)).ok).toBe(true);
+    expect(repo.rows[0].sectionId).toBe(2);
+    expect(repo.rows[0].startedAt).toBeNull();
+    expect(repo.rows[0].endedAt).toBeNull();
+  });
+
+  it("他に実行中タスクがあればその直後へ置く（§4.7）", async () => {
+    const sections: Section[] = [
+      { id: 1, name: "午前", startTime: "09:00", isArchived: false },
+      { id: 2, name: "夜", startTime: "18:00", isArchived: false },
+    ];
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 2, sortOrder: 5000, ...completed }),
+      // 実行中タスクは現在時刻のセクション（夜）ではなく午前にいる
+      task({ id: 2, sectionId: 1, sortOrder: 1000, startedAt }),
+      task({ id: 3, sectionId: 1, sortOrder: 2000 }),
+    ]);
+
+    expect((await undo(repo, 1, sections)).ok).toBe(true);
+    expect(repo.rows[0].sectionId).toBe(1);
+    expect(repo.rows[0].sortOrder).toBe(1500);
+    // 並べ直しは当該タスクだけ（実行中タスク・未実行タスクの位置と打刻は動かさない）
+    expect(repo.rows[1]).toMatchObject({ sectionId: 1, sortOrder: 1000, startedAt, endedAt: null });
+    expect(repo.rows[2]).toMatchObject({ sectionId: 1, sortOrder: 2000 });
+  });
+
+  it("未分類（section_id IS NULL）の完了タスクも現在位置へ移し、スナップショットは null を保つ（§4.7）", async () => {
+    const sections: Section[] = [{ id: 2, name: "夜", startTime: "18:00", isArchived: false }];
+    const repo = inMemoryTaskRepository([task({ id: 1, sectionId: null, ...completed })]);
+
+    const result = await undo(repo, 1, sections);
+
+    expect(result).toEqual({
+      ok: true,
+      value: { taskId: 1, startedAt, endedAt, sectionId: null, sortOrder: 1000 },
+    });
+    expect(repo.rows[0].sectionId).toBe(2); // 未分類からも移る
+  });
+
+  // 今日以外は過去日・未来日のいずれも並べ直さない（現在位置・これから領域が定義できないため）
+  it.each(["2026-07-18", "2026-07-20"])(
+    "今日以外（%s）のタスクは並べ直さず打刻のクリアだけ行う（§4.7）",
+    async (taskDate) => {
+      const sections: Section[] = [{ id: 2, name: "夜", startTime: "18:00", isArchived: false }];
+      const repo = inMemoryTaskRepository([task({ id: 1, taskDate, sectionId: 1, ...completed })]);
+
+      expect((await undo(repo, 1, sections)).ok).toBe(true);
+      expect(repo.rows[0].startedAt).toBeNull();
+      expect(repo.rows[0].endedAt).toBeNull();
+      expect(repo.rows[0].sectionId).toBe(1); // 並べ直さない
+    }
+  );
+
+  it("中断・割り込みへの波及なし: 再開タスクと直前の完了タスクは残す（§4.7）", async () => {
+    // 並べ直しが起きる条件（今日・有効セクションあり）で、波及しないことを確かめる
+    const sections: Section[] = [{ id: 2, name: "夜", startTime: "18:00", isArchived: false }];
+    const repo = inMemoryTaskRepository([
+      // 割り込みで終了した直前タスク（取り消し対象）
+      task({ id: 1, sectionId: 2, sortOrder: 1000, ...completed }),
+      // 生成済みの再開タスク（未実行）。移動先セクションにいるが動かさない
+      task({ id: 2, sectionId: 2, sortOrder: 1500, splitParentId: 1 }),
+      // 割り込んだ側（完了）
+      task({ id: 3, sectionId: 2, sortOrder: 2000, ...completed }),
+    ]);
+
+    expect((await undo(repo, 1, sections)).ok).toBe(true);
+
+    expect(repo.rows.find((r) => r.id === 1)?.endedAt).toBeNull(); // 当該タスクだけ未実行へ
+    // 再開タスクは打刻・位置ともそのまま残る
+    expect(repo.rows.find((r) => r.id === 2)).toMatchObject({
+      sortOrder: 1500,
+      startedAt: null,
+      endedAt: null,
+    });
+    // 割り込んだ側は完了のまま（位置も動かさない）
+    expect(repo.rows.find((r) => r.id === 3)).toMatchObject({ sortOrder: 2000, endedAt });
+  });
+});
+
+describe("restoreCompletion（F-212: 完了の取り消しの取り消し）", () => {
+  const snapshot = {
+    taskId: 1,
+    startedAt: new Date("2026-07-19T08:30:00Z"),
+    endedAt: new Date("2026-07-19T09:00:00Z"),
+    sectionId: 3,
+    sortOrder: 1500,
+  } as const;
+
+  it("スナップショットの4列だけを書き戻して完了状態へ復帰させる（§4.7）", async () => {
+    // 取り消し済み（未実行で別セクションへ移った状態）から復帰させる
+    const uncompleted = task({ id: 1, sectionId: 9, sortOrder: 4000 });
+    const repo = inMemoryTaskRepository([uncompleted]);
+
+    expect(await restoreCompletion(repo, snapshot)).toEqual({ ok: true, value: 1 });
+    // 4列以外（名前・見積もり・先送り回数など）は巻き込まない
+    expect(repo.rows[0]).toEqual({
+      ...uncompleted,
+      startedAt: snapshot.startedAt,
+      endedAt: snapshot.endedAt,
+      sectionId: 3,
+      sortOrder: 1500,
+    });
+    expect(taskStatus(repo.rows[0])).toBe("completed");
+  });
+
+  it("未分類（section_id IS NULL）へも戻せる（§4.7）", async () => {
+    const repo = inMemoryTaskRepository([task({ id: 1, sectionId: 2, sortOrder: 4000 })]);
+
+    expect((await restoreCompletion(repo, { ...snapshot, sectionId: null })).ok).toBe(true);
+    expect(repo.rows[0].sectionId).toBeNull();
+  });
+
+  it("復帰までの間に他タスクが同じ sort_order を取っていてもそのまま書き戻す（§4.7）", async () => {
+    const other = task({ id: 2, sectionId: 3, sortOrder: 1500 }); // 取り消し中に同値を取った未実行タスク
+    const repo = inMemoryTaskRepository([task({ id: 1, sectionId: 9, sortOrder: 4000 }), other]);
+
+    expect((await restoreCompletion(repo, snapshot)).ok).toBe(true);
+    expect(repo.rows[0]).toMatchObject({ sectionId: 3, sortOrder: 1500 });
+    expect(repo.rows[1]).toEqual(other); // 同値のまま。相手を動かしたり振り直したりしない
+  });
+
+  it("復帰までの間にタスクが消えていればエラー（他タスクは触らない）", async () => {
+    const other = task({ id: 2 });
+    const repo = inMemoryTaskRepository([other]);
+
+    expect(await restoreCompletion(repo, snapshot)).toEqual({
+      ok: false,
+      error: "task_not_found",
+    });
+    expect(repo.rows).toEqual([other]); // 打刻・位置とも書き換えない
   });
 });
 

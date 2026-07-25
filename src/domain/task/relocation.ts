@@ -95,16 +95,9 @@ export function planCarryOver(
   const ordered = orderTasksForDisplay(tasks, sections);
   const runningTask = ordered.find((t) => taskStatus(t) === "running");
 
-  // 移動先セクション（＝「現在位置」が属するセクション）を決める
-  let destinationSectionId: number;
-  if (runningTask !== undefined) {
-    if (runningTask.sectionId === null) return []; // 実行中タスクが未分類のままのはずはないが念のため
-    destinationSectionId = runningTask.sectionId;
-  } else {
-    const currentSection = sectionAt(sections, nowClock);
-    if (currentSection === undefined) return [];
-    destinationSectionId = currentSection.id;
-  }
+  // 移動先セクション（＝「現在位置」が属するセクション）
+  const destinationSectionId = currentPositionSectionId(runningTask, sections, nowClock);
+  if (destinationSectionId === null) return [];
 
   const groups = groupTasksBySection(tasks, sections);
   const destinationGroupIndex = groups.findIndex(
@@ -115,22 +108,7 @@ export function planCarryOver(
   const destinationSectionTasks = groups[destinationGroupIndex].tasks;
 
   // 移動先セクション内で「現在位置」を境に前半（そのまま残る）と後半（元からあった残りの行）に分ける
-  let splitIndex: number;
-  if (runningTask !== undefined) {
-    const runningIndexInDestination = destinationSectionTasks.findIndex(
-      (t) => t.id === runningTask.id
-    );
-    splitIndex =
-      runningIndexInDestination === -1
-        ? destinationSectionTasks.length
-        : runningIndexInDestination + 1;
-  } else {
-    const firstNotStartedIndex = destinationSectionTasks.findIndex(
-      (t) => taskStatus(t) === "not_started"
-    );
-    splitIndex =
-      firstNotStartedIndex === -1 ? destinationSectionTasks.length : firstNotStartedIndex;
-  }
+  const splitIndex = currentPositionIndex(destinationSectionTasks, runningTask);
   const beforeInDestination = destinationSectionTasks.slice(0, splitIndex);
   const remainInDestination = destinationSectionTasks.slice(splitIndex);
 
@@ -170,28 +148,31 @@ export function planCarryOver(
 }
 
 /**
- * 開始打刻の取り消し（F-210 / データモデル定義書 §4.5）。取り消したタスクを未実行として
- * 「現在位置」＝現在時刻を含むセクションの未実行タスクの先頭へ置く。表示日が今日のときだけ呼ぶ。
- * 移動が不要（すでにその位置）または現在時刻がどのセクションにも属さないなら空配列
+ * 打刻の取り消しに伴う戻し位置（開始の取り消し F-210 / データモデル定義書 §4.5、
+ * 完了の取り消し F-212 / §4.7）。取り消したタスクを未実行として「現在位置」（画面定義書01 §4.2:
+ * 他に実行中タスクがあればその直後、なければ現在時刻を含むセクションの未実行タスクの先頭）へ置く。
+ * 開始の取り消しでは対象自身が唯一の実行中タスクなので、常に後者（現在時刻のセクション）になる。
+ * 表示日が今日のときだけ呼ぶ。移動が不要（すでにその位置）または現在位置が定まらないなら空配列
  */
-export function relocationOnUndoStart(
+export function relocationOnUndoPunch(
   task: Task,
   sameDayTasks: readonly Task[],
   sections: readonly Section[],
   nowClock: string
 ): Relocation[] {
-  const destination = sectionAt(sections, nowClock);
-  if (destination === undefined) return [];
+  // 取り消す当該タスク自身は「現在位置」の判定・移動先の並びのいずれからも除く
+  const others = sameDayTasks.filter((t) => t.id !== task.id);
+  const running = others.find((t) => taskStatus(t) === "running");
 
-  // 移動先セクションのタスク（取り消す当該タスク自身は除く）を並び順で
-  const siblings = sameDayTasks
-    .filter((t) => t.sectionId === destination.id && t.id !== task.id)
+  const destinationSectionId = currentPositionSectionId(running, sections, nowClock);
+  if (destinationSectionId === null) return [];
+
+  const siblings = others
+    .filter((t) => t.sectionId === destinationSectionId)
     .sort((a, b) => a.sortOrder - b.sortOrder);
 
-  // 未実行タスクの先頭の直前に入る（完了・実行中のログの後ろ）。実行中は最大1件で
-  // それが取り消し対象なので、siblings に実行中は残っていない
-  const firstNotStarted = siblings.findIndex((t) => taskStatus(t) === "not_started");
-  const index = firstNotStarted === -1 ? siblings.length : firstNotStarted;
+  // 「現在位置」＝実行中タスクの直後、なければ未実行タスクの先頭の直前（＝完了のログの後ろ）
+  const index = currentPositionIndex(siblings, running);
 
   const sortOrder = insertBetweenSortOrder(
     siblings[index - 1]?.sortOrder ?? null,
@@ -202,10 +183,41 @@ export function relocationOnUndoStart(
   if (!sortOrder.ok) {
     const reordered = [...siblings.slice(0, index), task, ...siblings.slice(index)];
     const sortOrders = renumberSortOrders(reordered.length);
-    return changedOnly(reordered, destination.id, (_, i) => sortOrders[i]);
+    return changedOnly(reordered, destinationSectionId, (_, i) => sortOrders[i]);
   }
 
-  return changedOnly([task], destination.id, () => sortOrder.value);
+  return changedOnly([task], destinationSectionId, () => sortOrder.value);
+}
+
+/**
+ * 「現在位置」が属するセクション（画面定義書01 §4.2）。実行中タスクがあればそのセクション、
+ * なければ現在時刻を含むセクション。定まらないなら null（実行中タスクが未分類のまま——
+ * 通常ありえないが念のため——か、有効セクションが1つも無い退避時）
+ */
+function currentPositionSectionId(
+  runningTask: Task | undefined,
+  sections: readonly Section[],
+  nowClock: string
+): number | null {
+  if (runningTask !== undefined) return runningTask.sectionId;
+  return sectionAt(sections, nowClock)?.id ?? null;
+}
+
+/**
+ * セクション内で「現在位置」に当たる位置（画面定義書01 §4.2）。
+ * 実行中タスクの直後、実行中タスクが無ければ未実行タスクの先頭（1件も無ければ末尾）。
+ * `sectionTasks` には**セクション内の表示順に並べたタスク**を渡すこと（位置を数える前提）
+ */
+function currentPositionIndex(
+  sectionTasks: readonly Task[],
+  runningTask: Task | undefined
+): number {
+  if (runningTask === undefined) {
+    const firstNotStarted = sectionTasks.findIndex((t) => taskStatus(t) === "not_started");
+    return firstNotStarted === -1 ? sectionTasks.length : firstNotStarted;
+  }
+  const runningIndex = sectionTasks.findIndex((t) => t.id === runningTask.id);
+  return runningIndex === -1 ? sectionTasks.length : runningIndex + 1;
 }
 
 /** 実際に section_id か sort_order が変わる行だけを Relocation にする（無駄な UPDATE を避ける） */

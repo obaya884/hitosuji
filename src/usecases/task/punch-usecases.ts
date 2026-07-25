@@ -1,13 +1,20 @@
-// 打刻のユースケース（F-201 / データモデル定義書 §4.2）
+// 打刻のユースケース（F-201 / データモデル定義書 §4.2）と、その取り消し（F-210 §4.5 / F-212 §4.7）
 import type { SectionRepository } from "@/usecases/ports/section-repository";
-import type { TaskRepository } from "@/usecases/ports/task-repository";
+import type { Relocations, TaskRepository } from "@/usecases/ports/task-repository";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import { err, ok, type Result } from "@/domain/shared/result";
-import { canFinish, canStart, canUndoStart, resumeTaskDraft, type PunchError } from "@/domain/task/punch";
+import {
+  canFinish,
+  canStart,
+  canUndoComplete,
+  canUndoStart,
+  resumeTaskDraft,
+  type PunchError,
+} from "@/domain/task/punch";
 import { newTaskFromDraft } from "@/usecases/task/from-draft";
 import { placeNewTask } from "@/domain/task/placement";
-import { relocationOnPunchEdit, relocationOnStart, relocationOnUndoStart } from "@/domain/task/relocation";
-import type { TaskId } from "@/domain/task/task";
+import { relocationOnPunchEdit, relocationOnStart, relocationOnUndoPunch } from "@/domain/task/relocation";
+import type { Task, TaskId } from "@/domain/task/task";
 
 export type PunchUsecaseError = PunchError | "task_not_found";
 
@@ -108,19 +115,91 @@ export async function undoStart(
   const undoable = canUndoStart(target);
   if (!undoable.ok) return undoable;
 
-  // 今日のタスクだけ未実行として並べ直す（今日以外は現在位置・これから領域が定義できない）
-  const relocations =
-    target.taskDate === input.today
-      ? relocationOnUndoStart(
-          target,
-          await repo.listByDate(target.taskDate),
-          await deps.sections.listAll(),
-          input.nowClock
-        )
-      : [];
+  const relocations = await undoRelocations(deps, target, input);
 
-  await repo.undoStart(target.id, relocations.length === 0 ? null : relocations);
+  await repo.undoStart(target.id, relocations);
   return ok(target.id);
+}
+
+/** 完了の取り消し（F-212 / §4.7）で保持する復帰用のスナップショット（書き換わる4列） */
+export type CompletionSnapshot = Readonly<{
+  taskId: TaskId;
+  startedAt: Date;
+  endedAt: Date;
+  sectionId: number | null;
+  sortOrder: number;
+}>;
+
+/**
+ * 完了の取り消し（F-212 / データモデル定義書 §4.7）。
+ * 完了タスクの `started_at`・`ended_at` をともに null に戻して未実行にする。表示日が今日なら
+ * 未実行として「現在位置」へ並べ直し、今日でなければ打刻のクリアだけ行う（F-210 と同じ規律）。
+ * 中断・割り込みで生成された再開タスクや、割り込みで終了させた直前タスクには波及させない。
+ * 実績を破棄する操作なので、復帰（下の `restoreCompletion`）に要る4列を呼び出し側へ返す。
+ * 現在時刻はクライアントから受け取る（サーバ時刻を使わない）
+ */
+export async function undoComplete(
+  deps: PunchDeps,
+  input: Readonly<{ taskId: TaskId; nowClock: string; today: LogicalDate }>
+): Promise<Result<CompletionSnapshot, PunchUsecaseError>> {
+  const repo = deps.tasks;
+  const target = await repo.findById(input.taskId);
+  if (target === null) return err("task_not_found");
+
+  const undoable = canUndoComplete(target);
+  if (!undoable.ok) return undoable;
+  const completed = undoable.value; // 打刻2列が絞り込まれた完了タスク
+
+  const relocations = await undoRelocations(deps, completed, input);
+
+  await repo.undoComplete(completed.id, relocations);
+  return ok({
+    taskId: completed.id,
+    startedAt: completed.startedAt,
+    endedAt: completed.endedAt,
+    sectionId: completed.sectionId,
+    sortOrder: completed.sortOrder,
+  });
+}
+
+/**
+ * 完了の取り消しの取り消し（F-212 / データモデル定義書 §4.7）。
+ * 取り消し前の打刻2列と配置2列を書き戻して完了状態へ復帰させる（1トランザクション）。
+ * `sort_order` は復帰までの間に他タスクが同値を取っていてもそのまま書き戻す（§4.7）
+ */
+export async function restoreCompletion(
+  repo: TaskRepository,
+  snapshot: CompletionSnapshot
+): Promise<Result<TaskId, PunchUsecaseError>> {
+  const target = await repo.findById(snapshot.taskId);
+  if (target === null) return err("task_not_found");
+
+  await repo.updatePunch(
+    snapshot.taskId,
+    { startedAt: snapshot.startedAt, endedAt: snapshot.endedAt },
+    [{ taskId: snapshot.taskId, sectionId: snapshot.sectionId, sortOrder: snapshot.sortOrder }]
+  );
+  return ok(snapshot.taskId);
+}
+
+/**
+ * 打刻の取り消し（開始 §4.5 / 完了 §4.7）に伴う並べ直し。
+ * 今日のタスクだけ未実行として並べ直す（今日以外は現在位置・これから領域が定義できない）
+ */
+async function undoRelocations(
+  deps: PunchDeps,
+  target: Task,
+  input: Readonly<{ nowClock: string; today: LogicalDate }>
+): Promise<Relocations | null> {
+  if (target.taskDate !== input.today) return null;
+
+  const relocations = relocationOnUndoPunch(
+    target,
+    await deps.tasks.listByDate(target.taskDate),
+    await deps.sections.listAll(),
+    input.nowClock
+  );
+  return relocations.length === 0 ? null : relocations;
 }
 
 /** 終了打刻（F-201） */
