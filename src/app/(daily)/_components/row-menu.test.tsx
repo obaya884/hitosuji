@@ -1,0 +1,97 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { RowMenu, type RowMenuItem } from "./row-menu";
+
+/** メニューを開いた状態にして、パネル内の項目ボタンを返す */
+function openMenu(items: readonly RowMenuItem[]) {
+  render(<RowMenu items={items} />);
+  fireEvent.click(screen.getByLabelText("行メニュー"));
+}
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+// 先送り（O-7）・打刻済み削除の確認（O-8）の入口。閉じ方は 00_共通 §2.1
+describe("RowMenu（画面定義書01 O-7/O-8: 行メニューから先送り・削除を実行する）", () => {
+  it("既定では閉じていて、ボタンで開閉する", () => {
+    const items = [{ label: "複製", onSelect: vi.fn() }];
+    render(<RowMenu items={items} />);
+
+    expect(screen.queryByText("複製")).toBeNull();
+
+    fireEvent.click(screen.getByLabelText("行メニュー"));
+    expect(screen.queryByText("複製")).not.toBeNull();
+
+    fireEvent.click(screen.getByLabelText("行メニュー"));
+    expect(screen.queryByText("複製")).toBeNull();
+  });
+
+  it("項目を選ぶと onSelect が呼ばれ、メニューは閉じる", () => {
+    const onSelect = vi.fn();
+    openMenu([{ label: "翌日へ先送り", onSelect }]);
+
+    fireEvent.click(screen.getByText("翌日へ先送り"));
+
+    expect(onSelect).toHaveBeenCalledOnce();
+    expect(screen.queryByText("翌日へ先送り")).toBeNull();
+  });
+
+  it("非活性の項目は見せるが押せない（§4.1 / FB-30: 操作の存在は分かるようにする）", () => {
+    const onSelect = vi.fn();
+    openMenu([{ label: "ルーチン化", onSelect, disabled: true }]);
+
+    const item = screen.getByText("ルーチン化");
+    expect((item as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.click(item);
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("確認付きの項目は承認したときだけ実行する（O-8: 打刻済みの削除）", () => {
+    const onSelect = vi.fn();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    openMenu([{ label: "削除", onSelect, confirmMessage: "「朝食」は打刻済みです。削除しますか？" }]);
+
+    fireEvent.click(screen.getByText("削除"));
+
+    expect(confirm).toHaveBeenCalledWith("「朝食」は打刻済みです。削除しますか？");
+    expect(onSelect).toHaveBeenCalledOnce();
+  });
+
+  it("確認を却下したら実行せず、メニューも開いたまま残す", () => {
+    const onSelect = vi.fn();
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    openMenu([{ label: "削除", onSelect, confirmMessage: "削除しますか？" }]);
+
+    fireEvent.click(screen.getByText("削除"));
+
+    expect(onSelect).not.toHaveBeenCalled();
+    // 選び直せるように閉じない
+    expect(screen.queryByText("削除")).not.toBeNull();
+  });
+
+  it("外側のクリックで閉じる（00_共通 §2.1）", () => {
+    openMenu([{ label: "複製", onSelect: vi.fn() }]);
+
+    fireEvent.mouseDown(document.body);
+
+    expect(screen.queryByText("複製")).toBeNull();
+  });
+
+  it("Esc で閉じる（00_共通 §2.1）", () => {
+    openMenu([{ label: "複製", onSelect: vi.fn() }]);
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByText("複製")).toBeNull();
+  });
+
+  it("閉じている間は外側クリックを購読しない（常時マウントでも他の操作を邪魔しない）", () => {
+    const addEventListener = vi.spyOn(document, "addEventListener");
+    render(<RowMenu items={[{ label: "複製", onSelect: vi.fn() }]} />);
+
+    expect(addEventListener.mock.calls.map(([type]) => type)).not.toContain("mousedown");
+  });
+});
