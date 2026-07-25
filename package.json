@@ -22,6 +22,7 @@
     "db:sync-masters": "sh scripts/db-sync-masters.sh",
     "wt:new": "sh scripts/wt-new.sh",
     "wt:rm": "sh scripts/wt-rm.sh",
+    "wt:overlap": "sh scripts/wt-overlap.sh",
     "ledger:check": "sh scripts/ledger-check.sh",
     "ledger:move": "sh scripts/ledger-move.sh"
   },
