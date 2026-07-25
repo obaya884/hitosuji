@@ -1,5 +1,5 @@
 #!/bin/sh
-# 並行作業用 worktree の後片付け（T-06）。設計は docs/検討/34_git運用と並行開発体制検討.md §5・§7。
+# 並行作業用 worktree の後片付け（T-06）。設計は docs/検討/34_git運用と並行開発体制検討.md §2.2・§5・§7。
 #
 # 使い方:
 #   npm run wt:rm -- <ブランチ名>
@@ -10,8 +10,15 @@ set -eu
 
 name="${1:-}"
 
-if [ -z "$name" ] || ! printf '%s' "$name" | grep -Eq '^[a-z0-9-]+$'; then
+if [ -z "$name" ] || ! printf '%s' "$name" | grep -Eq '^[a-z0-9-]{1,49}$'; then
   echo "使い方: npm run wt:rm -- <ブランチ名>" >&2
+  echo "ブランチ名は小文字の a-z 0-9 - のみ・49文字以内（例: fb-54-section-jump）" >&2
+  exit 1
+fi
+
+# 本体ワークツリー専用（worktree の中から実行するとパスの前提が崩れるため）
+if [ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]; then
+  echo "wt:rm は本体ワークツリー（ヘッド側）から実行してください" >&2
   exit 1
 fi
 
@@ -38,18 +45,20 @@ if [ -n "$(git -C "$wt_dir" status --porcelain)" ]; then
   exit 1
 fi
 
+# DB は worktree より先に消す（後段が失敗しても worktree が残り、再実行で復旧できる順序）。
+# WITH (FORCE) で残存接続ごと落とす（worktree 専用DBのため安全）
+if [ -n "$(docker compose ps -q --status running db-test)" ]; then
+  docker compose exec -T db-test psql -U hitosuji -d hitosuji_test -v ON_ERROR_STOP=1 \
+    -c "DROP DATABASE IF EXISTS $db_name WITH (FORCE)"
+else
+  echo "db-test が停止中のためテストDBの削除をスキップしました（tmpfs のためコンテナ再作成で消えます）"
+fi
+
 git worktree remove "$wt_dir"
 
 # squash マージ運用では -d はマージを検出できず失敗する（git 運用ルール §2.2）。その場合はヒントを出して残す
 git branch -d "$name" \
   || echo "ブランチ $name は未マージ扱い（squash マージ後もこうなる）のため残しました。マージ済みを確認のうえ git branch -D $name で削除してください"
 
-if docker compose ps --status running db-test 2>/dev/null | grep -q db-test; then
-  docker compose exec -T db-test psql -U hitosuji -d hitosuji_test -c "DROP DATABASE IF EXISTS $db_name"
-else
-  echo "db-test が停止中のためテストDBの削除をスキップしました（tmpfs のためコンテナ再作成で消えます）"
-fi
-
-git worktree prune
 rmdir ../hitosuji-wt 2>/dev/null || true  # 最後の worktree を消したら空の親ディレクトリも残さない
 echo "worktree を削除しました: $wt_dir"

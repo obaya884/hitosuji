@@ -6,8 +6,12 @@ import { defineConfig } from "vitest/config";
 // シェルから渡された TEST_DATABASE_URL（CI 等）が常に優先。本体ワークツリーにこのファイルは無い
 const envWorktree = path.resolve(import.meta.dirname, ".env.worktree");
 if (process.env.TEST_DATABASE_URL === undefined && existsSync(envWorktree)) {
-  const match = readFileSync(envWorktree, "utf8").match(/^TEST_DATABASE_URL=(.+)$/m);
-  if (match) process.env.TEST_DATABASE_URL = match[1];
+  const match = readFileSync(envWorktree, "utf8").match(/^TEST_DATABASE_URL=([^\r\n]+)$/m);
+  if (!match) {
+    // 解析失敗のまま進むと共有 hitosuji_test へ黙ってフォールバックし、他 worktree のデータを消しうる
+    throw new Error(`${envWorktree} に TEST_DATABASE_URL の行がありません`);
+  }
+  process.env.TEST_DATABASE_URL = match[1];
 }
 
 // テスト戦略はアーキテクチャ定義書 §8 参照
