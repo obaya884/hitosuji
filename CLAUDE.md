@@ -67,7 +67,7 @@ Next.js 16 (App Router) + TypeScript / Tailwind CSS 4 / Drizzle ORM + node-postg
 
 ## サブエージェント運用（マルチエージェント体制）
 
-実装サイクルの各段階で以下へ委譲し、メインセッションのコンテキストを実装そのものに集中させる。読み取り中心・出力が長くなる作業を委譲し、**コードの編集は常にメインセッションが行う**。
+実装サイクルの各段階で以下へ委譲し、メインセッションのコンテキストを実装そのものに集中させる。読み取り中心・出力が長くなる作業を委譲し、**単独作業ではコードの編集は常にメインセッションが行う**（複数タスクを並行させる場合は worktree ごとのワーカーが自分の worktree 内で編集し、ヘッドは編集しない。下の「並行開発（worktree）」参照）。
 
 | 段階 | 委譲先 | 内容 |
 |---|---|---|
@@ -85,6 +85,14 @@ Next.js 16 (App Router) + TypeScript / Tailwind CSS 4 / Drizzle ORM + node-postg
 - 軽微な変更（typo・文言・1ファイルの小修正）ではエージェントを起動せず、メインセッションで直接 lint/build する
 - レビュー・検証エージェントの指摘への対処（修正）はメインセッションが行い、必要なら同じエージェントに再検証させる
 - `code-quality-reviewer` の品質観点、`spec-reviewer` の仕様整合、`test-reviewer` のテスト観点は責務が異なる（品質＝内部コードの読みやすさ・重複・簡潔さ／仕様整合＝docs との一致／テスト観点＝観点の網羅・正しさ・カバレッジ）
+
+### 並行開発（worktree）
+
+既定は常に単独モード（メインセッションが実装）。**オーナーが並行実行を明示的に指示したとき（例「これとこれを並行で」）だけ**、**ヘッド1＋ワーカーN** の体制に切り替える——AI が自律的に切り替える判断基準は設けない（体制・運用手順は `docs/仕様/16_git運用と並行開発体制定義書.md` §2〜§5 が正）。要点:
+
+- ヘッド（本体ワークツリーのセッション）はタスク分配・`npm run wt:new` / `wt:rm`・マージ順序の調停・共有 docs（台帳・log_\*）への記入を担い、**コードを編集しない**。共有 docs にワーカーは触れない
+- ワーカーは 1タスク＝1 worktree（`../hitosuji-wt/<ブランチ名>`）で、worktree の内側では本ガイドの運用をそのまま実行する。仕様質問はヘッド経由でオーナーに上げる（docs 先行の最重要ルールは不変）
+- 並行時のレビューの正は **PR の diff**（ワーカーの編集はヘッドのチャットに出ないため）。オーナーの動作確認はヘッド側でブランチを checkout して行う
 
 ### 起動の契機
 
@@ -104,7 +112,14 @@ Next.js 16 (App Router) + TypeScript / Tailwind CSS 4 / Drizzle ORM + node-postg
 2. **オーナーによる動作確認**: メインセッションがローカル環境（`docker compose up -d` ＋ `npm run dev`）を立ち上げ、**確認手順を提示する**。オーナーが実機で挙動を確認する
 3. **コミット / push**: 上記2つを通してからコミットする。**push は本番デプロイになるため、必ずオーナーの合図を待つ**（動作確認前に push しない）
 
-軽微な変更（typo・文言・1ファイルの小修正）は 1・2 を省略してよい（エージェント起動の例外基準と同じ）。
+軽微な変更（typo・文言・1ファイルの小修正）は 1・2 を省略してよい（エージェント起動の例外基準と同じ）。並行開発時はこのフローを PR 単位に読み替える（レビューの正は PR の diff、動作確認はヘッド側でブランチを checkout）。
+
+## git 運用（ブランチ・マージ・デプロイ）
+
+**詳細（命名の文字集合・マージキュー・ブランチ削除の作法・並行時の規律）は `docs/仕様/16_git運用と並行開発体制定義書.md` §1 が正**。常時使う判断は次の2つ:
+
+- **リスク別ルーティング**: docs・軽微（typo・文言・挙動に触れない小修正）→ `main` 直コミット（push＝本番デプロイはオーナーの合図でまとめて可）／コード・挙動の変更 → ブランチ → PR → CI 緑 → 動作確認 → **合図でマージ**／スキーマ変更 → さらに「本番へ migrate 適用 → マージ」の順（「本番マイグレーションの手順」節）。迷ったらブランチ＋PR 側に倒す
+- **ブランチ命名**: `<タスクID>-<slug>`（例 `fb-54-section-jump`）。**1ブランチ＝1PR、マージ後は削除**。自動マージ・ブランチ保護は設けず、push・マージは常にオーナーの合図
 
 ## 開発コマンド
 
@@ -116,6 +131,8 @@ Next.js 16 (App Router) + TypeScript / Tailwind CSS 4 / Drizzle ORM + node-postg
 - `npm run db:seed` — 初期データ投入（冪等）
 - `npm run db:studio` — Drizzle Studio（DB閲覧）
 - `npm run build` / `npm run lint`
+- `npm run wt:new -- <ブランチ名>` — 並行作業用 worktree の一括セットアップ（`../hitosuji-wt/` 配下に worktree＋ブランチ＋`npm ci`＋専用テストDB＋`.env.worktree`）
+- `npm run wt:rm -- <ブランチ名>` — worktree の後片付け（worktree・ローカルブランチ・テストDBの削除）
 
 ## このリポジトリは public
 
@@ -131,7 +148,7 @@ Next.js 16 (App Router) + TypeScript / Tailwind CSS 4 / Drizzle ORM + node-postg
 - `DATABASE_URL` — Postgres 接続文字列
 - `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` — 両方設定すると Basic認証が有効。未設定なら素通し（ローカル開発用）。**リポジトリにコミットしない**
 
-**`.env.production` / `.env.production.local` は作らない。** `npm run build` は `NODE_ENV=production` で走るため Next.js がこれらを自動読み込みし、ローカルのビルドが本番DBを向く。本番向けの値を手元に置く場合は、Next.js の読み込み対象（`.env` / `.env.local` / `.env.development*` / `.env.production*` / `.env.test*`）を外した名前を使う（`.env.migrate` と同じ流儀）。`.gitignore` の `.env*` でどの名前も git からは外れる。
+**`.env.production` / `.env.production.local` は作らない。** `npm run build` は `NODE_ENV=production` で走るため Next.js がこれらを自動読み込みし、ローカルのビルドが本番DBを向く。本番向けの値を手元に置く場合は、Next.js の読み込み対象（`.env` / `.env.local` / `.env.development*` / `.env.production*` / `.env.test*`）を外した名前を使う（`.env.migrate` と同じ流儀）。`.gitignore` の `.env*` でどの名前も git からは外れる。worktree 用の `.env.worktree`（`wt:new` が生成し vitest だけが読む `TEST_DATABASE_URL` 1行）も同じ流儀。
 
 ### 本番資格情報の控え（`.env.credentials`）
 
