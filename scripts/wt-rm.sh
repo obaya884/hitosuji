@@ -1,5 +1,5 @@
 #!/bin/sh
-# 並行作業用 worktree の後片付け（T-06）。設計は docs/検討/34_git運用と並行開発体制検討.md §2.2・§5・§7。
+# 並行作業用 worktree の後片付け（T-06）。設計は docs/仕様/16_git運用と並行開発体制定義書.md §1.2・§3・§5。
 #
 # 使い方:
 #   npm run wt:rm -- <ブランチ名>
@@ -56,7 +56,7 @@ fi
 
 git worktree remove "$wt_dir"
 
-# squash マージ運用では -d はマージを検出できず失敗する（git 運用ルール §2.2）。その場合はヒントを出して残す
+# squash マージ運用では -d はマージを検出できず失敗する（git 運用ルール §1.2）。その場合はヒントを出して残す
 git branch -d "$name" \
   || echo "ブランチ $name は未マージ扱い（squash マージ後もこうなる）のため残しました。マージ済みを確認のうえ git branch -D $name で削除してください"
 
