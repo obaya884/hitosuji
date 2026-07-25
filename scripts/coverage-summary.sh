@@ -79,7 +79,7 @@ for metric in METRICS:
 out += ["```", ""]
 
 out += [
-    "| 層 | % Stmts | % Branch | % Funcs | % Lines |",
+    "| 📁 | % Stmts | % Branch | % Funcs | % Lines |",
     "|---|---:|---:|---:|---:|",
 ]
 for name in sorted(layers):
