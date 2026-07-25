@@ -133,6 +133,7 @@ Next.js 16 (App Router) + TypeScript / Tailwind CSS 4 / Drizzle ORM + node-postg
 - `npm run build` / `npm run lint`
 - `npm run wt:new -- <ブランチ名>` — 並行作業用 worktree の一括セットアップ（`../hitosuji-wt/` 配下に worktree＋ブランチ＋`npm ci`＋専用テストDB＋`.env.worktree`＋dev サーバ用の固有ポートと `.env.local` リンク）
 - `npm run wt:rm -- <ブランチ名>` — worktree の後片付け（worktree・ローカルブランチ・テストDBの削除）
+- `npm run wt:overlap` — 稼働中ブランチの変更ファイルが重なっていないかを機械判定する（重なりありなら終了コード 1。仕様/16 §1.3）
 - `npm run ledger:move -- <FB-XX>` — 台帳21 の行を完了記録へ移す（手編集で壊さないための道具。仕様/16 §3.4）
 - `npm run ledger:check` — 台帳の表構造を検査する（列数・エントリの混入・テーブル内の空行）
 
