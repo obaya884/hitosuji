@@ -1,8 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { useRouter } from "next/navigation";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { Mode } from "@/domain/mode/mode";
+import { MODE_COLORS, type Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { Task } from "@/domain/task/task";
 import type { DailyReviewView } from "@/usecases/review/review-usecases";
@@ -29,9 +29,9 @@ vi.mock("next/navigation", () => ({
 
 const DATE = "2026-07-20"; // 月曜
 const MODES: readonly Mode[] = [
-  { id: 1, name: "モードA", color: "#3b82f6", isArchived: false },
-  { id: 2, name: "モードB", color: "#22c55e", isArchived: false },
-  { id: 9, name: "旧モード", color: "#9ca3af", isArchived: true },
+  { id: 1, name: "モードA", color: MODE_COLORS[0], isArchived: false },
+  { id: 2, name: "モードB", color: MODE_COLORS[1], isArchived: false },
+  { id: 9, name: "旧モード", color: MODE_COLORS[12], isArchived: true },
 ];
 const PROJECTS: readonly Project[] = [
   { id: 11, name: "案件A", isArchived: false },
@@ -59,6 +59,9 @@ function task(over: Partial<Task> & { id: number }): Task {
     ...over,
   };
 }
+
+/** 完了タスク（開始・終了の両方が打刻済み）。実績と差異が確定している行を作る */
+const done = (over: Partial<Task> & { id: number; startedAt: Date; endedAt: Date }) => task(over);
 
 function view(over: Partial<DailyReviewView> = {}): DailyReviewView {
   return {
@@ -107,13 +110,21 @@ function logRow(index = 0): HTMLTableRowElement {
 /** 集計の列（§3.5: 名前 / 実績 / 割合） */
 const TOTAL = { name: 0, minutes: 1, share: 2 } as const;
 
-const done = (over: Partial<Task> & { id: number; startedAt: Date; endedAt: Date }) => task(over);
-
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("ReviewBoard（画面定義書04 §3.2: 見出しとサマリ）", () => {
+describe("ReviewBoard（画面定義書04 §3.1: 日付ナビ。§3.2: サマリ）", () => {
+  // §3.1「S-01 と S-04 の表示日は連動させない」／O-1「URL のクエリに表示日を持つ」。
+  // ナビの移動先が S-01（/）になっていないことは、リンクの href でしか判らない
+  it("日付ナビの移動先は S-04 に閉じる（前日・翌日・今日へ）", () => {
+    renderBoard({}, false);
+
+    expect(screen.getByLabelText("前日").getAttribute("href")).toBe("/review?date=2026-07-19");
+    expect(screen.getByLabelText("翌日").getAttribute("href")).toBe("/review?date=2026-07-21");
+    expect(screen.getByText("今日へ").getAttribute("href")).toBe("/review");
+  });
+
   it("画面見出しとサマリ（実行件数・実績合計・先送り件数）を出す", () => {
     renderBoard({
       log: [
@@ -243,7 +254,8 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
       totalMinutes: 30,
     });
 
-    expect(logRow().style.color).toBe("rgb(34, 197, 94)");
+    // jsdom は inline style の色を rgb() 表記へ正規化する（MODES[1] = MODE_COLORS[1]）
+    expect(logRow().style.color).toBe("rgb(249, 115, 22)");
     expect(logRow().className).not.toContain("text-ink-muted");
   });
 
@@ -437,28 +449,19 @@ describe("ReviewBoard（画面定義書04 §5: 日付移動のショートカッ
     expect(router.push).not.toHaveBeenCalled();
   });
 
-  describe("テキスト入力中は無効にする", () => {
-    const fields: readonly string[] = ["input", "textarea"];
-    let field: HTMLElement | null = null;
+  // 入力欄は S-04 自体にはないが、リスナは window に張るので他の入力からも届きうる。
+  // 生やす先を render の container にして、後片付けを setup.ts の cleanup に任せる
+  for (const tag of ["input", "textarea"]) {
+    it(`テキスト入力中（${tag}）のキーは無視する`, () => {
+      const { container } = renderBoard();
+      const field = container.appendChild(document.createElement(tag));
 
-    afterEach(() => {
-      field?.remove();
-      field = null;
+      fireEvent.keyDown(field, { key: "L", shiftKey: true });
+      fireEvent.keyDown(field, { key: "t" });
+
+      expect(router.push).not.toHaveBeenCalled();
     });
-
-    for (const tag of fields) {
-      it(`${tag} からのキーは無視する`, () => {
-        renderBoard();
-        field = document.createElement(tag);
-        document.body.appendChild(field);
-
-        fireEvent.keyDown(field, { key: "L", shiftKey: true });
-        fireEvent.keyDown(field, { key: "t" });
-
-        expect(router.push).not.toHaveBeenCalled();
-      });
-    }
-  });
+  }
 
   it("アンマウント後はキーを拾わない（リスナを外す）", () => {
     const { unmount } = renderBoard();

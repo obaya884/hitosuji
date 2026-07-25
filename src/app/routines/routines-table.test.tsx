@@ -13,55 +13,20 @@ import {
   updateRoutineAction,
   type RoutineActionResult,
 } from "./actions";
+import { MODES, PROJECTS, routine, SECTIONS, TODAY } from "./_testing/fixtures";
 import { RoutinesTable } from "./routines-table";
 
 // actions.ts は "use server" で、その先は pg.Pool と revalidatePath に届くため素の jsdom では
 // 描画すらできない。同じ返り値の契約（RoutineActionResult）を返す偽物へ差し替える
 // （アーキテクチャ定義書 §8「偽物を置いてよい境界」）。目的は呼ばれ方の検証ではなく、
-// 成功・失敗を固定して両分岐（フォームを閉じる / エラーを出して開いたまま）を通すこと
+// 成功・失敗を固定して両分岐（フォームを閉じる / エラーを出して開いたまま）を通すこと。
+// 返り値の型は vi.mocked() が本物のシグネチャから引くのでここでは注釈しない
 vi.mock("./actions", () => ({
-  createRoutineAction: vi.fn<(...args: never[]) => Promise<RoutineActionResult>>(),
-  updateRoutineAction: vi.fn<(...args: never[]) => Promise<RoutineActionResult>>(),
-  setRoutineActiveAction: vi.fn<(...args: never[]) => Promise<RoutineActionResult>>(),
-  deleteRoutineAction: vi.fn<(...args: never[]) => Promise<RoutineActionResult>>(),
+  createRoutineAction: vi.fn(),
+  updateRoutineAction: vi.fn(),
+  setRoutineActiveAction: vi.fn(),
+  deleteRoutineAction: vi.fn(),
 }));
-
-const TODAY = "2026-07-26";
-
-const MODES: readonly Mode[] = [
-  { id: 1, name: "モードA", color: "#3b82f6", isArchived: false },
-  { id: 2, name: "モードB", color: "#22c55e", isArchived: false },
-];
-
-const PROJECTS: readonly Project[] = [
-  { id: 11, name: "案件A", isArchived: false },
-  { id: 12, name: "案件B", isArchived: false },
-];
-
-const SECTIONS: readonly Section[] = [
-  { id: 1, name: "朝", startTime: "05:00", isArchived: false, isDayStart: true },
-  { id: 2, name: "午前", startTime: "09:00", isArchived: false },
-  { id: 3, name: "午後", startTime: "13:00", isArchived: false },
-];
-
-function routine(over: Partial<Routine> & { id: number }): Routine {
-  return {
-    name: `ルーチン${over.id}`,
-    estimateMinutes: 30,
-    scheduledStartTime: "09:00",
-    modeId: null,
-    projectId: null,
-    recurrenceType: "daily",
-    weekdays: null,
-    weekInterval: null,
-    monthDay: null,
-    intervalDays: null,
-    startDate: "2026-07-01",
-    endDate: null,
-    isActive: true,
-    ...over,
-  };
-}
 
 function renderTable(routines: readonly Routine[], sections: readonly Section[] = SECTIONS) {
   return render(
@@ -237,7 +202,8 @@ describe("RoutinesTable（画面定義書02 §3: 一覧の列と表記）", () =
   it("モード色を名前の文字色に反映する（S-01 と同じ表現）", () => {
     const { container } = renderTable([routine({ id: 1, modeId: 2 })]);
 
-    expect(cell(container, 0, COL.name).style.color).toBe("rgb(34, 197, 94)");
+    // jsdom は inline style の色を rgb() 表記へ正規化する（MODES[1] = MODE_COLORS[1]）
+    expect(cell(container, 0, COL.name).style.color).toBe("rgb(249, 115, 22)");
   });
 
   it("無効ルーチンは行をグレーアウトし、名前にモード色を付けない", () => {
@@ -322,6 +288,25 @@ describe("RoutinesTable（画面定義書02 §3.1: 列見出しのクリック�
     expect(header("見積").querySelector("button")).toBeNull();
     expect(header("名前").querySelector("button")).not.toBeNull();
   });
+
+  it("昇順/降順の印は並べ替え中の列にだけ見せる（他の列の印は不可視）", () => {
+    renderTable(forSort);
+    // 印は見出しボタンの中の装飾（aria-hidden）なので構造で取る
+    const mark = (label: string) => header(label).querySelector<HTMLElement>("button > span")!;
+
+    expect(mark("開始想定").textContent).toBe("▲");
+    expect(mark("開始想定").className).not.toContain("invisible");
+    expect(mark("名前").className).toContain("invisible");
+
+    fireEvent.click(screen.getByText("名前"));
+    expect(mark("名前").textContent).toBe("▲");
+    expect(mark("名前").className).not.toContain("invisible");
+    expect(mark("開始想定").className).toContain("invisible");
+
+    fireEvent.click(screen.getByText("名前"));
+    expect(mark("名前").textContent).toBe("▼");
+    expect(mark("名前").className).not.toContain("invisible");
+  });
 });
 
 describe("RoutinesTable（画面定義書02 §5: 有効/無効・削除・編集。§1 N-01 の対象外）", () => {
@@ -354,7 +339,9 @@ describe("RoutinesTable（画面定義書02 §5: 有効/無効・削除・編集
     expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
   });
 
-  it("保存中は有効トグルと削除を押せない（古い値での上書きを防ぐ）", async () => {
+  // 「編集」だけは保存中も押せる（disabled を付けていない）。是非は FB-63 で検討中のため、
+  // ここでは現状を固定するにとどめる
+  it("保存中は有効トグルと削除を押せない（編集ボタンは押せる。FB-63 で検討中）", async () => {
     let finish!: (result: RoutineActionResult) => void;
     vi.mocked(setRoutineActiveAction).mockReturnValue(
       new Promise<RoutineActionResult>((resolve) => {
@@ -364,10 +351,12 @@ describe("RoutinesTable（画面定義書02 §5: 有効/無効・削除・編集
     const { container } = renderTable([routine({ id: 7 })]);
     const checkbox = cell(container, 0, COL.active).querySelector<HTMLInputElement>("input")!;
     const remove = screen.getByText<HTMLButtonElement>("削除");
+    const edit = screen.getByText<HTMLButtonElement>("編集");
 
     await click(checkbox);
     expect(checkbox.disabled).toBe(true);
     expect(remove.disabled).toBe(true);
+    expect(edit.disabled).toBe(false);
 
     await act(async () => {
       finish({ ok: true });
@@ -424,6 +413,20 @@ describe("RoutinesTable（画面定義書02 §4・§5: 新規/編集フォーム
       startDate: TODAY,
     });
     expect(screen.queryByLabelText("名前")).toBeNull();
+  });
+
+  it("新規作成が失敗したらフォームを開いたままエラーを出す", async () => {
+    vi.mocked(createRoutineAction).mockResolvedValue({
+      ok: false,
+      message: "名前を入力してください",
+    });
+    renderTable([]);
+
+    await click(screen.getByText("新規ルーチン"));
+    await click(screen.getByText("保存"));
+
+    expect(screen.queryByText("名前を入力してください")).not.toBeNull();
+    expect(screen.queryByLabelText("名前")).not.toBeNull();
   });
 
   it("編集ボタンでその行のフォームを開き、ボタンは「閉じる」になる（O-2）", async () => {

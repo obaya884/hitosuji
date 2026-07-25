@@ -1,43 +1,11 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import type { Mode } from "@/domain/mode/mode";
-import type { Project } from "@/domain/project/project";
 import type { RoutineInput } from "@/domain/routine/input";
 import type { Routine } from "@/domain/routine/routine";
 
+import { MODES, PROJECTS, routine, TODAY } from "./_testing/fixtures";
 import { RoutineForm } from "./routine-form";
-
-const TODAY = "2026-07-26";
-
-const MODES: readonly Mode[] = [
-  { id: 1, name: "モードA", color: "#3b82f6", isArchived: false },
-  { id: 2, name: "モードB", color: "#22c55e", isArchived: false },
-];
-
-const PROJECTS: readonly Project[] = [
-  { id: 11, name: "案件A", isArchived: false },
-  { id: 12, name: "案件B", isArchived: false },
-];
-
-function routine(over: Partial<Routine> & { id: number }): Routine {
-  return {
-    name: `ルーチン${over.id}`,
-    estimateMinutes: 30,
-    scheduledStartTime: "09:00",
-    modeId: null,
-    projectId: null,
-    recurrenceType: "daily",
-    weekdays: null,
-    weekInterval: null,
-    monthDay: null,
-    intervalDays: null,
-    startDate: "2026-07-01",
-    endDate: null,
-    isActive: true,
-    ...over,
-  };
-}
 
 /** 新規（routine=null）と編集（routine あり）で同じフォームを使う（§4「新規/編集共通」） */
 function setup(target: Routine | null = null) {
@@ -122,6 +90,22 @@ describe("RoutineForm（画面定義書02 §4: 繰り返し種別に応じて入
     expect(screen.getByLabelText<HTMLInputElement>("終了日（任意）").value).toBe("2026-09-30");
     expect(screen.getByLabelText<HTMLSelectElement>("モード").value).toBe("2");
     expect(screen.getByLabelText<HTMLSelectElement>("プロジェクト").value).toBe("12");
+  });
+
+  // 新規の既定は月次=1日・n日ごと=2日。既定値を出してしまうと編集で値が化けるため、
+  // 週次（上のテスト）と同じく既存値が埋まることを種別ごとに固定する
+  it("編集は既存の値を埋める（月次の日）", () => {
+    setup(routine({ id: 1, recurrenceType: "monthly", monthDay: 25 }));
+
+    expect(screen.getByLabelText<HTMLInputElement>("月次").checked).toBe(true);
+    expect(screen.getByLabelText<HTMLInputElement>(/月末に丸めます/).value).toBe("25");
+  });
+
+  it("編集は既存の値を埋める（n日ごとの間隔）", () => {
+    setup(routine({ id: 1, recurrenceType: "interval", intervalDays: 3 }));
+
+    expect(screen.getByLabelText<HTMLInputElement>("n日ごと").checked).toBe(true);
+    expect(screen.getByLabelText<HTMLInputElement>(/開始日が起算日/).value).toBe("3");
   });
 
   it("入力した値をそのまま送る（名前・見積・開始想定時刻・開始日・終了日）", () => {
