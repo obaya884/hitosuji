@@ -7,31 +7,8 @@ import type { Section } from "@/domain/section/section";
 import type { DailyGroup } from "@/domain/task/daily-list";
 import type { Task } from "@/domain/task/task";
 
+import { at, task, unclassifiedGroup } from "../_testing/factories";
 import { DailyList, type EditingCell } from "./daily-list";
-
-function task(over: Partial<Task> & { id: number }): Task {
-  return {
-    taskDate: "2026-07-26",
-    name: `T${over.id}`,
-    estimateMinutes: 0,
-    sectionId: null,
-    modeId: null,
-    projectId: null,
-    sortOrder: over.id * 1000,
-    startedAt: null,
-    endedAt: null,
-    comment: null,
-    routineId: null,
-    splitParentId: null,
-    postponedCount: 0,
-    ...over,
-  };
-}
-
-/** JST の `HH:MM` を打刻時刻の Date にする（打刻表示は JST 固定。format.ts） */
-function at(hhmm: string): Date {
-  return new Date(`2026-07-26T${hhmm}:00+09:00`);
-}
 
 const MODES: readonly Mode[] = [
   { id: 1, name: "仕事", color: "#ff0000", isArchived: false },
@@ -50,13 +27,14 @@ const SECTIONS: readonly Section[] = [
   { id: 300, name: "午後", startTime: "13:00", isArchived: false },
 ];
 
-function group(over: Partial<DailyGroup> = {}): DailyGroup {
-  return { section: null, endTime: null, tasks: [], ...over };
-}
-
 /** 朝（06:00–09:00）のグループ */
 function morning(tasks: readonly Task[]): DailyGroup {
   return { section: SECTIONS[0], endTime: "09:00", tasks };
+}
+
+/** 午前（09:00–13:00）のグループ */
+function forenoon(tasks: readonly Task[]): DailyGroup {
+  return { section: SECTIONS[1], endTime: "13:00", tasks };
 }
 
 type Overrides = Readonly<{
@@ -87,7 +65,7 @@ function renderList(overrides: Overrides = {}) {
   };
   const result = render(
     <DailyList
-      groups={overrides.groups ?? [group()]}
+      groups={overrides.groups ?? [unclassifiedGroup()]}
       modes={overrides.modes ?? MODES}
       projects={overrides.projects ?? PROJECTS}
       sections={overrides.sections ?? SECTIONS}
@@ -124,13 +102,13 @@ function cellsOf(row: HTMLElement) {
 }
 
 /**
- * セクション見出し行（td が1つ = colSpan の行）。タスク行のセクション併記と
- * 同じ名前が並ぶため、行の形で見出しだけに絞る
+ * セクション見出し行（td が1つ = colSpan の行）。タスク行にも同じセクション名が
+ * 併記される（§3.3）ため、まず行の形で見出しだけに絞ってから名前で引く
  */
 function headingOf(label: string): HTMLElement {
   const heading = [...document.querySelectorAll("tr")]
     .filter((tr) => tr.querySelectorAll("td").length === 1)
-    .find((tr) => tr.querySelector("td > span > span")?.textContent === label);
+    .find((tr) => within(tr as HTMLElement).queryByText(label) !== null);
   if (heading === undefined) throw new Error(`セクション見出し「${label}」が見つかりません`);
   return heading as HTMLElement;
 }
@@ -170,7 +148,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
     });
 
     it("未分類グループは名前だけで、時間帯・残り時間を出さない（枠を持たない）", () => {
-      renderList({ groups: [group({ tasks: [task({ id: 1, name: "買い出しメモ" })] })] });
+      renderList({ groups: [unclassifiedGroup([task({ id: 1, name: "買い出しメモ" })])] });
 
       const heading = headingOf("未分類");
       expect(heading.textContent).not.toContain("残り");
@@ -215,7 +193,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
     });
 
     it("0件のグループは見出しだけを置き、進捗・時間合計・残り時間を出さない（FB-25/FB-26）", () => {
-      renderList({ groups: [group(), morning([])] });
+      renderList({ groups: [unclassifiedGroup(), morning([])] });
 
       const heading = headingOf("朝");
       expect(within(heading).queryByText("06:00–09:00")).not.toBeNull();
@@ -242,8 +220,9 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
         groups: [morning([task({ id: 1, name: "朝食", estimateMinutes: 180 })])],
       });
 
-      const value = within(headingOf("朝")).getByText("-1:00");
-      expect(value.classList.contains("text-danger")).toBe(true);
+      const remaining = within(headingOf("朝")).queryByText("-1:00");
+      expect(remaining).not.toBeNull();
+      expect(remaining?.classList.contains("text-danger")).toBe(true);
     });
 
     it("プラスの残り時間は警告色にしない", () => {
@@ -252,7 +231,9 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
         groups: [morning([task({ id: 1, name: "朝食", estimateMinutes: 30 })])],
       });
 
-      expect(within(headingOf("朝")).getByText("+1:30").classList.contains("text-danger")).toBe(false);
+      const remaining = within(headingOf("朝")).queryByText("+1:30");
+      expect(remaining).not.toBeNull();
+      expect(remaining?.classList.contains("text-danger")).toBe(false);
     });
 
     it("表示日が今日でなければ残り時間を出さない（現在時刻起点の値のため）", () => {
@@ -281,9 +262,9 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
       renderList({
         now: at("10:00"),
         groups: [
-          group({ tasks: [task({ id: 1, name: "買い出しメモ" })] }),
+          unclassifiedGroup([task({ id: 1, name: "買い出しメモ" })]),
           morning([task({ id: 2, name: "朝食" })]),
-          { section: SECTIONS[1], endTime: "13:00", tasks: [task({ id: 3, name: "設計書レビュー" })] },
+          forenoon([task({ id: 3, name: "設計書レビュー" })]),
         ],
       });
 
@@ -301,7 +282,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
         now: at("10:00"),
         groups: [
           morning([task({ id: 1, name: "朝食" })]),
-          { section: SECTIONS[1], endTime: "13:00", tasks: [task({ id: 2, name: "設計書レビュー" })] },
+          forenoon([task({ id: 2, name: "設計書レビュー" })]),
         ],
       });
 
@@ -375,6 +356,19 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
 
       const { actual } = cellsOf(rowOf("朝食"));
       expect((actual.firstElementChild as HTMLElement).classList.contains("text-danger")).toBe(false);
+    });
+
+    it("1分未満の実績は `0:00` と表示する（§3.3 / 00_共通 §2.4: `--:--` は見積もり未設定専用）", () => {
+      renderList({
+        groups: [
+          morning([
+            // 開始と終了が同じ＝実績0分。値は確定しているので `--:--` にはしない
+            task({ id: 1, name: "朝食", estimateMinutes: 20, startedAt: at("06:30"), endedAt: at("06:30") }),
+          ]),
+        ],
+      });
+
+      expect(cellsOf(rowOf("朝食")).actual.textContent).toBe("→ 0:00");
     });
 
     it("実行中は経過を出す（F-205。実績は出さない）", () => {
@@ -512,7 +506,9 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
       expect(rowOf("朝食").classList.contains("bg-accent-weak")).toBe(false);
     });
 
-    it("選択行だけスクロールを追従させる（§5 / FB-20。見えていれば動かない nearest）", () => {
+    // 「見えていれば動かす必要がない」＝ nearest の実挙動はレイアウトを持つブラウザ段でしか
+    // 確かめられない。ここで見るのは「どの行が・何回・どの引数で呼ぶか」まで
+    it("選択行だけが scrollIntoView({ block: nearest }) を1回呼ぶ（§5 / FB-20）", () => {
       renderList({
         selectedId: 2,
         groups: [morning([task({ id: 1, name: "朝食" }), task({ id: 2, name: "メール" })])],
@@ -777,7 +773,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
     });
 
     it("セクション未指定の行は「未分類」と併記する", () => {
-      renderList({ groups: [group({ tasks: [task({ id: 1, name: "買い出しメモ" })] })] });
+      renderList({ groups: [unclassifiedGroup([task({ id: 1, name: "買い出しメモ" })])] });
 
       expect(within(cellsOf(rowOf("買い出しメモ")).name).queryByText("未分類")).not.toBeNull();
     });

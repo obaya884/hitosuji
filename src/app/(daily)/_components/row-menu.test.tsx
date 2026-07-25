@@ -88,10 +88,17 @@ describe("RowMenu（画面定義書01 O-7/O-8: 行メニューから先送り・
     expect(screen.queryByText("複製")).toBeNull();
   });
 
-  it("閉じている間は外側クリックを購読しない（常時マウントでも他の操作を邪魔しない）", () => {
-    const addEventListener = vi.spyOn(document, "addEventListener");
-    render(<RowMenu items={[{ label: "複製", onSelect: vi.fn() }]} />);
+  // メニューは常時マウントで、閉じている間は購読しない（`enabled: open`）。ただし
+  // 「購読していないこと」自体は DOM から観測できない——購読していても閉じたままなら
+  // 見た目は同じため。段2で確かめられるのは購読の付け外しが壊れていないことまでで、
+  // リスナ登録の有無そのものは実装依存になるので見ない（古典学派。アーキテクチャ定義書 §8）
+  it("外側クリックで閉じたあとも、もう一度開ける", () => {
+    openMenu([{ label: "複製", onSelect: vi.fn() }]);
 
-    expect(addEventListener.mock.calls.map(([type]) => type)).not.toContain("mousedown");
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByText("複製")).toBeNull();
+
+    fireEvent.click(screen.getByLabelText("行メニュー"));
+    expect(screen.queryByText("複製")).not.toBeNull();
   });
 });

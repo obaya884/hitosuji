@@ -5,28 +5,10 @@ import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
 import type { Section } from "@/domain/section/section";
 import type { Task } from "@/domain/task/task";
 
+import { at, task } from "../_testing/factories";
 import { RoutinizePopover } from "./routinize-popover";
 
-function task(over: Partial<Task> & { id: number }): Task {
-  return {
-    // 2026-07-26 は日曜（曜日の既定値の確認に使う）
-    taskDate: "2026-07-26",
-    name: `T${over.id}`,
-    estimateMinutes: 30,
-    sectionId: null,
-    modeId: null,
-    projectId: null,
-    sortOrder: over.id * 1000,
-    startedAt: null,
-    endedAt: null,
-    comment: null,
-    routineId: null,
-    splitParentId: null,
-    postponedCount: 0,
-    ...over,
-  };
-}
-
+// 既定の taskDate（2026-07-26）は日曜。週次・月次の既定値の確認に使う
 const SECTIONS: readonly Section[] = [
   { id: 10, name: "朝", startTime: "06:00", isArchived: false, isDayStart: true },
   { id: 20, name: "午前", startTime: "09:00", isArchived: false },
@@ -48,7 +30,7 @@ function renderPopover(overrides: Overrides = {}) {
     <RoutinizePopover
       task={overrides.task ?? task({ id: 1 })}
       sections={overrides.sections ?? SECTIONS}
-      now={overrides.now ?? new Date("2026-07-26T16:15:00+09:00")}
+      now={overrides.now ?? at("16:15")}
       onSubmit={onSubmit}
       onClose={onClose}
     />
@@ -56,9 +38,12 @@ function renderPopover(overrides: Overrides = {}) {
   return { ...result, onSubmit, onClose };
 }
 
-function startTimeInput(): HTMLInputElement {
-  const label = screen.getByText("開始想定").parentElement as HTMLElement;
-  return label.querySelector("input") as HTMLInputElement;
+/** ラベル（`開始想定` `週間隔` `日` `日ごと`）と同じ label 要素に置かれた入力欄 */
+function inputFor(label: string): HTMLInputElement {
+  const wrapper = screen.getByText(label).parentElement as HTMLElement;
+  const input = wrapper.querySelector("input");
+  if (input === null) throw new Error(`「${label}」の入力欄が見つかりません`);
+  return input;
 }
 
 /** aria-pressed で押下状態を表すトグル群（繰り返し種別・曜日）のうち押されているもの */
@@ -121,7 +106,7 @@ describe("RoutinizePopover（画面定義書01 §4.1 / O-12: 最小の入力で�
 
     fireEvent.click(screen.getByText("月次"));
 
-    const day = screen.getByText("日").parentElement?.querySelector("input") as HTMLInputElement;
+    const day = inputFor("日");
     expect(day.value).toBe("26");
   });
 
@@ -130,7 +115,7 @@ describe("RoutinizePopover（画面定義書01 §4.1 / O-12: 最小の入力で�
 
     fireEvent.click(screen.getByText("n日ごと"));
 
-    const interval = screen.getByText("日ごと").parentElement?.querySelector("input") as HTMLInputElement;
+    const interval = inputFor("日ごと");
     expect(interval.value).toBe("2");
   });
 
@@ -140,13 +125,13 @@ describe("RoutinizePopover（画面定義書01 §4.1 / O-12: 最小の入力で�
         task: task({ id: 1, sectionId: 20, startedAt: new Date("2026-07-26T08:05:45+09:00") }),
       });
 
-      expect(startTimeInput().value).toBe("08:05");
+      expect(inputFor("開始想定").value).toBe("08:05");
     });
 
     it("未打刻ならタスクが属するセクションの開始時刻", () => {
       renderPopover({ task: task({ id: 1, sectionId: 30 }) });
 
-      expect(startTimeInput().value).toBe("13:00");
+      expect(inputFor("開始想定").value).toBe("13:00");
     });
 
     it("未分類かつ未打刻なら現在時刻", () => {
@@ -155,13 +140,13 @@ describe("RoutinizePopover（画面定義書01 §4.1 / O-12: 最小の入力で�
         now: new Date("2026-07-26T16:15:00+09:00"),
       });
 
-      expect(startTimeInput().value).toBe("16:15");
+      expect(inputFor("開始想定").value).toBe("16:15");
     });
   });
 
   it("区切り文字なしの入力を HH:MM へ整形する（§4.1 / F-203）", () => {
     renderPopover();
-    const input = startTimeInput();
+    const input = inputFor("開始想定");
 
     fireEvent.change(input, { target: { value: "0805" } });
     fireEvent.blur(input);
@@ -171,7 +156,7 @@ describe("RoutinizePopover（画面定義書01 §4.1 / O-12: 最小の入力で�
 
   it("開始想定時刻から導出されるセクションを付記する（展開先の目安）", () => {
     renderPopover();
-    const input = startTimeInput();
+    const input = inputFor("開始想定");
 
     fireEvent.change(input, { target: { value: "10:00" } });
 
@@ -180,7 +165,7 @@ describe("RoutinizePopover（画面定義書01 §4.1 / O-12: 最小の入力で�
 
   it("不正な時刻は作成せずポップオーバー内にエラーを出す（§4.1）", () => {
     const { onSubmit } = renderPopover();
-    fireEvent.change(startTimeInput(), { target: { value: "99:99" } });
+    fireEvent.change(inputFor("開始想定"), { target: { value: "99:99" } });
 
     fireEvent.click(screen.getByText("作成"));
 
@@ -191,7 +176,7 @@ describe("RoutinizePopover（画面定義書01 §4.1 / O-12: 最小の入力で�
   it("作成すると整形済みの時刻と選んだ種別を渡す", () => {
     const { onSubmit } = renderPopover({ task: task({ id: 1, taskDate: "2026-07-26" }) });
     fireEvent.click(screen.getByText("週次"));
-    fireEvent.change(startTimeInput(), { target: { value: "935" } });
+    fireEvent.change(inputFor("開始想定"), { target: { value: "935" } });
 
     fireEvent.click(screen.getByText("作成"));
 
@@ -210,7 +195,7 @@ describe("RoutinizePopover（画面定義書01 §4.1 / O-12: 最小の入力で�
     const { onSubmit } = renderPopover();
     fireEvent.click(screen.getByText("月次"));
 
-    const day = screen.getByText("日").parentElement?.querySelector("input") as HTMLInputElement;
+    const day = inputFor("日");
     fireEvent.change(day, { target: { value: "15" } });
     fireEvent.click(screen.getByText("作成"));
 
@@ -223,7 +208,7 @@ describe("RoutinizePopover（画面定義書01 §4.1 / O-12: 最小の入力で�
     const { onSubmit } = renderPopover();
     fireEvent.click(screen.getByText("n日ごと"));
 
-    const interval = screen.getByText("日ごと").parentElement?.querySelector("input") as HTMLInputElement;
+    const interval = inputFor("日ごと");
     fireEvent.change(interval, { target: { value: "3" } });
     fireEvent.click(screen.getByText("作成"));
 
@@ -236,7 +221,7 @@ describe("RoutinizePopover（画面定義書01 §4.1 / O-12: 最小の入力で�
     const { onSubmit } = renderPopover();
     fireEvent.click(screen.getByText("週次"));
 
-    const weekInterval = screen.getByText("週間隔").parentElement?.querySelector("input") as HTMLInputElement;
+    const weekInterval = inputFor("週間隔");
     fireEvent.change(weekInterval, { target: { value: "2" } });
     fireEvent.click(screen.getByText("作成"));
 

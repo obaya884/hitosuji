@@ -1,28 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import type { Task } from "@/domain/task/task";
-
+import { at, task } from "../_testing/factories";
 import { StaleRunningBanner } from "./stale-running-banner";
-
-function task(over: Partial<Task> & { id: number }): Task {
-  return {
-    taskDate: "2026-07-25",
-    name: `T${over.id}`,
-    estimateMinutes: 0,
-    sectionId: null,
-    modeId: null,
-    projectId: null,
-    sortOrder: over.id * 1000,
-    startedAt: null,
-    endedAt: null,
-    comment: null,
-    routineId: null,
-    splitParentId: null,
-    postponedCount: 0,
-    ...over,
-  };
-}
 
 // 画面定義書01 §8「実行中タスクが前日以前に放置されている（F-209）」
 describe("StaleRunningBanner（画面定義書01 §8 / F-209: 前日以前の実行中タスクを警告し該当日へ導く）", () => {
@@ -33,7 +13,7 @@ describe("StaleRunningBanner（画面定義書01 §8 / F-209: 前日以前の実
           id: 1,
           name: "就寝",
           taskDate: "2026-07-25",
-          startedAt: new Date("2026-07-25T23:40:00+09:00"),
+          startedAt: at("23:40", "2026-07-25"),
         })}
       />
     );
@@ -46,7 +26,7 @@ describe("StaleRunningBanner（画面定義書01 §8 / F-209: 前日以前の実
   it("該当日を開くリンクはそのタスクの task_date を指す（打刻時刻から導出しない）", () => {
     render(
       <StaleRunningBanner
-        task={task({ id: 1, taskDate: "2026-07-25", startedAt: new Date("2026-07-26T01:00:00+09:00") })}
+        task={task({ id: 1, taskDate: "2026-07-25", startedAt: at("01:00", "2026-07-26") })}
       />
     );
 

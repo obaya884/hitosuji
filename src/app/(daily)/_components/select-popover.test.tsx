@@ -37,6 +37,16 @@ function optionButtons(container: HTMLElement): HTMLButtonElement[] {
 }
 
 /**
+ * 候補の名前を載せた span。カラーバー・付記（hint）・チェックと同階層に並ぶため、
+ * 「最初の span」ではなく折り返し省略の指定（truncate）を持つものを名指しする
+ */
+function labelSpanOf(button: HTMLButtonElement): HTMLElement {
+  const span = button.querySelector<HTMLElement>("span.truncate");
+  if (span === null) throw new Error(`候補「${button.textContent}」の名前が見つかりません`);
+  return span;
+}
+
+/**
  * ハイライト中の候補のラベル。面色（`bg-accent-weak`）で示されるので classList で読む
  * （`hover:bg-accent-weak` は別トークンなので classList.contains では一致しない）
  */
@@ -62,9 +72,10 @@ describe("SelectPopover（画面定義書01 O-5 / F-112: 候補をクリック�
   it("「未設定」の候補は薄色にする（実マスタと見分ける）", () => {
     const { container } = renderPopover();
 
-    const [none, real] = optionButtons(container);
-    expect(none.querySelector("span")?.classList.contains("text-ink-faint")).toBe(true);
-    expect(real.querySelector("span")?.classList.contains("text-ink-faint")).toBe(false);
+    // 名前の span を名指しする（色付き候補の先頭の子はカラーバーの span で、そこに薄色は元から付かない）
+    const [none, real] = optionButtons(container).map(labelSpanOf);
+    expect(none.classList.contains("text-ink-faint")).toBe(true);
+    expect(real.classList.contains("text-ink-faint")).toBe(false);
   });
 
   it("開くと現在値をハイライトし、チェックを付ける（F-112）", () => {
@@ -105,6 +116,24 @@ describe("SelectPopover（画面定義書01 O-5 / F-112: 候補をクリック�
 
     for (let i = 0; i < 10; i += 1) fireEvent.keyDown(document, { key: "j" });
     expect(activeLabel(container)).toBe("学習");
+  });
+
+  // 背後（window）の打刻ショートカットへ確定の Enter が抜けると、選択と同時に打刻が走る。
+  // グローバル側の editing ガードは確定に伴う再レンダーの隙間をすり抜けるため、ここで伝播を断つ契約
+  it("確定・候補移動のキーを背後へ伝播させない（FB-42）", () => {
+    const behind = vi.fn();
+    window.addEventListener("keydown", behind);
+    try {
+      renderPopover();
+
+      fireEvent.keyDown(document, { key: "j" });
+      fireEvent.keyDown(document, { key: "k" });
+      fireEvent.keyDown(document, { key: "Enter" });
+
+      expect(behind).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener("keydown", behind);
+    }
   });
 
   it("Esc は取消（選択せず閉じる）", () => {

@@ -1,33 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import type { DailyGroup } from "@/domain/task/daily-list";
-import type { Task } from "@/domain/task/task";
-
+import { at, task, unclassifiedGroup } from "../_testing/factories";
 import { DailySummary } from "./daily-summary";
-
-function task(over: Partial<Task> & { id: number }): Task {
-  return {
-    taskDate: "2026-07-26",
-    name: `T${over.id}`,
-    estimateMinutes: 0,
-    sectionId: null,
-    modeId: null,
-    projectId: null,
-    sortOrder: over.id * 1000,
-    startedAt: null,
-    endedAt: null,
-    comment: null,
-    routineId: null,
-    splitParentId: null,
-    postponedCount: 0,
-    ...over,
-  };
-}
-
-function group(tasks: readonly Task[]): DailyGroup {
-  return { section: null, endTime: null, tasks };
-}
 
 /** 終了予定・残作業はラベルと値が別 span なので、ラベルの親から値を読む */
 function valueOf(label: string): string {
@@ -43,7 +18,7 @@ describe("DailySummary（画面定義書01 §3.1 / F-104・F-114: 終了予定�
     const now = new Date(2026, 6, 26, 10, 0);
     render(
       <DailySummary
-        groups={[group([task({ id: 1, estimateMinutes: 30 }), task({ id: 2, estimateMinutes: 45 })])]}
+        groups={[unclassifiedGroup([task({ id: 1, estimateMinutes: 30 }), task({ id: 2, estimateMinutes: 45 })])]}
         now={now}
         isToday
         dayStartMinutes={0}
@@ -59,8 +34,8 @@ describe("DailySummary（画面定義書01 §3.1 / F-104・F-114: 終了予定�
   it("現在時刻は日本時間の HH:MM で出す", () => {
     render(
       <DailySummary
-        groups={[group([])]}
-        now={new Date("2026-07-26T16:15:00+09:00")}
+        groups={[unclassifiedGroup([])]}
+        now={at("16:15")}
         isToday
         dayStartMinutes={0}
       />
@@ -72,7 +47,7 @@ describe("DailySummary（画面定義書01 §3.1 / F-104・F-114: 終了予定�
   it("当日以外は終了予定・現在・残作業を出さない（現在時刻起点の値は別の日に意味を持たない）", () => {
     render(
       <DailySummary
-        groups={[group([task({ id: 1, estimateMinutes: 30 })])]}
+        groups={[unclassifiedGroup([task({ id: 1, estimateMinutes: 30 })])]}
         now={new Date(2026, 6, 26, 10, 0)}
         isToday={false}
         dayStartMinutes={0}
@@ -87,12 +62,12 @@ describe("DailySummary（画面定義書01 §3.1 / F-104・F-114: 終了予定�
   it("1日全体の進捗は表示日によらず出す（過去日の振り返りでも見る。F-114）", () => {
     const done = task({
       id: 1,
-      startedAt: new Date("2026-07-26T09:00:00+09:00"),
-      endedAt: new Date("2026-07-26T09:30:00+09:00"),
+      startedAt: at("09:00"),
+      endedAt: at("09:30"),
     });
     render(
       <DailySummary
-        groups={[group([done, task({ id: 2 })])]}
+        groups={[unclassifiedGroup([done, task({ id: 2 })])]}
         now={new Date(2026, 6, 26, 10, 0)}
         isToday={false}
         dayStartMinutes={0}
@@ -106,8 +81,8 @@ describe("DailySummary（画面定義書01 §3.1 / F-104・F-114: 終了予定�
     render(
       <DailySummary
         groups={[
-          group([task({ id: 1, estimateMinutes: 30 })]),
-          group([task({ id: 2, estimateMinutes: 15 })]),
+          unclassifiedGroup([task({ id: 1, estimateMinutes: 30 })]),
+          unclassifiedGroup([task({ id: 2, estimateMinutes: 15 })]),
         ]}
         now={new Date(2026, 6, 26, 10, 0)}
         isToday
@@ -122,28 +97,47 @@ describe("DailySummary（画面定義書01 §3.1 / F-104・F-114: 終了予定�
     const now = new Date(2026, 6, 26, 23, 0);
     render(
       <DailySummary
-        groups={[group([task({ id: 1, estimateMinutes: 150 })])]}
+        groups={[unclassifiedGroup([task({ id: 1, estimateMinutes: 150 })])]}
         now={now}
         isToday
         dayStartMinutes={0}
       />
     );
 
-    const value = screen.getByText("25:30");
-    expect(value.classList.contains("text-danger")).toBe(true);
+    const value = screen.queryByText("25:30");
+    expect(value).not.toBeNull();
+    expect(value?.classList.contains("text-danger")).toBe(true);
   });
 
   it("日界内に収まる終了予定は警告色にしない", () => {
     render(
       <DailySummary
-        groups={[group([task({ id: 1, estimateMinutes: 30 })])]}
+        groups={[unclassifiedGroup([task({ id: 1, estimateMinutes: 30 })])]}
         now={new Date(2026, 6, 26, 23, 0)}
         isToday
         dayStartMinutes={0}
       />
     );
 
-    const value = screen.getByText("23:30");
-    expect(value.classList.contains("text-danger")).toBe(false);
+    const value = screen.queryByText("23:30");
+    expect(value).not.toBeNull();
+    expect(value?.classList.contains("text-danger")).toBe(false);
+  });
+
+  it("日界（F-116）を起点に折返しと超過を測る（深夜は前の論理日の続き）", () => {
+    // 日界 06:00・深夜 02:00 → 論理日は前の暦日（07-26）なので通算 27:00 と読む
+    render(
+      <DailySummary
+        groups={[unclassifiedGroup([task({ id: 1, estimateMinutes: 60 })])]}
+        now={new Date(2026, 6, 27, 2, 0)}
+        isToday
+        dayStartMinutes={360}
+      />
+    );
+
+    const value = screen.queryByText("27:00");
+    expect(value).not.toBeNull();
+    // 次の日界（07-27 06:00）は越えないので警告色にしない
+    expect(value?.classList.contains("text-danger")).toBe(false);
   });
 });
