@@ -9,8 +9,8 @@ import { RoutineForm } from "./routine-form";
 
 /** 新規（routine=null）と編集（routine あり）で同じフォームを使う（§4「新規/編集共通」） */
 function setup(target: Routine | null = null) {
-  const onSubmit = vi.fn<(input: RoutineInput) => void>();
-  const onCancel = vi.fn<() => void>();
+  const onSubmit = vi.fn();
+  const onCancel = vi.fn();
   render(
     <RoutineForm
       routine={target}
@@ -258,6 +258,62 @@ describe("RoutineForm（画面定義書02 §4: 繰り返し種別に応じて入
       weekInterval: null,
       monthDay: 25,
       intervalDays: null,
+    });
+  });
+
+  // 種別を切り替えただけで保存したときに何が送られるか（§4「週間隔 … 既定1」ほか）。
+  // 明示入力の経路とは別に、既定値そのものを固定する
+  it("週次に切り替えただけなら週間隔は既定の1で送る（曜日は未選択の 0 のまま）", () => {
+    const { onSubmit } = setup();
+
+    fireEvent.click(screen.getByLabelText("週次"));
+    expect(screen.getByLabelText<HTMLInputElement>(/週間隔/).value).toBe("1");
+
+    save();
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      ...DEFAULT_INPUT,
+      recurrenceType: "weekly",
+      weekdays: 0,
+      weekInterval: 1,
+      monthDay: null,
+      intervalDays: null,
+    });
+  });
+
+  it("月次に切り替えただけなら日は既定の1で送る", () => {
+    const { onSubmit } = setup();
+
+    fireEvent.click(screen.getByLabelText("月次"));
+    expect(screen.getByLabelText<HTMLInputElement>(/月末に丸めます/).value).toBe("1");
+
+    save();
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      ...DEFAULT_INPUT,
+      recurrenceType: "monthly",
+      weekdays: null,
+      weekInterval: null,
+      monthDay: 1,
+      intervalDays: null,
+    });
+  });
+
+  it("n日ごとに切り替えただけなら間隔は既定の2で送る", () => {
+    const { onSubmit } = setup();
+
+    fireEvent.click(screen.getByLabelText("n日ごと"));
+    expect(screen.getByLabelText<HTMLInputElement>(/開始日が起算日/).value).toBe("2");
+
+    save();
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      ...DEFAULT_INPUT,
+      recurrenceType: "interval",
+      weekdays: null,
+      weekInterval: null,
+      monthDay: null,
+      intervalDays: 2,
     });
   });
 

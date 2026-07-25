@@ -11,15 +11,16 @@ import { ReviewBoard } from "./review-board";
 
 // next/navigation はアプリのルータ文脈の外では動かないため、本物と同じ契約
 // （useRouter の返り値＝AppRouterInstance）を返す偽物へ差し替える
-// （アーキテクチャ定義書 §8「偽物を置いてよい境界」）
+// （アーキテクチャ定義書 §8「偽物を置いてよい境界」）。過不足は useRouter の
+// 戻り値注釈が検査するので、各メソッドは素の vi.fn() でよい
 const { router } = vi.hoisted(() => ({
   router: {
-    push: vi.fn<(href: string) => void>(),
-    replace: vi.fn<(href: string) => void>(),
-    refresh: vi.fn<() => void>(),
-    prefetch: vi.fn<(href: string) => void>(),
-    back: vi.fn<() => void>(),
-    forward: vi.fn<() => void>(),
+    push: vi.fn(),
+    replace: vi.fn(),
+    refresh: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
   },
 }));
 

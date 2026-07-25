@@ -1,11 +1,12 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { Mode } from "@/domain/mode/mode";
+import { MODE_COLORS, type Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { Routine } from "@/domain/routine/routine";
-import type { Section } from "@/domain/section/section";
 
+import { MODES, PROJECTS, routine, SECTIONS, TODAY } from "./_testing/fixtures";
 import {
   createRoutineAction,
   deleteRoutineAction,
@@ -13,7 +14,6 @@ import {
   updateRoutineAction,
   type RoutineActionResult,
 } from "./actions";
-import { MODES, PROJECTS, routine, SECTIONS, TODAY } from "./_testing/fixtures";
 import { RoutinesTable } from "./routines-table";
 
 // actions.ts は "use server" で、その先は pg.Pool と revalidatePath に届くため素の jsdom では
@@ -28,7 +28,11 @@ vi.mock("./actions", () => ({
   deleteRoutineAction: vi.fn(),
 }));
 
-function renderTable(routines: readonly Routine[], sections: readonly Section[] = SECTIONS) {
+/** 既定のマスタ・セクションで描画する。差分だけを over で上書きする */
+function renderTable(
+  routines: readonly Routine[],
+  over: Partial<ComponentProps<typeof RoutinesTable>> = {}
+) {
   return render(
     <RoutinesTable
       routines={routines}
@@ -36,8 +40,9 @@ function renderTable(routines: readonly Routine[], sections: readonly Section[] 
       projects={PROJECTS}
       allModes={MODES}
       allProjects={PROJECTS}
-      sections={sections}
+      sections={SECTIONS}
       today={TODAY}
+      {...over}
     />
   );
 }
@@ -119,6 +124,8 @@ describe("RoutinesTable（画面定義書02 §3: 一覧の列と表記）", () =
         scheduledStartTime: "06:30",
         modeId: 1,
         projectId: 11,
+        // 繰り返し列の期待値そのものなので既定に頼らず明示する
+        recurrenceType: "daily",
       }),
     ]);
 
@@ -131,7 +138,7 @@ describe("RoutinesTable（画面定義書02 §3: 一覧の列と表記）", () =
   });
 
   it("モード・プロジェクトが未設定なら薄色の `-` を出す（00_共通 §2.4）", () => {
-    const { container } = renderTable([routine({ id: 1 })]);
+    const { container } = renderTable([routine({ id: 1, modeId: null, projectId: null })]);
 
     for (const col of [COL.mode, COL.project]) {
       const target = cell(container, 0, col);
@@ -141,19 +148,12 @@ describe("RoutinesTable（画面定義書02 §3: 一覧の列と表記）", () =
   });
 
   it("参照中であればアーカイブ済みマスタの名前も出す（過去の参照を保つ）", () => {
-    const archivedMode: Mode = { id: 9, name: "旧モード", color: "#9ca3af", isArchived: true };
+    const archivedMode: Mode = { id: 9, name: "旧モード", color: MODE_COLORS[12], isArchived: true };
     const archivedProject: Project = { id: 19, name: "旧案件", isArchived: true };
-    const { container } = render(
-      <RoutinesTable
-        routines={[routine({ id: 1, modeId: 9, projectId: 19 })]}
-        modes={MODES}
-        projects={PROJECTS}
-        allModes={[...MODES, archivedMode]}
-        allProjects={[...PROJECTS, archivedProject]}
-        sections={SECTIONS}
-        today={TODAY}
-      />
-    );
+    const { container } = renderTable([routine({ id: 1, modeId: 9, projectId: 19 })], {
+      allModes: [...MODES, archivedMode],
+      allProjects: [...PROJECTS, archivedProject],
+    });
 
     expect(cell(container, 0, COL.mode).textContent).toBe("旧モード");
     expect(cell(container, 0, COL.project).textContent).toBe("旧案件");
@@ -194,7 +194,9 @@ describe("RoutinesTable（画面定義書02 §3: 一覧の列と表記）", () =
   });
 
   it("有効セクションが1つも無ければ開始想定は時刻だけを出す", () => {
-    const { container } = renderTable([routine({ id: 1, scheduledStartTime: "06:30" })], []);
+    const { container } = renderTable([routine({ id: 1, scheduledStartTime: "06:30" })], {
+      sections: [],
+    });
 
     expect(cell(container, 0, COL.scheduledStart).textContent).toBe("06:30");
   });
@@ -282,11 +284,63 @@ describe("RoutinesTable（画面定義書02 §3.1: 列見出しのクリック�
     expect(names(container)).toEqual(["い", "う", "あ"]);
   });
 
-  it("見積の見出しは並べ替えの対象外（押せるボタンを置かない）", () => {
+  it("並べ替えできるのは 名前/モード/プロジェクト/繰り返し/開始想定 の5列だけ（見積は対象外）", () => {
     renderTable(forSort);
 
+    for (const label of ["名前", "モード", "プロジェクト", "繰り返し", "開始想定"]) {
+      expect(header(label).querySelector("button")).not.toBeNull();
+    }
     expect(header("見積").querySelector("button")).toBeNull();
-    expect(header("名前").querySelector("button")).not.toBeNull();
+  });
+
+  // 順序規則そのものは domain/routine/order.test.ts が担保済み。
+  // ここでは残る2列（プロジェクト・繰り返し）の見出しがその軸に結線されていることを見る
+  it("プロジェクトの見出しは名前順に並べ、未設定を末尾に置く", () => {
+    const { container } = renderTable([
+      routine({ id: 1, name: "い", scheduledStartTime: "08:00", projectId: null }),
+      routine({ id: 2, name: "あ", scheduledStartTime: "09:00", projectId: 12 }), // 案件B
+      routine({ id: 3, name: "う", scheduledStartTime: "10:00", projectId: 11 }), // 案件A
+    ]);
+
+    fireEvent.click(screen.getByText("プロジェクト"));
+
+    expect(header("プロジェクト").getAttribute("aria-sort")).toBe("ascending");
+    expect(names(container)).toEqual(["う", "あ", "い"]);
+  });
+
+  it("繰り返しの見出しは頻度の高い順に並べる（毎日 → 週次 → 月次 → n日ごと）", () => {
+    const { container } = renderTable([
+      routine({ id: 1, name: "い", scheduledStartTime: "08:00", recurrenceType: "monthly", monthDay: 1 }),
+      routine({ id: 2, name: "あ", scheduledStartTime: "09:00", recurrenceType: "interval", intervalDays: 3 }),
+      routine({ id: 3, name: "う", scheduledStartTime: "10:00", recurrenceType: "daily" }),
+      routine({
+        id: 4,
+        name: "え",
+        scheduledStartTime: "11:00",
+        recurrenceType: "weekly",
+        weekdays: 0b0000001,
+        weekInterval: 1,
+      }),
+    ]);
+
+    fireEvent.click(screen.getByText("繰り返し"));
+
+    expect(header("繰り返し").getAttribute("aria-sort")).toBe("ascending");
+    expect(names(container)).toEqual(["う", "え", "い", "あ"]);
+  });
+
+  it("選んだ並び順は記憶しない（開き直すと既定の開始想定の昇順に戻る）", () => {
+    const first = renderTable(forSort);
+
+    fireEvent.click(screen.getByText("名前"));
+    expect(names(first.container)).toEqual(["あ", "い", "う"]);
+    first.unmount();
+
+    const second = renderTable(forSort);
+
+    expect(names(second.container)).toEqual(["あ", "う", "い"]);
+    expect(header("開始想定").getAttribute("aria-sort")).toBe("ascending");
+    expect(header("名前").getAttribute("aria-sort")).toBe("none");
   });
 
   it("昇順/降順の印は並べ替え中の列にだけ見せる（他の列の印は不可視）", () => {
