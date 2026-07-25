@@ -91,7 +91,7 @@ export function SelectPopover({ options, selectedId, onSelect, onClose }: Props)
   return (
     <div
       ref={ref}
-      className={`absolute z-10 max-h-64 w-48 overflow-y-auto py-1 ${positionClass} ${floatPanel}`}
+      className={`absolute z-10 max-h-64 w-64 overflow-y-auto py-1 ${positionClass} ${floatPanel}`}
     >
       {options.map((option, index) => {
         const isCurrentValue = !option.isPinned && option.id === selectedId;
@@ -116,10 +116,14 @@ export function SelectPopover({ options, selectedId, onSelect, onClose }: Props)
                   aria-hidden
                 />
               )}
-              <span className={option.id === null ? "text-ink-faint" : ""}>{option.label}</span>
+              {/* 候補は1行に収め、収まらない名前は末尾を省略する（00_共通 §2.1） */}
+              <span className={`min-w-0 truncate ${option.id === null ? "text-ink-faint" : ""}`}>
+                {option.label}
+              </span>
               {option.hint !== undefined && (
-                // 見出し §3.2 と同じ時間帯表記（弱色・等幅）で右寄せに付記する（FB-46）
-                <span className="ml-auto font-mono text-xs text-ink-muted tabular-nums">
+                // 見出し §3.2 と同じ時間帯表記（弱色・等幅）で右寄せに付記する（FB-46）。
+                // 付記は詰めずに名前側を省略させるため shrink させない
+                <span className="ml-auto shrink-0 font-mono text-xs text-ink-muted tabular-nums">
                   {option.hint}
                 </span>
               )}
