@@ -3,9 +3,15 @@
 import { useState } from "react";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
-import { WEEKDAY_BITS, toggleWeekday, type RecurrenceType, type Routine } from "@/domain/routine/routine";
+import {
+  WEEKDAY_BITS,
+  WEEKDAY_PRESETS,
+  toggleWeekday,
+  type RecurrenceType,
+  type Routine,
+} from "@/domain/routine/routine";
 import type { RoutineInput } from "@/domain/routine/input";
-import { btnPrimary, inputBase, linkMuted } from "@/app/_lib/ui";
+import { btnPrimary, btnSecondary, inputBase, linkMuted } from "@/app/_lib/ui";
 
 type Props = Readonly<{
   routine: Routine | null;
@@ -115,6 +121,19 @@ export function RoutineForm({ routine, modes, projects, today, onSubmit, onCance
 
         {recurrenceType === "weekly" && (
           <div className="mt-2 space-y-2 text-sm">
+            {/* 曜日の入力補助（画面定義書02 §4）。押すと該当曜日だけが選択された状態になる */}
+            <div className="flex flex-wrap gap-2">
+              {WEEKDAY_PRESETS.map((preset) => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => setWeekdays(preset.mask)}
+                  className={btnSecondary}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
             <div className="flex flex-wrap gap-2">
               {WEEKDAY_BITS.map((weekday) => (
                 <label key={weekday.bit} className="flex items-center gap-1">

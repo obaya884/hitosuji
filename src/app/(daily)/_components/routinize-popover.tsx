@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   toggleWeekday,
   WEEKDAY_BITS,
+  WEEKDAY_PRESETS,
   type RecurrenceType,
 } from "@/domain/routine/routine";
 import {
@@ -109,6 +110,19 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
       {/* 種別ごとに必要な項目だけ出す（画面定義書02 §4 と同じ構成） */}
       {choice.recurrenceType === "weekly" && (
         <div className="space-y-2">
+          {/* 曜日の入力補助（画面定義書02 §4）。押すと該当曜日だけが選択された状態になる */}
+          <div className="flex gap-1">
+            {WEEKDAY_PRESETS.map((preset) => (
+              <button
+                key={preset.label}
+                type="button"
+                onClick={() => setChoice((c) => ({ ...c, weekdays: preset.mask }))}
+                className="rounded-control border border-line px-2 py-1 text-xs hover:bg-accent-weak"
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
           <div className="flex gap-1">
             {WEEKDAY_BITS.map(({ bit, label }) => (
               <button
