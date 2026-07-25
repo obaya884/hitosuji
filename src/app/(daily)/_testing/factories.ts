@@ -1,6 +1,7 @@
 // デイリー配下のコンポーネントテストで使うテストデータの組み立て。
 // `as Task` のキャストで型を黙らせず、必要な項目だけを上書きして本物の型を作る。
 // （全体での集約は T-43。ここはデイリー配下の重複をまとめる範囲に留める）
+import type { Section } from "@/domain/section/section";
 import type { DailyGroup } from "@/domain/task/daily-list";
 import type { Task } from "@/domain/task/task";
 
@@ -36,7 +37,19 @@ export function at(hhmm: string, date: string = TEST_DATE): Date {
   return new Date(`${date}T${hhmm}:00+09:00`);
 }
 
-/** 未分類（インボックス）のグループ。時間帯の枠を持たない */
+/**
+ * 未分類（インボックス）のグループ。時間帯の枠を持たない。
+ * **リストに1つしか現れない**ので、複数グループを組みたいときは `sectionGroup` と混ぜる
+ */
 export function unclassifiedGroup(tasks: readonly Task[] = []): DailyGroup {
   return { section: null, endTime: null, tasks };
+}
+
+/** セクションのグループ。`endTime` は次セクション開始からの導出値（domain の `sectionRanges` と同じ） */
+export function sectionGroup(
+  section: Section,
+  endTime: string,
+  tasks: readonly Task[] = []
+): DailyGroup {
+  return { section, endTime, tasks };
 }

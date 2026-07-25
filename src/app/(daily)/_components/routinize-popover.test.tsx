@@ -5,10 +5,10 @@ import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
 import type { Section } from "@/domain/section/section";
 import type { Task } from "@/domain/task/task";
 
-import { at, task } from "../_testing/factories";
+import { at, task, TEST_DATE } from "../_testing/factories";
 import { RoutinizePopover } from "./routinize-popover";
 
-// 既定の taskDate（2026-07-26）は日曜。週次・月次の既定値の確認に使う
+// TEST_DATE（= ファクトリ既定の taskDate）は日曜。週次の既定曜日・月次の既定日はここから決まる
 const SECTIONS: readonly Section[] = [
   { id: 10, name: "朝", startTime: "06:00", isArchived: false, isDayStart: true },
   { id: 20, name: "午前", startTime: "09:00", isArchived: false },
@@ -70,7 +70,7 @@ describe("RoutinizePopover（画面定義書01 §4.1 / O-12: 最小の入力で�
   });
 
   it("週次を選ぶと曜日・プリセット・週間隔が出て、元タスクの曜日が既定で選ばれる", () => {
-    const { container } = renderPopover({ task: task({ id: 1, taskDate: "2026-07-26" }) });
+    const { container } = renderPopover({ task: task({ id: 1, taskDate: TEST_DATE }) });
 
     fireEvent.click(screen.getByText("週次"));
 
@@ -82,7 +82,7 @@ describe("RoutinizePopover（画面定義書01 §4.1 / O-12: 最小の入力で�
   });
 
   it("曜日はトグルで増減できる", () => {
-    const { container } = renderPopover({ task: task({ id: 1, taskDate: "2026-07-26" }) });
+    const { container } = renderPopover({ task: task({ id: 1, taskDate: TEST_DATE }) });
     fireEvent.click(screen.getByText("週次"));
 
     fireEvent.click(screen.getByText("月"));
@@ -93,7 +93,7 @@ describe("RoutinizePopover（画面定義書01 §4.1 / O-12: 最小の入力で�
   });
 
   it("「平日」プリセットは月〜金だけを選んだ状態にする（画面定義書02 §4 と同じ入力補助）", () => {
-    const { container } = renderPopover({ task: task({ id: 1, taskDate: "2026-07-26" }) });
+    const { container } = renderPopover({ task: task({ id: 1, taskDate: TEST_DATE }) });
     fireEvent.click(screen.getByText("週次"));
 
     fireEvent.click(screen.getByText("平日"));
@@ -102,7 +102,7 @@ describe("RoutinizePopover（画面定義書01 §4.1 / O-12: 最小の入力で�
   });
 
   it("月次を選ぶと元タスクの日が既定で入る", () => {
-    renderPopover({ task: task({ id: 1, taskDate: "2026-07-26" }) });
+    renderPopover({ task: task({ id: 1, taskDate: TEST_DATE }) });
 
     fireEvent.click(screen.getByText("月次"));
 
@@ -137,7 +137,7 @@ describe("RoutinizePopover（画面定義書01 §4.1 / O-12: 最小の入力で�
     it("未分類かつ未打刻なら現在時刻", () => {
       renderPopover({
         task: task({ id: 1, sectionId: null }),
-        now: new Date("2026-07-26T16:15:00+09:00"),
+        now: at("16:15"),
       });
 
       expect(inputFor("開始想定").value).toBe("16:15");
@@ -174,7 +174,7 @@ describe("RoutinizePopover（画面定義書01 §4.1 / O-12: 最小の入力で�
   });
 
   it("作成すると整形済みの時刻と選んだ種別を渡す", () => {
-    const { onSubmit } = renderPopover({ task: task({ id: 1, taskDate: "2026-07-26" }) });
+    const { onSubmit } = renderPopover({ task: task({ id: 1, taskDate: TEST_DATE }) });
     fireEvent.click(screen.getByText("週次"));
     fireEvent.change(inputFor("開始想定"), { target: { value: "935" } });
 

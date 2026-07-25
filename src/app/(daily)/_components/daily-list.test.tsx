@@ -7,7 +7,7 @@ import type { Section } from "@/domain/section/section";
 import type { DailyGroup } from "@/domain/task/daily-list";
 import type { Task } from "@/domain/task/task";
 
-import { at, task, unclassifiedGroup } from "../_testing/factories";
+import { at, sectionGroup, task, unclassifiedGroup } from "../_testing/factories";
 import { DailyList, type EditingCell } from "./daily-list";
 
 const MODES: readonly Mode[] = [
@@ -29,12 +29,17 @@ const SECTIONS: readonly Section[] = [
 
 /** 朝（06:00–09:00）のグループ */
 function morning(tasks: readonly Task[]): DailyGroup {
-  return { section: SECTIONS[0], endTime: "09:00", tasks };
+  return sectionGroup(SECTIONS[0], "09:00", tasks);
 }
 
 /** 午前（09:00–13:00）のグループ */
 function forenoon(tasks: readonly Task[]): DailyGroup {
-  return { section: SECTIONS[1], endTime: "13:00", tasks };
+  return sectionGroup(SECTIONS[1], "13:00", tasks);
+}
+
+/** 午後（13:00–翌06:00）のグループ。日界をまたぐ枠 */
+function afternoon(tasks: readonly Task[]): DailyGroup {
+  return sectionGroup(SECTIONS[2], "06:00", tasks);
 }
 
 type Overrides = Readonly<{
@@ -258,6 +263,20 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
       expect(headingOf("朝").textContent).not.toContain("残り");
     });
 
+    it("日界（F-116）を跨ぐ枠でも残り時間を論理日の区切りで測る", () => {
+      renderList({
+        // 日界 06:00・深夜 02:00 は前の論理日の続き。午後（13:00–翌06:00）はまだ終わっていない
+        dayStartMinutes: 360,
+        now: new Date(2026, 6, 27, 2, 0),
+        groups: [afternoon([task({ id: 1, name: "夜更かし", estimateMinutes: 60 })])],
+      });
+
+      // 02:00 → 06:00 の240分から未完了見積もり60分を引いて +3:00
+      // （日界を 0 と取り違えると枠の終わりが翌々日の 06:00 になり +27:00 になる）
+      const remaining = within(headingOf("午後")).queryByText("+3:00");
+      expect(remaining).not.toBeNull();
+    });
+
     it("現在時刻を含むセクションの見出しだけ地色を変える（F-121）", () => {
       renderList({
         now: at("10:00"),
@@ -437,6 +456,15 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
       expect(cellsOf(rowOf("日次プラン")).project.textContent).toBe("終わった案件");
     });
 
+    it("アーカイブ済みモードも名前と色をそのまま反映する（過去タスクから色ごと消えない）", () => {
+      renderList({ groups: [morning([task({ id: 1, name: "日次プラン", modeId: 3 })])] });
+
+      const row = rowOf("日次プラン");
+      expect(cellsOf(row).mode.textContent).toBe("旧モード");
+      // モードは行全体の文字色も担う（F-401）ので、名前だけでなく色も残ること
+      expect(row.style.color).toBe("rgb(0, 0, 255)");
+    });
+
     it("見積もり未設定（0分）は薄色の `--:--`（終了予定の計算に入っていないことを示す。§3.3）", () => {
       renderList({ groups: [morning([task({ id: 1, name: "買い出しメモ", estimateMinutes: 0 })])] });
 
@@ -467,6 +495,8 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
         ],
       });
 
+      // 実施時間セルは「実打刻（あれば）→ 予想開始」の順に並ぶ（§3.3: 実打刻と同じ位置に
+      // 縦に並べて上から下へ時間の流れとして読ませる）ので、予想開始は常に最後の子
       const projected = cellsOf(rowOf("日次プラン")).time.lastElementChild as HTMLElement;
       expect(projected.textContent).toMatch(/^\d{2}:\d{2}–$/);
       // 実打刻（確定した記録）との区別は弱色が担う
@@ -706,6 +736,17 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
 
         const { time } = cellsOf(rowOf("日次プラン"));
         expect(time.querySelector("button")).toBeNull();
+      });
+
+      // `B` は選択行の状態を見ずに編集状態へ入る（use-daily-shortcuts）。未打刻の行には
+      // 直すべき値が無いので、編集状態になっても入力欄を出さない側で受け止めている
+      it("未実行タスクは開始時刻の編集状態でも入力欄を出さない", () => {
+        renderList({
+          editing: { taskId: 1, field: "startedAt" },
+          groups: [morning([task({ id: 1, name: "日次プラン", estimateMinutes: 15 })])],
+        });
+
+        expect(screen.queryByRole("textbox")).toBeNull();
       });
 
       it("編集を始めたときは既存の値を全選択する（打ち直しが前提のため。FB-23）", () => {

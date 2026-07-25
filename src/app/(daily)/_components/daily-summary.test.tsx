@@ -1,8 +1,18 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { at, task, unclassifiedGroup } from "../_testing/factories";
+import type { Section } from "@/domain/section/section";
+
+import { at, sectionGroup, task, unclassifiedGroup } from "../_testing/factories";
 import { DailySummary } from "./daily-summary";
+
+const MORNING: Section = {
+  id: 100,
+  name: "朝",
+  startTime: "06:00",
+  isArchived: false,
+  isDayStart: true,
+};
 
 /** 終了予定・残作業はラベルと値が別 span なので、ラベルの親から値を読む */
 function valueOf(label: string): string {
@@ -77,12 +87,13 @@ describe("DailySummary（画面定義書01 §3.1 / F-104・F-114: 終了予定�
     expect(screen.queryByText("1/2")).not.toBeNull();
   });
 
-  it("複数セクションのタスクを1日ぶんとして合算する", () => {
+  it("未分類とセクションをまたいで1日ぶんとして合算する", () => {
     render(
       <DailySummary
         groups={[
+          // 未分類はリストに1つだけ。またぐ相手はセクションのグループにする
           unclassifiedGroup([task({ id: 1, estimateMinutes: 30 })]),
-          unclassifiedGroup([task({ id: 2, estimateMinutes: 15 })]),
+          sectionGroup(MORNING, "09:00", [task({ id: 2, estimateMinutes: 15 })]),
         ]}
         now={new Date(2026, 6, 26, 10, 0)}
         isToday
