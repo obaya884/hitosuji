@@ -14,6 +14,7 @@ import { sectionAt, type Section } from "@/domain/section/section";
 import { formatEstimate } from "@/app/_lib/format";
 import { btnSecondary, linkAccent, linkMuted, noticeDanger } from "@/app/_lib/ui";
 import { PlusIcon } from "@/app/_components/icons";
+import { UnsetMark } from "@/app/_components/unset-mark";
 import {
   createRoutineAction,
   deleteRoutineAction,
@@ -219,8 +220,8 @@ export function RoutinesTable({
                 >
                   {routine.name}
                 </td>
-                <td className="py-2 text-xs">{mode?.name ?? ""}</td>
-                <td className="py-2 text-xs">{project?.name ?? ""}</td>
+                <td className="py-2 text-xs">{mode?.name ?? <UnsetMark />}</td>
+                <td className="py-2 text-xs">{project?.name ?? <UnsetMark />}</td>
                 <td className="py-2 pr-4 text-right font-mono tabular-nums">
                   {formatEstimate(routine.estimateMinutes)}
                 </td>
