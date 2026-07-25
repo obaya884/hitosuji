@@ -1,0 +1,382 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+
+import type { Mode } from "@/domain/mode/mode";
+import type { Project } from "@/domain/project/project";
+import type { RoutineInput } from "@/domain/routine/input";
+import type { Routine } from "@/domain/routine/routine";
+
+import { RoutineForm } from "./routine-form";
+
+const TODAY = "2026-07-26";
+
+const MODES: readonly Mode[] = [
+  { id: 1, name: "モードA", color: "#3b82f6", isArchived: false },
+  { id: 2, name: "モードB", color: "#22c55e", isArchived: false },
+];
+
+const PROJECTS: readonly Project[] = [
+  { id: 11, name: "案件A", isArchived: false },
+  { id: 12, name: "案件B", isArchived: false },
+];
+
+function routine(over: Partial<Routine> & { id: number }): Routine {
+  return {
+    name: `ルーチン${over.id}`,
+    estimateMinutes: 30,
+    scheduledStartTime: "09:00",
+    modeId: null,
+    projectId: null,
+    recurrenceType: "daily",
+    weekdays: null,
+    weekInterval: null,
+    monthDay: null,
+    intervalDays: null,
+    startDate: "2026-07-01",
+    endDate: null,
+    isActive: true,
+    ...over,
+  };
+}
+
+/** 新規（routine=null）と編集（routine あり）で同じフォームを使う（§4「新規/編集共通」） */
+function setup(target: Routine | null = null) {
+  const onSubmit = vi.fn<(input: RoutineInput) => void>();
+  const onCancel = vi.fn<() => void>();
+  render(
+    <RoutineForm
+      routine={target}
+      modes={MODES}
+      projects={PROJECTS}
+      today={TODAY}
+      onSubmit={onSubmit}
+      onCancel={onCancel}
+    />
+  );
+  return { onSubmit, onCancel };
+}
+
+const save = () => fireEvent.click(screen.getByText("保存"));
+
+/** 新規フォームの既定値（§4）。各テストは差分だけを述べる */
+const DEFAULT_INPUT: RoutineInput = {
+  name: "",
+  estimateMinutes: 15,
+  scheduledStartTime: "09:00",
+  modeId: null,
+  projectId: null,
+  recurrenceType: "daily",
+  weekdays: null,
+  weekInterval: null,
+  monthDay: null,
+  intervalDays: null,
+  startDate: TODAY,
+  endDate: null,
+};
+
+// 曜日ビットマスクは bit0=月 … bit6=日（データモデル定義書 §3.4）
+const WEEKDAYS_MON_TO_FRI = 0b0011111;
+const WEEKDAYS_SAT_SUN = 0b1100000;
+
+describe("RoutineForm（画面定義書02 §4: 繰り返し種別に応じて入力項目を出し分ける新規/編集フォーム）", () => {
+  it("新規は既定値で開く（見積15分・開始想定09:00・毎日・開始日=今日・終了日なし・モード/プロジェクト未設定）", () => {
+    const { onSubmit } = setup();
+
+    expect(screen.getByLabelText<HTMLInputElement>("名前").value).toBe("");
+    expect(screen.getByLabelText<HTMLInputElement>("見積もり（分）").value).toBe("15");
+    expect(screen.getByLabelText<HTMLInputElement>("開始想定時刻").value).toBe("09:00");
+    expect(screen.getByLabelText<HTMLInputElement>("毎日").checked).toBe(true);
+    expect(screen.getByLabelText<HTMLInputElement>("開始日").value).toBe(TODAY);
+    expect(screen.getByLabelText<HTMLInputElement>("終了日（任意）").value).toBe("");
+
+    save();
+
+    expect(onSubmit).toHaveBeenCalledWith(DEFAULT_INPUT);
+  });
+
+  it("編集は既存の値を埋める（週次・曜日・週間隔・終了日）", () => {
+    setup(
+      routine({
+        id: 1,
+        name: "週次の見直し",
+        estimateMinutes: 45,
+        scheduledStartTime: "10:30",
+        recurrenceType: "weekly",
+        weekdays: 0b0000010, // 火
+        weekInterval: 2,
+        startDate: "2026-06-01",
+        endDate: "2026-09-30",
+        modeId: 2,
+        projectId: 12,
+      })
+    );
+
+    expect(screen.getByLabelText<HTMLInputElement>("名前").value).toBe("週次の見直し");
+    expect(screen.getByLabelText<HTMLInputElement>("見積もり（分）").value).toBe("45");
+    expect(screen.getByLabelText<HTMLInputElement>("開始想定時刻").value).toBe("10:30");
+    expect(screen.getByLabelText<HTMLInputElement>("週次").checked).toBe(true);
+    expect(screen.getByLabelText<HTMLInputElement>("火").checked).toBe(true);
+    expect(screen.getByLabelText<HTMLInputElement>("月").checked).toBe(false);
+    expect(screen.getByLabelText<HTMLInputElement>(/週間隔/).value).toBe("2");
+    expect(screen.getByLabelText<HTMLInputElement>("開始日").value).toBe("2026-06-01");
+    expect(screen.getByLabelText<HTMLInputElement>("終了日（任意）").value).toBe("2026-09-30");
+    expect(screen.getByLabelText<HTMLSelectElement>("モード").value).toBe("2");
+    expect(screen.getByLabelText<HTMLSelectElement>("プロジェクト").value).toBe("12");
+  });
+
+  it("入力した値をそのまま送る（名前・見積・開始想定時刻・開始日・終了日）", () => {
+    const { onSubmit } = setup();
+
+    fireEvent.change(screen.getByLabelText("名前"), { target: { value: "点検" } });
+    fireEvent.change(screen.getByLabelText("見積もり（分）"), { target: { value: "45" } });
+    fireEvent.change(screen.getByLabelText("開始想定時刻"), { target: { value: "06:30" } });
+    fireEvent.change(screen.getByLabelText("開始日"), { target: { value: "2026-08-01" } });
+    fireEvent.change(screen.getByLabelText("終了日（任意）"), { target: { value: "2026-09-30" } });
+
+    save();
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      ...DEFAULT_INPUT,
+      name: "点検",
+      estimateMinutes: 45,
+      scheduledStartTime: "06:30",
+      startDate: "2026-08-01",
+      endDate: "2026-09-30",
+    });
+  });
+
+  it("毎日は曜日・週間隔・日・間隔の入力を出さない", () => {
+    setup();
+
+    expect(screen.queryByLabelText("月")).toBeNull();
+    expect(screen.queryByLabelText(/週間隔/)).toBeNull();
+    expect(screen.queryByLabelText(/月末に丸めます/)).toBeNull();
+    expect(screen.queryByLabelText(/開始日が起算日/)).toBeNull();
+  });
+
+  it("週次のときだけ曜日（7つ）と週間隔（1〜53）を出す", () => {
+    setup();
+
+    fireEvent.click(screen.getByLabelText("週次"));
+
+    for (const label of ["月", "火", "水", "木", "金", "土", "日"]) {
+      expect(screen.getByLabelText<HTMLInputElement>(label).type).toBe("checkbox");
+    }
+    const interval = screen.getByLabelText<HTMLInputElement>(/週間隔/);
+    expect(interval.min).toBe("1");
+    expect(interval.max).toBe("53");
+    expect(screen.queryByLabelText(/月末に丸めます/)).toBeNull();
+    expect(screen.queryByLabelText(/開始日が起算日/)).toBeNull();
+  });
+
+  it("月次のときだけ日（1〜31）を出す", () => {
+    setup();
+
+    fireEvent.click(screen.getByLabelText("月次"));
+
+    const monthDay = screen.getByLabelText<HTMLInputElement>(/月末に丸めます/);
+    expect(monthDay.min).toBe("1");
+    expect(monthDay.max).toBe("31");
+    expect(screen.queryByLabelText("月")).toBeNull();
+    expect(screen.queryByLabelText(/週間隔/)).toBeNull();
+    expect(screen.queryByLabelText(/開始日が起算日/)).toBeNull();
+  });
+
+  it("n日ごとのときだけ間隔（1日以上）を出す", () => {
+    setup();
+
+    fireEvent.click(screen.getByLabelText("n日ごと"));
+
+    const intervalDays = screen.getByLabelText<HTMLInputElement>(/開始日が起算日/);
+    expect(intervalDays.min).toBe("1");
+    expect(screen.queryByLabelText("月")).toBeNull();
+    expect(screen.queryByLabelText(/週間隔/)).toBeNull();
+    expect(screen.queryByLabelText(/月末に丸めます/)).toBeNull();
+  });
+
+  it("プリセット「平日」は月〜金だけを選択した状態にする", () => {
+    const { onSubmit } = setup();
+
+    fireEvent.click(screen.getByLabelText("週次"));
+    fireEvent.click(screen.getByText("平日"));
+
+    expect(screen.getByLabelText<HTMLInputElement>("金").checked).toBe(true);
+    expect(screen.getByLabelText<HTMLInputElement>("土").checked).toBe(false);
+    expect(screen.getByLabelText<HTMLInputElement>("日").checked).toBe(false);
+
+    save();
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ weekdays: WEEKDAYS_MON_TO_FRI })
+    );
+  });
+
+  it("プリセット「土日」は土日だけを選択した状態にする（前の選択は残さない）", () => {
+    const { onSubmit } = setup();
+
+    fireEvent.click(screen.getByLabelText("週次"));
+    fireEvent.click(screen.getByText("平日"));
+    fireEvent.click(screen.getByText("土日"));
+
+    expect(screen.getByLabelText<HTMLInputElement>("月").checked).toBe(false);
+    expect(screen.getByLabelText<HTMLInputElement>("土").checked).toBe(true);
+    expect(screen.getByLabelText<HTMLInputElement>("日").checked).toBe(true);
+
+    save();
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ weekdays: WEEKDAYS_SAT_SUN }));
+  });
+
+  it("プリセットを押したあと個別のチェックで微調整できる", () => {
+    const { onSubmit } = setup();
+
+    fireEvent.click(screen.getByLabelText("週次"));
+    fireEvent.click(screen.getByText("平日"));
+    fireEvent.click(screen.getByLabelText("土"));
+
+    save();
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ weekdays: WEEKDAYS_MON_TO_FRI | (1 << 5) })
+    );
+  });
+
+  it("曜日チェックは押し直すと外れる", () => {
+    const { onSubmit } = setup();
+
+    fireEvent.click(screen.getByLabelText("週次"));
+    fireEvent.click(screen.getByLabelText("水"));
+    expect(screen.getByLabelText<HTMLInputElement>("水").checked).toBe(true);
+
+    fireEvent.click(screen.getByLabelText("水"));
+    expect(screen.getByLabelText<HTMLInputElement>("水").checked).toBe(false);
+
+    save();
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ weekdays: 0 }));
+  });
+
+  it("繰り返し種別に関係しない項目は null にして送る（週次→月次で曜日・週間隔の残骸を残さない）", () => {
+    const { onSubmit } = setup();
+
+    fireEvent.click(screen.getByLabelText("週次"));
+    fireEvent.click(screen.getByText("平日"));
+    fireEvent.change(screen.getByLabelText(/週間隔/), { target: { value: "3" } });
+    fireEvent.click(screen.getByLabelText("月次"));
+    fireEvent.change(screen.getByLabelText(/月末に丸めます/), { target: { value: "25" } });
+
+    save();
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      ...DEFAULT_INPUT,
+      recurrenceType: "monthly",
+      weekdays: null,
+      weekInterval: null,
+      monthDay: 25,
+      intervalDays: null,
+    });
+  });
+
+  it("週次は曜日と週間隔だけを送る（日・間隔は null）", () => {
+    const { onSubmit } = setup();
+
+    fireEvent.click(screen.getByLabelText("週次"));
+    fireEvent.click(screen.getByText("土日"));
+    fireEvent.change(screen.getByLabelText(/週間隔/), { target: { value: "2" } });
+
+    save();
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      ...DEFAULT_INPUT,
+      recurrenceType: "weekly",
+      weekdays: WEEKDAYS_SAT_SUN,
+      weekInterval: 2,
+      monthDay: null,
+      intervalDays: null,
+    });
+  });
+
+  it("n日ごとは間隔だけを送る（曜日・週間隔・日は null）", () => {
+    const { onSubmit } = setup();
+
+    fireEvent.click(screen.getByLabelText("n日ごと"));
+    fireEvent.change(screen.getByLabelText(/開始日が起算日/), { target: { value: "3" } });
+
+    save();
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      ...DEFAULT_INPUT,
+      recurrenceType: "interval",
+      weekdays: null,
+      weekInterval: null,
+      monthDay: null,
+      intervalDays: 3,
+    });
+  });
+
+  it("終了日は省略可（空欄は無期限＝null として送る）", () => {
+    const { onSubmit } = setup(routine({ id: 1, endDate: "2026-09-30" }));
+
+    fireEvent.change(screen.getByLabelText("終了日（任意）"), { target: { value: "" } });
+
+    save();
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ endDate: null }));
+  });
+
+  it("モード・プロジェクトは選択肢に「なし」を持ち、選ぶと id で送る", () => {
+    const { onSubmit } = setup();
+
+    const mode = screen.getByLabelText<HTMLSelectElement>("モード");
+    const project = screen.getByLabelText<HTMLSelectElement>("プロジェクト");
+    expect([...mode.options].map((o) => o.textContent)).toEqual(["なし", "モードA", "モードB"]);
+    expect([...project.options].map((o) => o.textContent)).toEqual(["なし", "案件A", "案件B"]);
+
+    fireEvent.change(mode, { target: { value: "1" } });
+    fireEvent.change(project, { target: { value: "12" } });
+
+    save();
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ modeId: 1, projectId: 12 })
+    );
+  });
+
+  it("モード・プロジェクトは「なし」に戻せる（未設定可）", () => {
+    const { onSubmit } = setup(routine({ id: 1, modeId: 1, projectId: 11 }));
+
+    fireEvent.change(screen.getByLabelText("モード"), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("プロジェクト"), { target: { value: "" } });
+
+    save();
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ modeId: null, projectId: null })
+    );
+  });
+
+  // 必須・範囲の判定は domain の validateRoutineInput が行い（アーキテクチャ定義書 §4）、
+  // 失敗メッセージは一覧側（RoutinesTable）が Server Action の結果として表示する。
+  // フォームは入力を止めないので、空欄でも onSubmit まで届くことを固定する
+  it("フォームは検証せず素の値を渡す（名前が空・見積が空でも保存を試みる）", () => {
+    const { onSubmit } = setup();
+
+    fireEvent.change(screen.getByLabelText("見積もり（分）"), { target: { value: "" } });
+
+    save();
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "", estimateMinutes: 0 })
+    );
+  });
+
+  it("取消では onCancel だけを呼ぶ（保存はしない）", () => {
+    const { onSubmit, onCancel } = setup();
+
+    fireEvent.change(screen.getByLabelText("名前"), { target: { value: "書きかけ" } });
+    fireEvent.click(screen.getByText("取消"));
+
+    expect(onCancel).toHaveBeenCalledOnce();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+});
