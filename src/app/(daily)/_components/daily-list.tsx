@@ -77,6 +77,9 @@ const STATUS_ICON = {
   completed: <CheckIcon className="h-3 w-3" />,
 } as const;
 
+// プロジェクト・モードの未設定表記（§3.3）。見積もり未設定の `--:--` と同じく記号で不在を示す
+const UNSET_MARK = <span className="text-ink-faint">-</span>;
+
 // 画面定義書01 §3.2/§3.3。打刻・並び替えは後続ステップ
 export function DailyList({
   groups,
@@ -115,6 +118,8 @@ export function DailyList({
       <colgroup>
         <col className="w-10" />
         <col />
+        {/* プロジェクト列はモード列と同程度の固定幅にする（§3.3） */}
+        <col className="w-32" />
         <col className="w-32" />
         <col className="w-24" />
         <col className="w-28" />
@@ -127,6 +132,7 @@ export function DailyList({
         <tr className="border-b border-line-strong text-left text-xs text-ink-muted">
           <th className="py-2 font-normal" />
           <th className="py-2 font-normal">タスク</th>
+          <th className="py-2 font-normal">プロジェクト</th>
           <th className="py-2 font-normal">モード</th>
           <th className="py-2 text-right font-normal">見積</th>
           <th className="py-2 text-right font-normal">実績</th>
@@ -239,7 +245,7 @@ function GroupHeading({
   return (
     <tr className={`border-y border-line-strong ${isCurrentSection ? "bg-band-now" : "bg-band"}`}>
       {/* 全要素を左寄せで1行に並べる（§3.2「見出し行のレイアウト」。左右分離をやめる） */}
-      <td colSpan={7} className="py-2 pl-2">
+      <td colSpan={8} className="py-2 pl-2">
         <span className="flex items-center gap-2">
           <span className="text-sm font-bold tracking-wide">
             {group.section === null ? "未分類" : group.section.name}
@@ -459,25 +465,10 @@ function TaskRow({
             {task.name}
           </button>
         )}
-        {/* 補助表記は本文より1段階だけ小さくする（画面定義書01 §2: 相対関係を維持する） */}
+        {/* セクションの併記はタスク名セルに残す。補助表記は本文より1段階だけ小さくする
+            （画面定義書01 §2: 相対関係を維持する） */}
         {editing !== "name" && (
-          <span className="relative ml-2 inline-flex gap-2 text-sm">
-            {/* プロジェクト選択ポップオーバー（O-5） */}
-            <button
-              type="button"
-              onClick={() => onBeginEdit(task, "project")}
-              className={`hover:underline ${dimmed}`}
-            >
-              {project?.name ?? <span className="text-ink-faint">プロジェクト</span>}
-            </button>
-            {editing === "project" && (
-              <SelectPopover
-                options={toOptions(projects, "プロジェクトなし")}
-                selectedId={task.projectId}
-                onSelect={(id) => onAssign(task, "project", id)}
-                onClose={onEndEdit}
-              />
-            )}
+          <span className="relative ml-2 inline-block text-sm">
             {/* セクション選択ポップオーバー（O-5） */}
             <button
               type="button"
@@ -498,9 +489,34 @@ function TaskRow({
         )}
       </td>
       <td className={`relative py-2.5 text-sm ${dimmed}`}>
+        {/* プロジェクト選択ポップオーバー（O-5）。セル全体を押せるようにし、
+            列幅に収まらない名前は切り詰める（§3.3。行高は変えない） */}
+        <button
+          type="button"
+          onClick={() => onBeginEdit(task, "project")}
+          aria-label={`プロジェクト（${project?.name ?? "未設定"}）`}
+          className="block max-w-full truncate text-left hover:underline"
+        >
+          {project?.name ?? UNSET_MARK}
+        </button>
+        {editing === "project" && (
+          <SelectPopover
+            options={toOptions(projects, "プロジェクトなし")}
+            selectedId={task.projectId}
+            onSelect={(id) => onAssign(task, "project", id)}
+            onClose={onEndEdit}
+          />
+        )}
+      </td>
+      <td className={`relative py-2.5 text-sm ${dimmed}`}>
         {/* モード選択ポップオーバー（O-5） */}
-        <button type="button" onClick={() => onBeginEdit(task, "mode")} className="hover:underline">
-          {mode?.name ?? <span className="text-ink-faint">モード</span>}
+        <button
+          type="button"
+          onClick={() => onBeginEdit(task, "mode")}
+          aria-label={`モード（${mode?.name ?? "未設定"}）`}
+          className="hover:underline"
+        >
+          {mode?.name ?? UNSET_MARK}
         </button>
         {editing === "mode" && (
           <SelectPopover
