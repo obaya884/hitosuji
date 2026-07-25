@@ -19,7 +19,9 @@
     "db:seed": "tsx src/infrastructure/db/seed.ts",
     "db:backup": "sh scripts/db-backup.sh",
     "db:restore": "sh scripts/db-restore.sh",
-    "db:sync-masters": "sh scripts/db-sync-masters.sh"
+    "db:sync-masters": "sh scripts/db-sync-masters.sh",
+    "wt:new": "sh scripts/wt-new.sh",
+    "wt:rm": "sh scripts/wt-rm.sh"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",

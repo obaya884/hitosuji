@@ -1,5 +1,14 @@
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { defineConfig } from "vitest/config";
+
+// worktree ごとのテストDB分離（T-06）: wt-new.sh が worktree 直下に生成する .env.worktree を読む。
+// シェルから渡された TEST_DATABASE_URL（CI 等）が常に優先。本体ワークツリーにこのファイルは無い
+const envWorktree = path.resolve(import.meta.dirname, ".env.worktree");
+if (process.env.TEST_DATABASE_URL === undefined && existsSync(envWorktree)) {
+  const match = readFileSync(envWorktree, "utf8").match(/^TEST_DATABASE_URL=(.+)$/m);
+  if (match) process.env.TEST_DATABASE_URL = match[1];
+}
 
 // テスト戦略はアーキテクチャ定義書 §8 参照
 // - unit: domain 純関数のユニットテスト（*.test.ts）。DBなし・高速・多数
