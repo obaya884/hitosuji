@@ -1,6 +1,6 @@
 name: CI
 
-# PR と main への push で lint・build・test を自動実行する（技術改善計画 T-01）。
+# PR と main への push で lint・build・test（カバレッジ計測込み）を自動実行する（技術改善計画 T-01）。
 # Dependabot の依存更新 PR もここで検証される。マージ（＝本番デプロイ）は手動のまま。
 
 on:
@@ -13,13 +13,21 @@ concurrency:
   cancel-in-progress: true
 
 # GITHUB_TOKEN を最小権限に絞る（CodeQL: actions/missing-workflow-permissions・技術改善計画 T-24）。
-# verify ジョブは checkout のみで、コード取得に必要な contents: read で足りる。
+# 既定は読み取りのみとし、書き込みが要るジョブだけが個別に足す。
 permissions:
   contents: read
 
 jobs:
   verify:
     runs-on: ubuntu-latest
+
+    # ジョブ側の指定はトップレベルとマージされず置換なので contents: read も再掲する
+    permissions:
+      contents: read
+      # カバレッジ表を PR コメントとして投稿・更新するため（T-38）。npm ci/build/test と
+      # 同じジョブのトークンに乗るが、投稿だけ別ジョブに切るとアーティファクト受け渡しが
+      # 増える。単独オーナーの public リポジトリで fork PR は read に降格するため許容する
+      pull-requests: write
 
     # 統合テスト用 Postgres。docker-compose の db-test と同条件（DB=hitosuji_test）。
     # 5433 で公開し TEST_DATABASE_URL の既定（localhost:5433）に合わせる。
@@ -44,6 +52,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          # 変更箇所カバレッジ（T-38）が base...HEAD の差分を取るため全履歴が要る
+          fetch-depth: 0
 
       - uses: actions/setup-node@v7
         with:
@@ -54,4 +65,44 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run build
-      - run: npm test
+      # npm test と同じテストを走らせつつカバレッジも採る（T-38）。
+      # --no-file-parallelism による直列化で数秒増えるだけなので、CI では常に計測側を回す
+      - run: npm run test:coverage
+
+      # 以降はカバレッジの可視化（FB-49 / T-38）。テストが落ちた場合はここへ来ない
+      - name: カバレッジ表を生成する
+        env:
+          # PR のときだけ変更箇所カバレッジを添える（push には「変更箇所」の基準がないので空になる）
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        # --silent は npm のバナー（"> hitosuji@0.1.0 ..."）が markdown に混ざるのを防ぐ
+        run: npm run --silent coverage:summary -- "$BASE_SHA" > coverage/summary.md
+
+      - name: ジョブサマリへ出力する
+        run: cat coverage/summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: PR へコメントする
+        if: github.event_name == 'pull_request'
+        # Dependabot の PR は GITHUB_TOKEN が読み取り専用に降格するため投稿が 403 になる。
+        # カバレッジの可視化で CI を赤くしたくないので失敗は許容する（ジョブサマリ側には出る）
+        continue-on-error: true
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const body = require("node:fs").readFileSync("coverage/summary.md", "utf8");
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            // 実行ごとにコメントが増えないよう、目印を持つ既存コメントがあれば更新する。
+            // 目印は本文の1行目（scripts/coverage-summary.sh が出す HTML コメント）を
+            // そのまま使う——ここに文字列を書き写すと片方だけ変えたときに静かに壊れる
+            const marker = body.split("\n")[0];
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+            });
+            const existing = comments.find((c) => c.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
