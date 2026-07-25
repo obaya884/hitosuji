@@ -277,6 +277,19 @@ describe("setTaskSection（O-5: セクションの割り当て）", () => {
     expect([moved?.sectionId, moved?.sortOrder]).toEqual([null, 2000]);
   });
 
+  it("すでに属しているセクションを選び直すと同じセクションの末尾へ移す（画面定義書01 §4.3: 候補によって規則を変えない）", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 1, sortOrder: 1000 }),
+      task({ id: 2, sectionId: 1, sortOrder: 2000 }),
+    ]);
+
+    await setTaskSection(repo, { taskId: 1, date: "2026-07-19", sectionId: 1 });
+
+    // 移動先の件数は自分を除いて数えるため、末尾（2000 の次）へ採番される
+    const moved = repo.rows.find((t) => t.id === 1);
+    expect([moved?.sectionId, moved?.sortOrder]).toEqual([1, 3000]);
+  });
+
   it("空のセクションへ割り当てられる", async () => {
     const repo = inMemoryTaskRepository([task({ id: 1, sectionId: null, sortOrder: 1000 })]);
 

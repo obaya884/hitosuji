@@ -94,6 +94,17 @@ describe("currentSectionId（画面定義書01 §3.2 現在セクションの強
     expect(currentSectionId(sections, "06:30", true)).toBe(morning.id);
   });
 
+  it("セクションの開始時刻ちょうどはそのセクションが current になる", () => {
+    expect(currentSectionId(sections, "06:00", true)).toBe(morning.id);
+    expect(currentSectionId(sections, "00:00", true)).toBe(midnight.id);
+  });
+
+  it("先頭セクションの開始より前の時刻は、日をまたいで続く最後のセクションが current（§4.3 の固定項目もこの定義に従う）", () => {
+    const withoutMidnight = [morning, forenoon]; // 06:00 / 09:00
+    expect(currentSectionId(withoutMidnight, "03:00", true)).toBe(forenoon.id);
+    expect(currentSectionId(sections, "23:59", true)).toBe(forenoon.id);
+  });
+
   it("有効セクションが無ければ（全件アーカイブ済み等）today でも null", () => {
     const archived = section({ id: 9, startTime: "07:00", isArchived: true });
     expect(currentSectionId([archived], "07:30", true)).toBeNull();

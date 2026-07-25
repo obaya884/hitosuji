@@ -4,11 +4,7 @@ import { useEffect, useRef } from "react";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
-import {
-  currentSectionId as deriveCurrentSectionId,
-  sectionRanges,
-  type Section,
-} from "@/domain/section/section";
+import { currentSectionId as deriveCurrentSectionId, type Section } from "@/domain/section/section";
 import { sectionTotalMinutes, type DailyGroup } from "@/domain/task/daily-list";
 import {
   formatProjectedStart,
@@ -23,6 +19,7 @@ import { CheckIcon, PlayIcon, StopIcon } from "@/app/_components/icons";
 import { formatClock, formatDuration, formatEstimate } from "@/app/_lib/format";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { inputBase } from "@/app/_lib/ui";
+import { toSectionOptions } from "../_lib/section-options";
 import { RowMenu } from "./row-menu";
 import { TaskProgress } from "./task-progress";
 import { RoutinizePopover } from "./routinize-popover";
@@ -106,6 +103,9 @@ export function DailyList({
   const projectedStarts = projectedStartLabels(groups, now, isToday, dayStartMinutes);
   // 現在セクションの強調（§3.2 / F-121）。sections 全体が要るため親で1回だけ求める
   const currentSectionId = deriveCurrentSectionId(sections, formatClock(now), isToday);
+  // セクション選択の候補（O-5 / §4.3）。先頭の固定項目が currentSectionId を要るため、
+  // 行ではなくここで組んで渡す（モード・プロジェクトの候補は行側で組む）
+  const sectionOptions = toSectionOptions(sections, currentSectionId);
 
   return (
     // table-fixed + colgroup で列幅を1箇所に集約する。table-auto のままだと
@@ -156,6 +156,7 @@ export function DailyList({
               modes={modes}
               projects={projects}
               sections={sections}
+              sectionOptions={sectionOptions}
               onAssign={onAssign}
               onOperate={onOperate}
               onRoutinize={onRoutinize}
@@ -301,30 +302,6 @@ function toOptions(
   ];
 }
 
-/**
- * セクション選択肢（O-5 / F-112）。名前の右に時間帯 `開始–終了` を付記する（FB-46）。
- * 終了時刻は次セクション開始の導出（`sectionRanges`）。候補順は呼び出し側が渡す回転順
- * （日界起点。F-116）を保つため、並べ替えはせず endTime だけを引く。アーカイブ済みは出さない。
- */
-function toSectionOptions(sections: readonly Section[]): PopoverOption[] {
-  // sectionRanges も !isArchived で絞る（section.ts activeSections）ため、有効セクションの id は
-  // 必ず載る。get の undefined は Map の戻り型都合のみで、下のフォールバックは実際には描画されない
-  const endTimeById = new Map(sectionRanges(sections).map((r) => [r.section.id, r.endTime]));
-  return [
-    { id: null, label: "未分類" },
-    ...sections
-      .filter((s) => !s.isArchived)
-      .map((s) => {
-        const endTime = endTimeById.get(s.id);
-        return {
-          id: s.id,
-          label: s.name,
-          hint: endTime === undefined ? s.startTime : `${s.startTime}–${endTime}`,
-        };
-      }),
-  ];
-}
-
 /** 見積もり超過は警告色（F-202）。見積もり未設定（0分）は超過判定しない */
 function isOverEstimate(minutes: number, task: Task): boolean {
   return task.estimateMinutes > 0 && minutes > task.estimateMinutes;
@@ -339,6 +316,7 @@ function TaskRow({
   modes,
   projects,
   sections,
+  sectionOptions,
   onAssign,
   onOperate,
   onRoutinize,
@@ -367,6 +345,8 @@ function TaskRow({
   modes: readonly Mode[];
   projects: readonly Project[];
   sections: readonly Section[];
+  /** セクション選択の候補（O-5 / §4.3）。固定項目が現在セクションに依るため親が組む */
+  sectionOptions: readonly PopoverOption[];
   onAssign: (task: Task, field: "mode" | "project" | "section", id: number | null) => void;
   onOperate: (task: Task, operation: "suspend" | "duplicate" | "postpone" | "delete") => void;
   /** ルーチン化（O-12 / §4.1） */
@@ -476,7 +456,7 @@ function TaskRow({
             </button>
             {editing === "section" && (
               <SelectPopover
-                options={toSectionOptions(sections)}
+                options={sectionOptions}
                 selectedId={task.sectionId}
                 onSelect={(id) => onAssign(task, "section", id)}
                 onClose={onEndEdit}
