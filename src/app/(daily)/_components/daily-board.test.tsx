@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { Section } from "@/domain/section/section";
+import { formatClock } from "@/app/_lib/format";
 import { groupTasksBySection } from "@/domain/task/daily-list";
 import type { Task } from "@/domain/task/task";
 import {
@@ -74,12 +75,27 @@ class ResizeObserverStub {
 }
 
 const DATE = "2026-07-26";
-/** 打刻はクライアントの現在時刻を送る（§7）ので、時計を固定して観測できるようにする */
-const NOW = new Date("2026-07-26T10:30:00+09:00");
+const [YEAR, MONTH, DAY] = DATE.split("-").map(Number);
 
-/** 表示日の壁時計（日本時間）から Date を作る。`formatClock` は常に日本時間で整形する */
+/**
+ * 表示日の壁時計（利用者のローカル時刻）から Date を作る。
+ *
+ * 打刻の修正（F-203 / `applyClockTime`）は入力の `HH:MM` を**ローカル時刻**として解釈するので、
+ * テストデータも壁時計で組まないと「開始より前の時刻」といった主張が実行環境の TZ で反転する
+ * （UTC の CI だけ落ちる）。一方で表示（`formatClock`）は `APP_TIME_ZONE` 固定なので、
+ * **画面に出る時刻の期待値はリテラルで書かず `formatClock` で組み立てる**（下の `clock`）
+ */
 function at(hhmm: string): Date {
-  return new Date(`${DATE}T${hhmm}:00+09:00`);
+  const [hours, minutes] = hhmm.split(":").map(Number);
+  return new Date(YEAR, MONTH - 1, DAY, hours, minutes);
+}
+
+/** 打刻はクライアントの現在時刻を送る（§7）ので、時計を固定して観測できるようにする */
+const NOW = at("10:30");
+
+/** 画面に表示される打刻時刻（`formatClock` と同じ整形）。TZ に依存しない期待値を作る */
+function clock(date: Date): string {
+  return formatClock(date);
 }
 
 function makeTask(over: Partial<Task> & { id: number; name: string }): Task {
@@ -212,6 +228,14 @@ function press(key: string, init: KeyboardEventInit = {}) {
 
 function quickAddInput(): HTMLElement {
   return screen.getByPlaceholderText("タスク名を入力して Enter で追加");
+}
+
+/**
+ * 打刻修正（F-203）の入力欄。表示中の値ではなくプレースホルダで引く——
+ * 表示は `APP_TIME_ZONE` 固定の整形なので、値で引くとテストが実行環境の TZ に縛られる
+ */
+function punchInput(): HTMLElement {
+  return screen.getByPlaceholderText("1935");
 }
 
 /** 行メニュー（O-7/O-8 の導線）から項目を選ぶ */
@@ -399,7 +423,7 @@ describe("DailyBoard の打刻（F-201 / F-211 / §7: クライアントの現�
 
     fireEvent.click(within(row(NOT_STARTED)).getByLabelText("開始"));
 
-    expect(within(row(NOT_STARTED)).queryByText("10:30")).not.toBeNull();
+    expect(within(row(NOT_STARTED)).queryByText(clock(NOW))).not.toBeNull();
   });
 
   it("終了打刻もクライアントの現在時刻を送り、実績を即時に表示する", () => {
@@ -560,7 +584,7 @@ describe("DailyBoard の完了の取り消し（O-15 / F-212）", () => {
     press("u");
     // 楽観的更新は打刻2列のクリアだけ（並べ直しはサーバ確定後。O-15）
     expect(vi.mocked(undoCompleteAction).mock.calls[0]).toEqual([13, NOW]);
-    expect(within(row(COMPLETED)).queryByText("09:00")).toBeNull();
+    expect(within(row(COMPLETED)).queryByText(clock(at("09:00")))).toBeNull();
     expect(within(row(COMPLETED)).queryByText("→ 0:20")).toBeNull();
 
     await gate.resolve({ ok: true, snapshot });
@@ -569,7 +593,7 @@ describe("DailyBoard の完了の取り消し（O-15 / F-212）", () => {
       makeTask({ id: 13, name: COMPLETED, sectionId: 1, sortOrder: 1500 }),
     ]);
 
-    expect(within(row(COMPLETED)).queryByText("09:00")).toBeNull();
+    expect(within(row(COMPLETED)).queryByText(clock(at("09:00")))).toBeNull();
     expect(screen.queryByText(`「${COMPLETED}」を未実行に戻しました`)).not.toBeNull();
   });
 
@@ -603,10 +627,10 @@ describe("DailyBoard の完了の取り消し（O-15 / F-212）", () => {
     selectRow(COMPLETED);
 
     press("u");
-    expect(within(row(COMPLETED)).queryByText("09:00")).toBeNull();
+    expect(within(row(COMPLETED)).queryByText(clock(at("09:00")))).toBeNull();
     await gate.resolve({ ok: false, message: "保存に失敗しました" });
 
-    expect(within(row(COMPLETED)).queryByText("09:00")).not.toBeNull();
+    expect(within(row(COMPLETED)).queryByText(clock(at("09:00")))).not.toBeNull();
     expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
     expect(screen.queryByText("取り消す")).toBeNull();
   });
@@ -771,7 +795,7 @@ describe("DailyBoard のインライン編集の検証（§8 / 00_共通 §2.3�
     selectRow(RUNNING);
 
     press("b");
-    commit(screen.getByDisplayValue("10:00"), "25:99");
+    commit(punchInput(), "25:99");
 
     expect(vi.mocked(updateTaskPunchAction)).not.toHaveBeenCalled();
     expect(screen.queryByText("時刻は HH:MM 形式で入力してください")).not.toBeNull();
@@ -782,7 +806,7 @@ describe("DailyBoard のインライン編集の検証（§8 / 00_共通 §2.3�
     selectRow(COMPLETED);
 
     press("f");
-    commit(screen.getByDisplayValue("09:20"), "0800");
+    commit(punchInput(), "0800");
 
     expect(vi.mocked(updateTaskPunchAction)).not.toHaveBeenCalled();
     expect(screen.queryByText("終了時刻は開始時刻より後にしてください")).not.toBeNull();
@@ -793,7 +817,7 @@ describe("DailyBoard のインライン編集の検証（§8 / 00_共通 §2.3�
     selectRow(COMPLETED);
 
     press("f");
-    commit(screen.getByDisplayValue("09:20"), "0930");
+    commit(punchInput(), "0930");
 
     const call = vi.mocked(updateTaskPunchAction).mock.calls[0];
     expect(call[0]).toBe(13);
@@ -801,7 +825,7 @@ describe("DailyBoard のインライン編集の検証（§8 / 00_共通 §2.3�
     expect(call[1].endedAt?.getHours()).toBe(9);
     expect(call[1].endedAt?.getMinutes()).toBe(30);
     // 移動先セクションの判定は開始時刻の HH:MM で行う（§4.2-c）
-    expect(call[2]).toBe("09:00");
+    expect(call[2]).toBe(clock(at("09:00")));
   });
 
   it("開始時刻の修正はセクション判定用の HH:MM とクライアントの現在時刻を添えて送る（§4.2-c）", () => {
@@ -809,7 +833,7 @@ describe("DailyBoard のインライン編集の検証（§8 / 00_共通 §2.3�
     selectRow(RUNNING);
 
     press("b");
-    commit(screen.getByDisplayValue("10:00"), "0915");
+    commit(punchInput(), "0915");
 
     const call = vi.mocked(updateTaskPunchAction).mock.calls[0];
     expect(call[0]).toBe(12);
@@ -1010,7 +1034,7 @@ describe("DailyBoard の通知と行メニュー（画面定義書01 §8 / O-7 /
         id: 5,
         name: "読書",
         taskDate: "2026-07-25",
-        startedAt: new Date("2026-07-25T23:00:00+09:00"),
+        startedAt: new Date(YEAR, MONTH - 1, DAY - 1, 23, 0),
       }),
     });
 
