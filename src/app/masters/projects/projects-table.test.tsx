@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Project } from "@/domain/project/project";
+import { deferredAction, rowOf, startEditingCell } from "../_testing/table-helpers";
 
 // Server Action の先は実DB接続と revalidatePath に届くため、同じ返り値の契約
 // （ActionResult）を返す偽物へ差し替える（アーキテクチャ定義書 §8「偽物を置いてよい境界」）
@@ -44,18 +45,6 @@ function renderTable(
   );
 }
 
-/** 名前セル（ボタン）を持つ行。編集中の行は入力欄になるため、開始前に取得する */
-const rowOf = (name: string): HTMLElement => {
-  const row = screen.getByText(name).closest("tr");
-  if (row === null) throw new Error(`「${name}」の行が見つかりません`);
-  return row;
-};
-
-const startEditing = (name: string): HTMLInputElement => {
-  fireEvent.click(within(rowOf(name)).getByRole("button", { name }));
-  return screen.getByDisplayValue(name);
-};
-
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(createProjectAction).mockResolvedValue({ ok: true });
@@ -91,7 +80,7 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
     it("名前セルをクリックするとその場が入力欄になる", () => {
       renderTable();
 
-      const input = startEditing("プロジェクトA");
+      const input = startEditingCell("プロジェクトA");
 
       expect(input.tagName).toBe("INPUT");
       expect(within(rowOf("プロジェクトB")).getByRole("button", { name: "プロジェクトB" })).not.toBeNull();
@@ -99,7 +88,7 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
 
     it("変更なしの確定は何も送信せず閉じる", async () => {
       renderTable();
-      const input = startEditing("プロジェクトA");
+      const input = startEditingCell("プロジェクトA");
 
       fireEvent.blur(input);
 
@@ -111,7 +100,7 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
 
     it("フォーカスが外れたときに変更を確定する", async () => {
       renderTable();
-      const input = startEditing("プロジェクトA");
+      const input = startEditingCell("プロジェクトA");
 
       fireEvent.change(input, { target: { value: "改名後" } });
       fireEvent.blur(input);
@@ -123,7 +112,7 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
 
     it("Enter でも確定する（入力欄を抜けて blur の経路に合流する）", async () => {
       renderTable();
-      const input = startEditing("プロジェクトB");
+      const input = startEditingCell("プロジェクトB");
 
       fireEvent.change(input, { target: { value: "改名後" } });
       fireEvent.keyDown(input, { key: "Enter" });
@@ -135,7 +124,7 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
 
     it("Esc は元の値に戻して閉じる（送信しない）", async () => {
       renderTable();
-      const input = startEditing("プロジェクトA");
+      const input = startEditingCell("プロジェクトA");
       fireEvent.change(input, { target: { value: "書きかけ" } });
 
       fireEvent.keyDown(input, { key: "Escape" });
@@ -146,13 +135,44 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
       expect(updateProjectAction).not.toHaveBeenCalled();
     });
 
+    // 保存中の抑止（00_共通 §2.3「保存中」）は modes/sections の名前セルには入っているが
+    // projects には無い。実装の差は FB-63 で検討中のため、現状を正直に固定しておく
+    it("projects の名前セルは保存中も押せる（modes/sections と違い disabled が無い。FB-63 で検討中）", async () => {
+      const pending = deferredAction();
+      vi.mocked(setProjectArchivedAction).mockReturnValue(pending.promise);
+      renderTable();
+
+      fireEvent.click(within(rowOf("プロジェクトA")).getByRole("button", { name: "アーカイブ" }));
+
+      const row = rowOf("プロジェクトA");
+      await waitFor(() => {
+        expect(within(row).getByRole("button", { name: "アーカイブ" })).toHaveProperty(
+          "disabled",
+          true
+        );
+      });
+      // 送信中でも名前セルは押せてしまい、古い値で編集を開始できる
+      expect(within(row).getByRole("button", { name: "プロジェクトA" })).toHaveProperty(
+        "disabled",
+        false
+      );
+
+      await act(async () => {
+        pending.resolve({ ok: true });
+      });
+      expect(within(rowOf("プロジェクトA")).getByRole("button", { name: "アーカイブ" })).toHaveProperty(
+        "disabled",
+        false
+      );
+    });
+
     it("失敗したらメッセージを出し、編集状態のまま残す（入力し直せる）", async () => {
       vi.mocked(updateProjectAction).mockResolvedValue({
         ok: false,
         message: "名前を入力してください",
       });
       renderTable();
-      const input = startEditing("プロジェクトA");
+      const input = startEditingCell("プロジェクトA");
 
       fireEvent.change(input, { target: { value: "" } });
       fireEvent.blur(input);
@@ -170,7 +190,7 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
         message: "名前を入力してください",
       });
       renderTable();
-      const input = startEditing("プロジェクトA");
+      const input = startEditingCell("プロジェクトA");
       fireEvent.change(input, { target: { value: "" } });
       fireEvent.blur(input);
       await waitFor(() => {
@@ -255,6 +275,22 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
       expect(screen.queryByPlaceholderText("プロジェクト名")).toBeNull();
       expect(createProjectAction).not.toHaveBeenCalled();
     });
+
+    it("追加の失敗はメッセージで知らせ、新規行を残す（00_共通 §2.3「失敗時」）", async () => {
+      vi.mocked(createProjectAction).mockResolvedValue({
+        ok: false,
+        message: "名前を入力してください",
+      });
+      renderTable();
+      fireEvent.click(screen.getByRole("button", { name: "新規追加" }));
+
+      fireEvent.click(screen.getByRole("button", { name: "保存" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("名前を入力してください")).not.toBeNull();
+      });
+      expect(screen.getByPlaceholderText("プロジェクト名")).not.toBeNull();
+    });
   });
 
   describe("アーカイブと物理削除（画面定義書03 §4 / §4.1）", () => {
@@ -285,7 +321,8 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
       });
     });
 
-    it("参照0件のアーカイブ済み行だけを2段階の確認で物理削除できる", async () => {
+    // 2段階の確認そのものは DeleteMasterButton のテストが持つ。ここは配線だけを見る
+    it("参照0件のアーカイブ済み行だけを物理削除へ配線する", async () => {
       renderTable({ archived: [project(9, "旧プロジェクト", true)], deletableIds: [9] });
       const row = rowOf("旧プロジェクト");
 
@@ -297,20 +334,5 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
       });
     });
 
-    it("削除の失敗（競合で参照が生まれた等）はメッセージで知らせる（§4.1「競合時」）", async () => {
-      vi.mocked(deleteProjectAction).mockResolvedValue({
-        ok: false,
-        message: "参照しているデータがあるため削除できません",
-      });
-      renderTable({ archived: [project(9, "旧プロジェクト", true)], deletableIds: [9] });
-      const row = rowOf("旧プロジェクト");
-
-      fireEvent.click(within(row).getByRole("button", { name: "削除" }));
-      fireEvent.click(within(row).getByRole("button", { name: "削除する" }));
-
-      await waitFor(() => {
-        expect(screen.getByText("参照しているデータがあるため削除できません")).not.toBeNull();
-      });
-    });
   });
 });

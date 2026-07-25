@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { rowOf } from "../_testing/table-helpers";
 import { ArchivedMasterSection } from "./archived-master-section";
 
 type Item = Readonly<{ id: number; name: string }>;
@@ -8,7 +9,7 @@ type Item = Readonly<{ id: number; name: string }>;
 const item = (id: number, name: string): Item => ({ id, name });
 
 /** 呼び出し側（各テーブル）と同じく、ラベル列の `<td>` を渡す */
-const renderCells = (it: Item) => <td>{it.name}</td>;
+const renderCells = (master: Item) => <td>{master.name}</td>;
 
 function renderSection(
   props: Partial<{
@@ -30,12 +31,6 @@ function renderSection(
     />
   );
 }
-
-const rowOf = (name: string): HTMLElement => {
-  const row = screen.getByText(name).closest("tr");
-  if (row === null) throw new Error(`「${name}」の行が見つかりません`);
-  return row;
-};
 
 // アーカイブは物理削除ではなく、一覧下部に折りたたみ表示して復元可能にする（画面定義書03 §4）
 describe("ArchivedMasterSection（画面定義書03 §4: アーカイブ済みは折りたたみ表示・復元可能）", () => {
@@ -90,14 +85,21 @@ describe("ArchivedMasterSection（画面定義書03 §4: アーカイブ済み�
     expect(onDelete).toHaveBeenCalledExactlyOnceWith(1);
   });
 
-  it("保存中は「復元」を押せない（00_共通 §2.3「保存中」）", () => {
+  it("保存中は「復元」も「削除する」も押せない（保存中の状態を削除ボタンまで渡す）", () => {
     const onRestore = vi.fn();
-    renderSection({ isPending: true, onRestore });
+    const onDelete = vi.fn();
+    renderSection({ isPending: true, deletableIds: [1], onRestore, onDelete });
+    const row = rowOf("マスタA");
 
-    const restore = within(rowOf("マスタA")).getByRole("button", { name: "復元" });
+    const restore = within(row).getByRole("button", { name: "復元" });
     expect(restore).toHaveProperty("disabled", true);
-
     fireEvent.click(restore);
     expect(onRestore).not.toHaveBeenCalled();
+
+    fireEvent.click(within(row).getByRole("button", { name: "削除" }));
+    const execute = within(row).getByRole("button", { name: "削除する" });
+    expect(execute).toHaveProperty("disabled", true);
+    fireEvent.click(execute);
+    expect(onDelete).not.toHaveBeenCalled();
   });
 });

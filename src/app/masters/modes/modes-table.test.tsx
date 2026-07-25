@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MODE_COLORS, type Mode } from "@/domain/mode/mode";
-import type { ActionResult } from "../_lib/action-result";
+import { deferredAction, rowOf, startEditingCell } from "../_testing/table-helpers";
 
 // Server Action の先は実DB接続と revalidatePath に届くため、同じ返り値の契約
 // （ActionResult）を返す偽物へ差し替える（アーキテクチャ定義書 §8「偽物を置いてよい境界」）
@@ -50,29 +50,16 @@ function renderTable(
   );
 }
 
-const rowOf = (name: string): HTMLElement => {
-  const row = screen.getByText(name).closest("tr");
-  if (row === null) throw new Error(`「${name}」の行が見つかりません`);
-  return row;
-};
-
-const startEditing = (name: string): HTMLInputElement => {
-  fireEvent.click(within(rowOf(name)).getByRole("button", { name }));
-  return screen.getByDisplayValue(name);
-};
-
 /** カラーバーを押してプリセット選択を開く */
 const openColorPicker = (row: HTMLElement, currentColorName: string) =>
   fireEvent.click(within(row).getByRole("button", { name: `色を変更（現在: ${currentColorName}）` }));
 
-/** 解決の時点をテストが握る Server Action の偽物 */
-function deferred() {
-  let resolve!: (result: ActionResult) => void;
-  const promise = new Promise<ActionResult>((r) => {
-    resolve = r;
-  });
-  return { promise, resolve };
-}
+/** 開いているプリセット選択のパネル（候補の外へ検索が漏れないよう、ここへ絞って主張する） */
+const colorPickerPanel = (): HTMLElement => {
+  const panel = screen.getByRole("button", { name: "色 赤" }).closest("div");
+  if (panel === null) throw new Error("プリセット選択が開いていません");
+  return panel;
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -118,12 +105,14 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       ]);
     });
 
-    it("自由入力は設けない（N-05: 候補から選ぶだけ）", () => {
+    it("自由入力は設けない（N-05: 開いたパネルは候補だけで入力欄を持たない）", () => {
       renderTable();
 
       openColorPicker(rowOf("モードA"), "赤");
 
-      expect(screen.queryByRole("textbox")).toBeNull();
+      const panel = colorPickerPanel();
+      expect(within(panel).queryByRole("textbox")).toBeNull();
+      expect(within(panel).getAllByRole("button")).toHaveLength(MODE_COLORS.length);
     });
 
     it("開くと現在値をハイライトする（00_共通 §2.1）", () => {
@@ -149,7 +138,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       expect(screen.queryByRole("tooltip")).toBeNull();
     });
 
-    it("キーボードで候補へ移っても色名を吹き出しで出す（N-04）", () => {
+    it("キーボードで候補へ移っても色名を吹き出しで出す（マウスを使わなくても色名が読める）", () => {
       renderTable();
       openColorPicker(rowOf("モードA"), "赤");
       const swatch = screen.getByRole("button", { name: "色 ティール" });
@@ -201,14 +190,14 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
     it("名前セルをクリックするとその場が入力欄になる", () => {
       renderTable();
 
-      const input = startEditing("モードA");
+      const input = startEditingCell("モードA");
 
       expect(input.tagName).toBe("INPUT");
     });
 
     it("変更なしの確定は何も送信せず閉じる", async () => {
       renderTable();
-      const input = startEditing("モードA");
+      const input = startEditingCell("モードA");
 
       fireEvent.blur(input);
 
@@ -220,7 +209,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
 
     it("フォーカスが外れたときに確定し、色は現在値のまま送る（§4「行の全項目をまとめて送る」）", async () => {
       renderTable();
-      const input = startEditing("モードB");
+      const input = startEditingCell("モードB");
 
       fireEvent.change(input, { target: { value: "改名後" } });
       fireEvent.blur(input);
@@ -235,7 +224,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
 
     it("Enter でも確定する（入力欄を抜けて blur の経路に合流する）", async () => {
       renderTable();
-      const input = startEditing("モードA");
+      const input = startEditingCell("モードA");
 
       fireEvent.change(input, { target: { value: "改名後" } });
       fireEvent.keyDown(input, { key: "Enter" });
@@ -247,7 +236,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
 
     it("Esc は元の値に戻して閉じる（送信しない）", async () => {
       renderTable();
-      const input = startEditing("モードA");
+      const input = startEditingCell("モードA");
       fireEvent.change(input, { target: { value: "書きかけ" } });
 
       fireEvent.keyDown(input, { key: "Escape" });
@@ -259,7 +248,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
     });
 
     it("保存中は同じ行の他のセル（名前・色）を触らせない", async () => {
-      const pending = deferred();
+      const pending = deferredAction();
       vi.mocked(setModeArchivedAction).mockReturnValue(pending.promise);
       renderTable();
 
@@ -292,7 +281,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
         message: "名前は50文字以内で入力してください",
       });
       renderTable();
-      const input = startEditing("モードA");
+      const input = startEditingCell("モードA");
 
       fireEvent.change(input, { target: { value: "あ".repeat(51) } });
       fireEvent.blur(input);
@@ -310,7 +299,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
         message: "名前を入力してください",
       });
       renderTable();
-      const input = startEditing("モードA");
+      const input = startEditingCell("モードA");
       fireEvent.change(input, { target: { value: "" } });
       fireEvent.blur(input);
       await waitFor(() => {
@@ -405,6 +394,23 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       expect(fireEvent.mouseDown(screen.getByRole("button", { name: "保存" }))).toBe(false);
     });
 
+    it("追加の失敗はメッセージで知らせ、新規行を残す（00_共通 §2.3「失敗時」）", async () => {
+      vi.mocked(createModeAction).mockResolvedValue({
+        ok: false,
+        message: "色はプリセットから選択してください",
+      });
+      renderTable();
+      fireEvent.click(screen.getByRole("button", { name: "新規追加" }));
+      fireEvent.change(screen.getByPlaceholderText("モード名"), { target: { value: "新モード" } });
+
+      fireEvent.click(screen.getByRole("button", { name: "保存" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("色はプリセットから選択してください")).not.toBeNull();
+      });
+      expect(screen.getByPlaceholderText("モード名")).not.toBeNull();
+    });
+
     it("開くたびに既定色へ戻す（前回の選択を持ち越さない）", () => {
       renderTable();
       fireEvent.click(screen.getByRole("button", { name: "新規追加" }));
@@ -442,7 +448,8 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       });
     });
 
-    it("参照0件のアーカイブ済み行だけを2段階の確認で物理削除できる", async () => {
+    // 2段階の確認そのものは DeleteMasterButton のテストが持つ。ここは配線だけを見る
+    it("参照0件のアーカイブ済み行だけを物理削除へ配線する", async () => {
       renderTable({
         active: [],
         archived: [mode(8, "旧モードA", RED, true), mode(9, "旧モードB", GRAY, true)],
@@ -456,22 +463,6 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
 
       await waitFor(() => {
         expect(deleteModeAction).toHaveBeenCalledExactlyOnceWith(9);
-      });
-    });
-
-    it("削除の失敗（競合で参照が生まれた等）はメッセージで知らせる（§4.1「競合時」）", async () => {
-      vi.mocked(deleteModeAction).mockResolvedValue({
-        ok: false,
-        message: "参照しているデータがあるため削除できません",
-      });
-      renderTable({ active: [], archived: [mode(9, "旧モード", GRAY, true)], deletableIds: [9] });
-      const row = rowOf("旧モード");
-
-      fireEvent.click(within(row).getByRole("button", { name: "削除" }));
-      fireEvent.click(within(row).getByRole("button", { name: "削除する" }));
-
-      await waitFor(() => {
-        expect(screen.getByText("参照しているデータがあるため削除できません")).not.toBeNull();
       });
     });
   });

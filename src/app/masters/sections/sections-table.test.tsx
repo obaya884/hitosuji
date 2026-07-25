@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Section } from "@/domain/section/section";
-import type { ActionResult } from "../_lib/action-result";
+import { deferredAction, rowOf, startEditingCell } from "../_testing/table-helpers";
 
 // Server Action の先は実DB接続と revalidatePath に届くため、同じ返り値の契約
 // （ActionResult）を返す偽物へ差し替える（アーキテクチャ定義書 §8「偽物を置いてよい境界」）
@@ -64,30 +64,11 @@ function renderTable(
   );
 }
 
-const rowOf = (name: string): HTMLElement => {
-  const row = screen.getByText(name).closest("tr");
-  if (row === null) throw new Error(`「${name}」の行が見つかりません`);
-  return row;
-};
-
-const startEditingName = (name: string): HTMLInputElement => {
-  fireEvent.click(within(rowOf(name)).getByRole("button", { name }));
-  return screen.getByDisplayValue(name);
-};
-
-/** 開始時刻セル（`06:00–12:00` の枠）を押して編集に入る */
+/** 開始時刻セル（`06:00–12:00` の枠）を押して編集に入る。名前セルは startEditingCell */
 const startEditingStartTime = (name: string, range: string): HTMLInputElement => {
   fireEvent.click(within(rowOf(name)).getByRole("button", { name: range }));
   return screen.getByDisplayValue(range.slice(0, 5));
 };
-
-function deferred() {
-  let resolve!: (result: ActionResult) => void;
-  const promise = new Promise<ActionResult>((r) => {
-    resolve = r;
-  });
-  return { promise, resolve };
-}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -168,7 +149,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
     it("名前セルと開始時刻セルは独立して編集できる（一方だけが入力欄になる）", () => {
       renderTable();
 
-      startEditingName("セクションA");
+      startEditingCell("セクションA");
 
       const row = rowOf("06:00–12:00");
       expect(within(row).getByRole("button", { name: "06:00–12:00" })).not.toBeNull();
@@ -188,7 +169,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
 
     it("名前の変更なしは何も送信せず閉じる", async () => {
       renderTable();
-      const input = startEditingName("セクションA");
+      const input = startEditingCell("セクションA");
 
       fireEvent.blur(input);
 
@@ -212,7 +193,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
 
     it("名前を変えると開始時刻は現在値のまま送る（§4「行の全項目をまとめて送る」）", async () => {
       renderTable();
-      const input = startEditingName("セクションB");
+      const input = startEditingCell("セクションB");
 
       fireEvent.change(input, { target: { value: "改名後" } });
       fireEvent.blur(input);
@@ -242,7 +223,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
 
     it("Enter でも確定する（入力欄を抜けて blur の経路に合流する）", async () => {
       renderTable();
-      const input = startEditingName("セクションA");
+      const input = startEditingCell("セクションA");
 
       fireEvent.change(input, { target: { value: "改名後" } });
       fireEvent.keyDown(input, { key: "Enter" });
@@ -270,7 +251,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
 
     it("名前の Esc も元の値に戻して閉じる", async () => {
       renderTable();
-      const input = startEditingName("セクションB");
+      const input = startEditingCell("セクションB");
       fireEvent.change(input, { target: { value: "書きかけ" } });
 
       fireEvent.keyDown(input, { key: "Escape" });
@@ -282,10 +263,10 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
     });
 
     it("保存中は同じ行の他のセル（開始時刻・日界）を触らせない", async () => {
-      const pending = deferred();
+      const pending = deferredAction();
       vi.mocked(updateSectionAction).mockReturnValue(pending.promise);
       renderTable();
-      const input = startEditingName("セクションA");
+      const input = startEditingCell("セクションA");
       fireEvent.change(input, { target: { value: "改名後" } });
 
       fireEvent.blur(input);
@@ -333,7 +314,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
         message: "開始時刻を HH:MM 形式で入力してください",
       });
       renderTable();
-      const input = startEditingName("セクションA");
+      const input = startEditingCell("セクションA");
       fireEvent.change(input, { target: { value: "改名後" } });
       fireEvent.blur(input);
       await waitFor(() => {
@@ -438,7 +419,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
       expect(createSectionAction).not.toHaveBeenCalled();
     });
 
-    it("追加の失敗はメッセージで知らせ、新規行を残す", async () => {
+    it("追加の失敗はメッセージで知らせ、新規行を残す（00_共通 §2.3「失敗時」）", async () => {
       vi.mocked(createSectionAction).mockResolvedValue({
         ok: false,
         message: "開始時刻を HH:MM 形式で入力してください",
@@ -471,7 +452,8 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
       });
     });
 
-    it("参照0件のアーカイブ済み行だけを2段階の確認で物理削除できる", async () => {
+    // 2段階の確認そのものは DeleteMasterButton のテストが持つ。ここは配線だけを見る
+    it("参照0件のアーカイブ済み行だけを物理削除へ配線する", async () => {
       renderTable({
         archived: [
           section(8, "旧セクションA", "03:00", { isArchived: true }),
