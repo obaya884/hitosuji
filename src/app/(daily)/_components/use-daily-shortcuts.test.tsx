@@ -82,6 +82,14 @@ const EDIT_KEYS: readonly (readonly [key: string, field: EditField])[] = [
   ["s", "section"],
 ];
 
+/** 押したキー自体が入力欄・編集欄へ入るのを防ぐため既定動作を止めるキー（§6 A / G ＋ 編集キー） */
+const PREVENT_DEFAULT_KEYS: readonly string[] = ["a", "g", ...EDIT_KEYS.map(([key]) => key)];
+
+/** 残りの §6 のキーは既定動作を止めない（00_共通 §3: 抑止は最小化）。一覧は上の1か所だけで持つ */
+const KEEP_DEFAULT_KEYS = ALL_SHORTCUT_KEYS.filter(
+  ([key]) => !PREVENT_DEFAULT_KEYS.includes(key)
+);
+
 function makeSpies() {
   const quickAdd = document.createElement("input");
   return {
@@ -197,8 +205,13 @@ function renderStateful(
 }
 
 /** window へキーを送り、preventDefault されたかを返す（§6・00_共通 §3: 既定動作の抑止は最小化） */
-function press(key: string, init: KeyboardEventInit = {}): boolean {
+function pressDefaultPrevented(key: string, init: KeyboardEventInit = {}): boolean {
   return !fireEvent.keyDown(window, { key, ...init });
+}
+
+/** window へキーを送る（既定動作の抑止を見ないとき用） */
+function pressKey(key: string, init: KeyboardEventInit = {}): void {
+  pressDefaultPrevented(key, init);
 }
 
 /** §6 の全キーを順に送る（除外規則が全ショートカットに効くかの検証用） */
@@ -237,7 +250,7 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
     it("J は選択行を1つ下へ動かす", () => {
       const { state } = renderStateful({ selectedId: RUNNING.id });
 
-      press("j");
+      pressKey("j");
 
       expect(state.current.selectedId).toBe(NEXT_UP.id);
     });
@@ -245,7 +258,7 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
     it("K は選択行を1つ上へ動かす", () => {
       const { state } = renderStateful({ selectedId: NEXT_UP.id });
 
-      press("k");
+      pressKey("k");
 
       expect(state.current.selectedId).toBe(RUNNING.id);
     });
@@ -253,7 +266,7 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
     it("C は現在地（実行中タスク）へジャンプする", () => {
       const { state } = renderStateful({ selectedId: LATER.id });
 
-      press("c");
+      pressKey("c");
 
       expect(state.current.selectedId).toBe(RUNNING.id);
     });
@@ -264,7 +277,7 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
         orderedTasks: [COMPLETED, NEXT_UP, LATER],
       });
 
-      press("c");
+      pressKey("c");
 
       expect(state.current.selectedId).toBe(NEXT_UP.id);
     });
@@ -272,8 +285,8 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
     it("矢印キーは選択行に割り当てない（§6 / FB-33）", () => {
       const { state, spies } = renderStateful({ selectedId: RUNNING.id });
 
-      press("ArrowDown");
-      press("ArrowUp");
+      pressKey("ArrowDown");
+      pressKey("ArrowUp");
 
       expect(state.current.selectedId).toBe(RUNNING.id);
       expectNothingCalled(spies);
@@ -284,7 +297,7 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
     it("Enter は選択タスクを打刻へ渡す", () => {
       const { spies } = renderShortcuts({ selectedId: RUNNING.id });
 
-      press("Enter");
+      pressKey("Enter");
 
       expect(spies.punch).toHaveBeenCalledOnce();
       expect(spies.punch).toHaveBeenCalledWith(RUNNING);
@@ -293,7 +306,7 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
     it("完了タスクの選択中も同じく punch へ渡す（複製して開始 O-14 の判定は punch 側）", () => {
       const { spies } = renderShortcuts({ selectedId: COMPLETED.id });
 
-      press("Enter");
+      pressKey("Enter");
 
       expect(spies.punch).toHaveBeenCalledWith(COMPLETED);
     });
@@ -301,7 +314,7 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
     it("選択がなければ打刻しない", () => {
       const { spies } = renderShortcuts({ selectedId: null });
 
-      press("Enter");
+      pressKey("Enter");
 
       expectNothingCalled(spies);
     });
@@ -326,7 +339,7 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
     ] as const)("%s は選択タスクに %s を要求する", (key, operation) => {
       const { spies } = renderShortcuts();
 
-      press(key);
+      pressKey(key);
 
       expect(spies.operate).toHaveBeenCalledOnce();
       expect(spies.operate).toHaveBeenCalledWith(RUNNING, operation);
@@ -335,34 +348,18 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
     it.each(["i", "y", "d"])("%s は選択がなければ何もしない", (key) => {
       const { spies } = renderShortcuts({ selectedId: null });
 
-      press(key);
+      pressKey(key);
 
       expectNothingCalled(spies);
     });
 
-    it("§6 の一覧に無いキーは何もしない（先送り O-7・ルーチン化 O-12 にキーを割り当てない）", () => {
-      const { spies } = renderShortcuts();
-
-      // o(先送り)・n(ルーチン)・h/l(Shift なしの日付移動)・Space（00_共通 §3 で使わない）
-      for (const key of ["o", "n", "h", "l", "x", "z", " ", "Tab", "Escape"]) press(key);
-
-      expectNothingCalled(spies);
-    });
-
-    it("§6 で Shift に割り当てのないキー（予約中の Shift+C 等）は何もしない", () => {
-      const { spies } = renderShortcuts();
-
-      for (const key of ["C", "D", "Y", "A", "T", "G"]) press(key, { shiftKey: true });
-
-      expectNothingCalled(spies);
-    });
   });
 
   describe("取り消し（§6 U・切り分けの正は O-13）", () => {
     it("取り消しの保留があればそれを最優先する（選択行の状態は見ない。O-13 / FB-37）", () => {
       const { spies } = renderShortcuts({ hasPendingUndo: true, selectedId: RUNNING.id });
 
-      press("u");
+      pressKey("u");
 
       expect(spies.undoPending).toHaveBeenCalledOnce();
       expect(spies.unstart).not.toHaveBeenCalled();
@@ -372,7 +369,7 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
     it("保留がなく実行中タスクを選択中なら開始打刻を取り消す（O-13 / F-210）", () => {
       const { spies } = renderShortcuts({ selectedId: RUNNING.id });
 
-      press("u");
+      pressKey("u");
 
       expect(spies.unstart).toHaveBeenCalledOnce();
       expect(spies.unstart).toHaveBeenCalledWith(RUNNING);
@@ -383,7 +380,7 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
     it("保留がなく完了タスクを選択中なら完了を取り消す（O-15 / F-212）", () => {
       const { spies } = renderShortcuts({ selectedId: COMPLETED.id });
 
-      press("u");
+      pressKey("u");
 
       expect(spies.uncomplete).toHaveBeenCalledOnce();
       expect(spies.uncomplete).toHaveBeenCalledWith(COMPLETED);
@@ -393,7 +390,7 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
     it("保留がなく未実行タスクを選択中は何もしない（O-13）", () => {
       const { spies } = renderShortcuts({ selectedId: NEXT_UP.id });
 
-      press("u");
+      pressKey("u");
 
       expectNothingCalled(spies);
     });
@@ -401,7 +398,7 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
     it("保留がなく選択もなければ何もしない", () => {
       const { spies } = renderShortcuts({ selectedId: null });
 
-      press("u");
+      pressKey("u");
 
       expectNothingCalled(spies);
     });
@@ -411,7 +408,7 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
     it("Shift+J はタスクを1段下げる（選択行は動かさない）", () => {
       const { state, spies } = renderStateful({ selectedId: RUNNING.id });
 
-      press("J", { shiftKey: true });
+      pressKey("J", { shiftKey: true });
 
       expect(spies.moveByStep).toHaveBeenCalledOnce();
       expect(spies.moveByStep).toHaveBeenCalledWith(1);
@@ -421,16 +418,27 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
     it("Shift+K はタスクを1段上げる", () => {
       const { state, spies } = renderStateful({ selectedId: RUNNING.id });
 
-      press("K", { shiftKey: true });
+      pressKey("K", { shiftKey: true });
 
       expect(spies.moveByStep).toHaveBeenCalledWith(-1);
       expect(state.current.selectedId).toBe(RUNNING.id);
     });
 
+    // 対象（移動するタスク）の確定は呼び出し側の責務。未選択のまま並べ替えたときに選択を
+    // 現在地から確定させる規則は board 側にある（§5 / FB-50）ので、フックは選択の有無で止めない
+    it("選択が無くても並び替えを要求する（対象の確定は呼び出し側の責務。§5 / FB-50）", () => {
+      const { spies } = renderShortcuts({ selectedId: null });
+
+      pressKey("J", { shiftKey: true });
+
+      expect(spies.moveByStep).toHaveBeenCalledOnce();
+      expect(spies.moveByStep).toHaveBeenCalledWith(1);
+    });
+
     it("Shift なしの J / K は並び替えず選択行だけ動かす", () => {
       const { state, spies } = renderStateful({ selectedId: RUNNING.id });
 
-      press("j");
+      pressKey("j");
 
       expect(spies.moveByStep).not.toHaveBeenCalled();
       expect(state.current.selectedId).toBe(NEXT_UP.id);
@@ -441,7 +449,7 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
     it("Shift+H は前日へ移動する", () => {
       const { spies } = renderShortcuts({ date: "2026-03-01" });
 
-      press("H", { shiftKey: true });
+      pressKey("H", { shiftKey: true });
 
       expect(spies.push).toHaveBeenCalledWith("/?date=2026-02-28");
     });
@@ -449,7 +457,7 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
     it("Shift+L は翌日へ移動する", () => {
       const { spies } = renderShortcuts({ date: "2026-02-28" });
 
-      press("L", { shiftKey: true });
+      pressKey("L", { shiftKey: true });
 
       expect(spies.push).toHaveBeenCalledWith("/?date=2026-03-01");
     });
@@ -457,7 +465,7 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
     it("T は今日（日付クエリなし）へ戻る", () => {
       const { spies } = renderShortcuts({ date: "2026-02-28" });
 
-      press("t");
+      pressKey("t");
 
       expect(spies.push).toHaveBeenCalledWith("/");
     });
@@ -465,7 +473,7 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
     it("G は datepicker を開く（§3.1）", () => {
       const { spies } = renderShortcuts();
 
-      press("g");
+      pressKey("g");
 
       expect(spies.openDatePicker).toHaveBeenCalledOnce();
       expect(spies.push).not.toHaveBeenCalled();
@@ -476,7 +484,7 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
     it.each(EDIT_KEYS)("%s は選択行の %s の編集を開く", (key, field) => {
       const { spies } = renderShortcuts();
 
-      press(key);
+      pressKey(key);
 
       expect(spies.setEditing).toHaveBeenCalledOnce();
       expect(spies.setEditing).toHaveBeenCalledWith({ taskId: RUNNING.id, field });
@@ -485,7 +493,7 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
     it.each(EDIT_KEYS)("%s は選択がなければ編集を開かない", (key) => {
       const { spies } = renderShortcuts({ selectedId: null });
 
-      press(key);
+      pressKey(key);
 
       expectNothingCalled(spies);
     });
@@ -495,16 +503,15 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
     it("A はクイック追加欄へフォーカスする", () => {
       const { spies } = renderShortcuts();
 
-      press("a");
+      pressKey("a");
 
       expect(spies.focus).toHaveBeenCalledOnce();
     });
 
-    it("クイック追加欄が無いときも落ちない", () => {
+    it("クイック追加欄が無くても落ちず、既定動作は止めたままにする", () => {
       const { spies } = renderShortcuts({ quickAddRef: { current: null } });
 
-      press("a");
-
+      expect(pressDefaultPrevented("a")).toBe(true);
       expectNothingCalled(spies);
     });
   });
@@ -513,7 +520,7 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
     it("? で一覧を表示する", () => {
       const { state } = renderStateful({ showHelp: false });
 
-      press("?", { shiftKey: true });
+      pressKey("?", { shiftKey: true });
 
       expect(state.current.showHelp).toBe(true);
     });
@@ -521,7 +528,7 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
     it("? をもう一度押すと閉じる（表示・非表示のトグル）", () => {
       const { state } = renderStateful({ showHelp: true });
 
-      press("?", { shiftKey: true });
+      pressKey("?", { shiftKey: true });
 
       expect(state.current.showHelp).toBe(false);
     });
@@ -530,11 +537,30 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
     it("? は Shift 併用でも並び替え・日付移動に食われない", () => {
       const { state, spies } = renderStateful();
 
-      press("?", { shiftKey: true });
+      pressKey("?", { shiftKey: true });
 
       expect(state.current.showHelp).toBe(true);
       expect(spies.moveByStep).not.toHaveBeenCalled();
       expect(spies.push).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("§6 に割り当てのないキー", () => {
+    it("一覧に無いキーは何もしない（先送り O-7・ルーチン化 O-12 にキーを割り当てない）", () => {
+      const { spies } = renderShortcuts();
+
+      // o(先送り)・n(ルーチン)・h/l(Shift なしの日付移動)・Space（00_共通 §3 で使わない）
+      for (const key of ["o", "n", "h", "l", "x", "z", " ", "Tab", "Escape"]) pressKey(key);
+
+      expectNothingCalled(spies);
+    });
+
+    it("Shift に割り当てのないキー（予約中の Shift+C 等）は何もしない", () => {
+      const { spies } = renderShortcuts();
+
+      for (const key of ["C", "D", "Y", "A", "T", "G"]) pressKey(key, { shiftKey: true });
+
+      expectNothingCalled(spies);
     });
   });
 
@@ -595,38 +621,33 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
   });
 
   describe("既定動作の抑止は最小限（§6 / 00_共通 §3）", () => {
-    // 押したキー自体が入力欄・編集欄へ入るのを防ぐ必要があるものだけ止める
-    it.each(["a", "g", ...EDIT_KEYS.map(([key]) => key)])("%s は既定動作を止める", (key) => {
-      renderShortcuts();
-
-      expect(press(key)).toBe(true);
+    // 止める側だけを列挙し、止めない側は §6 の全キーからの差集合で導く（一覧を二重に持たない）
+    it("§6 の全キーを止める側・止めない側のどちらかに分類している", () => {
+      expect(ALL_SHORTCUT_KEYS.map(([key]) => key)).toEqual(
+        expect.arrayContaining([...PREVENT_DEFAULT_KEYS])
+      );
+      expect(KEEP_DEFAULT_KEYS.length + PREVENT_DEFAULT_KEYS.length).toBe(
+        ALL_SHORTCUT_KEYS.length
+      );
     });
 
-    it.each([
-      ["j", {}],
-      ["k", {}],
-      ["c", {}],
-      ["Enter", {}],
-      ["i", {}],
-      ["y", {}],
-      ["d", {}],
-      ["u", {}],
-      ["t", {}],
-      ["J", { shiftKey: true }],
-      ["K", { shiftKey: true }],
-      ["H", { shiftKey: true }],
-      ["L", { shiftKey: true }],
-      ["?", { shiftKey: true }],
-    ] as const)("%s は既定動作を止めない", (key, init) => {
+    // 押したキー自体が入力欄・編集欄へ入るのを防ぐ必要があるものだけ止める
+    it.each(PREVENT_DEFAULT_KEYS)("%s は既定動作を止める", (key) => {
       renderShortcuts();
 
-      expect(press(key, init)).toBe(false);
+      expect(pressDefaultPrevented(key)).toBe(true);
+    });
+
+    it.each(KEEP_DEFAULT_KEYS)("%s は既定動作を止めない", (key, init) => {
+      renderShortcuts();
+
+      expect(pressDefaultPrevented(key, init)).toBe(false);
     });
 
     it("編集キーでも選択がなければ既定動作を止めない", () => {
       renderShortcuts({ selectedId: null });
 
-      expect(press("r")).toBe(false);
+      expect(pressDefaultPrevented("r")).toBe(false);
     });
   });
 
@@ -636,7 +657,7 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
 
       rerender();
       rerender();
-      press("Enter");
+      pressKey("Enter");
 
       expect(spies.punch).toHaveBeenCalledOnce();
     });
@@ -645,7 +666,7 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
       const { spies, rerender } = renderShortcuts({ selectedId: RUNNING.id });
 
       rerender({ selectedId: NEXT_UP.id });
-      press("Enter");
+      pressKey("Enter");
 
       expect(spies.punch).toHaveBeenCalledWith(NEXT_UP);
     });
