@@ -13,6 +13,7 @@
     "test:int": "vitest run --project integration",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage --no-file-parallelism",
+    "coverage:summary": "sh scripts/coverage-summary.sh",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
