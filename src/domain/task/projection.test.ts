@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   formatProjectedEnd,
+  formatProjectedStart,
   isOverMidnight,
   projectedEndTime,
+  projectedStartTimes,
   remainingMinutes,
   sectionCapacityMinutes,
   sectionEndAt,
@@ -72,6 +74,161 @@ describe("projectedEndTime（F-104: 現在時刻 + 残時間）", () => {
   it("現在時刻に残時間を足した時刻を返す", () => {
     const tasks = [task({ id: 1, estimateMinutes: 90 })];
     expect(projectedEndTime(tasks, at(9, 0))).toEqual(at(10, 30));
+  });
+});
+
+describe("projectedStartTimes（F-120 / データモデル定義書 §4.3: 未実行タスクの予想開始時刻）", () => {
+  it("表示順に並べた未実行タスクを現在時刻から積み上げる", () => {
+    const tasks = [
+      task({ id: 1, estimateMinutes: 30 }),
+      task({ id: 2, estimateMinutes: 45 }),
+      task({ id: 3, estimateMinutes: 15 }),
+    ];
+    const starts = projectedStartTimes(tasks, at(9, 0));
+    expect(starts.get(1)).toEqual(at(9, 0));
+    expect(starts.get(2)).toEqual(at(9, 30));
+    expect(starts.get(3)).toEqual(at(10, 15));
+  });
+
+  it("実行中タスクの残り（見積もり − 経過）を積み上げの起点に含める", () => {
+    const tasks = [
+      task({ id: 1, estimateMinutes: 30, startedAt: at(8, 50) }), // 経過10分・残り20分
+      task({ id: 2, estimateMinutes: 45 }),
+    ];
+    const starts = projectedStartTimes(tasks, at(9, 0));
+    expect(starts.get(2)).toEqual(at(9, 20));
+  });
+
+  it("実行中タスクが見積もりを超過していても残りは0として起点に含める", () => {
+    const tasks = [
+      task({ id: 1, estimateMinutes: 10, startedAt: at(8, 0) }), // 経過60分
+      task({ id: 2, estimateMinutes: 45 }),
+    ];
+    expect(projectedStartTimes(tasks, at(9, 0)).get(2)).toEqual(at(9, 0));
+  });
+
+  it("未実行行より後ろに実行中タスクがあっても、その残りは起点に含める（§4.3 の式）", () => {
+    const tasks = [
+      task({ id: 1, estimateMinutes: 45 }),
+      task({ id: 2, estimateMinutes: 30, startedAt: at(8, 50) }), // 経過10分・残り20分
+    ];
+    expect(projectedStartTimes(tasks, at(9, 0)).get(1)).toEqual(at(9, 20));
+  });
+
+  it("実行中・完了タスクには予想開始時刻を持たせない（対象は未実行行のみ。画面定義書01 §3.3）", () => {
+    const tasks = [
+      task({ id: 1, startedAt: at(8, 0), endedAt: at(8, 30) }), // 完了
+      task({ id: 2, startedAt: at(8, 50) }), // 実行中
+      task({ id: 3 }), // 未実行
+    ];
+    const starts = projectedStartTimes(tasks, at(9, 0));
+    expect(starts.has(1)).toBe(false);
+    expect(starts.has(2)).toBe(false);
+    expect(starts.has(3)).toBe(true);
+  });
+
+  it("完了タスクは積み上げに加えない", () => {
+    const tasks = [
+      task({ id: 1, estimateMinutes: 60, startedAt: at(8, 0), endedAt: at(8, 30) }),
+      task({ id: 2, estimateMinutes: 30 }),
+    ];
+    expect(projectedStartTimes(tasks, at(9, 0)).get(2)).toEqual(at(9, 0));
+  });
+
+  it("見積もり未設定（0分）は0として積むため、直前のタスクと同じ時刻になる", () => {
+    const tasks = [
+      task({ id: 1, estimateMinutes: 30 }),
+      task({ id: 2, estimateMinutes: 0 }),
+      task({ id: 3, estimateMinutes: 15 }),
+    ];
+    const starts = projectedStartTimes(tasks, at(9, 0));
+    expect(starts.get(2)).toEqual(at(9, 30));
+    expect(starts.get(3)).toEqual(at(9, 30));
+  });
+
+  it("sectionId を見ずに積み上げを続ける（セクションをまたいでもリセットせず、セクション開始時刻を起点にしない）", () => {
+    // 表示順の列（未分類 → セクション → sort_order。画面定義書01 §3.2）で渡す。
+    // 未分類（sectionId: null）が起点側に来ても、セクションの境目でも 9:00 起点の積み上げが続く
+    const tasks = [
+      task({ id: 1, sectionId: null, estimateMinutes: 30 }),
+      task({ id: 2, sectionId: 1, estimateMinutes: 45 }),
+      task({ id: 3, sectionId: 2, estimateMinutes: 15 }),
+    ];
+    const starts = projectedStartTimes(tasks, at(9, 0));
+    expect(starts.get(2)).toEqual(at(9, 30));
+    expect(starts.get(3)).toEqual(at(10, 15));
+  });
+
+  it("秒を含む現在時刻でもそのまま積み上げる（表示側で切り捨てる）", () => {
+    const now = new Date(2026, 6, 19, 9, 0, 40, 0);
+    const tasks = [task({ id: 1, estimateMinutes: 30 }), task({ id: 2, estimateMinutes: 15 })];
+    expect(projectedStartTimes(tasks, now)).toEqual(
+      new Map([
+        [1, now],
+        [2, new Date(2026, 6, 19, 9, 30, 40, 0)],
+      ])
+    );
+  });
+
+  it("最後の未実行タスクの予想開始 + その見積もり = 終了予定時刻（F-104 と同じ積み上げの途中経過）", () => {
+    const tasks = [
+      task({ id: 1, estimateMinutes: 30, startedAt: at(8, 50) }), // 実行中・残り20分
+      task({ id: 2, estimateMinutes: 45 }),
+      task({ id: 3, estimateMinutes: 15 }),
+    ];
+    const now = at(9, 0);
+    const starts = projectedStartTimes(tasks, now);
+    expect(starts.get(2)).toEqual(at(9, 20)); // 実行中の残り20分ぶんずれる
+    expect(starts.get(3)).toEqual(at(10, 5)); // + 45分
+    expect(projectedEndTime(tasks, now)).toEqual(at(10, 20)); // + 15分
+    // 終了予定 − 末尾タスクの見積もり = 末尾タスクの予想開始（同じ積み上げの途中経過であること）
+    expect(starts.get(3)).toEqual(new Date(projectedEndTime(tasks, now).getTime() - 15 * 60_000));
+  });
+
+  it("タスクが0件なら空", () => {
+    expect(projectedStartTimes([], at(9, 0)).size).toBe(0);
+  });
+});
+
+describe("formatProjectedStart（F-120 / 画面定義書01 §3.3 の `HH:MM-` 形式。区切りは実打刻と同じ en dash）", () => {
+  it("時を2桁ゼロ埋めした `HH:MM–` を返す（実打刻と同じ列で桁が揃う）", () => {
+    expect(formatProjectedStart(at(9, 5), at(9, 0))).toBe("09:05–");
+    expect(formatProjectedStart(at(21, 45), at(9, 0))).toBe("21:45–");
+  });
+
+  it("24:00を超えたら終了予定と同じ折返し表記（`25:30–`）", () => {
+    const nextDay = new Date(2026, 6, 20, 1, 30, 0, 0);
+    expect(formatProjectedStart(nextDay, at(22, 0))).toBe("25:30–");
+  });
+
+  it("ちょうど24:00は `24:00-`（ゼロ埋めで桁を壊さない）", () => {
+    expect(formatProjectedStart(new Date(2026, 6, 20, 0, 0, 0, 0), at(22, 0))).toBe("24:00–");
+  });
+
+  it("秒は切り捨てる（実打刻の表示と同じ扱い）", () => {
+    expect(formatProjectedStart(new Date(2026, 6, 19, 9, 30, 40, 0), at(9, 0))).toBe("09:30–");
+  });
+
+  it("折返しは論理日の区切り（日界 F-116）を基準にする", () => {
+    // 日界 06:00・now 23:00（論理日は 07-19）→ 翌 03:00 は 27:00
+    expect(formatProjectedStart(new Date(2026, 6, 20, 3, 0), at(23, 0), 6 * 60)).toBe("27:00–");
+    // 日界 06:00・now 02:00 は論理日が前の暦日（07-18）になり、起点も前の暦日 0:00 → 05:00 は 29:00
+    expect(formatProjectedStart(at(5, 0), at(2, 0), 6 * 60)).toBe("29:00–");
+  });
+});
+
+describe("F-120: 積み上げの結果が日をまたぐ場合の見え方（§4.3 + 画面定義書01 §3.3）", () => {
+  it("翌 01:30 に達する予想開始は折返し表記の `25:30-` になる", () => {
+    const now = at(22, 0);
+    const tasks = [
+      task({ id: 1, estimateMinutes: 90 }),
+      task({ id: 2, estimateMinutes: 120 }),
+      task({ id: 3, estimateMinutes: 30 }),
+    ];
+    // 取れなければ下の1本目で落ちる（`?? now` は Map の戻り型都合のフォールバック）
+    const start = projectedStartTimes(tasks, now).get(3) ?? now;
+    expect(start).toEqual(new Date(2026, 6, 20, 1, 30, 0, 0));
+    expect(formatProjectedStart(start, now)).toBe("25:30–");
   });
 });
 
