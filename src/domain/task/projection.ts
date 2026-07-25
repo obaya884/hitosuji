@@ -1,8 +1,8 @@
-// 終了予定時刻と残時間（F-104 / データモデル定義書 §4.3）
+// 終了予定時刻と残時間（F-104）・予想開始時刻（F-120 / データモデル定義書 §4.3）
 // DBには保存しない導出値。現在時刻は引数で受け取る（domain は now を持たない）
 import { offsetFromDayStart, startMinutes } from "../section/section";
 import { taskStatus } from "./status";
-import { elapsedMinutes, type Task } from "./task";
+import { elapsedMinutes, type Task, type TaskId } from "./task";
 
 /**
  * 現在時刻が属する論理日の暦日 0:00（F-116）。日界（分）より前の時間帯は前の暦日が起点になる。
@@ -19,21 +19,28 @@ function logicalBaseMidnight(now: Date, dayStartMinutes: number): Date {
 }
 
 /**
+ * 1タスクぶんの未完了見積もり（分）。完了は0、実行中は残り、未実行は見積もりそのまま。
+ * 見積もり未設定（0分）は0として積まれる＝計算に含まれない（画面定義書01 §3.3）。
+ * これの総和が `remainingMinutes`（データモデル定義書 §4.3 の「未完了見積もり」）
+ */
+function unfinishedMinutesOf(task: Task, now: Date): number {
+  const status = taskStatus(task);
+  if (status === "completed") return 0;
+
+  if (status === "running") {
+    const elapsed = elapsedMinutes(task, now) ?? 0;
+    // 見積もりを超過していても残りは0（マイナスにしない）
+    return Math.max(task.estimateMinutes - elapsed, 0);
+  }
+  return task.estimateMinutes;
+}
+
+/**
  * 残時間（分）= 実行中タスクの残り + 未実行タスクの見積もり合計。
  * 見積もり未設定（0分）は計算に含まれない（画面定義書01 §3.3）
  */
 export function remainingMinutes(tasks: readonly Task[], now: Date): number {
-  return tasks.reduce((sum, task) => {
-    const status = taskStatus(task);
-    if (status === "completed") return sum;
-
-    if (status === "running") {
-      const elapsed = elapsedMinutes(task, now) ?? 0;
-      // 見積もりを超過していても残りは0（マイナスにしない）
-      return sum + Math.max(task.estimateMinutes - elapsed, 0);
-    }
-    return sum + task.estimateMinutes;
-  }, 0);
+  return tasks.reduce((sum, task) => sum + unfinishedMinutesOf(task, now), 0);
 }
 
 /** 終了予定時刻（F-104）= 現在時刻 + 残時間 */
@@ -42,18 +49,64 @@ export function projectedEndTime(tasks: readonly Task[], now: Date): Date {
 }
 
 /**
+ * 未実行タスクの予想開始時刻（F-120 / データモデル定義書 §4.3）。終了予定時刻（F-104）と同じ
+ * 積み上げの途中経過で、`now + 実行中タスクの残り + それより前にある未実行タスクの見積もり合計`。
+ * `tasks` は表示順（画面定義書01 §3.2 の回転順 → sort_order）で渡す。実行中タスクの残りは
+ * 積み上げの起点に常に含める（未実行行が実行中タスクより上にあっても引かない）ため、
+ * 最後の未実行タスクの予想開始 + その見積もり = 終了予定時刻 が保たれる。
+ * セクションをまたいでもリセットしない。戻り値は未実行タスクのみを持つ（実行中・完了は実打刻を持つ）
+ */
+export function projectedStartTimes(tasks: readonly Task[], now: Date): Map<TaskId, Date> {
+  let offset = tasks
+    .filter((task) => taskStatus(task) === "running")
+    .reduce((sum, task) => sum + unfinishedMinutesOf(task, now), 0);
+
+  const startTimes = new Map<TaskId, Date>();
+  for (const task of tasks) {
+    if (taskStatus(task) !== "not_started") continue;
+    startTimes.set(task.id, new Date(now.getTime() + offset * 60_000));
+    offset += task.estimateMinutes; // 未設定（0分）は0として積む（§4.3）
+  }
+  return startTimes;
+}
+
+/**
+ * 論理日の暦日 0:00 を起点に測った時計数字（日界 F-116 を踏まえる。データモデル定義書 §4.3）。
+ * 24:00 を超えると hours は 25, 26… と伸びる（折返し表記 `25:30` の材料）。
+ * 既定（dayStartMinutes = 0）では now の暦日 0:00 起点。
+ * 基準はランタイムのローカル時刻（実打刻の `formatClock` は JST 固定である点と異なる）
+ */
+function logicalClock(
+  at: Date,
+  now: Date,
+  dayStartMinutes: number
+): { hours: number; minutes: number } {
+  const startOfBase = logicalBaseMidnight(now, dayStartMinutes);
+  const minutesFromBase = Math.floor((at.getTime() - startOfBase.getTime()) / 60_000);
+  return {
+    hours: Math.floor(minutesFromBase / 60),
+    minutes: ((minutesFromBase % 60) + 60) % 60,
+  };
+}
+
+/**
  * 終了予定時刻の表示（F-104: 24:00超過は翌日表記 `25:30`）。
  * 折返しの時計数字は論理日の暦日 0:00 起点（日界 F-116 を踏まえる。データモデル定義書 §4.3）。
  * 既定（dayStartMinutes = 0）では now の暦日 0:00 起点で従来どおり。
  */
 export function formatProjectedEnd(end: Date, now: Date, dayStartMinutes = 0): string {
-  const startOfBase = logicalBaseMidnight(now, dayStartMinutes);
-
-  const minutesFromBase = Math.floor((end.getTime() - startOfBase.getTime()) / 60_000);
-  const hours = Math.floor(minutesFromBase / 60);
-  const minutes = ((minutesFromBase % 60) + 60) % 60;
-
+  const { hours, minutes } = logicalClock(end, now, dayStartMinutes);
   return `${hours}:${String(minutes).padStart(2, "0")}`;
+}
+
+/**
+ * 予想開始時刻の表示（F-120 / 画面定義書01 §3.3 の `HH:MM-` 形式）。返す文字列は `09:05–`。
+ * 実打刻（`09:35–`）と同じ列に並ぶので、時は2桁ゼロ埋め・区切りも実打刻と同じ en dash に揃える。
+ * 24:00 超過は終了予定と同じ論理日基準の折返し表記（`25:30–`）
+ */
+export function formatProjectedStart(start: Date, now: Date, dayStartMinutes = 0): string {
+  const { hours, minutes } = logicalClock(start, now, dayStartMinutes);
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}–`;
 }
 
 /**

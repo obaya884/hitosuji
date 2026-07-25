@@ -7,12 +7,14 @@ import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
 import { sectionRanges, type Section } from "@/domain/section/section";
 import { sectionTotalMinutes, type DailyGroup } from "@/domain/task/daily-list";
 import {
+  formatProjectedStart,
+  projectedStartTimes,
   sectionCapacityMinutes,
   sectionEndAt,
   sectionRemainingMinutes,
 } from "@/domain/task/projection";
 import { taskStatus } from "@/domain/task/status";
-import { actualMinutes, elapsedMinutes, type Task } from "@/domain/task/task";
+import { actualMinutes, elapsedMinutes, type Task, type TaskId } from "@/domain/task/task";
 import { CheckIcon, PlayIcon, StopIcon } from "@/app/_components/icons";
 import { formatClock, formatDuration, formatEstimate } from "@/app/_lib/format";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
@@ -43,7 +45,7 @@ type Props = Readonly<{
   onEndEdit: () => void;
   /** 毎分更新される現在時刻。実行中タスクの経過表示に使う（F-205） */
   now: Date;
-  /** 表示日が今日か。セクション残り時間は今日のみ表示する（§3.2） */
+  /** 表示日が今日か。セクション残り時間（§3.2）と予想開始時刻（§3.3）は今日のみ表示する */
   isToday: boolean;
   /** 日界（分）。セクション終了時刻を論理日の区切りで測る起点（F-116） */
   dayStartMinutes: number;
@@ -96,6 +98,8 @@ export function DailyList({
 }: Props) {
   const modeById = new Map(modes.map((m) => [m.id, m]));
   const projectById = new Map(projects.map((p) => [p.id, p]));
+
+  const projectedStarts = projectedStartLabels(groups, now, isToday, dayStartMinutes);
 
   return (
     // table-fixed + colgroup で列幅を1箇所に集約する。table-auto のままだと
@@ -157,12 +161,35 @@ export function DailyList({
               onPunch={onPunch}
               onEditPunch={onEditPunch}
               now={now}
+              projectedStart={projectedStarts?.get(task.id) ?? null}
               stickyHeight={stickyHeight}
             />
           ))}
         </tbody>
       ))}
     </table>
+  );
+}
+
+/**
+ * 未実行タスクの予想開始時刻の表示文字列（F-120 / §3.3）を taskId で引ける Map。
+ * groups は表示順（§3.2 の回転順 → sort_order）なので平坦化してそのまま積み上げる
+ * （セクションをまたいでもリセットしない）。表示日が今日でなければ null（行に出さない）
+ */
+function projectedStartLabels(
+  groups: readonly DailyGroup[],
+  now: Date,
+  isToday: boolean,
+  dayStartMinutes: number
+): Map<TaskId, string> | null {
+  if (!isToday) return null;
+
+  const starts = projectedStartTimes(
+    groups.flatMap((group) => group.tasks),
+    now
+  );
+  return new Map(
+    [...starts].map(([id, start]) => [id, formatProjectedStart(start, now, dayStartMinutes)])
   );
 }
 
@@ -304,6 +331,7 @@ function TaskRow({
   onPunch,
   onEditPunch,
   now,
+  projectedStart,
   stickyHeight,
 }: Readonly<{
   task: Task;
@@ -328,6 +356,8 @@ function TaskRow({
   onBeginEdit: (task: Task, field: EditField) => void;
   onEndEdit: () => void;
   now: Date;
+  /** 予想開始時刻の表示（F-120 / §3.3）。出さない行（実行中・完了・今日以外）は null */
+  projectedStart: string | null;
   stickyHeight: number;
 }>) {
   const status = taskStatus(task);
@@ -533,6 +563,8 @@ function TaskRow({
               )}
             </>
           ))}
+        {/* 未実行行は実打刻と同じ位置に予想開始時刻を弱色で併記する（F-120 / §3.3。出す行の判定は親） */}
+        {projectedStart !== null && <span className="text-ink-faint">{projectedStart}</span>}
       </td>
       <td className="relative py-2.5">
         <RowMenu
