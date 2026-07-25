@@ -32,9 +32,15 @@ export default defineConfig({
       include: ["src/**/*.ts"],
       exclude: [
         "src/**/*.test.ts",
+        "src/**/*.test.tsx",
         "src/**/*.int.test.ts",
         "src/**/testing/**",
         "src/**/_testing/**",
+        // include は「未実行ファイルを走査する範囲」しか制御せず、テストが読み込んだ
+        // ファイルは include に関係なく計上される。除外しないと「テスト済みの .tsx だけが
+        // 100% で分母に入り、未テストの33ファイルは見えない」非対称集計になる（T-39）。
+        // .tsx を計測対象にするかは T-33 で判断する（この1行を外せば含まる）
+        "src/**/*.tsx",
       ],
     },
     projects: [
