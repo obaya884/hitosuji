@@ -21,9 +21,12 @@ jobs:
   verify:
     runs-on: ubuntu-latest
 
+    # ジョブ側の指定はトップレベルとマージされず置換なので contents: read も再掲する
     permissions:
       contents: read
-      # カバレッジ表を PR コメントとして投稿・更新するため（T-38）
+      # カバレッジ表を PR コメントとして投稿・更新するため（T-38）。npm ci/build/test と
+      # 同じジョブのトークンに乗るが、投稿だけ別ジョブに切るとアーティファクト受け渡しが
+      # 増える。単独オーナーの public リポジトリで fork PR は read に降格するため許容する
       pull-requests: write
 
     # 統合テスト用 Postgres。docker-compose の db-test と同条件（DB=hitosuji_test）。
@@ -82,16 +85,16 @@ jobs:
             const body = require("node:fs").readFileSync("coverage/summary.md", "utf8");
             const { owner, repo } = context.repo;
             const issue_number = context.issue.number;
-            // 実行ごとにコメントが増えないよう、目印を持つ既存コメントがあれば更新する
-            const marker = "<!-- coverage-summary -->";
+            // 実行ごとにコメントが増えないよう、目印を持つ既存コメントがあれば更新する。
+            // 目印は本文の1行目（scripts/coverage-summary.sh が出す HTML コメント）を
+            // そのまま使う——ここに文字列を書き写すと片方だけ変えたときに静かに壊れる
+            const marker = body.split("\n")[0];
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner,
               repo,
               issue_number,
             });
-            const existing = comments.find(
-              (c) => c.user?.type === "Bot" && c.body?.includes(marker),
-            );
+            const existing = comments.find((c) => c.body?.includes(marker));
             if (existing) {
               await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
             } else {
