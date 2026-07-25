@@ -16,6 +16,7 @@ import {
 import { taskStatus } from "@/domain/task/status";
 import { actualMinutes, elapsedMinutes, type Task, type TaskId } from "@/domain/task/task";
 import { CheckIcon, PlayIcon, StopIcon } from "@/app/_components/icons";
+import { UnsetMark } from "@/app/_components/unset-mark";
 import { formatClock, formatDuration, formatEstimate } from "@/app/_lib/format";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { inputBase } from "@/app/_lib/ui";
@@ -646,8 +647,7 @@ function AssignCell({
         aria-label={`${label}（${name ?? "未設定"}）`}
         className="block max-w-full truncate text-left hover:underline"
       >
-        {/* 未設定は薄色の `-`。見積もり未設定の `--:--` と同じく記号で不在を示す（§3.3） */}
-        {name ?? <span className="text-ink-faint">-</span>}
+        {name ?? <UnsetMark />}
       </button>
       {isEditing && (
         <SelectPopover

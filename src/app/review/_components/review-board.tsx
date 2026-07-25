@@ -8,6 +8,7 @@ import { addDays, weekdayIndex } from "@/domain/shared/logical-date";
 import { estimateDiffMinutes, sharePercent, type ActualTotal } from "@/domain/task/review";
 import { actualMinutes, type Task } from "@/domain/task/task";
 import { DateNav } from "@/app/_components/date-nav";
+import { UnsetMark } from "@/app/_components/unset-mark";
 import { formatClock, formatDuration, formatEstimate } from "@/app/_lib/format";
 
 /**
@@ -162,9 +163,9 @@ function LogRow({
           {task.name}
         </Link>
       </td>
-      <td className="py-2 text-xs">{mode?.name ?? ""}</td>
-      <td className="py-2 text-xs">{project?.name ?? ""}</td>
-      {/* 見積もり未設定は薄色（§3.3。S-01 と揃える） */}
+      <td className="py-2 text-xs">{mode?.name ?? <UnsetMark />}</td>
+      <td className="py-2 text-xs">{project?.name ?? <UnsetMark />}</td>
+      {/* 見積もり未設定は薄色（画面定義書04 §3.3。S-01 と揃える） */}
       <td
         className={`py-2 pr-4 text-right font-mono tabular-nums ${
           task.estimateMinutes <= 0 ? "text-ink-faint" : ""
