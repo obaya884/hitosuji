@@ -30,7 +30,12 @@ export default defineConfig({
       // 前者が HTML ツリー（coverage/lcov-report）も生成してしまうため
       reporter: ["text", "text-summary", "json-summary", "lcovonly"],
       include: ["src/**/*.ts"],
-      exclude: ["src/**/*.test.ts", "src/**/*.int.test.ts", "src/**/testing/**"],
+      exclude: [
+        "src/**/*.test.ts",
+        "src/**/*.int.test.ts",
+        "src/**/testing/**",
+        "src/**/_testing/**",
+      ],
     },
     projects: [
       {
@@ -40,6 +45,17 @@ export default defineConfig({
           environment: "node",
           include: ["src/**/*.test.ts"],
           exclude: ["src/**/*.int.test.ts"],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          // コンポーネントテスト（アーキテクチャ定義書 §8）。jsdom を要するテストは
+          // 対象が .ts（hooks 等）でも *.test.tsx に置く——拡張子が実行環境を表す
+          name: "component",
+          environment: "jsdom",
+          include: ["src/**/*.test.tsx"],
+          setupFiles: ["./src/app/_testing/setup.ts"],
         },
       },
       {
