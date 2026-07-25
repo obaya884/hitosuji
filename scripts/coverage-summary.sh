@@ -14,6 +14,7 @@ cd "$(git rev-parse --show-toplevel)"
 
 exec python3 - <<'PY'
 import json
+import math
 import os
 import sys
 
@@ -55,7 +56,9 @@ def pct(entry):
     # 計測対象の文がない層（型定義だけの ports など）は 0% と区別する
     if entry["total"] == 0:
         return "-"
-    return f"{entry['covered'] * 100 / entry['total']:.1f}"
+    # istanbul（vitest の text / text-summary reporter）と同じ切り捨て。
+    # 四捨五入すると手元の出力と 1/100 ずれて、同じ数字なのか判断できなくなる
+    return f"{math.floor(entry['covered'] * 10000 / entry['total']) / 100:.2f}"
 
 
 layers = {}
@@ -67,16 +70,22 @@ for key, value in data.items():
         acc[m]["covered"] += value[m]["covered"]
         acc[m]["total"] += value[m]["total"]
 
-out = [
-    MARKER,
-    "## テストカバレッジ",
-    "",
+out = [MARKER, "## テストカバレッジ", ""]
+
+# 全体値は分母つきで出す（vitest の text-summary reporter と同じ見た目・桁数）。
+# 表の側は層の比較が目的なので割合だけに絞る
+out.append("```")
+for metric in METRICS:
+    entry = data["total"][metric]
+    out.append(f"{metric.capitalize():<13}: {pct(entry)}% ( {entry['covered']}/{entry['total']} )")
+out += ["```", ""]
+
+out += [
     "| 層 | % Stmts | % Branch | % Funcs | % Lines |",
     "|---|---:|---:|---:|---:|",
 ]
-rows = [("**全体**", data["total"])] + [(f"`{name}`", layers[name]) for name in sorted(layers)]
-for label, entry in rows:
-    out.append(f"| {label} | " + " | ".join(pct(entry[m]) for m in METRICS) + " |")
+for name in sorted(layers):
+    out.append(f"| `{name}` | " + " | ".join(pct(layers[name][m]) for m in METRICS) + " |")
 out += ["", NOTE]
 
 print("\n".join(out))
