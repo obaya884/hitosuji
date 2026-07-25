@@ -77,9 +77,6 @@ const STATUS_ICON = {
   completed: <CheckIcon className="h-3 w-3" />,
 } as const;
 
-// プロジェクト・モードの未設定表記（§3.3）。見積もり未設定の `--:--` と同じく記号で不在を示す
-const UNSET_MARK = <span className="text-ink-faint">-</span>;
-
 // 画面定義書01 §3.2/§3.3。打刻・並び替えは後続ステップ
 export function DailyList({
   groups,
@@ -118,7 +115,7 @@ export function DailyList({
       <colgroup>
         <col className="w-10" />
         <col />
-        {/* プロジェクト列はモード列と同程度の固定幅にする（§3.3） */}
+        {/* プロジェクト・モードは同幅の固定幅（§3.3。収まらない名前は AssignCell で切り詰める） */}
         <col className="w-32" />
         <col className="w-32" />
         <col className="w-24" />
@@ -488,45 +485,28 @@ function TaskRow({
           </span>
         )}
       </td>
-      <td className={`relative py-2.5 text-sm ${dimmed}`}>
-        {/* プロジェクト選択ポップオーバー（O-5）。セル全体を押せるようにし、
-            列幅に収まらない名前は切り詰める（§3.3。行高は変えない） */}
-        <button
-          type="button"
-          onClick={() => onBeginEdit(task, "project")}
-          aria-label={`プロジェクト（${project?.name ?? "未設定"}）`}
-          className="block max-w-full truncate text-left hover:underline"
-        >
-          {project?.name ?? UNSET_MARK}
-        </button>
-        {editing === "project" && (
-          <SelectPopover
-            options={toOptions(projects, "プロジェクトなし")}
-            selectedId={task.projectId}
-            onSelect={(id) => onAssign(task, "project", id)}
-            onClose={onEndEdit}
-          />
-        )}
-      </td>
-      <td className={`relative py-2.5 text-sm ${dimmed}`}>
-        {/* モード選択ポップオーバー（O-5） */}
-        <button
-          type="button"
-          onClick={() => onBeginEdit(task, "mode")}
-          aria-label={`モード（${mode?.name ?? "未設定"}）`}
-          className="hover:underline"
-        >
-          {mode?.name ?? UNSET_MARK}
-        </button>
-        {editing === "mode" && (
-          <SelectPopover
-            options={toOptions(modes, "モードなし", true)}
-            selectedId={task.modeId}
-            onSelect={(id) => onAssign(task, "mode", id)}
-            onClose={onEndEdit}
-          />
-        )}
-      </td>
+      <AssignCell
+        label="プロジェクト"
+        name={project?.name}
+        options={toOptions(projects, "プロジェクトなし")}
+        selectedId={task.projectId}
+        dimmed={dimmed}
+        isEditing={editing === "project"}
+        onOpen={() => onBeginEdit(task, "project")}
+        onSelect={(id) => onAssign(task, "project", id)}
+        onClose={onEndEdit}
+      />
+      <AssignCell
+        label="モード"
+        name={mode?.name}
+        options={toOptions(modes, "モードなし", true)}
+        selectedId={task.modeId}
+        dimmed={dimmed}
+        isEditing={editing === "mode"}
+        onOpen={() => onBeginEdit(task, "mode")}
+        onSelect={(id) => onAssign(task, "mode", id)}
+        onClose={onEndEdit}
+      />
       <td className="py-2.5 text-right font-mono tabular-nums">
         {editing === "estimate" ? (
           <input
@@ -646,5 +626,57 @@ function TaskRow({
         )}
       </td>
     </tr>
+  );
+}
+
+/**
+ * プロジェクト列・モード列のセル（§3.3「プロジェクト列・モード列の共通規則」/ O-5）。
+ * 2列は同じ見た目・同じ表記に揃える規則のため、片方だけ変わらないよう1つに集約する。
+ * セル全体を押せるようにし、列幅に収まらない名前は切り詰める（行高は変えない。N-05）
+ */
+function AssignCell({
+  label,
+  name,
+  options,
+  selectedId,
+  dimmed,
+  isEditing,
+  onOpen,
+  onSelect,
+  onClose,
+}: Readonly<{
+  /** 列の名前。未設定行でもボタンの用途が読めるよう aria-label に使う */
+  label: string;
+  /** 割り当て済みマスタの名前。未設定なら undefined */
+  name?: string;
+  options: readonly PopoverOption[];
+  selectedId: number | null;
+  /** モード未設定の行を既定のグレーにするクラス（呼び出し側が行単位で決める） */
+  dimmed: string;
+  isEditing: boolean;
+  onOpen: () => void;
+  onSelect: (id: number | null) => void;
+  onClose: () => void;
+}>) {
+  return (
+    <td className={`relative py-2.5 text-sm ${dimmed}`}>
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={`${label}（${name ?? "未設定"}）`}
+        className="block max-w-full truncate text-left hover:underline"
+      >
+        {/* 未設定は薄色の `-`。見積もり未設定の `--:--` と同じく記号で不在を示す（§3.3） */}
+        {name ?? <span className="text-ink-faint">-</span>}
+      </button>
+      {isEditing && (
+        <SelectPopover
+          options={options}
+          selectedId={selectedId}
+          onSelect={onSelect}
+          onClose={onClose}
+        />
+      )}
+    </td>
   );
 }
