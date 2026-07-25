@@ -191,33 +191,39 @@ function renderStateful(
     orderedTasks?: readonly Task[];
   }> = {}
 ) {
+  // 既定値は分割代入で与える（?? だと明示した null が既定値に化け、未選択を書けなくなる）
+  const { selectedId = RUNNING.id, showHelp = false, orderedTasks = TASKS } = initial;
   const { spies, quickAdd } = makeSpies();
   const view = renderHook(useShortcutsWithState, {
     initialProps: {
       spies,
       quickAdd,
-      initialSelectedId: initial.selectedId ?? RUNNING.id,
-      initialShowHelp: initial.showHelp ?? false,
-      orderedTasks: initial.orderedTasks ?? TASKS,
+      initialSelectedId: selectedId,
+      initialShowHelp: showHelp,
+      orderedTasks,
     },
   });
   return { state: view.result, spies };
 }
 
-/** window へキーを送り、preventDefault されたかを返す（§6・00_共通 §3: 既定動作の抑止は最小化） */
-function pressDefaultPrevented(key: string, init: KeyboardEventInit = {}): boolean {
-  return !fireEvent.keyDown(window, { key, ...init });
+/** 指定要素（既定は window）へキーを送り、既定動作が保たれたか（＝抑止されなかったか）を返す */
+function pressKey(
+  key: string,
+  init: KeyboardEventInit = {},
+  target: Window | Element = window
+): boolean {
+  return fireEvent.keyDown(target, { key, ...init });
 }
 
-/** window へキーを送る（既定動作の抑止を見ないとき用） */
-function pressKey(key: string, init: KeyboardEventInit = {}): void {
-  pressDefaultPrevented(key, init);
+/** preventDefault されたかを返す（§6・00_共通 §3: 既定動作の抑止は最小化） */
+function pressDefaultPrevented(key: string, init: KeyboardEventInit = {}): boolean {
+  return !pressKey(key, init);
 }
 
 /** §6 の全キーを順に送る（除外規則が全ショートカットに効くかの検証用） */
 function pressAll(target: Window | Element = window, extraInit: KeyboardEventInit = {}) {
   for (const [key, init] of ALL_SHORTCUT_KEYS) {
-    fireEvent.keyDown(target, { key, ...init, ...extraInit });
+    pressKey(key, { ...init, ...extraInit }, target);
   }
 }
 
@@ -282,6 +288,14 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
       expect(state.current.selectedId).toBe(NEXT_UP.id);
     });
 
+    it("未選択のまま J を押すと先頭行が選択される（§5: 選択行は常に1つ）", () => {
+      const { state } = renderStateful({ selectedId: null });
+
+      pressKey("j");
+
+      expect(state.current.selectedId).toBe(COMPLETED.id);
+    });
+
     it("矢印キーは選択行に割り当てない（§6 / FB-33）", () => {
       const { state, spies } = renderStateful({ selectedId: RUNNING.id });
 
@@ -289,6 +303,9 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
       pressKey("ArrowUp");
 
       expect(state.current.selectedId).toBe(RUNNING.id);
+      // setSelectedId / setShowHelp は本物の useState に差し替わっているので、この
+      // expectNothingCalled が見るのは残り（打刻・行操作・日付移動・編集）。
+      // 選択が動いていないことは上の据え置き assert が担う
       expectNothingCalled(spies);
     });
   });
@@ -325,9 +342,22 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
       const { spies } = renderShortcuts();
       const { button } = renderFocusTargets();
 
-      fireEvent.keyDown(button, { key: "Enter" });
+      pressKey("Enter", {}, button);
 
       expectNothingCalled(spies);
+    });
+
+    // 除外するのは Enter だけ。打刻ボタンを押した直後はそのボタンにフォーカスが残るので、
+    // ここで他のキーまで殺すと打刻ループの途中で選択移動・削除が効かなくなる
+    it("ボタンにフォーカスがあっても Enter 以外のショートカットは効く", () => {
+      const { state, spies } = renderStateful({ selectedId: RUNNING.id });
+      const { button } = renderFocusTargets();
+
+      pressKey("d", {}, button); // この時点の選択は RUNNING
+      pressKey("j", {}, button);
+
+      expect(spies.operate).toHaveBeenCalledWith(RUNNING, "delete");
+      expect(state.current.selectedId).toBe(NEXT_UP.id);
     });
   });
 
@@ -352,7 +382,6 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
 
       expectNothingCalled(spies);
     });
-
   });
 
   describe("取り消し（§6 U・切り分けの正は O-13）", () => {
@@ -623,9 +652,11 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
   describe("既定動作の抑止は最小限（§6 / 00_共通 §3）", () => {
     // 止める側だけを列挙し、止めない側は §6 の全キーからの差集合で導く（一覧を二重に持たない）
     it("§6 の全キーを止める側・止めない側のどちらかに分類している", () => {
+      // 止める側に §6 の一覧に無いキーを書くと、そのキーは下の表に載っても意味を持たない
       expect(ALL_SHORTCUT_KEYS.map(([key]) => key)).toEqual(
         expect.arrayContaining([...PREVENT_DEFAULT_KEYS])
       );
+      // 件数の一致は止める側の重複（同じキーの二重記載）を検出する。差集合は重複を吸収するため
       expect(KEEP_DEFAULT_KEYS.length + PREVENT_DEFAULT_KEYS.length).toBe(
         ALL_SHORTCUT_KEYS.length
       );
