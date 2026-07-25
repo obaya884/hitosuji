@@ -30,7 +30,7 @@
 
 - **自動マージ・CI 必須チェック化（ブランチ保護）は設けない**（T-01 の「検証のみ・手動マージ」方針の継承）。`main` への push・PR マージは常にオーナーの合図が前提で、ヘッドエージェントにも自動マージ権を与えない。ワーカーが push できるのは feature ブランチのみ
 - 並行時のマージはヘッドが**マージキュー**で逐次調停する: 1本マージ → 残ブランチを rebase → CI 再走 → 次（並行度2〜3ならこれで十分。自動化しない）
-- **rebase 後の force push はオーナーが実行する**。通常の push はワーカーもヘッドも通るが、`git push --force-with-lease` は**AI セッションからは拒否される**（`.claude/settings.json` の allow ルールに完全一致する形でも通らないため、permission ルールより手前で止められている）。ヘッドは rebase までを済ませ、`! git push --force-with-lease origin <ブランチ>` をオーナーに渡す。ヘッドが本体ワークツリーから叩く場合も、ref はワークツリー間で共有されるので `cd` は不要（`cd` を前置すると前方一致の allow ルールから外れる）
+- **rebase 後の force push は現状オーナーが実行する**。通常の push はワーカーもヘッドも通るが、`git push --force-with-lease` は AI セッションから拒否される。原因は**ユーザーグローバル設定（`~/.claude/settings.json`）の deny ルール `Bash(git push --force*)` が `--force-with-lease` まで拾うこと**——文字列として `--force` から始まるため一致し、かつ **deny は allow より優先される**ので、プロジェクト側（`.claude/settings.json`）にどれだけ allow を足しても覆せない。解消するにはグローバルの deny を狭める必要があり（例: `Bash(git push --force )` と末尾に空白を置けば、`--force-with-lease` は `--force` の直後が `-` なので一致しなくなる）、**これは AI 自身の制約を緩める変更なのでオーナーが判断・適用する**。当面はヘッドが rebase までを済ませ、`! git push --force-with-lease origin <ブランチ>` をオーナーに渡す
 - **スキーマ変更を含むブランチは常に最大1本**とし、マージキューの先頭付近に置く（§3.3）
 
 ## 2. 並行開発体制（ヘッド1＋ワーカーN）
