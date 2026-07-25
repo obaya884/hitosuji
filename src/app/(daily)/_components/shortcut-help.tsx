@@ -21,7 +21,11 @@ const SHORTCUTS = [
   { keys: "Shift+J / Shift+K", description: "タスクの並び替え（下へ / 上へ）" },
   { keys: "Y", description: "選択タスクの複製", mnemonic: "Yank" },
   { keys: "D", description: "削除" },
-  { keys: "U", description: "取り消し（削除の取り消しを優先。なければ実行中選択中は開始打刻）", mnemonic: "Undo" },
+  {
+    keys: "U",
+    description: "取り消し（保留中の取り消しを優先 / 実行中は開始打刻 / 完了は未実行へ）",
+    mnemonic: "Undo",
+  },
   { keys: "Shift+H / Shift+L / T", description: "前日 / 翌日 / 今日へ移動" },
   { keys: "G", description: "日付を選んでジャンプ（カレンダーを開く）", mnemonic: "Go to date" },
   { keys: "?", description: "この一覧の表示・非表示" },

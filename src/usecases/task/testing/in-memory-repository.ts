@@ -31,6 +31,14 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
 
   const indexOf = (id: TaskId) => rows.findIndex((r) => r.id === id);
 
+  /** section_id・sort_order のまとめ更新（自動セクション移動 F-113・打刻の取り消しの並べ直し） */
+  const applyRelocations = (relocations: Relocations | null | undefined) => {
+    for (const row of relocations ?? []) {
+      const i = indexOf(row.taskId);
+      rows[i] = { ...rows[i], sectionId: row.sectionId, sortOrder: row.sortOrder };
+    }
+  };
+
   return {
     rows,
     skips,
@@ -92,10 +100,7 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
         });
       }
       // 自動セクション移動（F-113 §4.2-a）は打刻と同じ操作の中で反映する
-      for (const row of command.relocation ?? []) {
-        const j = indexOf(row.taskId);
-        rows[j] = { ...rows[j], sectionId: row.sectionId, sortOrder: row.sortOrder };
-      }
+      applyRelocations(command.relocation);
       const i = indexOf(taskId);
       rows[i] = { ...rows[i], startedAt };
     },
@@ -107,11 +112,8 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
     ) => {
       const i = indexOf(id);
       rows[i] = { ...rows[i], ...punch };
-      // 開始時刻の修正に伴うセクション移動（§4.2-c）
-      for (const row of relocation ?? []) {
-        const j = indexOf(row.taskId);
-        rows[j] = { ...rows[j], sectionId: row.sectionId, sortOrder: row.sortOrder };
-      }
+      // 開始時刻の修正に伴うセクション移動（§4.2-c）・完了の取り消しの復帰（§4.7）
+      applyRelocations(relocation);
     },
 
     finish: async (id: TaskId, endedAt: Date) => {
@@ -123,10 +125,14 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
     undoStart: async (id: TaskId, relocation?: Relocations | null) => {
       const i = indexOf(id);
       rows[i] = { ...rows[i], startedAt: null };
-      for (const row of relocation ?? []) {
-        const j = indexOf(row.taskId);
-        rows[j] = { ...rows[j], sectionId: row.sectionId, sortOrder: row.sortOrder };
-      }
+      applyRelocations(relocation);
+    },
+
+    // 完了の取り消し（F-212）。started_at・ended_at をともに null に戻す
+    undoComplete: async (id: TaskId, relocation?: Relocations | null) => {
+      const i = indexOf(id);
+      rows[i] = { ...rows[i], startedAt: null, endedAt: null };
+      applyRelocations(relocation);
     },
 
     // 複製して開始（F-208 / §4.6）。割り込みなら終了・再開タスク生成も伴う
@@ -222,10 +228,7 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
     },
 
     relocate: async (relocations: Relocations) => {
-      for (const row of relocations) {
-        const i = indexOf(row.taskId);
-        rows[i] = { ...rows[i], sectionId: row.sectionId, sortOrder: row.sortOrder };
-      }
+      applyRelocations(relocations);
     },
   };
 }

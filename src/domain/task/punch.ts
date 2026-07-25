@@ -3,7 +3,11 @@ import { err, ok, type Result } from "../shared/result";
 import { taskStatus } from "./status";
 import { actualMinutes, type Task, type TaskId } from "./task";
 
-export type PunchError = "already_started" | "not_running" | "ended_before_started";
+export type PunchError =
+  | "already_started"
+  | "not_running"
+  | "not_completed"
+  | "ended_before_started";
 
 /**
  * 再開タスクの見積もり（データモデル定義書 §4.2）。
@@ -46,6 +50,20 @@ export function canStart(task: Task): Result<Task, PunchError> {
 /** 開始打刻を取り消せるのは実行中タスクのみ（F-210）。完了・未実行は対象外 */
 export function canUndoStart(task: Task): Result<Task, PunchError> {
   return taskStatus(task) === "running" ? ok(task) : err("not_running");
+}
+
+/** 打刻2列がそろったタスク（完了。終了があれば開始も必ずある——`ck_tasks_time`） */
+export type CompletedTask = Task & Readonly<{ startedAt: Date; endedAt: Date }>;
+
+/**
+ * 完了を取り消せるのは完了タスクのみ（F-212）。未実行・実行中は対象外。
+ * 復帰用のスナップショット（データモデル定義書 §4.7）を組めるよう打刻2列を絞り込んで返す
+ */
+export function canUndoComplete(task: Task): Result<CompletedTask, PunchError> {
+  if (taskStatus(task) !== "completed" || task.startedAt === null || task.endedAt === null) {
+    return err("not_completed");
+  }
+  return ok({ ...task, startedAt: task.startedAt, endedAt: task.endedAt });
 }
 
 /** 終了・中断できるのは実行中タスクのみ（F-201/F-204） */

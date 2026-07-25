@@ -44,6 +44,28 @@ async function applyRelocations(
   }
 }
 
+/**
+ * 打刻列の書き込み（修正 F-203 §4.2-c / 開始の取り消し F-210 §4.5 / 完了の取り消し F-212 §4.7）。
+ * 渡された列だけを更新し、伴う並べ直し・戻し位置があれば同一トランザクションで反映する
+ */
+async function writePunch(
+  db: Database,
+  id: TaskId,
+  punch: Readonly<Partial<Pick<Task, "startedAt" | "endedAt">>>,
+  relocation: Relocations | null | undefined
+): Promise<void> {
+  const now = new Date();
+  if (relocation === undefined || relocation === null || relocation.length === 0) {
+    await db.update(tasks).set({ ...punch, updatedAt: now }).where(eq(tasks.id, id));
+    return;
+  }
+
+  await db.transaction(async (tx) => {
+    await tx.update(tasks).set({ ...punch, updatedAt: now }).where(eq(tasks.id, id));
+    await applyRelocations(tx, relocation);
+  });
+}
+
 function toDomain(row: Row): Task {
   return {
     id: row.id,
@@ -144,47 +166,27 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
       });
     },
 
+    // 打刻の修正と、それに伴うセクション移動（§4.2-c）・完了への復帰（§4.7）を1トランザクションで反映する
     async updatePunch(
       id: TaskId,
       punch: Readonly<{ startedAt: Date; endedAt: Date | null }>,
       relocation?: Relocations | null
     ) {
-      const now = new Date();
-      if (relocation === undefined || relocation === null) {
-        await db
-          .update(tasks)
-          .set({ ...punch, updatedAt: now })
-          .where(eq(tasks.id, id));
-        return;
-      }
-
-      // 打刻の修正と、それに伴うセクション移動（§4.2-c）を1トランザクションで反映する
-      await db.transaction(async (tx) => {
-        await tx
-          .update(tasks)
-          .set({ ...punch, updatedAt: now })
-          .where(eq(tasks.id, id));
-        await applyRelocations(tx, relocation);
-      });
+      await writePunch(db, id, punch, relocation);
     },
 
     async finish(id: TaskId, endedAt: Date) {
       await db.update(tasks).set({ endedAt, updatedAt: new Date() }).where(eq(tasks.id, id));
     },
 
-    // 開始打刻の取り消し（F-210）。started_at を null に戻し、未実行への並べ直しがあれば
-    // 同一トランザクションで反映する（データモデル定義書 §4.5）
+    // 開始打刻の取り消し（F-210 / データモデル定義書 §4.5）。started_at だけを null に戻す
     async undoStart(id: TaskId, relocation?: Relocations | null) {
-      const now = new Date();
-      if (relocation === undefined || relocation === null || relocation.length === 0) {
-        await db.update(tasks).set({ startedAt: null, updatedAt: now }).where(eq(tasks.id, id));
-        return;
-      }
+      await writePunch(db, id, { startedAt: null }, relocation);
+    },
 
-      await db.transaction(async (tx) => {
-        await tx.update(tasks).set({ startedAt: null, updatedAt: now }).where(eq(tasks.id, id));
-        await applyRelocations(tx, relocation);
-      });
+    // 完了の取り消し（F-212 / データモデル定義書 §4.7）。started_at・ended_at をともに null に戻す
+    async undoComplete(id: TaskId, relocation?: Relocations | null) {
+      await writePunch(db, id, { startedAt: null, endedAt: null }, relocation);
     },
 
     // 複製して開始は「（割り込みなら）終了 → 再開タスク生成 → 複製タスクを開始済みで生成」を
