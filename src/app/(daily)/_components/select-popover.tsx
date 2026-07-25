@@ -5,6 +5,7 @@ import { CheckIcon } from "@/app/_components/icons";
 import { floatPanel } from "@/app/_lib/ui";
 import { useDismiss } from "@/app/_lib/use-dismiss";
 import { useFlipUp } from "@/app/_lib/use-flip-up";
+import { revealedScrollTop } from "../_lib/popover-scroll";
 
 export type PopoverOption = Readonly<{
   id: number | null;
@@ -80,12 +81,21 @@ export function SelectPopover({ options, selectedId, onSelect, onClose }: Props)
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [activeIndex, options, onSelect, onClose]);
 
-  // アクティブな候補をポップオーバーの表示領域内へスクロールする。
+  // アクティブな候補をパネルの表示領域内へスクロールする（パネル自身の scrollTop だけを動かす。
+  // ドキュメントを動かさない理由と計算は popover-scroll.ts）。
   // 区切り線（§4.3）も子要素として並ぶため、子の順番ではなく候補の index を直に引く
   useEffect(() => {
-    ref.current?.querySelector(`[data-option-index="${activeIndex}"]`)?.scrollIntoView({
-      block: "nearest",
-    });
+    const panel = ref.current;
+    if (panel === null) return;
+    const active = panel.querySelector(`[data-option-index="${activeIndex}"]`);
+    if (active === null) return;
+
+    const panelBox = panel.getBoundingClientRect();
+    const activeBox = active.getBoundingClientRect();
+    panel.scrollTop = revealedScrollTop(
+      { top: panelBox.top, bottom: panelBox.bottom, scrollTop: panel.scrollTop },
+      { top: activeBox.top, bottom: activeBox.bottom }
+    );
   }, [activeIndex, ref]);
 
   return (
