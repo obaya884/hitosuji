@@ -28,13 +28,6 @@ METRICS = ("statements", "branches", "functions", "lines")
 # CI が既存コメントを見つけて更新するための目印（ci.yml は本文1行目をそのまま使う）。
 # 消すとコメントが実行ごとに増える
 MARKER = "<!-- coverage-summary -->"
-# 数字の読み方だけを添える。方針そのものはアーキテクチャ定義書 §8 が正
-NOTE = (
-    "数値ゲートを設けない補助指標。**全体値ではなく層ごとの数字で読む**"
-    "——`src/app`（Server Actions・hooks）と `src`（`proxy.ts`）が低いのは "
-    "presentation を自動テストの対象外に置いた結果で、テストが薄いわけではない"
-    "（アーキテクチャ定義書 §8）。"
-)
 
 if not os.path.exists(SUMMARY):
     sys.exit(f"{SUMMARY} がありません。先に npm run test:coverage を実行してください")
@@ -72,9 +65,9 @@ for key, value in data.items():
 
 out = [MARKER, "## テストカバレッジ", ""]
 
-# 全体値は分母つきで出す（vitest の text-summary reporter と同じ見た目・桁数）。
+# 全体値は分母つきで出す（vitest の text-summary reporter と同じ見出し・見た目・桁数）。
 # 表の側は層の比較が目的なので割合だけに絞る
-out.append("```")
+out += ["**Coverage summary**", "", "```"]
 for metric in METRICS:
     entry = data["total"][metric]
     out.append(f"{metric.capitalize():<13}: {pct(entry)}% ( {entry['covered']}/{entry['total']} )")
@@ -86,7 +79,6 @@ out += [
 ]
 for name in sorted(layers):
     out.append(f"| `{name}` | " + " | ".join(pct(layers[name][m]) for m in METRICS) + " |")
-out += ["", NOTE]
 
 print("\n".join(out))
 PY
