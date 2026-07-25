@@ -8,8 +8,9 @@
 # worktree は ../hitosuji-wt/<ブランチ名> に作られ、テストDBは db-test コンテナ内の
 # hitosuji_test_<ブランチ名の - を _ に置換> を使う。起点の既定は main。
 #
-# 注意: dev サーバ・実機確認はヘッド側（本体ワークツリー）で行う運用のため .env.local はコピーしない。
-#       起点を最新にしたい場合は実行前に git fetch / pull しておくこと。
+# dev サーバは worktree ごとに固有ポート（3001 から空きを探す）で起動できる。本体の .env.local を
+# リンクし、開発DB（:5432）は本体と共有する。起動はオーナーが自分のターミナルで行う（§3.2）。
+# 起点を最新にしたい場合は実行前に git fetch / pull しておくこと。
 set -eu
 
 name="${1:-}"
@@ -50,9 +51,30 @@ fi
 git worktree add "$wt_dir" -b "$name" "$base"
 (cd "$wt_dir" && npm ci)
 
-# vitest.config.ts が読む（シェルから渡された TEST_DATABASE_URL が常に優先）。値は開発用の固定資格情報のみ
-printf 'TEST_DATABASE_URL=postgresql://hitosuji:hitosuji@localhost:5433/%s\n' "$db_name" > "$wt_dir/.env.worktree"
+# dev サーバ用の空きポートを 3001 から探す（T-34）。本体の :3000 とは必ず別にする
+dev_port=3001
+while [ "$dev_port" -lt 3100 ] && lsof -ti:"$dev_port" >/dev/null 2>&1; do
+  dev_port=$((dev_port + 1))
+done
+
+# vitest.config.ts が TEST_DATABASE_URL を、scripts/dev.sh が DEV_PORT を読む
+# （どちらもシェルから渡された値が優先）。値は開発用の固定資格情報とポートのみ
+{
+  printf 'TEST_DATABASE_URL=postgresql://hitosuji:hitosuji@localhost:5433/%s\n' "$db_name"
+  printf 'DEV_PORT=%s\n' "$dev_port"
+} > "$wt_dir/.env.worktree"
+
+# dev サーバは本体の .env.local（DATABASE_URL 等）を参照する。コピーではなくリンクにして
+# 資格情報の実体を1か所に保つ（.gitignore の .env* でリンクも git から外れる）。
+# 開発DBは本体と共有する（worktree ごとに複製しない。§3.2）
+env_local="$(pwd)/.env.local"
+if [ -f "$env_local" ]; then
+  ln -s "$env_local" "$wt_dir/.env.local"
+else
+  echo "警告: 本体に .env.local がないため dev サーバ用のリンクを張れませんでした（テストには影響しません）" >&2
+fi
 
 echo ""
 echo "worktree を作成しました: ${wt_dir}（ブランチ: ${name} / テストDB: ${db_name}）"
-echo "dev サーバ・実機確認はヘッド側（本体ワークツリー）で行ってください"
+echo "dev サーバ: cd ${wt_dir} && npm run dev  →  http://localhost:${dev_port}"
+echo "  開発DBは本体と共有します。同時に打刻・削除すると互いに干渉するので、データを触る確認は1つずつ行ってください"
