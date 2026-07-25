@@ -8,6 +8,7 @@ import type { Section } from "@/domain/section/section";
 import { formatClock } from "@/app/_lib/format";
 import { groupTasksBySection } from "@/domain/task/daily-list";
 import type { Task } from "@/domain/task/task";
+import type { CompletionSnapshot } from "@/usecases/task/punch-usecases";
 import {
   addTaskAction,
   createRoutineFromTaskAction,
@@ -143,6 +144,25 @@ function defaultTasks(): Task[] {
   ];
 }
 
+/** 完了の取り消し（O-15）が返す復帰用スナップショット（データモデル定義書 §4.7 の4列） */
+const SNAPSHOT: CompletionSnapshot = {
+  taskId: 13,
+  startedAt: at("09:00"),
+  endedAt: at("09:20"),
+  sectionId: 2,
+  sortOrder: 1000,
+};
+
+// 返り値が ActionResult でないアクションの型（`hold` と mock の記述を1行に収める）
+type DeleteResult = Awaited<ReturnType<typeof deleteTaskAction>>;
+type UndoCompleteResult = Awaited<ReturnType<typeof undoCompleteAction>>;
+
+// `hold` の保険用の値。テスト本体が解決すれば使われない（値そのものに意味はない）
+const CLEANUP_OK: DailyActionResult = { ok: true };
+const CLEANUP_CREATED: CreatingActionResult = { ok: true, createdId: 99 };
+const CLEANUP_DELETED: DeleteResult = { ok: true, deleted: makeTask({ id: 0, name: "片付け" }) };
+const CLEANUP_UNCOMPLETED: UndoCompleteResult = { ok: true, snapshot: SNAPSHOT };
+
 type BoardProps = ComponentProps<typeof DailyBoard>;
 
 function boardProps(tasks: readonly Task[], over: Partial<BoardProps>): BoardProps {
@@ -172,11 +192,14 @@ function renderBoard(tasks: readonly Task[] = defaultTasks(), over: Partial<Boar
 /**
  * Server Action を保留させ、解決の瞬間をテストが握る（楽観的更新の「確定前」を観測するため）。
  * React は未完了の非同期アクションを束ねて扱うので、**解決し忘れた保留は後続テストの巻き戻しまで
- * 止めてしまう**（嘘の赤になる）。取りこぼしても壊れないよう afterEach が既定値で解決する
+ * 止めてしまう**（嘘の赤になる）。取りこぼしても壊れないよう afterEach が保険で解決する
+ *
+ * @param settleOnCleanup afterEach の保険で使う値（テスト本体が `resolve` すれば使われない）。
+ *   下の `CLEANUP_*` 定数を渡す——アクションごとの返り値の型もここで決まる
  */
 const heldGates: (() => Promise<void>)[] = [];
 
-function hold<T>(fallback: T) {
+function hold<T>(settleOnCleanup: T) {
   let settle: (value: T) => void = () => {};
   const promise = new Promise<T>((resolve) => {
     settle = resolve;
@@ -190,9 +213,14 @@ function hold<T>(fallback: T) {
     });
   };
   heldGates.push(async () => {
-    if (!done) await resolve(fallback);
+    if (!done) await resolve(settleOnCleanup);
   });
   return { promise, resolve };
+}
+
+/** 表示順のタスク行（列見出し・セクション見出し行は除く） */
+function taskRows(): HTMLElement[] {
+  return screen.getAllByRole("row").filter((tr) => tr.querySelectorAll("td").length >= 2);
 }
 
 function row(name: string): HTMLElement {
@@ -201,19 +229,25 @@ function row(name: string): HTMLElement {
   return tr;
 }
 
-/** 表示順のタスク名（列見出し・セクション見出し行は除く）。並び替え・追加・削除の検証に使う */
+/** 表示順 index 番目のタスク行。複製（O-11/O-14）のように同名の行が並ぶ場合に使う */
+function rowAt(index: number): HTMLElement {
+  const rows = taskRows();
+  if (rows[index] === undefined) throw new Error(`${index} 番目の行がありません`);
+  return rows[index];
+}
+
+/** 表示順のタスク名。並び替え・追加・削除の検証に使う */
 function rowNames(): string[] {
-  return screen.getAllByRole("row").flatMap((tr) => {
-    const cells = tr.querySelectorAll("td");
-    if (cells.length < 2) return []; // セクション見出し行（colSpan の1セル）
-    const nameButton = cells[1].querySelector("button");
+  return taskRows().flatMap((tr) => {
+    const nameButton = tr.querySelectorAll("td")[1].querySelector("button");
     return nameButton === null ? [] : [nameButton.textContent ?? ""];
   });
 }
 
 /** 選択行の強調（§5）。行の地色で示す */
-function isSelected(name: string): boolean {
-  return row(name).classList.contains("bg-accent-weak");
+function isSelected(target: string | HTMLElement): boolean {
+  const tr = typeof target === "string" ? row(target) : target;
+  return tr.classList.contains("bg-accent-weak");
 }
 
 /** クリックでの行選択（§5: マウス操作とキーボード操作は等価） */
@@ -224,6 +258,23 @@ function selectRow(name: string) {
 /** グローバルショートカット（§6）。フックが window で購読しているので body へ送る */
 function press(key: string, init: KeyboardEventInit = {}) {
   fireEvent.keyDown(document.body, { key, ...init });
+}
+
+/** 解決済みの Server Action の後始末（トースト表示・選択移動）まで流す */
+async function settleActions() {
+  await act(async () => {});
+}
+
+async function pressAndSettle(key: string, init: KeyboardEventInit = {}) {
+  await act(async () => {
+    press(key, init);
+  });
+}
+
+async function clickAndSettle(element: HTMLElement) {
+  await act(async () => {
+    fireEvent.click(element);
+  });
 }
 
 function quickAddInput(): HTMLElement {
@@ -301,24 +352,20 @@ beforeEach(() => {
   }));
   vi.mocked(undoCompleteAction).mockImplementation(async (id) => ({
     ok: true,
-    snapshot: {
-      taskId: id,
-      startedAt: at("09:00"),
-      endedAt: at("09:20"),
-      sectionId: 2,
-      sortOrder: 1000,
-    },
+    snapshot: { ...SNAPSHOT, taskId: id },
   }));
 });
 
 afterEach(async () => {
   const gates = heldGates.splice(0, heldGates.length);
   for (const settleGate of gates) await settleGate();
+  // spy（window.confirm）を本物へ戻す。偽物が残ると後続テストが嘘の緑になる
+  vi.restoreAllMocks();
 });
 
 describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 → 失敗時はトースト＋ロールバック）", () => {
   it("開始打刻はサーバ確定を待たずに実行中として反映する", () => {
-    const gate = hold<DailyActionResult>({ ok: true });
+    const gate = hold(CLEANUP_OK);
     vi.mocked(startTaskAction).mockReturnValue(gate.promise);
     renderBoard();
 
@@ -329,7 +376,7 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
   });
 
   it("開始打刻の失敗はエラートーストを出して未実行へ巻き戻す", async () => {
-    const gate = hold<DailyActionResult>({ ok: true });
+    const gate = hold(CLEANUP_OK);
     vi.mocked(startTaskAction).mockReturnValue(gate.promise);
     renderBoard();
 
@@ -341,7 +388,7 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
   });
 
   it("タスク名の変更は確定前に反映し、失敗すると元の名前へ戻す", async () => {
-    const gate = hold<DailyActionResult>({ ok: true });
+    const gate = hold(CLEANUP_OK);
     vi.mocked(renameTaskAction).mockReturnValue(gate.promise);
     renderBoard();
     selectRow(NOT_STARTED);
@@ -358,7 +405,7 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
   });
 
   it("エラートーストは × で閉じられる（00_共通 §2.2）", async () => {
-    const gate = hold<DailyActionResult>({ ok: true });
+    const gate = hold(CLEANUP_OK);
     vi.mocked(startTaskAction).mockReturnValue(gate.promise);
     renderBoard();
 
@@ -370,7 +417,7 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
   });
 
   it("見積もりの変更は確定前に反映し、失敗すると元の値へ戻す", async () => {
-    const gate = hold<DailyActionResult>({ ok: true });
+    const gate = hold(CLEANUP_OK);
     vi.mocked(updateTaskEstimateAction).mockReturnValue(gate.promise);
     renderBoard();
     selectRow(NOT_STARTED);
@@ -385,19 +432,19 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
   });
 
   it("中断（O-4）は楽観的更新の対象外でサーバ確定まで実行中のまま", () => {
-    const gate = hold<DailyActionResult>({ ok: true });
+    const gate = hold(CLEANUP_OK);
     vi.mocked(suspendTaskAction).mockReturnValue(gate.promise);
     renderBoard();
     selectRow(RUNNING);
 
     press("i");
 
-    expect(vi.mocked(suspendTaskAction).mock.calls[0]).toEqual([12, NOW]);
+    expect(vi.mocked(suspendTaskAction)).toHaveBeenCalledWith(12, NOW);
     expect(within(row(RUNNING)).queryByLabelText("終了")).not.toBeNull();
   });
 
   it("複製（O-11）は採番をサーバが決めるため楽観的更新しない", () => {
-    const gate = hold<CreatingActionResult>({ ok: true, createdId: 99 });
+    const gate = hold(CLEANUP_CREATED);
     vi.mocked(duplicateTaskAction).mockReturnValue(gate.promise);
     renderBoard();
     selectRow(NOT_STARTED);
@@ -407,6 +454,23 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
     expect(vi.mocked(duplicateTaskAction)).toHaveBeenCalledWith(11);
     expect(rowNames()).toEqual([NOT_STARTED, RUNNING, COMPLETED]);
   });
+
+  it("複製（O-11）の確定後は選択を複製されたタスクへ移す", async () => {
+    vi.mocked(duplicateTaskAction).mockResolvedValue({ ok: true, createdId: 31 });
+    const { applyServerState } = renderBoard();
+    selectRow(NOT_STARTED);
+
+    await pressAndSettle("y");
+    // サーバが採番した複製（同名・未実施のトップ＝実行中タスクの直後）が現れる
+    applyServerState([
+      ...defaultTasks(),
+      makeTask({ id: 31, name: NOT_STARTED, sectionId: 1, sortOrder: 3000 }),
+    ]);
+
+    // 同名の行が2つ並ぶので位置で見る（複製元ではなく複製へ移っている）
+    expect(isSelected(rowAt(2))).toBe(true);
+    expect(isSelected(rowAt(0))).toBe(false);
+  });
 });
 
 describe("DailyBoard の打刻（F-201 / F-211 / §7: クライアントの現在時刻を送る）", () => {
@@ -415,7 +479,7 @@ describe("DailyBoard の打刻（F-201 / F-211 / §7: クライアントの現�
 
     fireEvent.click(within(row(NOT_STARTED)).getByLabelText("開始"));
 
-    expect(vi.mocked(startTaskAction).mock.calls[0]).toEqual([11, NOW]);
+    expect(vi.mocked(startTaskAction)).toHaveBeenCalledWith(11, NOW);
   });
 
   it("開始打刻の楽観的更新はクライアントの現在時刻をその場に表示する", () => {
@@ -431,7 +495,7 @@ describe("DailyBoard の打刻（F-201 / F-211 / §7: クライアントの現�
 
     fireEvent.click(within(row(RUNNING)).getByLabelText("終了"));
 
-    expect(vi.mocked(finishTaskAction).mock.calls[0]).toEqual([12, NOW]);
+    expect(vi.mocked(finishTaskAction)).toHaveBeenCalledWith(12, NOW);
     // 10:00 開始 → 10:30 終了 = 実績 0:30
     expect(within(row(RUNNING)).queryByText("→ 0:30")).not.toBeNull();
   });
@@ -461,9 +525,26 @@ describe("DailyBoard の打刻（F-201 / F-211 / §7: クライアントの現�
 
     press("Enter");
 
-    expect(vi.mocked(duplicateAndStartTaskAction).mock.calls[0]).toEqual([13, NOW]);
+    expect(vi.mocked(duplicateAndStartTaskAction)).toHaveBeenCalledWith(13, NOW);
     expect(vi.mocked(startTaskAction)).not.toHaveBeenCalled();
     expect(vi.mocked(finishTaskAction)).not.toHaveBeenCalled();
+  });
+
+  it("複製して開始（O-14）の確定後は選択を複製タスクへ移す", async () => {
+    vi.mocked(duplicateAndStartTaskAction).mockResolvedValue({ ok: true, createdId: 32 });
+    const { applyServerState } = renderBoard();
+    selectRow(COMPLETED);
+
+    await pressAndSettle("Enter");
+    // サーバが採番した複製（同名・実行中）が末尾に現れる
+    applyServerState([
+      ...defaultTasks(),
+      makeTask({ id: 32, name: COMPLETED, sectionId: 2, sortOrder: 2000, startedAt: NOW }),
+    ]);
+
+    // 同名の行が2つ並ぶので位置で見る（複製元は完了のまま残る）
+    expect(isSelected(rowAt(3))).toBe(true);
+    expect(isSelected(rowAt(2))).toBe(false);
   });
 
   it("完了タスクの打刻ボタンは操作なし（O-14: Enter 限定）", () => {
@@ -487,7 +568,7 @@ describe("DailyBoard の打刻（F-201 / F-211 / §7: クライアントの現�
 describe("DailyBoard の削除と取り消し（O-8 / F-115）", () => {
   it("削除は行を即座に消し、確定後に取り消せる Undo トーストを出す", async () => {
     const deleted = defaultTasks()[0];
-    const gate = hold<Awaited<ReturnType<typeof deleteTaskAction>>>({ ok: true, deleted });
+    const gate = hold(CLEANUP_DELETED);
     vi.mocked(deleteTaskAction).mockReturnValue(gate.promise);
     const { applyServerState } = renderBoard();
     selectRow(NOT_STARTED);
@@ -506,13 +587,9 @@ describe("DailyBoard の削除と取り消し（O-8 / F-115）", () => {
   it("Undo トーストの「取り消す」で削除したタスクを復元する", async () => {
     renderBoard();
     selectRow(NOT_STARTED);
-    await act(async () => {
-      press("d");
-    });
+    await pressAndSettle("d");
 
-    await act(async () => {
-      fireEvent.click(screen.getByText("取り消す"));
-    });
+    await clickAndSettle(screen.getByText("取り消す"));
 
     // 復元は削除で返ってきたタスクそのものを送る（並びも戻すため）
     expect(vi.mocked(restoreTaskAction)).toHaveBeenCalledWith(
@@ -525,22 +602,15 @@ describe("DailyBoard の削除と取り消し（O-8 / F-115）", () => {
     vi.mocked(restoreTaskAction).mockResolvedValue({ ok: false, message: "保存に失敗しました" });
     renderBoard();
     selectRow(NOT_STARTED);
-    await act(async () => {
-      press("d");
-    });
+    await pressAndSettle("d");
 
-    await act(async () => {
-      fireEvent.click(screen.getByText("取り消す"));
-    });
+    await clickAndSettle(screen.getByText("取り消す"));
 
     expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
   });
 
   it("削除の失敗は行を戻してエラートーストだけを出す（Undo は出さない）", async () => {
-    const gate = hold<Awaited<ReturnType<typeof deleteTaskAction>>>({
-      ok: false,
-      message: "保存に失敗しました",
-    });
+    const gate = hold(CLEANUP_DELETED);
     vi.mocked(deleteTaskAction).mockReturnValue(gate.promise);
     renderBoard();
     selectRow(NOT_STARTED);
@@ -555,8 +625,9 @@ describe("DailyBoard の削除と取り消し（O-8 / F-115）", () => {
   });
 
   it("打刻済みタスクの削除は確認を挟み、キャンセルすると削除しない（O-8）", () => {
-    const confirm = vi.fn().mockReturnValue(false);
-    vi.stubGlobal("confirm", confirm);
+    // スタブではなく spy にする（afterEach の restoreAllMocks で本物へ戻り、
+    // 後続のテストに「常に false を返す confirm」が residue として残らない）
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     renderBoard();
 
     chooseRowMenu(COMPLETED, "削除");
@@ -576,14 +647,14 @@ describe("DailyBoard の完了の取り消し（O-15 / F-212）", () => {
       sectionId: 2,
       sortOrder: 1000,
     };
-    const gate = hold<Awaited<ReturnType<typeof undoCompleteAction>>>({ ok: true, snapshot });
+    const gate = hold(CLEANUP_UNCOMPLETED);
     vi.mocked(undoCompleteAction).mockReturnValue(gate.promise);
     const { applyServerState } = renderBoard();
     selectRow(COMPLETED);
 
     press("u");
     // 楽観的更新は打刻2列のクリアだけ（並べ直しはサーバ確定後。O-15）
-    expect(vi.mocked(undoCompleteAction).mock.calls[0]).toEqual([13, NOW]);
+    expect(vi.mocked(undoCompleteAction)).toHaveBeenCalledWith(13, NOW);
     expect(within(row(COMPLETED)).queryByText(clock(at("09:00")))).toBeNull();
     expect(within(row(COMPLETED)).queryByText("→ 0:20")).toBeNull();
 
@@ -600,13 +671,9 @@ describe("DailyBoard の完了の取り消し（O-15 / F-212）", () => {
   it("Undo トーストの「取り消す」はスナップショットで完了状態へ復帰させる", async () => {
     renderBoard();
     selectRow(COMPLETED);
-    await act(async () => {
-      press("u");
-    });
+    await pressAndSettle("u");
 
-    await act(async () => {
-      fireEvent.click(screen.getByText("取り消す"));
-    });
+    await clickAndSettle(screen.getByText("取り消す"));
 
     expect(vi.mocked(restoreCompletionAction)).toHaveBeenCalledWith({
       taskId: 13,
@@ -618,10 +685,7 @@ describe("DailyBoard の完了の取り消し（O-15 / F-212）", () => {
   });
 
   it("完了の取り消しが失敗したら打刻を戻してエラートーストを出す", async () => {
-    const gate = hold<Awaited<ReturnType<typeof undoCompleteAction>>>({
-      ok: false,
-      message: "保存に失敗しました",
-    });
+    const gate = hold(CLEANUP_UNCOMPLETED);
     vi.mocked(undoCompleteAction).mockReturnValue(gate.promise);
     renderBoard();
     selectRow(COMPLETED);
@@ -640,13 +704,9 @@ describe("DailyBoard の U の切り分け（O-13: 保留 → 実行中 → 完�
   it("取り消しの保留があるあいだの U は保留の解決を最優先する（開始取消に化けない）", async () => {
     renderBoard();
     selectRow(NOT_STARTED);
-    await act(async () => {
-      press("d"); // 削除で選択は現在地（実行中タスク）へ移る
-    });
+    await pressAndSettle("d"); // 削除で選択は現在地（実行中タスク）へ移る
 
-    await act(async () => {
-      press("u");
-    });
+    await pressAndSettle("u");
 
     expect(vi.mocked(restoreTaskAction)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(undoStartAction)).not.toHaveBeenCalled();
@@ -658,7 +718,7 @@ describe("DailyBoard の U の切り分け（O-13: 保留 → 実行中 → 完�
 
     press("u");
 
-    expect(vi.mocked(undoStartAction).mock.calls[0]).toEqual([12, NOW]);
+    expect(vi.mocked(undoStartAction)).toHaveBeenCalledWith(12, NOW);
     // 楽観的更新は打刻のクリアだけ（並べ直しはサーバ確定後）
     expect(within(row(RUNNING)).queryByLabelText("開始")).not.toBeNull();
   });
@@ -677,14 +737,10 @@ describe("DailyBoard の U の切り分け（O-13: 保留 → 実行中 → 完�
   it("取り消しの保留は削除と完了の取り消しで共通の1スロット（後から来た削除が置き換える）", async () => {
     renderBoard();
     selectRow(COMPLETED);
-    await act(async () => {
-      press("u"); // 完了の取り消し → 保留は「未実行に戻しました」
-    });
+    await pressAndSettle("u"); // 完了の取り消し → 保留は「未実行に戻しました」
     selectRow(NOT_STARTED);
 
-    await act(async () => {
-      press("d"); // 削除 → 保留は「削除しました」へ置き換わる
-    });
+    await pressAndSettle("d"); // 削除 → 保留は「削除しました」へ置き換わる
 
     expect(screen.queryByText(`「${COMPLETED}」を未実行に戻しました`)).toBeNull();
     expect(screen.queryByText(`「${NOT_STARTED}」を削除しました`)).not.toBeNull();
@@ -694,7 +750,7 @@ describe("DailyBoard の U の切り分け（O-13: 保留 → 実行中 → 完�
 
 describe("DailyBoard のクイック追加（§3.4 / F-102）", () => {
   it("Enter で楽観的に行を出し、欄をクリアする", () => {
-    const gate = hold<CreatingActionResult>({ ok: true, createdId: 99 });
+    const gate = hold(CLEANUP_CREATED);
     vi.mocked(addTaskAction).mockReturnValue(gate.promise);
     renderBoard();
 
@@ -722,6 +778,10 @@ describe("DailyBoard のクイック追加（§3.4 / F-102）", () => {
     renderBoard();
 
     press("a");
+    // Esc の効果を見る前に、A でフォーカスが当たっていること自体を確かめる
+    // （当たっていなければ「外れた」の主張は何も検証していない）
+    expect(document.activeElement).toBe(quickAddInput());
+
     fireEvent.keyDown(quickAddInput(), { key: "Escape" });
 
     expect(document.activeElement).not.toBe(quickAddInput());
@@ -741,7 +801,7 @@ describe("DailyBoard のクイック追加（§3.4 / F-102）", () => {
   });
 
   it("追加の失敗は仮の行を取り消してエラートーストを出す", async () => {
-    const gate = hold<CreatingActionResult>({ ok: true, createdId: 99 });
+    const gate = hold(CLEANUP_CREATED);
     vi.mocked(addTaskAction).mockReturnValue(gate.promise);
     renderBoard();
 
@@ -812,6 +872,8 @@ describe("DailyBoard のインライン編集の検証（§8 / 00_共通 §2.3�
     expect(screen.queryByText("終了時刻は開始時刻より後にしてください")).not.toBeNull();
   });
 
+  // 引数の検証は `toHaveBeenCalledWith` を基準にし、**引数から導出した値を調べるときだけ**
+  // `mock.calls[0]` を使う（打刻の修正は入力の HH:MM がローカル時刻で解釈された結果を見るため）
   it("終了時刻の修正は開始時刻を保ったまま送る（F-203）", () => {
     renderBoard();
     selectRow(COMPLETED);
@@ -847,7 +909,7 @@ describe("DailyBoard のインライン編集の検証（§8 / 00_共通 §2.3�
 
 describe("DailyBoard のショートカット結線（§6。キー判定そのものは use-daily-shortcuts が持つ）", () => {
   it("Shift+J は選択タスクを1つ下へ動かし、楽観的に並べ替える", () => {
-    const gate = hold<DailyActionResult>({ ok: true });
+    const gate = hold(CLEANUP_OK);
     vi.mocked(moveTaskByStepAction).mockReturnValue(gate.promise);
     renderBoard();
     selectRow(NOT_STARTED);
@@ -864,8 +926,25 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
     expect(isSelected(NOT_STARTED)).toBe(true);
   });
 
+  it("並び替えが失敗したら並びを戻し、選択は移動対象に残す（N-01 / §5）", async () => {
+    const gate = hold(CLEANUP_OK);
+    vi.mocked(moveTaskByStepAction).mockReturnValue(gate.promise);
+    renderBoard();
+    selectRow(NOT_STARTED);
+
+    press("J", { shiftKey: true });
+    expect(rowNames()).toEqual([RUNNING, NOT_STARTED, COMPLETED]);
+
+    await gate.resolve({ ok: false, message: "保存に失敗しました" });
+
+    expect(rowNames()).toEqual([NOT_STARTED, RUNNING, COMPLETED]);
+    // 巻き戻っても選択は動かしたタスクに残る（連続 Shift+J を続けられる）
+    expect(isSelected(NOT_STARTED)).toBe(true);
+    expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
+  });
+
   it("一度も明示選択していない状態の並び替えも対象を選択として固定する（§5 / FB-50）", () => {
-    const gate = hold<DailyActionResult>({ ok: true });
+    const gate = hold(CLEANUP_OK);
     vi.mocked(moveTaskByStepAction).mockReturnValue(gate.promise);
     // 初期選択は「現在地」＝先頭の未実行タスク。固定しないと移動後に選択が再導出されて別タスクへ飛ぶ
     renderBoard([
@@ -890,7 +969,7 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
   });
 
   it("Shift+K は逆方向へ動かす", () => {
-    const gate = hold<DailyActionResult>({ ok: true });
+    const gate = hold(CLEANUP_OK);
     vi.mocked(moveTaskByStepAction).mockReturnValue(gate.promise);
     renderBoard();
     selectRow(RUNNING);
@@ -922,15 +1001,8 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
     expect(document.activeElement).toBe(quickAddInput());
   });
 
-  it("T / Shift+H / Shift+L は日付移動（§6 / O-9）", () => {
-    renderBoard();
-
-    press("t");
-    press("H", { shiftKey: true });
-    press("L", { shiftKey: true });
-
-    expect(push.mock.calls).toEqual([["/"], ["/?date=2026-07-25"], ["/?date=2026-07-27"]]);
-  });
+  // 日付移動（`T` / `Shift+H` / `Shift+L`）はフック（use-daily-shortcuts）のテストと同じ
+  // 「router.push の引数」を見るだけで board 側に増える情報がないため、ここでは持たない
 
   it("? はショートカット一覧を開閉する", () => {
     renderBoard();
@@ -966,7 +1038,7 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
 
 describe("DailyBoard の割り当て（O-5: モード・プロジェクト・セクション）", () => {
   it("モードの割り当ては楽観的に反映し、失敗すると未設定へ戻す", async () => {
-    const gate = hold<DailyActionResult>({ ok: true });
+    const gate = hold(CLEANUP_OK);
     vi.mocked(setTaskModeAction).mockReturnValue(gate.promise);
     renderBoard();
     selectRow(NOT_STARTED);
@@ -983,7 +1055,7 @@ describe("DailyBoard の割り当て（O-5: モード・プロジェクト・セ
   });
 
   it("プロジェクトの割り当てもモードと同じ規則で楽観的に反映する（O-5 / F-402）", () => {
-    const gate = hold<DailyActionResult>({ ok: true });
+    const gate = hold(CLEANUP_OK);
     vi.mocked(setTaskProjectAction).mockReturnValue(gate.promise);
     renderBoard();
     selectRow(NOT_STARTED);
@@ -995,8 +1067,8 @@ describe("DailyBoard の割り当て（O-5: モード・プロジェクト・セ
     expect(within(row(NOT_STARTED)).queryByLabelText("プロジェクト（改善）")).not.toBeNull();
   });
 
-  it("セクションの割り当ては移動先の末尾へ楽観的に動かす（O-5 / §4.3）", () => {
-    const gate = hold<DailyActionResult>({ ok: true });
+  it("セクションの割り当ては移動先の末尾へ楽観的に動かし、失敗すると元の位置へ戻す（O-5 / §4.3）", async () => {
+    const gate = hold(CLEANUP_OK);
     vi.mocked(setTaskSectionAction).mockReturnValue(gate.promise);
     renderBoard();
     selectRow(NOT_STARTED);
@@ -1010,6 +1082,36 @@ describe("DailyBoard の割り当て（O-5: モード・プロジェクト・セ
       sectionId: 2,
     });
     expect(rowNames()).toEqual([RUNNING, COMPLETED, NOT_STARTED]);
+
+    await gate.resolve({ ok: false, message: "保存に失敗しました" });
+
+    expect(rowNames()).toEqual([NOT_STARTED, RUNNING, COMPLETED]);
+    expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
+  });
+
+  /**
+   * F-112 のキー操作を board 段で通す唯一のテスト。確定の Enter で打刻が起きないことも見るが、
+   * これを守っている2つの盾（ポップオーバー側の `stopPropagation`（FB-42）と、ショートカット側の
+   * `editing !== null` ガード）のうち **jsdom で固定できるのは後者だけ**——前者だけを外しても
+   * act のバッチにより `editing` が古いまま残り、打刻は発火しない（実測）。
+   * FB-42 が捉えた「再レンダーとリスナー再登録の隙間」は実ブラウザでしか再現しないので段3送り
+   */
+  it("ポップオーバーは J/K と Enter でも選べ、確定の Enter で打刻は起きない（F-112）", () => {
+    renderBoard();
+    selectRow(NOT_STARTED);
+
+    press("s"); // 現在値（午前）がハイライトされた状態で開く
+    press("j"); // 次の候補（午後）へ
+    press("Enter");
+
+    expect(vi.mocked(setTaskSectionAction)).toHaveBeenCalledWith({
+      taskId: 11,
+      date: DATE,
+      sectionId: 2,
+    });
+    expect(vi.mocked(startTaskAction)).not.toHaveBeenCalled();
+    expect(vi.mocked(finishTaskAction)).not.toHaveBeenCalled();
+    expect(vi.mocked(duplicateAndStartTaskAction)).not.toHaveBeenCalled();
   });
 });
 
@@ -1018,11 +1120,12 @@ describe("DailyBoard の通知と行メニュー（画面定義書01 §8 / O-7 /
     renderBoard();
 
     chooseRowMenu(NOT_STARTED, "ルーチン化");
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "作成" }));
-    });
+    await clickAndSettle(screen.getByRole("button", { name: "作成" }));
 
-    expect(vi.mocked(createRoutineFromTaskAction).mock.calls[0]?.[0]).toBe(11);
+    expect(vi.mocked(createRoutineFromTaskAction)).toHaveBeenCalledWith(
+      11,
+      expect.objectContaining({ scheduledStartTime: "09:00" })
+    );
     expect(
       screen.queryByText(`「${NOT_STARTED}」をルーチン化しました（明日から展開）`)
     ).not.toBeNull();
@@ -1050,9 +1153,7 @@ describe("DailyBoard の通知と行メニュー（画面定義書01 §8 / O-7 /
     renderBoard();
 
     chooseRowMenu(NOT_STARTED, "ルーチン化");
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "作成" }));
-    });
+    await clickAndSettle(screen.getByRole("button", { name: "作成" }));
 
     expect(screen.queryByText("見積もりを入力してからルーチン化してください")).not.toBeNull();
     expect(screen.queryByText(/ルーチン化しました/)).toBeNull();
@@ -1062,9 +1163,7 @@ describe("DailyBoard の通知と行メニュー（画面定義書01 §8 / O-7 /
     renderBoard();
 
     chooseRowMenu(NOT_STARTED, "ルーチン化");
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "作成" }));
-    });
+    await clickAndSettle(screen.getByRole("button", { name: "作成" }));
     fireEvent.click(screen.getByLabelText("閉じる"));
 
     expect(screen.queryByText(/ルーチン化しました/)).toBeNull();
@@ -1073,9 +1172,7 @@ describe("DailyBoard の通知と行メニュー（画面定義書01 §8 / O-7 /
   it("Undo トーストを × で閉じると保留も破棄され、U は選択行の状態で切り分けに戻る（O-13）", async () => {
     const { applyServerState } = renderBoard();
     selectRow(NOT_STARTED);
-    await act(async () => {
-      press("d");
-    });
+    await pressAndSettle("d");
     applyServerState(defaultTasks().filter((t) => t.id !== 11)); // 選択は現在地（実行中）へ移る
 
     fireEvent.click(screen.getByLabelText("閉じる"));
@@ -1099,13 +1196,13 @@ describe("DailyBoard の通知と行メニュー（画面定義書01 §8 / O-7 /
     renderBoard();
 
     chooseRowMenu(NOT_STARTED, "翌日へ先送り");
-    await act(async () => {}); // サーバ確定後の再描画まで流す
+    await settleActions();
 
     expect(screen.queryByText("先送りできるのは未実行タスクだけです")).not.toBeNull();
   });
 
   it("先送り（O-7）は行メニューから実行し、楽観的更新はしない", () => {
-    const gate = hold<DailyActionResult>({ ok: true });
+    const gate = hold(CLEANUP_OK);
     vi.mocked(postponeTaskAction).mockReturnValue(gate.promise);
     renderBoard();
 
