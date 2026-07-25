@@ -125,7 +125,7 @@ Next.js 16 (App Router) + TypeScript / Tailwind CSS 4 / Drizzle ORM + node-postg
 
 - `docker compose up -d` — ローカルDB起動（開発用 :5432 とテスト用 db-test :5433。OrbStack が必要）
 - `npm run dev` — 開発サーバ（http://localhost:3000）
-- `npm test` — 全テスト / `test:unit` ユニットのみ / `test:int` 統合のみ（要 db-test）/ `test:watch`
+- `npm test` — 全テスト / `test:unit` ユニットのみ / `test:component` コンポーネントのみ（jsdom）/ `test:int` 統合のみ（要 db-test）/ `test:watch`
 - `npm run db:generate` — スキーマ変更からマイグレーション生成
 - `npm run db:migrate` — マイグレーション適用
 - `npm run db:seed` — 初期データ投入（冪等）
