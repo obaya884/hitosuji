@@ -54,3 +54,6 @@ next-env.d.ts
 
 # スキルの評価スクラッチ（skill-creator の workspace。出力・ログ・ベンチマークは残さない）
 .claude/skills/*-workspace/
+
+# Playwright MCP の作業出力（ページスナップショット・コンソールログ。実データが写るためコミットしない）
+.playwright-mcp/
