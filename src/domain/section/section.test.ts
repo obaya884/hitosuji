@@ -3,6 +3,7 @@ import {
   activeSections,
   byDayStartOrder,
   canArchive,
+  currentSectionId,
   dayStartOffset,
   dayStartTimeOf,
   sectionAt,
@@ -68,6 +69,34 @@ describe("sectionAt（F-302: 開始想定時刻を含むセクションの導出
 
   it("有効セクションが1件もなければ導出できない", () => {
     expect(sectionAt([], "06:30")).toBeUndefined();
+  });
+
+  it("配列は空でなくても全件アーカイブ済みなら導出できない", () => {
+    const archived = section({ id: 9, name: "旧", startTime: "07:00", isArchived: true });
+    expect(sectionAt([archived], "07:30")).toBeUndefined();
+  });
+
+  it("日界セクション（isDayStart）でも判定は時刻の包含だけで、日界の指定に左右されない（F-116）", () => {
+    const dayStartAtMorning = section({ ...morning, isDayStart: true });
+    expect(sectionAt([dayStartAtMorning, forenoon], "06:00")?.name).toBe("朝");
+    expect(sectionAt([dayStartAtMorning, forenoon], "03:00")?.name).toBe("午前"); // 回転順ではなく時刻の包含のみで決まる
+  });
+});
+
+describe("currentSectionId（画面定義書01 §3.2 現在セクションの強調 / F-121）", () => {
+  const sections = [midnight, morning, forenoon]; // 00:00 / 06:00 / 09:00
+
+  it("表示日が今日でなければ、時刻がどこかのセクション内でも current は無い（終了予定 F-104 と同じ規律）", () => {
+    expect(currentSectionId(sections, "06:30", false)).toBeNull();
+  });
+
+  it("表示日が今日なら、現在時刻を含む有効セクションの id を返す", () => {
+    expect(currentSectionId(sections, "06:30", true)).toBe(morning.id);
+  });
+
+  it("有効セクションが無ければ（全件アーカイブ済み等）today でも null", () => {
+    const archived = section({ id: 9, startTime: "07:00", isArchived: true });
+    expect(currentSectionId([archived], "07:30", true)).toBeNull();
   });
 });
 

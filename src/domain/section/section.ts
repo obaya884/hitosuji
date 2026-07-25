@@ -106,6 +106,20 @@ export function sectionAt(sections: readonly Section[], time: string): Section |
 }
 
 /**
+ * 現在時刻を含む有効セクションの id（現在セクションの強調。画面定義書01 §3.2 / F-121）。
+ * 表示日が今日でなければ「現在」は定義しない（終了予定 F-104・セクション残り時間 F-110 と同じ規律）。
+ * 未分類グループ・アーカイブ済みセクションは戻り値と一致しえない（sectionAt が有効セクションのみを返すため）
+ */
+export function currentSectionId(
+  sections: readonly Section[],
+  nowClock: string,
+  isToday: boolean
+): SectionId | null {
+  if (!isToday) return null;
+  return sectionAt(sections, nowClock)?.id ?? null;
+}
+
+/**
  * 追加・編集時の検証（画面定義書03 §3.1）。
  * 有効セクション間の start_time 重複はエラー。自分自身との重複は除外する。
  */
