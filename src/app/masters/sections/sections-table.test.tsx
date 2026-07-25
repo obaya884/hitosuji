@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Section } from "@/domain/section/section";
+
 import { deferredAction, rowOf, startEditingCell } from "../_testing/table-helpers";
 
 // Server Action の先は実DB接続と revalidatePath に届くため、同じ返り値の契約
@@ -64,10 +65,17 @@ function renderTable(
   );
 }
 
-/** 開始時刻セル（`06:00–12:00` の枠）を押して編集に入る。名前セルは startEditingCell */
-const startEditingStartTime = (name: string, range: string): HTMLInputElement => {
-  fireEvent.click(within(rowOf(name)).getByRole("button", { name: range }));
-  return screen.getByDisplayValue(range.slice(0, 5));
+/**
+ * 開始時刻セルを押して編集に入る（名前セルは startEditingCell）。
+ * セルの見出しは `開始–終了` の枠なので、枠を組み立てて押し、開始時刻の入力欄を返す
+ */
+const startEditingStartTime = (
+  name: string,
+  startTime: string,
+  endTime: string
+): HTMLInputElement => {
+  fireEvent.click(within(rowOf(name)).getByRole("button", { name: `${startTime}–${endTime}` }));
+  return screen.getByDisplayValue(startTime);
 };
 
 beforeEach(() => {
@@ -89,6 +97,8 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
     expect(within(rowOf("セクションB")).getByRole("button", { name: "12:00–06:00" })).not.toBeNull();
   });
 
+  // §3.1 の「行内に『1日の開始』等のラベルで現在の日界を示す」は実装に無く（ラジオの選択状態のみ）、
+  // FB-62 として起票済み。実装されるまでテストは置かない
   describe("日界セクションの選択（F-116 / 画面定義書03 §3.1）", () => {
     it("ちょうど1行が選択された状態で示す", () => {
       renderTable();
@@ -104,6 +114,20 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
 
       await waitFor(() => {
         expect(setDayStartSectionAction).toHaveBeenCalledExactlyOnceWith(2);
+      });
+    });
+
+    it("日界切替の失敗はメッセージで知らせる（別タブで対象が消えた等）", async () => {
+      vi.mocked(setDayStartSectionAction).mockResolvedValue({
+        ok: false,
+        message: "対象が見つかりません（画面を再読み込みしてください）",
+      });
+      renderTable();
+
+      fireEvent.click(screen.getByLabelText("セクションBを1日の開始にする"));
+
+      await waitFor(() => {
+        expect(screen.getByText("対象が見つかりません（画面を再読み込みしてください）")).not.toBeNull();
       });
     });
 
@@ -143,6 +167,22 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
         expect(archiveSectionAction).toHaveBeenCalledExactlyOnceWith(2);
       });
     });
+
+    // 「有効セクション最低1件」はボタンの非活性では防げず（残り1件かは画面から分からない）、
+    // サーバ側の再判定でしか出ない。§4.1「競合時」と同型で、文言が画面へ届く唯一の経路
+    it("アーカイブの失敗（有効セクション最低1件）はメッセージで知らせる（§3.1）", async () => {
+      vi.mocked(archiveSectionAction).mockResolvedValue({
+        ok: false,
+        message: "有効なセクションは最低1件必要です",
+      });
+      renderTable();
+
+      fireEvent.click(within(rowOf("セクションB")).getByRole("button", { name: "アーカイブ" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("有効なセクションは最低1件必要です")).not.toBeNull();
+      });
+    });
   });
 
   describe("インライン編集（画面定義書03 §4「編集方式」/ 00_共通 §2.3）", () => {
@@ -159,7 +199,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
     it("開始時刻の編集中も終了時刻は導出値のまま出す（編集できるのは開始のみ）", () => {
       renderTable();
 
-      const input = startEditingStartTime("セクションA", "06:00–12:00");
+      const input = startEditingStartTime("セクションA", "06:00", "12:00");
 
       expect(input.type).toBe("time");
       const derived = screen.getByTitle("次のセクションの開始時刻から自動導出");
@@ -181,7 +221,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
 
     it("開始時刻の変更なしは何も送信せず閉じる", async () => {
       renderTable();
-      const input = startEditingStartTime("セクションA", "06:00–12:00");
+      const input = startEditingStartTime("セクションA", "06:00", "12:00");
 
       fireEvent.blur(input);
 
@@ -208,7 +248,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
 
     it("開始時刻を変えると名前は現在値のまま送る", async () => {
       renderTable();
-      const input = startEditingStartTime("セクションA", "06:00–12:00");
+      const input = startEditingStartTime("セクションA", "06:00", "12:00");
 
       fireEvent.change(input, { target: { value: "07:30" } });
       fireEvent.blur(input);
@@ -238,7 +278,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
 
     it("Esc は元の値に戻して閉じる（送信しない）", async () => {
       renderTable();
-      const input = startEditingStartTime("セクションA", "06:00–12:00");
+      const input = startEditingStartTime("セクションA", "06:00", "12:00");
       fireEvent.change(input, { target: { value: "23:45" } });
 
       fireEvent.keyDown(input, { key: "Escape" });
@@ -297,7 +337,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
         message: "同じ開始時刻の有効なセクションがあります",
       });
       renderTable();
-      const input = startEditingStartTime("セクションA", "06:00–12:00");
+      const input = startEditingStartTime("セクションA", "06:00", "12:00");
 
       fireEvent.change(input, { target: { value: "12:00" } });
       fireEvent.blur(input);
@@ -317,11 +357,16 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
       const input = startEditingCell("セクションA");
       fireEvent.change(input, { target: { value: "改名後" } });
       fireEvent.blur(input);
-      await waitFor(() => {
+      // メッセージの表示と isPending の解除は別のタイミングで届く。保存中は他行のセルも
+      // 押せない（§2.3）ので、押せる状態に戻るまで待ってからでないと click が無視される
+      const otherCell = await waitFor(() => {
         expect(screen.getByText("開始時刻を HH:MM 形式で入力してください")).not.toBeNull();
+        const cell = within(rowOf("セクションB")).getByRole("button", { name: "セクションB" });
+        expect(cell).toHaveProperty("disabled", false);
+        return cell;
       });
 
-      fireEvent.click(within(rowOf("セクションB")).getByRole("button", { name: "セクションB" }));
+      fireEvent.click(otherCell);
 
       expect(screen.queryByText("開始時刻を HH:MM 形式で入力してください")).toBeNull();
     });
@@ -449,6 +494,20 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
 
       await waitFor(() => {
         expect(restoreSectionAction).toHaveBeenCalledExactlyOnceWith(9);
+      });
+    });
+
+    it("復元の失敗（開始時刻が他と重複する等）はメッセージで知らせる", async () => {
+      vi.mocked(restoreSectionAction).mockResolvedValue({
+        ok: false,
+        message: "同じ開始時刻の有効なセクションがあります",
+      });
+      renderTable({ archived: [section(9, "旧セクション", "03:00", { isArchived: true })] });
+
+      fireEvent.click(within(rowOf("旧セクション")).getByRole("button", { name: "復元" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("同じ開始時刻の有効なセクションがあります")).not.toBeNull();
       });
     });
 

@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MODE_COLORS, type Mode } from "@/domain/mode/mode";
+
 import { deferredAction, rowOf, startEditingCell } from "../_testing/table-helpers";
 
 // Server Action の先は実DB接続と revalidatePath に届くため、同じ返り値の契約
@@ -21,7 +22,9 @@ import {
 } from "./actions";
 import { ModesTable } from "./modes-table";
 
-const RED = MODE_COLORS[0];
+// プリセット13色のうちテストで使う3つ（画面定義書03 §3.2 の表の値）。
+// 添字（MODE_COLORS[0] 等）ではなく hex を直に置き、期待値の色名・rgb と読み合わせられるようにする
+const RED = "#ef4444";
 const BLUE = "#3b82f6";
 const GRAY = "#9ca3af";
 
@@ -302,11 +305,16 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       const input = startEditingCell("モードA");
       fireEvent.change(input, { target: { value: "" } });
       fireEvent.blur(input);
-      await waitFor(() => {
+      // メッセージの表示と isPending の解除は別のタイミングで届く。保存中は他行のセルも
+      // 押せない（§2.3）ので、押せる状態に戻るまで待ってからでないと click が無視される
+      const otherCell = await waitFor(() => {
         expect(screen.getByText("名前を入力してください")).not.toBeNull();
+        const cell = within(rowOf("モードB")).getByRole("button", { name: "モードB" });
+        expect(cell).toHaveProperty("disabled", false);
+        return cell;
       });
 
-      fireEvent.click(within(rowOf("モードB")).getByRole("button", { name: "モードB" }));
+      fireEvent.click(otherCell);
 
       expect(screen.queryByText("名前を入力してください")).toBeNull();
     });
@@ -434,6 +442,20 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
         expect(setModeArchivedAction).toHaveBeenCalledExactlyOnceWith(1, true);
       });
       expect(deleteModeAction).not.toHaveBeenCalled();
+    });
+
+    it("アーカイブの失敗（別タブで対象が消えた等）はメッセージで知らせる", async () => {
+      vi.mocked(setModeArchivedAction).mockResolvedValue({
+        ok: false,
+        message: "対象が見つかりません（画面を再読み込みしてください）",
+      });
+      renderTable();
+
+      fireEvent.click(within(rowOf("モードA")).getByRole("button", { name: "アーカイブ" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("対象が見つかりません（画面を再読み込みしてください）")).not.toBeNull();
+      });
     });
 
     it("アーカイブ済みも色名を添えて出し、「復元」で有効へ戻す", async () => {

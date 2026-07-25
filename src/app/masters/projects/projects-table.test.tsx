@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Project } from "@/domain/project/project";
+
 import { deferredAction, rowOf, startEditingCell } from "../_testing/table-helpers";
 
 // Server Action の先は実DB接続と revalidatePath に届くため、同じ返り値の契約
@@ -151,19 +152,18 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
           true
         );
       });
-      // 送信中でも名前セルは押せてしまい、古い値で編集を開始できる
-      expect(within(row).getByRole("button", { name: "プロジェクトA" })).toHaveProperty(
-        "disabled",
-        false
-      );
+      // 送信中でも名前セルは押せてしまい、古い値で編集を開始できる（＝条項からの逸脱の実体）
+      const nameCell = within(row).getByRole("button", { name: "プロジェクトA" });
+      expect(nameCell).toHaveProperty("disabled", false);
+
+      fireEvent.click(nameCell);
+      expect(screen.getByDisplayValue("プロジェクトA")).not.toBeNull();
 
       await act(async () => {
         pending.resolve({ ok: true });
       });
-      expect(within(rowOf("プロジェクトA")).getByRole("button", { name: "アーカイブ" })).toHaveProperty(
-        "disabled",
-        false
-      );
+      // アーカイブが返ったあとも、送信前の値を抱えた入力欄が残る
+      expect(screen.getByDisplayValue("プロジェクトA")).not.toBeNull();
     });
 
     it("失敗したらメッセージを出し、編集状態のまま残す（入力し直せる）", async () => {
@@ -318,6 +318,20 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
 
       await waitFor(() => {
         expect(setProjectArchivedAction).toHaveBeenCalledExactlyOnceWith(9, false);
+      });
+    });
+
+    it("復元の失敗（別タブで対象が消えた等）はメッセージで知らせる", async () => {
+      vi.mocked(setProjectArchivedAction).mockResolvedValue({
+        ok: false,
+        message: "対象が見つかりません（画面を再読み込みしてください）",
+      });
+      renderTable({ archived: [project(9, "旧プロジェクト", true)] });
+
+      fireEvent.click(within(rowOf("旧プロジェクト")).getByRole("button", { name: "復元" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("対象が見つかりません（画面を再読み込みしてください）")).not.toBeNull();
       });
     });
 
