@@ -52,6 +52,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          # 変更箇所カバレッジ（T-38）が base...HEAD の差分を取るため全履歴が要る
+          fetch-depth: 0
 
       - uses: actions/setup-node@v7
         with:
@@ -68,8 +71,11 @@ jobs:
 
       # 以降はカバレッジの可視化（FB-49 / T-38）。テストが落ちた場合はここへ来ない
       - name: カバレッジ表を生成する
+        env:
+          # PR のときだけ変更箇所カバレッジを添える（push には「変更箇所」の基準がないので空になる）
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         # --silent は npm のバナー（"> hitosuji@0.1.0 ..."）が markdown に混ざるのを防ぐ
-        run: npm run --silent coverage:summary > coverage/summary.md
+        run: npm run --silent coverage:summary -- "$BASE_SHA" > coverage/summary.md
 
       - name: ジョブサマリへ出力する
         run: cat coverage/summary.md >> "$GITHUB_STEP_SUMMARY"

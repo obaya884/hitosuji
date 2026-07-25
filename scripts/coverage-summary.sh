@@ -2,8 +2,9 @@
 # カバレッジの計測結果を markdown の表に整形して標準出力へ書く（T-38）。
 #
 # 使い方:
-#   npm run test:coverage        # coverage/coverage-summary.json を生成
-#   npm run coverage:summary     # それを読んで markdown を出力
+#   npm run test:coverage                 # coverage/ 配下のレポートを生成
+#   npm run coverage:summary              # それを読んで markdown を出力
+#   npm run coverage:summary -- <base>    # <base>...HEAD の変更箇所カバレッジも添える
 #
 # CI はこの出力を PR コメントとジョブサマリの両方へ流す（.github/workflows/ci.yml）。
 # ファイル単位ではなく層単位に集計するのは、全体値だけでは
@@ -12,14 +13,18 @@ set -eu
 
 cd "$(git rev-parse --show-toplevel)"
 
-exec python3 - <<'PY'
+exec python3 - "$@" <<'PY'
 import json
 import math
 import os
+import re
+import subprocess
 import sys
 
 # text/text-summary と並ぶ json-summary reporter の出力（vitest.config.ts）
 SUMMARY = "coverage/coverage-summary.json"
+# 行ごとの実行回数。変更箇所カバレッジの判定に使う
+LCOV = "coverage/lcov.info"
 # 集計の粒度。src 直下2階層（src/domain・src/usecases・src/infrastructure・src/app）＝
 # アーキテクチャ定義書 §2 の依存方向の層に合わせる。末端ディレクトリまで割ると
 # 1ファイルだけの行が並び、肝心の層ごとの数字を読む側が足し合わせる必要が出る
@@ -79,6 +84,86 @@ out += [
 ]
 for name in sorted(layers):
     out.append(f"| `{name}` | " + " | ".join(pct(layers[name][m]) for m in METRICS) + " |")
+
+
+def changed_lines(base):
+    """base...HEAD で追加・変更された行を {パス: {行番号}} で返す。"""
+    diff = subprocess.run(
+        ["git", "diff", "--unified=0", "--diff-filter=d", f"{base}...HEAD"],
+        capture_output=True,
+        text=True,
+    )
+    if diff.returncode != 0:
+        return None
+    changed, path = {}, None
+    for line in diff.stdout.splitlines():
+        if line.startswith("+++ b/"):
+            path = line[6:]
+        elif line.startswith("@@") and path:
+            # @@ -12,3 +14,5 @@ の "+14,5"。件数の既定は1、0 なら削除だけのハンク
+            start, _, count = re.search(r"\+(\d+)(,(\d+))?", line).group(1, 2, 3)
+            count = int(count) if count else 1
+            changed.setdefault(path, set()).update(range(int(start), int(start) + count))
+    return changed
+
+
+def measured_lines():
+    """lcov から {パス: {行番号: 実行回数}} を読む。"""
+    measured, path = {}, None
+    with open(LCOV, encoding="utf-8") as f:
+        for line in f:
+            if line.startswith("SF:"):
+                path = line[3:].strip()
+            elif line.startswith("DA:") and path:
+                lineno, hits = line[3:].strip().split(",")
+                measured.setdefault(path, {})[int(lineno)] = int(hits)
+    return measured
+
+
+def as_ranges(numbers):
+    """[45, 47, 48, 49] を "45, 47-49" に畳む。"""
+    spans = []
+    for n in sorted(numbers):
+        if spans and n == spans[-1][1] + 1:
+            spans[-1][1] = n
+        else:
+            spans.append([n, n])
+    return ", ".join(str(a) if a == b else f"{a}-{b}" for a, b in spans)
+
+
+# 変更箇所カバレッジ（base が渡されたとき＝CI では PR のときだけ）。
+# 「変更した行のうち計測対象の行」を分母にする——空行・コメント・型宣言には
+# lcov の DA が無く、分母から自然に落ちる
+base = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] else None
+if base and os.path.exists(LCOV):
+    out += ["", "**変更箇所のカバレッジ**", ""]
+    changed = changed_lines(base)
+    if changed is None:
+        out.append(f"`{base}` との差分を取得できなかったため判定していません。")
+    else:
+        measured = measured_lines()
+        rows, hit_total, line_total = [], 0, 0
+        for path in sorted(changed):
+            lines = {n: measured[path][n] for n in changed[path] if n in measured.get(path, {})}
+            if not lines:
+                continue
+            uncovered = [n for n, hits in lines.items() if hits == 0]
+            hit_total += len(lines) - len(uncovered)
+            line_total += len(lines)
+            rows.append(f"| `{path}` | {len(lines) - len(uncovered)}/{len(lines)} | "
+                        f"{as_ranges(uncovered) if uncovered else '-'} |")
+        if rows:
+            ratio = pct({"covered": hit_total, "total": line_total})
+            out += [
+                f"変更した行のうち計測対象は {line_total} 行、うち実行されたのは "
+                f"{hit_total} 行（{ratio}%）。",
+                "",
+                "| ファイル | カバー | 未カバーの行 |",
+                "|---|---:|---|",
+            ] + rows
+        else:
+            # docs・scripts・.tsx だけの変更ではここに来る（計測対象は src/**/*.ts のみ）
+            out.append("変更行に計測対象（`src/**/*.ts`）はありません。")
 
 print("\n".join(out))
 PY

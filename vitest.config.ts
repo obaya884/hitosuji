@@ -25,8 +25,10 @@ export default defineConfig({
     // カバレッジは補助指標（数値ゲートは設けない）。詳細はアーキテクチャ定義書 §8
     coverage: {
       provider: "v8",
-      // json-summary は CI のジョブサマリ生成（scripts/coverage-summary.sh）が読む機械可読出力
-      reporter: ["text", "text-summary", "json-summary"],
+      // json-summary（層ごとの集計）と lcovonly（行ごとの実行回数＝変更箇所カバレッジ）は
+      // scripts/coverage-summary.sh が読む機械可読出力。lcov ではなく lcovonly なのは
+      // 前者が HTML ツリー（coverage/lcov-report）も生成してしまうため
+      reporter: ["text", "text-summary", "json-summary", "lcovonly"],
       include: ["src/**/*.ts"],
       exclude: ["src/**/*.test.ts", "src/**/*.int.test.ts", "src/**/testing/**"],
     },
