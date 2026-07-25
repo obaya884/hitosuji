@@ -277,3 +277,45 @@ describe("listDailyList の並び順（FB-01 / 画面定義書03 §4: name 昇�
     expect(view.sections.map((s) => s.name)).toEqual(["朝", "昼", "夜"]);
   });
 });
+
+describe("listDailyList のマスタ一覧（F-401 / F-402 / 画面定義書01 §3.3: アーカイブ済みも名前をそのまま表示する）", () => {
+  it("プロジェクトはアーカイブ済みも含めて返す（行のプロジェクト列で名前を解決するため）", async () => {
+    const projectRepo: ProjectRepository = {
+      ...emptyProjectRepo,
+      listAll: async () => [
+        { id: 1, name: "case-a", isArchived: false },
+        { id: 2, name: "case-b", isArchived: true },
+      ],
+    };
+    const view = await listDailyList(
+      {
+        tasks: inMemoryRepo(),
+        sections: emptySectionRepo,
+        modes: emptyModeRepo,
+        projects: projectRepo,
+      },
+      "2026-07-19"
+    );
+    expect(view.projects.map((p) => p.name)).toEqual(["case-a", "case-b"]);
+  });
+
+  it("モードはアーカイブ済みも含めて返す（行のモード列とモード色を解決するため）", async () => {
+    const modeRepo: ModeRepository = {
+      ...emptyModeRepo,
+      listAll: async () => [
+        { id: 1, name: "あんず", color: "#000000", isArchived: false },
+        { id: 2, name: "いちご", color: "#000000", isArchived: true },
+      ],
+    };
+    const view = await listDailyList(
+      {
+        tasks: inMemoryRepo(),
+        sections: emptySectionRepo,
+        modes: modeRepo,
+        projects: emptyProjectRepo,
+      },
+      "2026-07-19"
+    );
+    expect(view.modes.map((m) => m.name)).toEqual(["あんず", "いちご"]);
+  });
+});

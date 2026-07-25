@@ -115,6 +115,8 @@ export function DailyList({
       <colgroup>
         <col className="w-10" />
         <col />
+        {/* プロジェクト・モードは同幅の固定幅（§3.3。収まらない名前は AssignCell で切り詰める） */}
+        <col className="w-32" />
         <col className="w-32" />
         <col className="w-24" />
         <col className="w-28" />
@@ -127,6 +129,7 @@ export function DailyList({
         <tr className="border-b border-line-strong text-left text-xs text-ink-muted">
           <th className="py-2 font-normal" />
           <th className="py-2 font-normal">タスク</th>
+          <th className="py-2 font-normal">プロジェクト</th>
           <th className="py-2 font-normal">モード</th>
           <th className="py-2 text-right font-normal">見積</th>
           <th className="py-2 text-right font-normal">実績</th>
@@ -239,7 +242,7 @@ function GroupHeading({
   return (
     <tr className={`border-y border-line-strong ${isCurrentSection ? "bg-band-now" : "bg-band"}`}>
       {/* 全要素を左寄せで1行に並べる（§3.2「見出し行のレイアウト」。左右分離をやめる） */}
-      <td colSpan={7} className="py-2 pl-2">
+      <td colSpan={8} className="py-2 pl-2">
         <span className="flex items-center gap-2">
           <span className="text-sm font-bold tracking-wide">
             {group.section === null ? "未分類" : group.section.name}
@@ -459,25 +462,10 @@ function TaskRow({
             {task.name}
           </button>
         )}
-        {/* 補助表記は本文より1段階だけ小さくする（画面定義書01 §2: 相対関係を維持する） */}
+        {/* セクションの併記はタスク名セルに残す。補助表記は本文より1段階だけ小さくする
+            （画面定義書01 §2: 相対関係を維持する） */}
         {editing !== "name" && (
-          <span className="relative ml-2 inline-flex gap-2 text-sm">
-            {/* プロジェクト選択ポップオーバー（O-5） */}
-            <button
-              type="button"
-              onClick={() => onBeginEdit(task, "project")}
-              className={`hover:underline ${dimmed}`}
-            >
-              {project?.name ?? <span className="text-ink-faint">プロジェクト</span>}
-            </button>
-            {editing === "project" && (
-              <SelectPopover
-                options={toOptions(projects, "プロジェクトなし")}
-                selectedId={task.projectId}
-                onSelect={(id) => onAssign(task, "project", id)}
-                onClose={onEndEdit}
-              />
-            )}
+          <span className="relative ml-2 inline-block text-sm">
             {/* セクション選択ポップオーバー（O-5） */}
             <button
               type="button"
@@ -497,20 +485,28 @@ function TaskRow({
           </span>
         )}
       </td>
-      <td className={`relative py-2.5 text-sm ${dimmed}`}>
-        {/* モード選択ポップオーバー（O-5） */}
-        <button type="button" onClick={() => onBeginEdit(task, "mode")} className="hover:underline">
-          {mode?.name ?? <span className="text-ink-faint">モード</span>}
-        </button>
-        {editing === "mode" && (
-          <SelectPopover
-            options={toOptions(modes, "モードなし", true)}
-            selectedId={task.modeId}
-            onSelect={(id) => onAssign(task, "mode", id)}
-            onClose={onEndEdit}
-          />
-        )}
-      </td>
+      <AssignCell
+        label="プロジェクト"
+        name={project?.name}
+        options={toOptions(projects, "プロジェクトなし")}
+        selectedId={task.projectId}
+        dimmed={dimmed}
+        isEditing={editing === "project"}
+        onOpen={() => onBeginEdit(task, "project")}
+        onSelect={(id) => onAssign(task, "project", id)}
+        onClose={onEndEdit}
+      />
+      <AssignCell
+        label="モード"
+        name={mode?.name}
+        options={toOptions(modes, "モードなし", true)}
+        selectedId={task.modeId}
+        dimmed={dimmed}
+        isEditing={editing === "mode"}
+        onOpen={() => onBeginEdit(task, "mode")}
+        onSelect={(id) => onAssign(task, "mode", id)}
+        onClose={onEndEdit}
+      />
       <td className="py-2.5 text-right font-mono tabular-nums">
         {editing === "estimate" ? (
           <input
@@ -630,5 +626,57 @@ function TaskRow({
         )}
       </td>
     </tr>
+  );
+}
+
+/**
+ * プロジェクト列・モード列のセル（§3.3「プロジェクト列・モード列の共通規則」/ O-5）。
+ * 2列は同じ見た目・同じ表記に揃える規則のため、片方だけ変わらないよう1つに集約する。
+ * セル全体を押せるようにし、列幅に収まらない名前は切り詰める（行高は変えない。N-05）
+ */
+function AssignCell({
+  label,
+  name,
+  options,
+  selectedId,
+  dimmed,
+  isEditing,
+  onOpen,
+  onSelect,
+  onClose,
+}: Readonly<{
+  /** 列の名前。未設定行でもボタンの用途が読めるよう aria-label に使う */
+  label: string;
+  /** 割り当て済みマスタの名前。未設定なら undefined */
+  name?: string;
+  options: readonly PopoverOption[];
+  selectedId: number | null;
+  /** モード未設定の行を既定のグレーにするクラス（呼び出し側が行単位で決める） */
+  dimmed: string;
+  isEditing: boolean;
+  onOpen: () => void;
+  onSelect: (id: number | null) => void;
+  onClose: () => void;
+}>) {
+  return (
+    <td className={`relative py-2.5 text-sm ${dimmed}`}>
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={`${label}（${name ?? "未設定"}）`}
+        className="block max-w-full truncate text-left hover:underline"
+      >
+        {/* 未設定は薄色の `-`。見積もり未設定の `--:--` と同じく記号で不在を示す（§3.3） */}
+        {name ?? <span className="text-ink-faint">-</span>}
+      </button>
+      {isEditing && (
+        <SelectPopover
+          options={options}
+          selectedId={selectedId}
+          onSelect={onSelect}
+          onClose={onClose}
+        />
+      )}
+    </td>
   );
 }
