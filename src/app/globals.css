@@ -9,7 +9,7 @@
   /* 面 */
   --color-paper: #fafaf8; /* ページ背景（紙白） */
   --color-band: #f0eee7; /* 紙面を一段沈めた帯（セクション見出し） */
-  --color-band-now: #dde5f2; /* 現在セクションの見出し帯（band より紺藍寄りで一段濃い） */
+  --color-band-now: #ead9d0; /* 現在セクションの見出し帯（band を暖色側へ一段濃くした粘土寄り） */
   --color-surface: #ffffff; /* ポップオーバー・モーダル・トースト等の浮遊面 */
   --color-scrim: rgb(28 30 38 / 0.35); /* モーダル背後 */
   --color-white: #ffffff; /* 塗りボタン上の文字 */
