@@ -40,6 +40,13 @@ describe("MasterEditableCell（画面定義書03 §4「編集方式」/ 00_共�
       expect(screen.getByRole("button", { name: "06:00–12:00" })).not.toBeNull();
     });
 
+    it("編集に入ると入力欄には display ではなく値が入る", () => {
+      renderCell({ isEditing: true, value: "06:00", display: "06:00–12:00" });
+
+      expect(screen.getByDisplayValue("06:00")).not.toBeNull();
+      expect(screen.queryByDisplayValue("06:00–12:00")).toBeNull();
+    });
+
     // 行内に編集可能なセルが1つしかない表（プロジェクト）も同じ部品を使うため一様に止まる（FB-63）
     it("保存中は押せない（古い値での上書きを防ぐ。§2.3「保存中」）", () => {
       const { onStartEditing } = renderCell({ isPending: true });
@@ -53,10 +60,12 @@ describe("MasterEditableCell（画面定義書03 §4「編集方式」/ 00_共�
   });
 
   describe("編集中", () => {
-    it("現在値を入れた入力欄になる", () => {
+    it("現在値を入れた入力欄になり、そのまま打てるようフォーカスが移る（§4「編集方式」）", () => {
       renderCell({ isEditing: true });
 
-      expect(screen.getByDisplayValue("モードA").tagName).toBe("INPUT");
+      const input = screen.getByDisplayValue("モードA");
+      expect(input.tagName).toBe("INPUT");
+      expect(document.activeElement).toBe(input);
       expect(screen.queryByRole("button", { name: "モードA" })).toBeNull();
     });
 

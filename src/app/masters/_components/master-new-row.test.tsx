@@ -77,6 +77,34 @@ describe("MasterNewRow（画面定義書03 §4: 新規行だけは明示的な�
     expect(saved).toEqual([["", ""]]);
   });
 
+  // プロジェクトのように欄が1つだけの表でも同じ部品を使う（読まれなかった項目は空文字）
+  it("行に置いていない欄も空文字として読める", () => {
+    const saved: string[][] = [];
+    render(
+      <table>
+        <tbody>
+          <MasterNewRow
+            isPending={false}
+            onSave={(fieldValue) => saved.push([fieldValue("name"), fieldValue("startTime")])}
+            onCancel={vi.fn()}
+            renderCells={(onKeyDown) => (
+              <td>
+                <MasterNewRowInput field="name" placeholder="プロジェクト名" onKeyDown={onKeyDown} />
+              </td>
+            )}
+          />
+        </tbody>
+      </table>
+    );
+    fireEvent.change(screen.getByPlaceholderText("プロジェクト名"), {
+      target: { value: "新プロジェクト" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+
+    expect(saved).toEqual([["新プロジェクト", ""]]);
+  });
+
   it("Enter でも保存する（新規行は blur 経路を通らない）", () => {
     const { saved } = renderNewRow();
     fillName("新セクション");

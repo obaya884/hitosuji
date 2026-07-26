@@ -281,6 +281,11 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
         "disabled",
         true
       );
+      // 行の操作ボタンも送信中は押せない（多重送信を防ぐ）
+      expect(within(row).getByRole("button", { name: "アーカイブ" })).toHaveProperty(
+        "disabled",
+        true
+      );
 
       await act(async () => {
         pending.resolve({ ok: true });
@@ -318,8 +323,9 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       const input = startEditingCell("モードA");
       fireEvent.change(input, { target: { value: "" } });
       fireEvent.blur(input);
-      // メッセージの表示と isPending の解除は別のタイミングで届く。保存中は他行のセルも
-      // 押せない（§2.3）ので、押せる状態に戻るまで待ってからでないと click が無視される
+      // メッセージの表示と isPending の解除は別のタイミングで届く。§2.3 が要求するのは
+      // 「同じ行」の抑止だが、実装は isPending を表ごとに1つ持つので他行のセルも止まる。
+      // そのため押せる状態に戻るまで待ってからでないと click が無視される
       const otherCell = await waitFor(() => {
         expect(screen.getByText("名前を入力してください")).not.toBeNull();
         const cell = within(rowOf("モードB")).getByRole("button", { name: "モードB" });
