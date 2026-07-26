@@ -323,6 +323,11 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
         "disabled",
         true
       );
+      // 行の操作ボタンも送信中は押せない（多重送信を防ぐ）。日界セクションなので元から押せないが、
+      // ここで見たいのは保存中の抑止なので非日界の行で見る
+      expect(
+        within(rowOf("セクションB")).getByRole("button", { name: "アーカイブ" })
+      ).toHaveProperty("disabled", true);
 
       await act(async () => {
         pending.resolve({ ok: true });
@@ -358,8 +363,9 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
       const input = startEditingCell("セクションA");
       fireEvent.change(input, { target: { value: "改名後" } });
       fireEvent.blur(input);
-      // メッセージの表示と isPending の解除は別のタイミングで届く。保存中は他行のセルも
-      // 押せない（§2.3）ので、押せる状態に戻るまで待ってからでないと click が無視される
+      // メッセージの表示と isPending の解除は別のタイミングで届く。§2.3 が要求するのは
+      // 「同じ行」の抑止だが、実装は isPending を表ごとに1つ持つので他行のセルも止まる。
+      // そのため押せる状態に戻るまで待ってからでないと click が無視される
       const otherCell = await waitFor(() => {
         expect(screen.getByText("開始時刻を HH:MM 形式で入力してください")).not.toBeNull();
         const cell = within(rowOf("セクションB")).getByRole("button", { name: "セクションB" });
@@ -482,6 +488,51 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
         expect(screen.getByText("開始時刻を HH:MM 形式で入力してください")).not.toBeNull();
       });
       expect(screen.getByPlaceholderText("セクション名")).not.toBeNull();
+    });
+
+    // 「保存中に始める操作」も止める（§2.3）——押すと開いていたセルが閉じてしまう
+    it("保存中は「新規追加」を押せない", async () => {
+      const pending = deferredAction();
+      vi.mocked(archiveSectionAction).mockReturnValue(pending.promise);
+      renderTable();
+
+      fireEvent.click(within(rowOf("セクションB")).getByRole("button", { name: "アーカイブ" }));
+
+      const create = await waitFor(() => {
+        const button = screen.getByRole("button", { name: "新規追加" });
+        expect(button).toHaveProperty("disabled", true);
+        return button;
+      });
+      fireEvent.click(create);
+      expect(screen.queryByPlaceholderText("セクション名")).toBeNull();
+
+      await act(async () => {
+        pending.resolve({ ok: true });
+      });
+      expect(screen.getByRole("button", { name: "新規追加" })).toHaveProperty("disabled", false);
+    });
+
+    // 新規行の保存中の抑止（§2.3「新規追加行の保存中」）は部品が持つが、
+    // isPending を渡す配線は表ごとなのでここで見る
+    it("保存中は新規行の「保存」「取消」を押せない", async () => {
+      const pending = deferredAction();
+      vi.mocked(createSectionAction).mockReturnValue(pending.promise);
+      renderTable();
+      fireEvent.click(screen.getByRole("button", { name: "新規追加" }));
+      fireEvent.change(screen.getByPlaceholderText("セクション名"), {
+        target: { value: "新セクション" },
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "保存" }));
+
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "保存" })).toHaveProperty("disabled", true);
+      });
+      expect(screen.getByRole("button", { name: "取消" })).toHaveProperty("disabled", true);
+
+      await act(async () => {
+        pending.resolve({ ok: true });
+      });
     });
   });
 

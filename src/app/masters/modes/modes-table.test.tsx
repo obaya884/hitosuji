@@ -281,6 +281,11 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
         "disabled",
         true
       );
+      // 行の操作ボタンも送信中は押せない（多重送信を防ぐ）
+      expect(within(row).getByRole("button", { name: "アーカイブ" })).toHaveProperty(
+        "disabled",
+        true
+      );
 
       await act(async () => {
         pending.resolve({ ok: true });
@@ -289,6 +294,31 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
         "disabled",
         false
       );
+    });
+
+    // 応答を待つ間も入力欄は開いたままなので、そこから確定できると2件目の UPDATE が飛ぶ
+    it("保存中に値を変えて確定し直しても2件目を送らない（00_共通 §2.3「保存中」）", async () => {
+      const pending = deferredAction();
+      vi.mocked(updateModeAction).mockReturnValue(pending.promise);
+      renderTable();
+      const input = startEditingCell("モードA");
+
+      fireEvent.change(input, { target: { value: "改名後" } });
+      fireEvent.blur(input);
+      await waitFor(() => {
+        expect(updateModeAction).toHaveBeenCalledOnce();
+      });
+
+      // まだ応答が返っていない状態での再確定（値を変えて blur・Enter）
+      fireEvent.change(input, { target: { value: "さらに改名" } });
+      fireEvent.blur(input);
+      fireEvent.keyDown(input, { key: "Enter" });
+
+      expect(updateModeAction).toHaveBeenCalledExactlyOnceWith(1, { name: "改名後", color: RED });
+
+      await act(async () => {
+        pending.resolve({ ok: true });
+      });
     });
 
     it("失敗したらメッセージを出し、編集状態のまま残す（入力し直せる）", async () => {
@@ -318,8 +348,9 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       const input = startEditingCell("モードA");
       fireEvent.change(input, { target: { value: "" } });
       fireEvent.blur(input);
-      // メッセージの表示と isPending の解除は別のタイミングで届く。保存中は他行のセルも
-      // 押せない（§2.3）ので、押せる状態に戻るまで待ってからでないと click が無視される
+      // メッセージの表示と isPending の解除は別のタイミングで届く。§2.3 が要求するのは
+      // 「同じ行」の抑止だが、実装は isPending を表ごとに1つ持つので他行のセルも止まる。
+      // そのため押せる状態に戻るまで待ってからでないと click が無視される
       const otherCell = await waitFor(() => {
         expect(screen.getByText("名前を入力してください")).not.toBeNull();
         const cell = within(rowOf("モードB")).getByRole("button", { name: "モードB" });
@@ -430,6 +461,76 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
         expect(screen.getByText("色はプリセットから選択してください")).not.toBeNull();
       });
       expect(screen.getByPlaceholderText("モード名")).not.toBeNull();
+      // 抑止が解けたままにならない＝入力し直して保存できる（§2.3「失敗時」）
+      expect(screen.getByRole("button", { name: "保存" })).toHaveProperty("disabled", false);
+      expect(screen.getByRole("button", { name: "取消" })).toHaveProperty("disabled", false);
+    });
+
+    // 「保存中に始める操作」も止める（§2.3）——押すと開いていたセルが閉じてしまう
+    it("保存中は「新規追加」を押せない", async () => {
+      const pending = deferredAction();
+      vi.mocked(setModeArchivedAction).mockReturnValue(pending.promise);
+      renderTable();
+
+      fireEvent.click(within(rowOf("モードA")).getByRole("button", { name: "アーカイブ" }));
+
+      const create = await waitFor(() => {
+        const button = screen.getByRole("button", { name: "新規追加" });
+        expect(button).toHaveProperty("disabled", true);
+        return button;
+      });
+      fireEvent.click(create);
+      expect(screen.queryByPlaceholderText("モード名")).toBeNull();
+
+      await act(async () => {
+        pending.resolve({ ok: true });
+      });
+      expect(screen.getByRole("button", { name: "新規追加" })).toHaveProperty("disabled", false);
+    });
+
+    // 送信せず表示だけを変えるその場の選択も止める（§2.3）——送る値と表示が食い違うため
+    it("保存中は新規行の色スウォッチを押せない", async () => {
+      const pending = deferredAction();
+      vi.mocked(createModeAction).mockReturnValue(pending.promise);
+      renderTable();
+      fireEvent.click(screen.getByRole("button", { name: "新規追加" }));
+      fireEvent.change(screen.getByPlaceholderText("モード名"), { target: { value: "新モード" } });
+
+      fireEvent.click(screen.getByRole("button", { name: "保存" }));
+
+      const swatch = await waitFor(() => {
+        const button = screen.getByRole("button", { name: "色を選択（現在: 赤）" });
+        expect(button).toHaveProperty("disabled", true);
+        return button;
+      });
+      fireEvent.click(swatch);
+      expect(screen.queryByRole("button", { name: "色 青" })).toBeNull();
+
+      // 成功すると新規行ごと閉じるので、他のテストと違い解除側は主張できない（act 警告を避けて終える）
+      await act(async () => {
+        pending.resolve({ ok: true });
+      });
+    });
+
+    // 新規行の保存中の抑止（§2.3「新規追加行の保存中」）は部品が持つが、
+    // isPending を渡す配線は表ごとなのでここで見る
+    it("保存中は新規行の「保存」「取消」を押せない", async () => {
+      const pending = deferredAction();
+      vi.mocked(createModeAction).mockReturnValue(pending.promise);
+      renderTable();
+      fireEvent.click(screen.getByRole("button", { name: "新規追加" }));
+      fireEvent.change(screen.getByPlaceholderText("モード名"), { target: { value: "新モード" } });
+
+      fireEvent.click(screen.getByRole("button", { name: "保存" }));
+
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "保存" })).toHaveProperty("disabled", true);
+      });
+      expect(screen.getByRole("button", { name: "取消" })).toHaveProperty("disabled", true);
+
+      await act(async () => {
+        pending.resolve({ ok: true });
+      });
     });
 
     it("開くたびに既定色へ戻す（前回の選択を持ち越さない）", () => {

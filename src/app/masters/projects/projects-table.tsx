@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { useServerAction } from "@/app/_lib/use-server-action";
-import { btnSecondary, inputBase, linkAccent, linkMuted, noticeDanger } from "@/app/_lib/ui";
+import { btnSecondary, linkMuted, noticeDanger } from "@/app/_lib/ui";
 import { PlusIcon } from "@/app/_components/icons";
 import type { Project } from "@/domain/project/project";
 import { ArchivedMasterSection } from "../_components/archived-master-section";
+import { MasterEditableCell } from "../_components/master-editable-cell";
+import { MasterNewRow, MasterNewRowInput } from "../_components/master-new-row";
 import {
   createProjectAction,
   deleteProjectAction,
@@ -20,103 +21,50 @@ type Props = Readonly<{
   deletableIds: readonly number[];
 }>;
 
-type Editing = Readonly<{ id: number | "new"; name: string }>;
-
 export function ProjectsTable({ active, archived, deletableIds }: Props) {
-  const [editing, setEditing] = useState<Editing | null>(null);
+  // 編集中のセル（`"new"` は新規追加行）。値は入力欄の DOM が持つ
+  const [editingId, setEditingId] = useState<number | "new" | null>(null);
   const { error, setError, isPending, run } = useServerAction();
 
-  /**
-   * 保存の経路は blur の1本だけにする（画面定義書03 §4「編集方式」）。
-   * Enter・Esc は入力欄を blur させて合流させ、二重送信を避ける。
-   * 値は S-01 のインライン編集と同じく DOM から読む（親は編集状態だけを持つ）
-   */
-  function commit(input: HTMLInputElement) {
-    if (editing === null) return;
-    const name = input.value;
-    const original = active.find((p) => p.id === editing.id)?.name;
-
-    // 変更がなければ何もせず閉じる（クリックしただけで UPDATE が飛ばないように）
-    if (editing.id !== "new" && name === original) {
-      setEditing(null);
-      return;
-    }
-
-    const action =
-      editing.id === "new"
-        ? () => createProjectAction({ name })
-        : () => updateProjectAction(editing.id as number, { name });
-    // 失敗時は編集状態のまま残し、入力し直せるようにする
-    run(action, () => setEditing(null));
-  }
-
-  const onKeyDown = inlineEditKeyHandler({
-    onEnter: (input) => input.blur(),
-    onEscape: (input) => {
-      // 元の値へ戻してから blur すると、commit が「変更なし」と判断して閉じるだけになる
-      input.value = active.find((p) => p.id === editing?.id)?.name ?? "";
-      input.blur();
-    },
-  });
-
   /** 一覧の名前セル。クリックでその場編集（§4「編集方式」） */
-  const nameCell = (project: Project) =>
-    editing?.id === project.id ? (
-      <input
-        autoFocus
-        defaultValue={project.name}
-        onKeyDown={onKeyDown}
-        onBlur={(e) => commit(e.currentTarget)}
-        className={`w-full ${inputBase}`}
-      />
-    ) : (
-      <button
-        type="button"
-        onClick={() => {
-          setError(null);
-          setEditing({ id: project.id, name: project.name });
-        }}
-        className="text-left hover:underline"
-      >
-        {project.name}
-      </button>
-    );
+  const nameCell = (project: Project) => (
+    <MasterEditableCell
+      isEditing={editingId === project.id}
+      value={project.name}
+      isPending={isPending}
+      onStartEditing={() => {
+        setError(null);
+        setEditingId(project.id);
+      }}
+      // 失敗時は編集状態のまま残し、入力し直せるようにする
+      onCommit={(name) =>
+        run(() => updateProjectAction(project.id, { name }), () => setEditingId(null))
+      }
+      onClose={() => setEditingId(null)}
+    />
+  );
 
-  // 新規行は保存経路が blur ではないので、Enter で直接保存する（IME 判定は共通関数に任せる）
-  const onNewKeyDown = inlineEditKeyHandler({
-    onEnter: (input) => commit(input),
-    onEscape: () => setEditing(null),
-  });
-
-  // 新規追加の行だけは明示的な保存・取消を置く（既存行の編集はセルのインライン編集）
-  const newRow = (key: string) => (
-    <tr key={key} className="border-b border-line">
-      <td className="py-1 pr-2">
-        <input
-          autoFocus
-          defaultValue=""
-          onKeyDown={onNewKeyDown}
-          className={`w-full ${inputBase}`}
-          placeholder="プロジェクト名"
-        />
-      </td>
-      <td className="py-1 text-right whitespace-nowrap">
-        <button
-          onMouseDown={(e) => e.preventDefault()} // blur より先に押下を拾う
-          onClick={(e) => {
-            const input = e.currentTarget.closest("tr")?.querySelector("input");
-            if (input !== null && input !== undefined) commit(input);
-          }}
-          disabled={isPending}
-          className={`px-2 ${linkAccent}`}
-        >
-          保存
-        </button>
-        <button onClick={() => setEditing(null)} className={`px-2 ${linkMuted}`}>
-          取消
-        </button>
-      </td>
-    </tr>
+  const newRow = (
+    <MasterNewRow
+      isPending={isPending}
+      onSave={(fieldValue) =>
+        run(
+          () => createProjectAction({ name: fieldValue("name") }),
+          () => setEditingId(null)
+        )
+      }
+      onCancel={() => setEditingId(null)}
+      renderCells={(onKeyDown) => (
+        <td className="py-1 pr-2">
+          <MasterNewRowInput
+            field="name"
+            placeholder="プロジェクト名"
+            autoFocus
+            onKeyDown={onKeyDown}
+          />
+        </td>
+      )}
+    />
   );
 
   return (
@@ -128,8 +76,10 @@ export function ProjectsTable({ active, archived, deletableIds }: Props) {
         <button
           onClick={() => {
             setError(null);
-            setEditing({ id: "new", name: "" });
+            setEditingId("new");
           }}
+          // 保存中は新しい編集を始めさせない（開いていたセルが閉じてしまう。00_共通 §2.3）
+          disabled={isPending}
           className={`inline-flex shrink-0 items-center gap-1 ${btnSecondary}`}
         >
           <PlusIcon className="h-3 w-3" />
@@ -165,11 +115,11 @@ export function ProjectsTable({ active, archived, deletableIds }: Props) {
               </td>
             </tr>
           ))}
-          {editing?.id === "new" && newRow("new")}
+          {editingId === "new" && newRow}
         </tbody>
       </table>
 
-      {active.length === 0 && editing === null && (
+      {active.length === 0 && editingId === null && (
         <p className="mt-4 text-sm text-ink-muted">プロジェクトはまだありません。</p>
       )}
 

@@ -137,9 +137,9 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
       expect(updateProjectAction).not.toHaveBeenCalled();
     });
 
-    // 保存中の抑止（00_共通 §2.3「保存中」）は modes/sections の名前セルには入っているが
-    // projects には無い。実装の差は FB-63 で検討中のため、現状を正直に固定しておく
-    it("projects の名前セルは保存中も押せる（modes/sections と違い disabled が無い。FB-63 で検討中）", async () => {
+    // 行内に編集可能なセルが1つ（名前）だけでも保存中は開かせない（00_共通 §2.3「保存中」）。
+    // modes/sections と同じ部品（MasterEditableCell）を使うことで揃った（T-44 / FB-63）
+    it("保存中は名前セルを開けない（古い値での上書きを防ぐ）", async () => {
       const pending = deferredAction();
       vi.mocked(setProjectArchivedAction).mockReturnValue(pending.promise);
       renderTable();
@@ -147,24 +147,28 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
       fireEvent.click(within(rowOf("プロジェクトA")).getByRole("button", { name: "アーカイブ" }));
 
       const row = rowOf("プロジェクトA");
-      await waitFor(() => {
-        expect(within(row).getByRole("button", { name: "アーカイブ" })).toHaveProperty(
-          "disabled",
-          true
-        );
+      const nameCell = await waitFor(() => {
+        const cell = within(row).getByRole("button", { name: "プロジェクトA" });
+        expect(cell).toHaveProperty("disabled", true);
+        return cell;
       });
-      // 送信中でも名前セルは押せてしまい、古い値で編集を開始できる（＝条項からの逸脱の実体）
-      const nameCell = within(row).getByRole("button", { name: "プロジェクトA" });
-      expect(nameCell).toHaveProperty("disabled", false);
+      // 行の操作ボタンも送信中は押せない（多重送信を防ぐ）
+      expect(within(row).getByRole("button", { name: "アーカイブ" })).toHaveProperty(
+        "disabled",
+        true
+      );
 
+      // 送信中に開こうとしても入力欄にならない（古い値を再送しうる経路が閉じている）
       fireEvent.click(nameCell);
-      expect(screen.getByDisplayValue("プロジェクトA")).not.toBeNull();
+      expect(screen.queryByDisplayValue("プロジェクトA")).toBeNull();
 
       await act(async () => {
         pending.resolve({ ok: true });
       });
-      // アーカイブが返ったあとも、送信前の値を抱えた入力欄が残る
-      expect(screen.getByDisplayValue("プロジェクトA")).not.toBeNull();
+      // 保存が返れば再び編集できる
+      expect(
+        within(rowOf("プロジェクトA")).getByRole("button", { name: "プロジェクトA" })
+      ).toHaveProperty("disabled", false);
     });
 
     it("失敗したらメッセージを出し、編集状態のまま残す（入力し直せる）", async () => {
@@ -198,7 +202,16 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
         expect(screen.getByText("名前を入力してください")).not.toBeNull();
       });
 
-      fireEvent.click(within(rowOf("プロジェクトB")).getByRole("button", { name: "プロジェクトB" }));
+      // メッセージの表示と isPending の解除は別のタイミングで届く。§2.3 が要求するのは
+      // 「同じ行」の抑止だが、実装は isPending を表ごとに1つ持つので他行のセルも止まる。
+      // そのため押せる状態に戻るまで待ってからでないと click が無視される
+      const otherCell = await waitFor(() => {
+        const cell = within(rowOf("プロジェクトB")).getByRole("button", { name: "プロジェクトB" });
+        expect(cell).toHaveProperty("disabled", false);
+        return cell;
+      });
+
+      fireEvent.click(otherCell);
 
       expect(screen.queryByText("名前を入力してください")).toBeNull();
     });
@@ -289,6 +302,82 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
 
       await waitFor(() => {
         expect(screen.getByText("名前を入力してください")).not.toBeNull();
+      });
+      expect(screen.getByPlaceholderText("プロジェクト名")).not.toBeNull();
+    });
+
+    // 「保存中に始める操作」も止める（§2.3）——押すと開いていたセルが閉じ、
+    // 失敗が返っても入力し直せなくなる。守りたいのは「開いている入力欄が残る」こと
+    it("保存中の「新規追加」は開いている編集セルを閉じない", async () => {
+      const pending = deferredAction();
+      vi.mocked(setProjectArchivedAction).mockReturnValue(pending.promise);
+      renderTable();
+      // プロジェクトB を編集中にしたまま、別行のアーカイブで保存中にする
+      const input = startEditingCell("プロジェクトB");
+      fireEvent.click(within(rowOf("プロジェクトA")).getByRole("button", { name: "アーカイブ" }));
+
+      const create = await waitFor(() => {
+        const button = screen.getByRole("button", { name: "新規追加" });
+        expect(button).toHaveProperty("disabled", true);
+        return button;
+      });
+      fireEvent.click(create);
+
+      expect(screen.getByDisplayValue("プロジェクトB")).toBe(input);
+      expect(screen.queryByPlaceholderText("プロジェクト名")).toBeNull();
+
+      await act(async () => {
+        pending.resolve({ ok: true });
+      });
+      expect(screen.getByRole("button", { name: "新規追加" })).toHaveProperty("disabled", false);
+    });
+
+    // 00_共通 §2.3「新規追加行の保存中」——確定と取消をどちらも止める
+    it("保存中の Enter 連打でも追加は1回だけ送る", async () => {
+      const pending = deferredAction();
+      vi.mocked(createProjectAction).mockReturnValue(pending.promise);
+      renderTable();
+      fireEvent.click(screen.getByRole("button", { name: "新規追加" }));
+      const input = screen.getByPlaceholderText("プロジェクト名");
+      fireEvent.change(input, { target: { value: "新しいプロジェクト" } });
+
+      fireEvent.keyDown(input, { key: "Enter" });
+      await waitFor(() => {
+        expect(createProjectAction).toHaveBeenCalledOnce();
+      });
+      fireEvent.keyDown(input, { key: "Enter" });
+      fireEvent.keyDown(input, { key: "Enter" });
+
+      expect(createProjectAction).toHaveBeenCalledExactlyOnceWith({ name: "新しいプロジェクト" });
+
+      await act(async () => {
+        pending.resolve({ ok: true });
+      });
+    });
+
+    it("保存中は取消で新規行を閉じない（失敗のメッセージだけが残るのを防ぐ）", async () => {
+      const pending = deferredAction();
+      vi.mocked(createProjectAction).mockReturnValue(pending.promise);
+      renderTable();
+      fireEvent.click(screen.getByRole("button", { name: "新規追加" }));
+      fireEvent.change(screen.getByPlaceholderText("プロジェクト名"), {
+        target: { value: "新しいプロジェクト" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "保存" }));
+
+      const cancel = await waitFor(() => {
+        const button = screen.getByRole("button", { name: "取消" });
+        expect(button).toHaveProperty("disabled", true);
+        return button;
+      });
+      fireEvent.click(cancel);
+      fireEvent.keyDown(screen.getByPlaceholderText("プロジェクト名"), { key: "Escape" });
+
+      expect(screen.getByPlaceholderText("プロジェクト名")).not.toBeNull();
+
+      // 失敗が返ってはじめて入力し直せる状態になる（§2.3「失敗時」の詳細は上のテストが持つ）
+      await act(async () => {
+        pending.resolve({ ok: false, message: "名前を入力してください" });
       });
       expect(screen.getByPlaceholderText("プロジェクト名")).not.toBeNull();
     });

@@ -1,20 +1,14 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { useDismiss } from "@/app/_lib/use-dismiss";
 import { useServerAction } from "@/app/_lib/use-server-action";
-import {
-  btnSecondary,
-  floatPanel,
-  inputBase,
-  linkAccent,
-  linkMuted,
-  noticeDanger,
-} from "@/app/_lib/ui";
+import { btnSecondary, floatPanel, linkMuted, noticeDanger } from "@/app/_lib/ui";
 import { PlusIcon } from "@/app/_components/icons";
 import { MODE_COLOR_PRESETS, modeColorName, type Mode } from "@/domain/mode/mode";
 import { ArchivedMasterSection } from "../_components/archived-master-section";
+import { MasterEditableCell } from "../_components/master-editable-cell";
+import { MasterNewRow, MasterNewRowInput } from "../_components/master-new-row";
 import {
   createModeAction,
   deleteModeAction,
@@ -27,8 +21,6 @@ type Props = Readonly<{
   archived: readonly Mode[];
   deletableIds: readonly number[];
 }>;
-
-type Editing = Readonly<{ id: number | "new"; name: string }>;
 
 /** 新規モードの既定色（プリセットの先頭＝赤。画面定義書03 §3.2） */
 const DEFAULT_MODE_COLOR = MODE_COLOR_PRESETS[0].value;
@@ -90,71 +82,38 @@ function ColorPickerPopover({
 }
 
 export function ModesTable({ active, archived, deletableIds }: Props) {
-  const [editing, setEditing] = useState<Editing | null>(null);
+  // 編集中のセル（`"new"` は新規追加行）。値は入力欄の DOM が持つ
+  const [editingId, setEditingId] = useState<number | "new" | null>(null);
   const [newColor, setNewColor] = useState<string>(DEFAULT_MODE_COLOR);
   const [colorPickerId, setColorPickerId] = useState<number | "new" | null>(null);
   const { error, setError, isPending, run } = useServerAction();
 
-  /**
-   * 保存の経路は blur の1本だけにする（画面定義書03 §4「編集方式」）。
-   * 名前を保存するときは色は現在値のまま送る（色の変更はカラーバーのポップオーバーで独立して行う）
-   */
-  function commit(input: HTMLInputElement) {
-    if (editing === null) return;
-    const name = input.value;
-    const original = active.find((m) => m.id === editing.id)?.name;
-
-    // 変更がなければ何もせず閉じる（クリックしただけで UPDATE が飛ばないように）
-    if (editing.id !== "new" && name === original) {
-      setEditing(null);
-      return;
-    }
-
-    const color =
-      editing.id === "new"
-        ? newColor
-        : active.find((m) => m.id === editing.id)?.color ?? DEFAULT_MODE_COLOR;
-    const action =
-      editing.id === "new"
-        ? () => createModeAction({ name, color })
-        : () => updateModeAction(editing.id as number, { name, color });
-    // 失敗時は編集状態のまま残し、入力し直せるようにする
-    run(action, () => setEditing(null));
+  /** 新規追加行を閉じる（開いていたプリセット選択も畳む） */
+  function closeNewRow() {
+    setEditingId(null);
+    setColorPickerId(null);
   }
 
-  const onKeyDown = inlineEditKeyHandler({
-    onEnter: (input) => input.blur(),
-    onEscape: (input) => {
-      // 元の値へ戻してから blur すると、commit が「変更なし」と判断して閉じるだけになる
-      input.value = active.find((m) => m.id === editing?.id)?.name ?? "";
-      input.blur();
-    },
-  });
-
-  /** 名前セル。クリックでその場編集（§4「編集方式」） */
-  const nameCell = (mode: Mode) =>
-    editing?.id === mode.id ? (
-      <input
-        autoFocus
-        defaultValue={mode.name}
-        onKeyDown={onKeyDown}
-        onBlur={(e) => commit(e.currentTarget)}
-        className={`w-full ${inputBase}`}
-      />
-    ) : (
-      <button
-        type="button"
-        // 保存中は同じ行の他のセルを触らせない（古い値での上書きを防ぐ。§4「編集方式」）
-        disabled={isPending}
-        onClick={() => {
-          setError(null);
-          setEditing({ id: mode.id, name: mode.name });
-        }}
-        className="text-left hover:underline disabled:no-underline disabled:opacity-60"
-      >
-        {mode.name}
-      </button>
-    );
+  /**
+   * 名前セル。クリックでその場編集（§4「編集方式」）。
+   * 名前を保存するときは色は現在値のまま送る（色の変更はカラーバーのポップオーバーで独立して行う）
+   */
+  const nameCell = (mode: Mode) => (
+    <MasterEditableCell
+      isEditing={editingId === mode.id}
+      value={mode.name}
+      isPending={isPending}
+      onStartEditing={() => {
+        setError(null);
+        setEditingId(mode.id);
+      }}
+      // 失敗時は編集状態のまま残し、入力し直せるようにする
+      onCommit={(name) =>
+        run(() => updateModeAction(mode.id, { name, color: mode.color }), () => setEditingId(null))
+      }
+      onClose={() => setEditingId(null)}
+    />
+  );
 
   /** 色セル。カラーバーを押すとプリセット選択がその場に開き、選んだ色を即保存する */
   const colorCell = (mode: Mode) => (
@@ -193,6 +152,8 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
     <span className="relative inline-flex items-center gap-2">
       <button
         type="button"
+        // 送信せず表示だけを変える選択も保存中は止める（送る値と表示が食い違う。00_共通 §2.3）
+        disabled={isPending}
         onClick={() => setColorPickerId("new")}
         aria-label={`色を選択（現在: ${modeColorName(newColor)}）`}
       >
@@ -204,53 +165,36 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
       </button>
       <span className="text-xs text-ink-muted">{modeColorName(newColor)}</span>
       {colorPickerId === "new" && (
-        <ColorPickerPopover selected={newColor} onSelect={setNewColor} onClose={() => setColorPickerId(null)} />
+        <ColorPickerPopover
+          selected={newColor}
+          onSelect={setNewColor}
+          onClose={() => setColorPickerId(null)}
+        />
       )}
     </span>
   );
 
-  // 新規行は保存経路が blur ではないので、Enter で直接保存する（IME 判定は共通関数に任せる）
-  const onNewKeyDown = inlineEditKeyHandler({
-    onEnter: (input) => commit(input),
-    onEscape: () => setEditing(null),
-  });
-
-  // 新規追加の行だけは明示的な保存・取消を置く（既存行の編集はセルのインライン編集）
-  const newRow = (key: string) => (
-    <tr key={key} className="border-b border-line">
-      <td className="py-1 pr-2">{newColorCell}</td>
-      <td className="py-1 pr-2">
-        <input
-          autoFocus
-          defaultValue=""
-          onKeyDown={onNewKeyDown}
-          className={`w-full ${inputBase}`}
-          placeholder="モード名"
-        />
-      </td>
-      <td className="py-1 text-right whitespace-nowrap">
-        <button
-          onMouseDown={(e) => e.preventDefault()} // blur より先に押下を拾う
-          onClick={(e) => {
-            const input = e.currentTarget.closest("tr")?.querySelector("input");
-            if (input !== null && input !== undefined) commit(input);
-          }}
-          disabled={isPending}
-          className={`px-2 ${linkAccent}`}
-        >
-          保存
-        </button>
-        <button
-          onClick={() => {
-            setEditing(null);
-            setColorPickerId(null);
-          }}
-          className={`px-2 ${linkMuted}`}
-        >
-          取消
-        </button>
-      </td>
-    </tr>
+  const newRow = (
+    <MasterNewRow
+      isPending={isPending}
+      onSave={(fieldValue) =>
+        run(() => createModeAction({ name: fieldValue("name"), color: newColor }), closeNewRow)
+      }
+      onCancel={closeNewRow}
+      renderCells={(onKeyDown) => (
+        <>
+          <td className="py-1 pr-2">{newColorCell}</td>
+          <td className="py-1 pr-2">
+            <MasterNewRowInput
+              field="name"
+              placeholder="モード名"
+              autoFocus
+              onKeyDown={onKeyDown}
+            />
+          </td>
+        </>
+      )}
+    />
   );
 
   return (
@@ -261,8 +205,10 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
           onClick={() => {
             setError(null);
             setNewColor(DEFAULT_MODE_COLOR);
-            setEditing({ id: "new", name: "" });
+            setEditingId("new");
           }}
+          // 保存中は新しい編集を始めさせない（開いていたセルが閉じてしまう。00_共通 §2.3）
+          disabled={isPending}
           className={`inline-flex shrink-0 items-center gap-1 ${btnSecondary}`}
         >
           <PlusIcon className="h-3 w-3" />
@@ -300,7 +246,7 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
               </td>
             </tr>
           ))}
-          {editing?.id === "new" && newRow("new")}
+          {editingId === "new" && newRow}
         </tbody>
       </table>
 

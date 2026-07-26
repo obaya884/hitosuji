@@ -18,6 +18,8 @@ type Props = Readonly<{
   modes: readonly Mode[];
   projects: readonly Project[];
   today: string;
+  /** 保存中（Server Action の応答待ち） */
+  isPending: boolean;
   onSubmit: (input: RoutineInput) => void;
   onCancel: () => void;
 }>;
@@ -29,8 +31,23 @@ const RECURRENCE_LABELS: Readonly<Record<RecurrenceType, string>> = {
   interval: "n日ごと",
 };
 
-/** 新規/編集フォーム（画面定義書02 §4）。繰り返し種別に応じて入力項目を出し分ける */
-export function RoutineForm({ routine, modes, projects, today, onSubmit, onCancel }: Props) {
+/**
+ * 新規/編集フォーム（画面定義書02 §4）。繰り返し種別に応じて入力項目を出し分ける。
+ *
+ * 保存中（`isPending`）は 00_共通 §2.3 に従い、確定（保存）・取消と、**送信せず表示だけを
+ * 変えるその場の選択**（繰り返し種別・曜日・モード/プロジェクト）を止める。
+ * **テキスト入力欄は触れるままにする**——失敗して戻ってきたときに入力し直せるようにするため
+ * （§2.3「失敗時」）。値を送るのは保存ボタンだけなので、打っている間に送信は起きない
+ */
+export function RoutineForm({
+  routine,
+  modes,
+  projects,
+  today,
+  isPending,
+  onSubmit,
+  onCancel,
+}: Props) {
   const [name, setName] = useState(routine?.name ?? "");
   const [estimateMinutes, setEstimateMinutes] = useState(String(routine?.estimateMinutes ?? 15));
   const [scheduledStartTime, setScheduledStartTime] = useState(
@@ -111,6 +128,7 @@ export function RoutineForm({ routine, modes, projects, today, onSubmit, onCance
                 type="radio"
                 name="recurrenceType"
                 checked={recurrenceType === type}
+                disabled={isPending}
                 onChange={() => setRecurrenceType(type)}
                 className="accent-accent"
               />
@@ -127,6 +145,7 @@ export function RoutineForm({ routine, modes, projects, today, onSubmit, onCance
                 <button
                   key={preset.label}
                   type="button"
+                  disabled={isPending}
                   onClick={() => setWeekdays(preset.mask)}
                   className={btnSecondary}
                 >
@@ -140,6 +159,7 @@ export function RoutineForm({ routine, modes, projects, today, onSubmit, onCance
                   <input
                     type="checkbox"
                     checked={(weekdays & (1 << weekday.bit)) !== 0}
+                    disabled={isPending}
                     onChange={() => setWeekdays((v) => toggleWeekday(v, weekday.bit))}
                     className="accent-accent"
                   />
@@ -219,6 +239,7 @@ export function RoutineForm({ routine, modes, projects, today, onSubmit, onCance
             <span className="text-xs text-ink-muted">モード</span>
             <select
               value={modeId ?? ""}
+              disabled={isPending}
               onChange={(e) => setModeId(e.target.value === "" ? null : Number(e.target.value))}
               className={`mt-1 w-full ${inputBase}`}
             >
@@ -234,6 +255,7 @@ export function RoutineForm({ routine, modes, projects, today, onSubmit, onCance
             <span className="text-xs text-ink-muted">プロジェクト</span>
             <select
               value={projectId ?? ""}
+              disabled={isPending}
               onChange={(e) =>
                 setProjectId(e.target.value === "" ? null : Number(e.target.value))
               }
@@ -250,11 +272,17 @@ export function RoutineForm({ routine, modes, projects, today, onSubmit, onCance
         </div>
       </div>
 
+      {/* 保存中は確定も取消も止める（§2.3。連打は二重に作り、応答待ちの取消は入力を失わせる） */}
       <div className="mt-3 flex justify-end gap-2">
-        <button type="button" onClick={onCancel} className={`px-3 py-1 text-sm ${linkMuted}`}>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={isPending}
+          className={`px-3 py-1 text-sm ${linkMuted}`}
+        >
           取消
         </button>
-        <button type="button" onClick={submit} className={btnPrimary}>
+        <button type="button" onClick={submit} disabled={isPending} className={btnPrimary}>
           保存
         </button>
       </div>

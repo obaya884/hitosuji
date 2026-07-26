@@ -403,9 +403,9 @@ describe("RoutinesTable（画面定義書02 §5: 有効/無効・削除・編集
     expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
   });
 
-  // 「編集」だけは保存中も押せる（disabled を付けていない）。是非は FB-63 で検討中のため、
-  // ここでは現状を固定するにとどめる
-  it("保存中は有効トグルと削除を押せない（編集ボタンは押せる。FB-63 で検討中）", async () => {
+  // この画面は保存完了を待って反映する（§1 で N-01 対象外）ので、00_共通 §2.3「保存中」の
+  // 適用対象。「編集」も止める＝古い値を抱えたフォームを開けない（FB-63）
+  it("保存中は有効トグル・削除・編集のいずれも押せない（00_共通 §2.3「保存中」）", async () => {
     const pending = deferredAction();
     vi.mocked(setRoutineActiveAction).mockReturnValue(pending.promise);
     const { container } = renderTable([routine({ id: 7 })]);
@@ -416,13 +416,86 @@ describe("RoutinesTable（画面定義書02 §5: 有効/無効・削除・編集
     await click(checkbox);
     expect(checkbox.disabled).toBe(true);
     expect(remove.disabled).toBe(true);
-    expect(edit.disabled).toBe(false);
+    expect(edit.disabled).toBe(true);
+
+    // 送信中に押しても編集フォームは開かない（古い値での上書きを防ぐ）
+    await click(edit);
+    expect(screen.queryByLabelText("名前")).toBeNull();
 
     await act(async () => {
       pending.resolve({ ok: true });
     });
     expect(checkbox.disabled).toBe(false);
     expect(remove.disabled).toBe(false);
+    expect(edit.disabled).toBe(false);
+  });
+
+  // 「保存中に始める操作」も止める（00_共通 §2.3）——開いていたフォームが閉じてしまうため
+  it("保存中は「新規ルーチン」を押せない", async () => {
+    const pending = deferredAction();
+    vi.mocked(setRoutineActiveAction).mockReturnValue(pending.promise);
+    const { container } = renderTable([routine({ id: 7 })]);
+    const checkbox = cell(container, 0, COL.active).querySelector<HTMLInputElement>("input")!;
+    const create = screen.getByText<HTMLButtonElement>("新規ルーチン");
+
+    await click(checkbox);
+    expect(create.disabled).toBe(true);
+
+    await click(create);
+    expect(screen.queryByLabelText("名前")).toBeNull();
+
+    await act(async () => {
+      pending.resolve({ ok: true });
+    });
+    expect(create.disabled).toBe(false);
+  });
+
+  // フォーム自身の抑止は routine-form.test.tsx が持つ。ここは isPending を渡す配線だけを見る
+  it("保存中はフォームの「保存」「取消」も押せない（新規作成フォーム。00_共通 §2.3）", async () => {
+    const pending = deferredAction();
+    vi.mocked(createRoutineAction).mockReturnValue(pending.promise);
+    renderTable([]);
+    await click(screen.getByText("新規ルーチン"));
+
+    await click(screen.getByText("保存"));
+
+    expect(screen.getByText<HTMLButtonElement>("保存").disabled).toBe(true);
+    expect(screen.getByText<HTMLButtonElement>("取消").disabled).toBe(true);
+
+    await act(async () => {
+      pending.resolve({ ok: true });
+    });
+  });
+
+  // 新規と編集は別々に配線するので、編集フォーム側も同じく見る（片方だけ渡し忘れても
+  // もう片方のテストは緑のままになるため）
+  it("保存中は編集フォームの「保存」「取消」も押せない（00_共通 §2.3）", async () => {
+    const pending = deferredAction();
+    vi.mocked(updateRoutineAction).mockReturnValue(pending.promise);
+    renderTable([routine({ id: 7 })]);
+    await click(screen.getByText("編集"));
+
+    await click(screen.getByText("保存"));
+
+    expect(screen.getByText<HTMLButtonElement>("保存").disabled).toBe(true);
+    expect(screen.getByText<HTMLButtonElement>("取消").disabled).toBe(true);
+
+    await act(async () => {
+      pending.resolve({ ok: true });
+    });
+  });
+
+  // §2.3「失敗時」——失敗して戻ってきたら入力し直せる（抑止が解けたままにならない）
+  it("保存に失敗したらフォームを残し、保存・取消を再び押せる状態へ戻す", async () => {
+    vi.mocked(createRoutineAction).mockResolvedValue({ ok: false, message: "保存に失敗しました" });
+    renderTable([]);
+    await click(screen.getByText("新規ルーチン"));
+
+    await click(screen.getByText("保存"));
+
+    expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
+    expect(screen.getByText<HTMLButtonElement>("保存").disabled).toBe(false);
+    expect(screen.getByText<HTMLButtonElement>("取消").disabled).toBe(false);
   });
 
   // isPending は useServerAction がテーブル単位で1組しか持たない（行単位ではない）ため、
