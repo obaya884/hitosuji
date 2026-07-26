@@ -6,7 +6,9 @@ import type {
 import type { SectionRepository } from "@/usecases/ports/section-repository";
 import type { Routine } from "@/domain/routine/routine";
 import type { Section } from "@/domain/section/section";
-import type { Task } from "@/domain/task/task";
+import { routine } from "@/domain/routine/testing/routine";
+import { TEST_DATE } from "@/domain/shared/testing/clock";
+import { task } from "@/domain/task/testing/task";
 import { expandRoutinesFor } from "./expand";
 import { inMemoryTaskRepository } from "@/usecases/task/testing/in-memory-repository";
 
@@ -25,44 +27,6 @@ const sectionRepo: SectionRepository = {
   referenceCounts: async () => ({}),
   remove: async () => {},
 };
-
-function routine(over: Partial<Routine> & { id: number }): Routine {
-  return {
-    name: `R${over.id}`,
-    estimateMinutes: 20,
-    scheduledStartTime: "06:30",
-    modeId: null,
-    projectId: null,
-    recurrenceType: "daily",
-    weekdays: null,
-    weekInterval: null,
-    monthDay: null,
-    intervalDays: null,
-    startDate: "2026-01-01",
-    endDate: null,
-    isActive: true,
-    ...over,
-  };
-}
-
-function task(over: Partial<Task> & { id: number }): Task {
-  return {
-    taskDate: "2026-07-19",
-    name: `T${over.id}`,
-    estimateMinutes: 0,
-    sectionId: null,
-    modeId: null,
-    projectId: null,
-    sortOrder: 1000,
-    startedAt: null,
-    endedAt: null,
-    comment: null,
-    routineId: null,
-    splitParentId: null,
-    postponedCount: 0,
-    ...over,
-  };
-}
 
 /** 展開された種を記録するだけのリポジトリ（永続化の冪等性は統合テストで検証済み） */
 function recordingRoutineRepo(all: readonly Routine[], skipped: readonly number[] = []) {
@@ -83,7 +47,8 @@ function recordingRoutineRepo(all: readonly Routine[], skipped: readonly number[
   return { repo, expanded };
 }
 
-const TODAY = "2026-07-19";
+/** 展開の基準日（＝表示日）。全テスト共通の基準日を使う */
+const TODAY = TEST_DATE;
 
 describe("expandRoutinesFor（データモデル定義書 §4.1）", () => {
   it("開始想定時刻を含むセクションへ配置する（§4.1-2）", async () => {
@@ -158,7 +123,7 @@ describe("expandRoutinesFor（データモデル定義書 §4.1）", () => {
 
     const count = await expandRoutinesFor(
       { routines: repo, sections: sectionRepo, tasks: inMemoryTaskRepository() },
-      "2026-07-18",
+      "2026-07-25",
       TODAY
     );
 
@@ -171,12 +136,12 @@ describe("expandRoutinesFor（データモデル定義書 §4.1）", () => {
 
     const count = await expandRoutinesFor(
       { routines: repo, sections: sectionRepo, tasks: inMemoryTaskRepository() },
-      "2026-07-20", // TODAY より後
+      "2026-07-27", // TODAY より後
       TODAY
     );
 
     expect(count).toBe(1);
-    expect(expanded.map((s) => [s.routineId, s.taskDate])).toEqual([[1, "2026-07-20"]]);
+    expect(expanded.map((s) => [s.routineId, s.taskDate])).toEqual([[1, "2026-07-27"]]);
   });
 
   it("該当するルーチンがなければ何もしない", async () => {

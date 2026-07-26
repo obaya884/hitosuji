@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import type { Section } from "@/domain/section/section";
 import type { DailyGroup } from "@/domain/task/daily-list";
 import type { Task } from "@/domain/task/task";
-import { at, sectionGroup, task, TEST_DATE, unclassifiedGroup } from "../_testing/factories";
+import { atJst, TEST_DATE } from "@/domain/shared/testing/clock";
+import { task } from "@/domain/task/testing/task";
+import { sectionGroup, unclassifiedGroup } from "../_testing/factories";
 import { applyOptimisticAction, optimisticTask, type OptimisticAction } from "./optimistic";
 
 // 見るのは「どのアクションが何をどこまで即時に反映するか」（画面定義書01 / N-01）。
@@ -10,13 +12,13 @@ import { applyOptimisticAction, optimisticTask, type OptimisticAction } from "./
 const MORNING: Section = { id: 1, name: "朝", startTime: "06:00", isArchived: false };
 
 const NOT_STARTED = task({ id: 11, name: "未実行" });
-const RUNNING = task({ id: 12, name: "実行中", sectionId: 1, startedAt: at("09:00") });
+const RUNNING = task({ id: 12, name: "実行中", sectionId: 1, startedAt: atJst("09:00") });
 const COMPLETED = task({
   id: 13,
   name: "完了",
   sectionId: 1,
-  startedAt: at("08:00"),
-  endedAt: at("08:30"),
+  startedAt: atJst("08:00"),
+  endedAt: atJst("08:30"),
 });
 
 function groups(): DailyGroup[] {
@@ -57,9 +59,9 @@ describe("applyOptimisticAction の即時反映（N-01 / 00_共通 §4）", () =
   });
 
   it("start は開始打刻を入れる（割り込みの終了・再開タスク生成はサーバ確定後 / O-2）", () => {
-    const applied = apply({ type: "start", id: 11, at: at("10:00") });
+    const applied = apply({ type: "start", id: 11, at: atJst("10:00") });
 
-    expect(find(applied, 11)).toEqual({ ...NOT_STARTED, startedAt: at("10:00") });
+    expect(find(applied, 11)).toEqual({ ...NOT_STARTED, startedAt: atJst("10:00") });
     // 既存の実行中タスクには触れない（割り込みの終了はサーバの1トランザクション）
     expect(find(applied, 12)).toEqual(RUNNING);
     // 現在位置への自動セクション移動（§4.2-a / F-113 規則a）もサーバ確定後。まだ未分類に留まる
@@ -82,28 +84,28 @@ describe("applyOptimisticAction の即時反映（N-01 / 00_共通 §4）", () =
   });
 
   it("finish は終了打刻だけを入れる（開始打刻は保つ）", () => {
-    const applied = apply({ type: "finish", id: 12, at: at("11:00") });
+    const applied = apply({ type: "finish", id: 12, at: atJst("11:00") });
 
-    expect(find(applied, 12)).toEqual({ ...RUNNING, endedAt: at("11:00") });
+    expect(find(applied, 12)).toEqual({ ...RUNNING, endedAt: atJst("11:00") });
   });
 
   it("punch は開始・終了を同時に差し替える（F-203 の打刻修正）", () => {
     const applied = apply({
       type: "punch",
       id: 13,
-      startedAt: at("07:00"),
-      endedAt: at("07:30"),
+      startedAt: atJst("07:00"),
+      endedAt: atJst("07:30"),
     });
 
     expect(find(applied, 13)).toEqual({
       ...COMPLETED,
-      startedAt: at("07:00"),
-      endedAt: at("07:30"),
+      startedAt: atJst("07:00"),
+      endedAt: atJst("07:30"),
     });
   });
 
   it("punch は終了 null（実行中へ戻す修正）も送れる", () => {
-    const applied = apply({ type: "punch", id: 13, startedAt: at("07:00"), endedAt: null });
+    const applied = apply({ type: "punch", id: 13, startedAt: atJst("07:00"), endedAt: null });
 
     expect(find(applied, 13)?.endedAt).toBeNull();
   });

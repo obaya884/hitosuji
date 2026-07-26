@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Section } from "../section/section";
+import { atJst } from "../shared/testing/clock";
 import {
   planCarryOver,
   relocationOnPunchEdit,
@@ -8,33 +9,15 @@ import {
   type Relocation,
 } from "./relocation";
 import type { Task } from "./task";
+import { task } from "./testing/task";
 
 const morning: Section = { id: 1, name: "朝", startTime: "06:00", isArchived: false };
 const forenoon: Section = { id: 2, name: "午前", startTime: "09:00", isArchived: false };
 const afternoon: Section = { id: 3, name: "午後", startTime: "12:00", isArchived: false };
 const sections = [morning, forenoon, afternoon];
 
-function task(over: Partial<Task> & { id: number }): Task {
-  return {
-    taskDate: "2026-07-20",
-    name: `T${over.id}`,
-    estimateMinutes: 30,
-    sectionId: null,
-    modeId: null,
-    projectId: null,
-    sortOrder: over.id * 1000,
-    startedAt: null,
-    endedAt: null,
-    comment: null,
-    routineId: null,
-    splitParentId: null,
-    postponedCount: 0,
-    ...over,
-  };
-}
-
-const started = new Date("2026-07-20T01:00:00Z"); // 実行中タスク用のダミー開始時刻
-const completed = { startedAt: new Date("2026-07-20T00:00:00Z"), endedAt: new Date("2026-07-20T00:30:00Z") };
+const started = atJst("10:00"); // 実行中タスク用のダミー開始時刻
+const completed = { startedAt: atJst("09:00"), endedAt: atJst("09:30") };
 
 /** テストの都合で Relocation を tasks へ反映するヘルパー（冪等性の検証に使う） */
 function applyRelocations(tasks: readonly Task[], relocations: readonly Relocation[]): Task[] {
@@ -242,37 +225,35 @@ describe("planCarryOver（画面定義書01 §4.2-b: 現在位置より前の未
 });
 
 describe("relocationOnPunchEdit（画面定義書01 §4.2-c: 開始時刻の修正で移動）", () => {
-  const at = (hhmm: string) => new Date(`2026-07-20T${hhmm}:00+09:00`);
-
   it("修正後の時刻を含むセクションへ、開始時刻順の位置で移す", () => {
     // 午後には 12:00 と 13:00 の完了タスクがある。12:10 へ直した行はその間に入る
     const edited = task({
       id: 1,
       sectionId: forenoon.id,
       sortOrder: 1000,
-      startedAt: at("12:10"),
-      endedAt: at("12:40"),
+      startedAt: atJst("12:10"),
+      endedAt: atJst("12:40"),
     });
     const earlier = task({
       id: 2,
       sectionId: afternoon.id,
       sortOrder: 1000,
-      startedAt: at("12:00"),
-      endedAt: at("12:05"),
+      startedAt: atJst("12:00"),
+      endedAt: atJst("12:05"),
     });
     const later = task({
       id: 3,
       sectionId: afternoon.id,
       sortOrder: 2000,
-      startedAt: at("13:00"),
-      endedAt: at("14:00"),
+      startedAt: atJst("13:00"),
+      endedAt: atJst("14:00"),
     });
 
     const result = relocationOnPunchEdit(
       edited,
       [edited, earlier, later],
       sections,
-      at("12:10"),
+      atJst("12:10"),
       "12:10"
     );
 
@@ -280,13 +261,13 @@ describe("relocationOnPunchEdit（画面定義書01 §4.2-c: 開始時刻の修�
   });
 
   it("未実行タスクは打刻済みタスクより後ろとして扱い、その直前に入る", () => {
-    const edited = task({ id: 1, sectionId: morning.id, sortOrder: 1000, startedAt: at("12:10") });
+    const edited = task({ id: 1, sectionId: morning.id, sortOrder: 1000, startedAt: atJst("12:10") });
     const done = task({
       id: 2,
       sectionId: afternoon.id,
       sortOrder: 1000,
-      startedAt: at("12:00"),
-      endedAt: at("12:05"),
+      startedAt: atJst("12:00"),
+      endedAt: atJst("12:05"),
     });
     const planned = task({ id: 3, sectionId: afternoon.id, sortOrder: 2000 });
 
@@ -294,7 +275,7 @@ describe("relocationOnPunchEdit（画面定義書01 §4.2-c: 開始時刻の修�
       edited,
       [edited, done, planned],
       sections,
-      at("12:10"),
+      atJst("12:10"),
       "12:10"
     );
 
@@ -307,11 +288,11 @@ describe("relocationOnPunchEdit（画面定義書01 §4.2-c: 開始時刻の修�
       sectionId: morning.id,
       sortOrder: 1000,
       ...completed,
-      startedAt: at("12:10"),
-      endedAt: at("12:40"),
+      startedAt: atJst("12:10"),
+      endedAt: atJst("12:40"),
     });
 
-    const result = relocationOnPunchEdit(edited, [edited], sections, at("12:10"), "12:10");
+    const result = relocationOnPunchEdit(edited, [edited], sections, atJst("12:10"), "12:10");
 
     expect(result).toEqual([{ taskId: 1, sectionId: afternoon.id, sortOrder: 1000 }]);
   });
@@ -322,29 +303,29 @@ describe("relocationOnPunchEdit（画面定義書01 §4.2-c: 開始時刻の修�
       id: 1,
       sectionId: afternoon.id,
       sortOrder: 3000,
-      startedAt: at("12:10"),
-      endedAt: at("12:40"),
+      startedAt: atJst("12:10"),
+      endedAt: atJst("12:40"),
     });
     const earlier = task({
       id: 2,
       sectionId: afternoon.id,
       sortOrder: 1000,
-      startedAt: at("12:00"),
-      endedAt: at("12:05"),
+      startedAt: atJst("12:00"),
+      endedAt: atJst("12:05"),
     });
     const later = task({
       id: 3,
       sectionId: afternoon.id,
       sortOrder: 2000,
-      startedAt: at("13:00"),
-      endedAt: at("14:00"),
+      startedAt: atJst("13:00"),
+      endedAt: atJst("14:00"),
     });
 
     const result = relocationOnPunchEdit(
       edited,
       [edited, earlier, later],
       sections,
-      at("12:10"),
+      atJst("12:10"),
       "12:10"
     );
 
@@ -356,29 +337,29 @@ describe("relocationOnPunchEdit（画面定義書01 §4.2-c: 開始時刻の修�
       id: 1,
       sectionId: afternoon.id,
       sortOrder: 1500,
-      startedAt: at("12:10"),
-      endedAt: at("12:40"),
+      startedAt: atJst("12:10"),
+      endedAt: atJst("12:40"),
     });
     const earlier = task({
       id: 2,
       sectionId: afternoon.id,
       sortOrder: 1000,
-      startedAt: at("12:00"),
-      endedAt: at("12:05"),
+      startedAt: atJst("12:00"),
+      endedAt: atJst("12:05"),
     });
     const later = task({
       id: 3,
       sectionId: afternoon.id,
       sortOrder: 2000,
-      startedAt: at("13:00"),
-      endedAt: at("14:00"),
+      startedAt: atJst("13:00"),
+      endedAt: atJst("14:00"),
     });
 
     const result = relocationOnPunchEdit(
       edited,
       [edited, earlier, later],
       sections,
-      at("12:10"),
+      atJst("12:10"),
       "12:10"
     );
 
@@ -386,27 +367,27 @@ describe("relocationOnPunchEdit（画面定義書01 §4.2-c: 開始時刻の修�
   });
 
   it("中間値が尽きたら移動先セクション全体を振り直す（§3.5）", () => {
-    const edited = task({ id: 1, sectionId: morning.id, sortOrder: 1000, startedAt: at("12:10") });
+    const edited = task({ id: 1, sectionId: morning.id, sortOrder: 1000, startedAt: atJst("12:10") });
     const earlier = task({
       id: 2,
       sectionId: afternoon.id,
       sortOrder: 1000,
-      startedAt: at("12:00"),
-      endedAt: at("12:05"),
+      startedAt: atJst("12:00"),
+      endedAt: atJst("12:05"),
     });
     const later = task({
       id: 3,
       sectionId: afternoon.id,
       sortOrder: 1001,
-      startedAt: at("13:00"),
-      endedAt: at("14:00"),
+      startedAt: atJst("13:00"),
+      endedAt: atJst("14:00"),
     });
 
     const result = relocationOnPunchEdit(
       edited,
       [edited, earlier, later],
       sections,
-      at("12:10"),
+      atJst("12:10"),
       "12:10"
     );
 
@@ -417,17 +398,17 @@ describe("relocationOnPunchEdit（画面定義書01 §4.2-c: 開始時刻の修�
   });
 
   it("未分類（section_id IS NULL）からも移る", () => {
-    const edited = task({ id: 1, sectionId: null, sortOrder: 1000, startedAt: at("12:10") });
+    const edited = task({ id: 1, sectionId: null, sortOrder: 1000, startedAt: atJst("12:10") });
 
-    const result = relocationOnPunchEdit(edited, [edited], sections, at("12:10"), "12:10");
+    const result = relocationOnPunchEdit(edited, [edited], sections, atJst("12:10"), "12:10");
 
     expect(result).toEqual([{ taskId: 1, sectionId: afternoon.id, sortOrder: 1000 }]);
   });
 
   it("有効なセクションが1つも無ければ何もしない", () => {
-    const edited = task({ id: 1, sectionId: morning.id, sortOrder: 1000, startedAt: at("12:10") });
+    const edited = task({ id: 1, sectionId: morning.id, sortOrder: 1000, startedAt: atJst("12:10") });
 
-    expect(relocationOnPunchEdit(edited, [edited], [], at("12:10"), "12:10")).toEqual([]);
+    expect(relocationOnPunchEdit(edited, [edited], [], atJst("12:10"), "12:10")).toEqual([]);
   });
 });
 

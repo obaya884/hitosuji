@@ -1,30 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { Task } from "../task/task";
+import { task } from "../task/testing/task";
 import {
   defaultChoiceFromTask,
   routineEstimateFromTask,
   routineInputFromTask,
   type RoutineFromTaskChoice,
 } from "./from-task";
-
-function task(over: Partial<Task> & { id: number }): Task {
-  return {
-    taskDate: "2026-07-19",
-    name: `T${over.id}`,
-    estimateMinutes: 30,
-    sectionId: 1,
-    modeId: 2,
-    projectId: 3,
-    sortOrder: over.id * 1000,
-    startedAt: null,
-    endedAt: null,
-    comment: null,
-    routineId: null,
-    splitParentId: null,
-    postponedCount: 0,
-    ...over,
-  };
-}
 
 const choice: RoutineFromTaskChoice = {
   recurrenceType: "daily",
@@ -46,8 +27,8 @@ describe("routineEstimateFromTask（画面定義書01 §4.1: 見積もり0分（
     const t = task({
       id: 1,
       estimateMinutes: 0,
-      startedAt: new Date("2026-07-19T08:00:00Z"),
-      endedAt: new Date("2026-07-19T08:15:00Z"),
+      startedAt: new Date("2026-07-26T08:00:00Z"),
+      endedAt: new Date("2026-07-26T08:15:00Z"),
     });
     const result = routineEstimateFromTask(t);
     expect(result).toEqual({ ok: true, value: 15 });
@@ -57,8 +38,8 @@ describe("routineEstimateFromTask（画面定義書01 §4.1: 見積もり0分（
     const t = task({
       id: 1,
       estimateMinutes: 0,
-      startedAt: new Date("2026-07-19T08:00:00Z"),
-      endedAt: new Date("2026-07-19T08:00:30Z"), // 実績30秒
+      startedAt: new Date("2026-07-26T08:00:00Z"),
+      endedAt: new Date("2026-07-26T08:00:30Z"), // 実績30秒
     });
     const result = routineEstimateFromTask(t);
     expect(result).toEqual({ ok: true, value: 1 });
@@ -74,7 +55,7 @@ describe("routineEstimateFromTask（画面定義書01 §4.1: 見積もり0分（
     const t = task({
       id: 1,
       estimateMinutes: 0,
-      startedAt: new Date("2026-07-19T08:00:00Z"),
+      startedAt: new Date("2026-07-26T08:00:00Z"),
     });
     const result = routineEstimateFromTask(t);
     expect(result).toEqual({ ok: false, error: "estimate_required" });
@@ -83,7 +64,7 @@ describe("routineEstimateFromTask（画面定義書01 §4.1: 見積もり0分（
 
 describe("routineInputFromTask（画面定義書01 §4.1: 引き継ぐ値・開始日・終了日）", () => {
   it("名前・見積もり・モード・プロジェクトを引き継ぎ、開始日は翌日、終了日はなし", () => {
-    const t = task({ id: 1, taskDate: "2026-07-19", name: "朝食", estimateMinutes: 20 });
+    const t = task({ id: 1, name: "朝食", estimateMinutes: 20, modeId: 2, projectId: 3 });
     const result = routineInputFromTask(t, choice);
     expect(result).toEqual({
       ok: true,
@@ -98,14 +79,21 @@ describe("routineInputFromTask（画面定義書01 §4.1: 引き継ぐ値・開�
         weekInterval: null,
         monthDay: null,
         intervalDays: null,
-        startDate: "2026-07-20",
+        startDate: "2026-07-27", // TEST_DATE（07-26）の翌日
         endDate: null,
       },
     });
   });
 
   it("routine_id・split_parent_id・コメントは RoutineInput に含まれない", () => {
-    const t = task({ id: 1, routineId: null, splitParentId: 9, comment: "メモ" });
+    // 見積もりは通す値（0 だと estimate_required で手前で落ちる）
+    const t = task({
+      id: 1,
+      estimateMinutes: 30,
+      routineId: null,
+      splitParentId: 9,
+      comment: "メモ",
+    });
     const result = routineInputFromTask(t, choice);
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -122,7 +110,9 @@ describe("routineInputFromTask（画面定義書01 §4.1: 引き継ぐ値・開�
   });
 
   it("ルーチン由来タスク（routine_id あり）からは作成できない", () => {
-    const t = task({ id: 1, routineId: 5 });
+    // 見積もりは通る値にする（0 だと下の「優先する」テストと同じ入力になり、両者が別物を
+    // 主張しなくなる）
+    const t = task({ id: 1, routineId: 5, estimateMinutes: 30 });
     const result = routineInputFromTask(t, choice);
     expect(result).toEqual({ ok: false, error: "routine_derived_task" });
   });
@@ -134,7 +124,7 @@ describe("routineInputFromTask（画面定義書01 §4.1: 引き継ぐ値・開�
   });
 
   it("ポップオーバーで選んだ繰り返し設定（週次の曜日など）をそのまま使う", () => {
-    const t = task({ id: 1 });
+    const t = task({ id: 1, estimateMinutes: 30 });
     const weeklyChoice: RoutineFromTaskChoice = {
       recurrenceType: "weekly",
       weekdays: 0b0010101, // 月・水・金
@@ -156,20 +146,20 @@ describe("routineInputFromTask（画面定義書01 §4.1: 引き継ぐ値・開�
 
 describe("defaultChoiceFromTask（画面定義書01 §4.1: ポップオーバーの既定値）", () => {
   it("繰り返し種別の既定は「毎日」で、開始想定時刻は呼び出し側の値をそのまま使う", () => {
-    const t = task({ id: 1, taskDate: "2026-07-19" });
+    const t = task({ id: 1 });
     const result = defaultChoiceFromTask(t, "06:30");
     expect(result.recurrenceType).toBe("daily");
     expect(result.scheduledStartTime).toBe("06:30");
   });
 
   it("週次の曜日の既定は元タスクの task_date の曜日（日曜 → bit6）", () => {
-    const t = task({ id: 1, taskDate: "2026-07-19" }); // 日曜
+    const t = task({ id: 1 }); // TEST_DATE（2026-07-26）は日曜
     const result = defaultChoiceFromTask(t, "06:30");
     expect(result.weekdays).toBe(1 << 6);
   });
 
   it("週次の曜日の既定は元タスクの task_date の曜日（月曜 → bit0）", () => {
-    const t = task({ id: 1, taskDate: "2026-07-20" }); // 月曜
+    const t = task({ id: 1, taskDate: "2026-07-27" }); // 月曜
     const result = defaultChoiceFromTask(t, "06:30");
     expect(result.weekdays).toBe(1 << 0);
   });
@@ -177,7 +167,7 @@ describe("defaultChoiceFromTask（画面定義書01 §4.1: ポップオーバー
   it("月次の日の既定は元タスクの task_date の日", () => {
     const t = task({ id: 1, taskDate: "2026-07-19" });
     const result = defaultChoiceFromTask(t, "06:30");
-    expect(result.monthDay).toBe(19);
+    expect(result.monthDay).toBe(19); // 基準日（26日）と別の日を使い、日の引き継ぎが効いていることを見る
   });
 
   it("月末日（31日）でもそのまま日を引き継ぐ", () => {

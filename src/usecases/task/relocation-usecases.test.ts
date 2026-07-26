@@ -1,35 +1,18 @@
 import { describe, expect, it } from "vitest";
 import type { Section } from "@/domain/section/section";
 import type { Task } from "@/domain/task/task";
+import { TEST_DATE } from "@/domain/shared/testing/clock";
+import { task } from "@/domain/task/testing/task";
 import { inMemorySectionRepository } from "@/usecases/section/testing/in-memory-repository";
 import { applyCarryOver, applyCarryOverAfterPunch } from "./relocation-usecases";
 import { inMemoryTaskRepository } from "./testing/in-memory-repository";
-
-function task(over: Partial<Task> & { id: number }): Task {
-  return {
-    taskDate: "2026-07-19",
-    name: `T${over.id}`,
-    estimateMinutes: 30,
-    sectionId: 1,
-    modeId: null,
-    projectId: null,
-    sortOrder: over.id * 1000,
-    startedAt: null,
-    endedAt: null,
-    comment: null,
-    routineId: null,
-    splitParentId: null,
-    postponedCount: 0,
-    ...over,
-  };
-}
 
 const sections: Section[] = [
   { id: 1, name: "朝", startTime: "06:00", isArchived: false },
   { id: 2, name: "午前", startTime: "09:00", isArchived: false },
 ];
 
-const today = "2026-07-19";
+const today = TEST_DATE;
 
 function depsOf(rows: readonly Task[]) {
   const tasks = inMemoryTaskRepository(rows);
@@ -52,9 +35,9 @@ describe("applyCarryOver（F-113 / 画面定義書01 §4.2-b）", () => {
   });
 
   it("過去日・未来日では何もしない（§4.2 の対象外）", async () => {
-    const { deps, tasks } = depsOf([task({ id: 1, taskDate: "2026-07-18", sectionId: 1 })]);
+    const { deps, tasks } = depsOf([task({ id: 1, taskDate: "2026-07-25", sectionId: 1 })]);
 
-    await applyCarryOver(deps, { date: "2026-07-18", today, nowClock: "10:00" });
+    await applyCarryOver(deps, { date: "2026-07-25", today, nowClock: "10:00" });
 
     expect(tasks.rows[0].sectionId).toBe(1);
   });

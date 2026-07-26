@@ -1,34 +1,15 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import type { Task } from "@/domain/task/task";
+import { atJst } from "@/domain/shared/testing/clock";
+import { task } from "@/domain/task/testing/task";
 
 import { TaskProgress } from "./task-progress";
 
 // 件数の意味（実施済み＝ended_at あり、実行中は含めない）は domain 側の
 // daily-list.test.ts が担保済み。ここは描画（比率→幅・テキスト・プロップ差し替え）に絞る
-function task(over: Partial<Task> & { id: number }): Task {
-  return {
-    taskDate: "2026-07-26",
-    name: `T${over.id}`,
-    estimateMinutes: 0,
-    sectionId: null,
-    modeId: null,
-    projectId: null,
-    sortOrder: over.id * 1000,
-    startedAt: null,
-    endedAt: null,
-    comment: null,
-    routineId: null,
-    splitParentId: null,
-    postponedCount: 0,
-    ...over,
-  };
-}
-
-const done = (id: number) =>
-  task({ id, startedAt: new Date("2026-07-26T09:00:00Z"), endedAt: new Date("2026-07-26T09:30:00Z") });
-const running = (id: number) => task({ id, startedAt: new Date("2026-07-26T10:00:00Z") });
+const done = (id: number) => task({ id, startedAt: atJst("09:00"), endedAt: atJst("09:30") });
+const running = (id: number) => task({ id, startedAt: atJst("10:00") });
 const todo = (id: number) => task({ id });
 
 /**

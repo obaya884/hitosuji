@@ -2,12 +2,14 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { Mode } from "@/domain/mode/mode";
+import { MODE_COLORS, type Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { Section } from "@/domain/section/section";
 import { formatClock } from "@/app/_lib/format";
+import { atLocal, TEST_DATE } from "@/domain/shared/testing/clock";
 import { groupTasksBySection } from "@/domain/task/daily-list";
 import type { Task } from "@/domain/task/task";
+import { task } from "@/domain/task/testing/task";
 import type { CompletionSnapshot } from "@/usecases/task/punch-usecases";
 import {
   addTaskAction,
@@ -75,49 +77,19 @@ class ResizeObserverStub {
   disconnect(): void {}
 }
 
-const DATE = "2026-07-26";
-const [YEAR, MONTH, DAY] = DATE.split("-").map(Number);
 
-/**
- * 表示日の壁時計（利用者のローカル時刻）から Date を作る。
- *
- * 打刻の修正（F-203 / `applyClockTime`）は入力の `HH:MM` を**ローカル時刻**として解釈するので、
- * テストデータも壁時計で組まないと「開始より前の時刻」といった主張が実行環境の TZ で反転する
- * （UTC の CI だけ落ちる）。一方で表示（`formatClock`）は `APP_TIME_ZONE` 固定なので、
- * **画面に出る時刻の期待値はリテラルで書かず `formatClock(at(...))` で組み立てる**
- */
-function at(hhmm: string): Date {
-  const [hours, minutes] = hhmm.split(":").map(Number);
-  return new Date(YEAR, MONTH - 1, DAY, hours, minutes);
-}
+// 打刻の修正（F-203 / `applyClockTime`）は入力の `HH:MM` を**ローカル時刻**として解釈するので、
+// テストデータも壁時計（`atLocal`）で組む。一方で表示（`formatClock`）は `APP_TIME_ZONE` 固定なので、
+// **画面に出る時刻の期待値はリテラルで書かず `formatClock(atLocal(...))` で組み立てる**
 
 /** 打刻はクライアントの現在時刻を送る（§7）ので、時計を固定して観測できるようにする */
-const NOW = at("10:30");
-
-function makeTask(over: Partial<Task> & { id: number; name: string }): Task {
-  return {
-    taskDate: DATE,
-    // 既定は未設定（0分）。見積もりを見るテストは値を明示する（暗黙の既定に寄りかからない）
-    estimateMinutes: 0,
-    sectionId: null,
-    modeId: null,
-    projectId: null,
-    sortOrder: 1000,
-    startedAt: null,
-    endedAt: null,
-    comment: null,
-    routineId: null,
-    splitParentId: null,
-    postponedCount: 0,
-    ...over,
-  };
-}
+const NOW = atLocal("10:30");
 
 const SECTIONS: readonly Section[] = [
   { id: 1, name: "午前", startTime: "09:00", isArchived: false },
   { id: 2, name: "午後", startTime: "13:00", isArchived: false },
 ];
-const MODES: readonly Mode[] = [{ id: 1, name: "集中", color: "#336699", isArchived: false }];
+const MODES: readonly Mode[] = [{ id: 1, name: "集中", color: MODE_COLORS[8], isArchived: false }];
 const PROJECTS: readonly Project[] = [{ id: 1, name: "改善", isArchived: false }];
 
 const NOT_STARTED = "資料作成";
@@ -127,15 +99,15 @@ const COMPLETED = "レビュー";
 /** 未実行・実行中・完了が1件ずつある1日（表示順は 午前[未実行, 実行中] → 午後[完了]） */
 function defaultTasks(): Task[] {
   return [
-    makeTask({ id: 11, name: NOT_STARTED, sectionId: 1, sortOrder: 1000 }),
-    makeTask({ id: 12, name: RUNNING, sectionId: 1, sortOrder: 2000, startedAt: at("10:00") }),
-    makeTask({
+    task({ id: 11, name: NOT_STARTED, sectionId: 1, sortOrder: 1000 }),
+    task({ id: 12, name: RUNNING, sectionId: 1, sortOrder: 2000, startedAt: atLocal("10:00") }),
+    task({
       id: 13,
       name: COMPLETED,
       sectionId: 2,
       sortOrder: 1000,
-      startedAt: at("09:00"),
-      endedAt: at("09:20"),
+      startedAt: atLocal("09:00"),
+      endedAt: atLocal("09:20"),
     }),
   ];
 }
@@ -143,8 +115,8 @@ function defaultTasks(): Task[] {
 /** 完了の取り消し（O-15）が返す復帰用スナップショット（データモデル定義書 §4.7 の4列） */
 const SNAPSHOT: CompletionSnapshot = {
   taskId: 13,
-  startedAt: at("09:00"),
-  endedAt: at("09:20"),
+  startedAt: atLocal("09:00"),
+  endedAt: atLocal("09:20"),
   sectionId: 2,
   sortOrder: 1000,
 };
@@ -156,15 +128,15 @@ type UndoCompleteResult = Awaited<ReturnType<typeof undoCompleteAction>>;
 // アクションの成功値。既定の解決値（beforeEach）と `hold` の保険（settleOnCleanup）で共用する
 const OK: DailyActionResult = { ok: true };
 const CREATED: CreatingActionResult = { ok: true, createdId: 99 };
-const DELETE_OK: DeleteResult = { ok: true, deleted: makeTask({ id: 0, name: "片付け" }) };
+const DELETE_OK: DeleteResult = { ok: true, deleted: task({ id: 0, name: "片付け" }) };
 const UNCOMPLETE_OK: UndoCompleteResult = { ok: true, snapshot: SNAPSHOT };
 
 type BoardProps = ComponentProps<typeof DailyBoard>;
 
 function boardProps(tasks: readonly Task[], over: Partial<BoardProps>): BoardProps {
   return {
-    date: DATE,
-    today: DATE,
+    date: TEST_DATE,
+    today: TEST_DATE,
     isToday: true,
     groups: groupTasksBySection(tasks, SECTIONS),
     modes: MODES,
@@ -343,7 +315,7 @@ beforeEach(() => {
   // 削除・完了の取り消しは Undo（O-8 / O-15）に要る値を返す契約なので、対象から組んで返す
   vi.mocked(deleteTaskAction).mockImplementation(async (id) => ({
     ok: true,
-    deleted: defaultTasks().find((t) => t.id === id) ?? makeTask({ id, name: "不明" }),
+    deleted: defaultTasks().find((t) => t.id === id) ?? task({ id, name: "不明" }),
   }));
   vi.mocked(undoCompleteAction).mockImplementation(async (id) => ({
     ok: true,
@@ -417,7 +389,7 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
     const gate = hold(OK);
     vi.mocked(updateTaskEstimateAction).mockReturnValue(gate.promise);
     // 巻き戻り先の 0:30 をテスト本文で決める（既定値に寄りかからない）
-    renderBoard([makeTask({ id: 11, name: NOT_STARTED, sectionId: 1, estimateMinutes: 30 })]);
+    renderBoard([task({ id: 11, name: NOT_STARTED, sectionId: 1, estimateMinutes: 30 })]);
     selectRow(NOT_STARTED);
 
     press("e");
@@ -462,7 +434,7 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
     // サーバが採番した複製（同名・未実施のトップ＝実行中タスクの直後）が現れる
     applyServerState([
       ...defaultTasks(),
-      makeTask({ id: 31, name: NOT_STARTED, sectionId: 1, sortOrder: 3000 }),
+      task({ id: 31, name: NOT_STARTED, sectionId: 1, sortOrder: 3000 }),
     ]);
 
     // 同名の行が2つ並ぶので位置で見る（複製元ではなく複製へ移っている）
@@ -509,7 +481,7 @@ describe("DailyBoard の打刻（F-201 / F-211 / §7: クライアントの現�
   });
 
   it("送り先の未実行タスクがなければ選択は完了行に据え置く（F-211）", () => {
-    renderBoard([makeTask({ id: 12, name: RUNNING, sectionId: 1, startedAt: at("10:00") })]);
+    renderBoard([task({ id: 12, name: RUNNING, sectionId: 1, startedAt: atLocal("10:00") })]);
     selectRow(RUNNING);
 
     fireEvent.click(within(row(RUNNING)).getByLabelText("終了"));
@@ -537,7 +509,7 @@ describe("DailyBoard の打刻（F-201 / F-211 / §7: クライアントの現�
     // サーバが採番した複製（同名・実行中）が末尾に現れる
     applyServerState([
       ...defaultTasks(),
-      makeTask({ id: 32, name: COMPLETED, sectionId: 2, sortOrder: 2000, startedAt: NOW }),
+      task({ id: 32, name: COMPLETED, sectionId: 2, sortOrder: 2000, startedAt: NOW }),
     ]);
 
     // 同名の行が2つ並ぶので位置で見る（複製元は完了のまま残る）
@@ -640,8 +612,8 @@ describe("DailyBoard の完了の取り消し（O-15 / F-212）", () => {
   it("完了タスクの U は打刻2列を即クリアし、確定後に Undo トーストを出す", async () => {
     const snapshot = {
       taskId: 13,
-      startedAt: at("09:00"),
-      endedAt: at("09:20"),
+      startedAt: atLocal("09:00"),
+      endedAt: atLocal("09:20"),
       sectionId: 2,
       sortOrder: 1000,
     };
@@ -653,16 +625,16 @@ describe("DailyBoard の完了の取り消し（O-15 / F-212）", () => {
     press("u");
     // 楽観的更新は打刻2列のクリアだけ（並べ直しはサーバ確定後。O-15）
     expect(vi.mocked(undoCompleteAction)).toHaveBeenCalledWith(13, NOW);
-    expect(within(row(COMPLETED)).queryByText(formatClock(at("09:00")))).toBeNull();
+    expect(within(row(COMPLETED)).queryByText(formatClock(atLocal("09:00")))).toBeNull();
     expect(within(row(COMPLETED)).queryByText("→ 0:20")).toBeNull();
 
     await gate.resolve({ ok: true, snapshot });
     applyServerState([
       ...defaultTasks().filter((t) => t.id !== 13),
-      makeTask({ id: 13, name: COMPLETED, sectionId: 1, sortOrder: 1500 }),
+      task({ id: 13, name: COMPLETED, sectionId: 1, sortOrder: 1500 }),
     ]);
 
-    expect(within(row(COMPLETED)).queryByText(formatClock(at("09:00")))).toBeNull();
+    expect(within(row(COMPLETED)).queryByText(formatClock(atLocal("09:00")))).toBeNull();
     expect(screen.queryByText(`「${COMPLETED}」を未実行に戻しました`)).not.toBeNull();
   });
 
@@ -675,8 +647,8 @@ describe("DailyBoard の完了の取り消し（O-15 / F-212）", () => {
 
     expect(vi.mocked(restoreCompletionAction)).toHaveBeenCalledWith({
       taskId: 13,
-      startedAt: at("09:00"),
-      endedAt: at("09:20"),
+      startedAt: atLocal("09:00"),
+      endedAt: atLocal("09:20"),
       sectionId: 2,
       sortOrder: 1000,
     });
@@ -689,10 +661,10 @@ describe("DailyBoard の完了の取り消し（O-15 / F-212）", () => {
     selectRow(COMPLETED);
 
     press("u");
-    expect(within(row(COMPLETED)).queryByText(formatClock(at("09:00")))).toBeNull();
+    expect(within(row(COMPLETED)).queryByText(formatClock(atLocal("09:00")))).toBeNull();
     await gate.resolve({ ok: false, message: "保存に失敗しました" });
 
-    expect(within(row(COMPLETED)).queryByText(formatClock(at("09:00")))).not.toBeNull();
+    expect(within(row(COMPLETED)).queryByText(formatClock(atLocal("09:00")))).not.toBeNull();
     expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
     expect(screen.queryByText("取り消す")).toBeNull();
   });
@@ -756,7 +728,7 @@ describe("DailyBoard のクイック追加（§3.4 / F-102）", () => {
     fireEvent.change(input, { target: { value: "  買い物  " } });
     fireEvent.keyDown(input, { key: "Enter" });
 
-    expect(vi.mocked(addTaskAction)).toHaveBeenCalledWith({ date: DATE, name: "買い物" });
+    expect(vi.mocked(addTaskAction)).toHaveBeenCalledWith({ date: TEST_DATE, name: "買い物" });
     // 未分類（リスト先頭）の末尾に確定前から出る
     expect(rowNames()).toEqual(["買い物", NOT_STARTED, RUNNING, COMPLETED]);
     expect(input).toHaveProperty("value", "");
@@ -793,7 +765,7 @@ describe("DailyBoard のクイック追加（§3.4 / F-102）", () => {
     await act(async () => {
       fireEvent.keyDown(quickAddInput(), { key: "Enter" });
     });
-    applyServerState([...defaultTasks(), makeTask({ id: 21, name: "買い物" })]);
+    applyServerState([...defaultTasks(), task({ id: 21, name: "買い物" })]);
 
     expect(isSelected("買い物")).toBe(true);
   });
@@ -836,7 +808,7 @@ describe("DailyBoard のインライン編集の検証（§8 / 00_共通 §2.3�
   });
 
   it("変更なしの確定は送信しない（タスク名・見積もりとも）", () => {
-    renderBoard([makeTask({ id: 11, name: NOT_STARTED, sectionId: 1, estimateMinutes: 30 })]);
+    renderBoard([task({ id: 11, name: NOT_STARTED, sectionId: 1, estimateMinutes: 30 })]);
     selectRow(NOT_STARTED);
 
     press("r");
@@ -881,11 +853,11 @@ describe("DailyBoard のインライン編集の検証（§8 / 00_共通 §2.3�
 
     const call = vi.mocked(updateTaskPunchAction).mock.calls[0];
     expect(call[0]).toBe(13);
-    expect(call[1].startedAt).toEqual(at("09:00"));
+    expect(call[1].startedAt).toEqual(atLocal("09:00"));
     expect(call[1].endedAt?.getHours()).toBe(9);
     expect(call[1].endedAt?.getMinutes()).toBe(30);
     // 移動先セクションの判定は開始時刻の HH:MM で行う（§4.2-c）
-    expect(call[2]).toBe(formatClock(at("09:00")));
+    expect(call[2]).toBe(formatClock(atLocal("09:00")));
   });
 
   it("開始時刻の修正はセクション判定用の HH:MM とクライアントの現在時刻を添えて送る（§4.2-c）", () => {
@@ -916,7 +888,7 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
 
     expect(vi.mocked(moveTaskByStepAction)).toHaveBeenCalledWith({
       taskId: 11,
-      date: DATE,
+      date: TEST_DATE,
       step: 1,
     });
     expect(rowNames()).toEqual([RUNNING, NOT_STARTED, COMPLETED]);
@@ -946,8 +918,8 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
     vi.mocked(moveTaskByStepAction).mockReturnValue(gate.promise);
     // 初期選択は「現在地」＝先頭の未実行タスク。固定しないと移動後に選択が再導出されて別タスクへ飛ぶ
     renderBoard([
-      makeTask({ id: 21, name: "洗濯", sectionId: 1, sortOrder: 1000 }),
-      makeTask({ id: 22, name: "掃除", sectionId: 1, sortOrder: 2000 }),
+      task({ id: 21, name: "洗濯", sectionId: 1, sortOrder: 1000 }),
+      task({ id: 22, name: "掃除", sectionId: 1, sortOrder: 2000 }),
     ]);
 
     press("J", { shiftKey: true });
@@ -969,7 +941,7 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
   it("リスト全体の上端でも並び替えない（O-6）", () => {
     // 上端は未分類グループ（リスト先頭。§3.2）の先頭行。セクション付きの先頭行は
     // まだ上に未分類があるので「端」ではない
-    renderBoard([makeTask({ id: 21, name: "洗濯" }), ...defaultTasks()]);
+    renderBoard([task({ id: 21, name: "洗濯" }), ...defaultTasks()]);
     selectRow("洗濯");
 
     press("K", { shiftKey: true });
@@ -1012,7 +984,7 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
 
     expect(vi.mocked(moveTaskByStepAction)).toHaveBeenCalledWith({
       taskId: 12,
-      date: DATE,
+      date: TEST_DATE,
       step: -1,
     });
     expect(rowNames()).toEqual([RUNNING, NOT_STARTED, COMPLETED]);
@@ -1067,7 +1039,7 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
    * 気づけないため、ここだけ `date !== today` で描画する
    */
   it("前日・翌日へは表示日（today ではない）を基準に移動する（§6 / O-9）", () => {
-    renderBoard(defaultTasks(), { date: "2026-07-20", today: DATE, isToday: false });
+    renderBoard(defaultTasks(), { date: "2026-07-20", today: TEST_DATE, isToday: false });
 
     press("H", { shiftKey: true });
     press("L", { shiftKey: true });
@@ -1078,7 +1050,7 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
   });
 
   it("今日以外を表示中は「今日へ」を出す（isToday の配線。§3.1）", () => {
-    renderBoard(defaultTasks(), { date: "2026-07-20", today: DATE, isToday: false });
+    renderBoard(defaultTasks(), { date: "2026-07-20", today: TEST_DATE, isToday: false });
 
     expect(screen.queryByRole("link", { name: "今日へ" })).not.toBeNull();
   });
@@ -1163,7 +1135,7 @@ describe("DailyBoard の割り当て（O-5: モード・プロジェクト・セ
 
     expect(vi.mocked(setTaskSectionAction)).toHaveBeenCalledWith({
       taskId: 11,
-      date: DATE,
+      date: TEST_DATE,
       sectionId: 2,
     });
     expect(rowNames()).toEqual([RUNNING, COMPLETED, NOT_STARTED]);
@@ -1191,7 +1163,7 @@ describe("DailyBoard の割り当て（O-5: モード・プロジェクト・セ
 
     expect(vi.mocked(setTaskSectionAction)).toHaveBeenCalledWith({
       taskId: 11,
-      date: DATE,
+      date: TEST_DATE,
       sectionId: 2,
     });
     expect(vi.mocked(startTaskAction)).not.toHaveBeenCalled();
@@ -1218,11 +1190,11 @@ describe("DailyBoard の通知と行メニュー（画面定義書01 §8 / O-7 /
 
   it("前日以前の実行中タスクがあれば警告バナーを出す（F-209）", () => {
     renderBoard(defaultTasks(), {
-      staleRunningTask: makeTask({
+      staleRunningTask: task({
         id: 5,
         name: "読書",
         taskDate: "2026-07-25",
-        startedAt: new Date(YEAR, MONTH - 1, DAY - 1, 23, 0),
+        startedAt: atLocal("23:00", "2026-07-25"), // 前日
       }),
     });
 

@@ -3,6 +3,8 @@ import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { Task } from "@/domain/task/task";
+import { atLocal } from "@/domain/shared/testing/clock";
+import { task } from "@/domain/task/testing/task";
 
 import type { EditField } from "./daily-list";
 import { useDailyShortcuts, type DailyShortcutParams } from "./use-daily-shortcuts";
@@ -12,31 +14,8 @@ import { useDailyShortcuts, type DailyShortcutParams } from "./use-daily-shortcu
 // vi.fn() で受けて出力を読む（呼ばれ方を検証するモックではなく、唯一の出力を見る状態検証）。
 // 内側の協力者（domain の moveSelection / currentTaskId / taskStatus）は本物を使う。
 
-function task(over: Partial<Task> & { id: number }): Task {
-  return {
-    taskDate: "2026-07-26",
-    name: `T${over.id}`,
-    estimateMinutes: 0,
-    sectionId: null,
-    modeId: null,
-    projectId: null,
-    sortOrder: over.id * 1000,
-    startedAt: null,
-    endedAt: null,
-    comment: null,
-    routineId: null,
-    splitParentId: null,
-    postponedCount: 0,
-    ...over,
-  };
-}
-
-const COMPLETED = task({
-  id: 1,
-  startedAt: new Date("2026-07-26T09:00:00"),
-  endedAt: new Date("2026-07-26T09:30:00"),
-});
-const RUNNING = task({ id: 2, startedAt: new Date("2026-07-26T10:00:00") });
+const COMPLETED = task({ id: 1, startedAt: atLocal("09:00"), endedAt: atLocal("09:30") });
+const RUNNING = task({ id: 2, startedAt: atLocal("10:00") });
 const NEXT_UP = task({ id: 3 });
 const LATER = task({ id: 4 });
 /** 表示順（完了 → 実行中 → 未実行2件）。現在地（§5）は実行中の RUNNING */

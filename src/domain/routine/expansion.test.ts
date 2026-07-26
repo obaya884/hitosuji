@@ -1,25 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { occursOn, routinesToExpand } from "./expansion";
-import type { Routine } from "./routine";
-
-function routine(over: Partial<Routine> & { id: number }): Routine {
-  return {
-    name: `R${over.id}`,
-    estimateMinutes: 20,
-    scheduledStartTime: "06:30",
-    modeId: null,
-    projectId: null,
-    recurrenceType: "daily",
-    weekdays: null,
-    weekInterval: null,
-    monthDay: null,
-    intervalDays: null,
-    startDate: "2026-01-01",
-    endDate: null,
-    isActive: true,
-    ...over,
-  };
-}
+import { routine } from "./testing/routine";
 
 // 2026-07-19 は日曜、07-20 は月曜
 const SUNDAY = "2026-07-19";

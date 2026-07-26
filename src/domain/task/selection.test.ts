@@ -1,28 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { currentTaskId, keepSelection, moveSelection, selectionAfterFinish } from "./selection";
-import type { Task } from "./task";
+import { task } from "./testing/task";
 
-function task(over: Partial<Task> & { id: number }): Task {
-  return {
-    taskDate: "2026-07-19",
-    name: `T${over.id}`,
-    estimateMinutes: 30,
-    sectionId: 1,
-    modeId: null,
-    projectId: null,
-    sortOrder: over.id * 1000,
-    startedAt: null,
-    endedAt: null,
-    comment: null,
-    routineId: null,
-    splitParentId: null,
-    postponedCount: 0,
-    ...over,
-  };
-}
-
-const startedAt = new Date("2026-07-19T08:00:00Z");
-const endedAt = new Date("2026-07-19T08:30:00Z");
+const startedAt = new Date("2026-07-26T08:00:00Z");
+const endedAt = new Date("2026-07-26T08:30:00Z");
 
 describe("currentTaskId（画面定義書01 §5: 現在地の規則）", () => {
   it("実行中タスクがあればそれを指す", () => {

@@ -7,28 +7,9 @@ import {
   resumeEstimateMinutes,
   resumeTaskDraft,
 } from "./punch";
-import type { Task } from "./task";
+import { task } from "./testing/task";
 
-function task(over: Partial<Task> & { id: number }): Task {
-  return {
-    taskDate: "2026-07-19",
-    name: "メールチェック",
-    estimateMinutes: 30,
-    sectionId: 1,
-    modeId: 2,
-    projectId: 3,
-    sortOrder: 1000,
-    startedAt: null,
-    endedAt: null,
-    comment: null,
-    routineId: null,
-    splitParentId: null,
-    postponedCount: 0,
-    ...over,
-  };
-}
-
-const startedAt = new Date("2026-07-19T08:00:00Z");
+const startedAt = new Date("2026-07-26T08:00:00Z");
 
 describe("resumeEstimateMinutes（データモデル定義書 §4.2: 再開タスクの見積もり）", () => {
   it("見積もり − 実績 を残り見積もりにする", () => {
@@ -47,8 +28,15 @@ describe("resumeEstimateMinutes（データモデル定義書 §4.2: 再開タ�
 
 describe("resumeTaskDraft（F-204: 同名・同属性の再開タスクを生成）", () => {
   it("名前・モード・プロジェクトを引き継ぎ、split_parent_id で元タスクへ紐づける", () => {
-    const original = task({ id: 7, estimateMinutes: 30, startedAt });
-    const endedAt = new Date("2026-07-19T08:12:00Z"); // 実績12分
+    const original = task({
+      id: 7,
+      name: "メールチェック",
+      estimateMinutes: 30,
+      modeId: 2,
+      projectId: 3,
+      startedAt,
+    });
+    const endedAt = new Date("2026-07-26T08:12:00Z"); // 実績12分
 
     expect(resumeTaskDraft(original, endedAt)).toEqual({
       name: "メールチェック",
@@ -61,7 +49,7 @@ describe("resumeTaskDraft（F-204: 同名・同属性の再開タスクを生成
 
   it("ルーチン由来でも routine_id は引き継がない（展開の冪等制約に抵触するため）", () => {
     const original = task({ id: 7, routineId: 99, startedAt });
-    const draft = resumeTaskDraft(original, new Date("2026-07-19T08:10:00Z"));
+    const draft = resumeTaskDraft(original, new Date("2026-07-26T08:10:00Z"));
     expect(draft).not.toHaveProperty("routineId");
   });
 });
@@ -74,14 +62,14 @@ describe("canStart（F-201: 開始できるのは未実行タスクのみ）", (
   it("実行中・完了タスクは開始できない", () => {
     expect(canStart(task({ id: 1, startedAt }))).toEqual({ ok: false, error: "already_started" });
     expect(
-      canStart(task({ id: 1, startedAt, endedAt: new Date("2026-07-19T08:30:00Z") }))
+      canStart(task({ id: 1, startedAt, endedAt: new Date("2026-07-26T08:30:00Z") }))
     ).toEqual({ ok: false, error: "already_started" });
   });
 });
 
 describe("canFinish（F-201/F-204: 終了・中断は実行中タスクのみ）", () => {
   it("実行中タスクは終了できる", () => {
-    expect(canFinish(task({ id: 1, startedAt }), new Date("2026-07-19T08:30:00Z")).ok).toBe(true);
+    expect(canFinish(task({ id: 1, startedAt }), new Date("2026-07-26T08:30:00Z")).ok).toBe(true);
   });
 
   it("未実行タスクは終了できない", () => {
@@ -89,7 +77,7 @@ describe("canFinish（F-201/F-204: 終了・中断は実行中タスクのみ）
   });
 
   it("開始より前の時刻では終了できない（開始 ≦ 終了）", () => {
-    expect(canFinish(task({ id: 1, startedAt }), new Date("2026-07-19T07:59:00Z"))).toEqual({
+    expect(canFinish(task({ id: 1, startedAt }), new Date("2026-07-26T07:59:00Z"))).toEqual({
       ok: false,
       error: "ended_before_started",
     });
@@ -107,13 +95,13 @@ describe("canUndoStart（F-210: 開始を取り消せるのは実行中タスク
 
   it("完了タスクは対象外", () => {
     expect(
-      canUndoStart(task({ id: 1, startedAt, endedAt: new Date("2026-07-19T08:30:00Z") }))
+      canUndoStart(task({ id: 1, startedAt, endedAt: new Date("2026-07-26T08:30:00Z") }))
     ).toEqual({ ok: false, error: "not_running" });
   });
 });
 
 describe("canUndoComplete（F-212: 完了を取り消せるのは完了タスクのみ）", () => {
-  const endedAt = new Date("2026-07-19T08:30:00Z");
+  const endedAt = new Date("2026-07-26T08:30:00Z");
 
   it("完了タスクは完了を取り消せる（打刻2列を絞り込んだタスクをそのまま返す）", () => {
     // 戻り値は復帰用スナップショット（§4.7）の元データになるので、列の取りこぼしがないことを固定する

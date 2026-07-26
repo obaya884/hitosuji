@@ -4,7 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { RoutineInput } from "@/domain/routine/input";
 import type { Routine } from "@/domain/routine/routine";
 
-import { MODES, PROJECTS, routine, TODAY } from "./_testing/fixtures";
+import { routine } from "@/domain/routine/testing/routine";
+import { MODES, PROJECTS, TODAY } from "./_testing/fixtures";
 import { RoutineForm } from "./routine-form";
 
 /** 新規（routine=null）と編集（routine あり）で同じフォームを使う（§4「新規/編集共通」） */

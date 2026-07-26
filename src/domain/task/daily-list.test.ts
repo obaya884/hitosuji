@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Section } from "../section/section";
+import { atJst } from "../shared/testing/clock";
 import {
   displaySectionOrder,
   groupTasksBySection,
@@ -9,30 +10,11 @@ import {
   withTaskMoved,
   withTaskUpdated,
 } from "./daily-list";
-import type { Task } from "./task";
+import { task } from "./testing/task";
 
 const morning: Section = { id: 1, name: "朝", startTime: "06:00", isArchived: false };
 const forenoon: Section = { id: 2, name: "午前", startTime: "09:00", isArchived: false };
 const archived: Section = { id: 3, name: "旧枠", startTime: "15:00", isArchived: true };
-
-function task(over: Partial<Task> & { id: number }): Task {
-  return {
-    taskDate: "2026-07-19",
-    name: `T${over.id}`,
-    estimateMinutes: 0,
-    sectionId: null,
-    modeId: null,
-    projectId: null,
-    sortOrder: over.id * 1000,
-    startedAt: null,
-    endedAt: null,
-    comment: null,
-    routineId: null,
-    splitParentId: null,
-    postponedCount: 0,
-    ...over,
-  };
-}
 
 describe("groupTasksBySection（画面定義書01 §3.2: 表示順はセクション→sort_order）", () => {
   it("未分類グループをリスト先頭に置く（インボックス）", () => {
@@ -154,8 +136,8 @@ describe("sectionTotalMinutes（F-110: セクション時間合計。完了は�
       task({
         id: 1,
         estimateMinutes: 30,
-        startedAt: new Date("2026-07-19T08:30:00+09:00"),
-        endedAt: new Date("2026-07-19T08:48:00+09:00"),
+        startedAt: atJst("08:30"),
+        endedAt: atJst("08:48"),
       }),
       task({ id: 2, estimateMinutes: 45 }), // 未実行 → 見積もり
     ];
@@ -164,7 +146,7 @@ describe("sectionTotalMinutes（F-110: セクション時間合計。完了は�
 
   it("実行中タスクは見積もりで数える（完了打刻まで実績に切り替わらない）", () => {
     const tasks = [
-      task({ id: 1, estimateMinutes: 30, startedAt: new Date("2026-07-19T09:00:00+09:00") }),
+      task({ id: 1, estimateMinutes: 30, startedAt: atJst("09:00") }),
     ];
     expect(sectionTotalMinutes(tasks)).toBe(30);
   });
@@ -175,10 +157,10 @@ describe("taskProgress（F-114: タスク進捗。セクション見出し §3.2
     const tasks = [
       task({
         id: 1,
-        startedAt: new Date("2026-07-20T09:00:00+09:00"),
-        endedAt: new Date("2026-07-20T09:10:00+09:00"),
+        startedAt: atJst("09:00"),
+        endedAt: atJst("09:10"),
       }),
-      task({ id: 2, startedAt: new Date("2026-07-20T09:10:00+09:00"), endedAt: null }), // 実行中
+      task({ id: 2, startedAt: atJst("09:10"), endedAt: null }), // 実行中
       task({ id: 3 }), // 未実行
     ];
     expect(taskProgress(tasks)).toEqual({ done: 1, total: 3 });

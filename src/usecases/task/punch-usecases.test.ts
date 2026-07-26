@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { Section } from "@/domain/section/section";
 import { taskStatus } from "@/domain/task/status";
-import type { Task } from "@/domain/task/task";
+import { TEST_DATE } from "@/domain/shared/testing/clock";
+import { task } from "@/domain/task/testing/task";
 import { inMemorySectionRepository } from "@/usecases/section/testing/in-memory-repository";
 import {
   finishTask,
@@ -13,28 +14,9 @@ import {
 } from "./punch-usecases";
 import { inMemoryTaskRepository } from "./testing/in-memory-repository";
 
-function task(over: Partial<Task> & { id: number }): Task {
-  return {
-    taskDate: "2026-07-19",
-    name: `T${over.id}`,
-    estimateMinutes: 30,
-    sectionId: 1,
-    modeId: null,
-    projectId: null,
-    sortOrder: over.id * 1000,
-    startedAt: null,
-    endedAt: null,
-    comment: null,
-    routineId: null,
-    splitParentId: null,
-    postponedCount: 0,
-    ...over,
-  };
-}
-
-const now = new Date("2026-07-19T09:00:00Z");
+const now = new Date("2026-07-26T09:00:00Z");
 const nowClock = "18:00"; // 打刻の HH:MM（自動セクション移動 F-113 の判定に使う）
-const today = "2026-07-19";
+const today = TEST_DATE;
 
 /**
  * 打刻の依存。セクション0件なら自動セクション移動（F-113）は起きないので、
@@ -89,7 +71,7 @@ describe("startTask（F-201: 開始打刻）", () => {
   it("画面定義書01 §4.2: 今日以外のタスクを開始しても自動セクション移動はしない", async () => {
     const sections: Section[] = [{ id: 2, name: "夜", startTime: "18:00", isArchived: false }];
     const repo = inMemoryTaskRepository([
-      task({ id: 1, taskDate: "2026-07-18", sectionId: null }),
+      task({ id: 1, taskDate: "2026-07-25", sectionId: null }),
     ]);
 
     const result = await startTask(depsOf(repo, sections), {
@@ -109,7 +91,7 @@ describe("startTask（F-201: 開始打刻）", () => {
       { id: 2, name: "夜", startTime: "18:00", isArchived: false },
     ];
     const repo = inMemoryTaskRepository([
-      task({ id: 1, sectionId: 1, startedAt: new Date("2026-07-19T08:30:00Z") }), // 実行中
+      task({ id: 1, sectionId: 1, startedAt: new Date("2026-07-26T08:30:00Z") }), // 実行中
       task({ id: 2, sectionId: null }), // これを開始 → 「夜」へ移る
     ]);
 
@@ -123,7 +105,7 @@ describe("startTask（F-201: 開始打刻）", () => {
 });
 
 describe("startTask の割り込み（F-201 / データモデル定義書 §4.2）", () => {
-  const startedAt = new Date("2026-07-19T08:48:00Z"); // 実績12分になる
+  const startedAt = new Date("2026-07-26T08:48:00Z"); // 実績12分になる
 
   it("実行中タスクを同じ時刻で終了し、開始タスクの直下に再開タスクを作る", async () => {
     const repo = inMemoryTaskRepository([
@@ -150,15 +132,15 @@ describe("startTask の割り込み（F-201 / データモデル定義書 §4.2�
 
   it("再開タスクは開始タスクのセクション・日付に従う（前日の実行中タスクを割り込んだ場合も当日側）", async () => {
     const repo = inMemoryTaskRepository([
-      task({ id: 1, taskDate: "2026-07-18", sectionId: 9, startedAt, sortOrder: 1000 }),
-      task({ id: 2, taskDate: "2026-07-19", sectionId: 3, sortOrder: 5000 }),
+      task({ id: 1, taskDate: "2026-07-25", sectionId: 9, startedAt, sortOrder: 1000 }),
+      task({ id: 2, taskDate: TEST_DATE, sectionId: 3, sortOrder: 5000 }),
     ]);
 
     await punch(repo, 2);
 
     const resumed = repo.rows[2];
     expect([resumed.taskDate, resumed.sectionId, resumed.sortOrder]).toEqual([
-      "2026-07-19",
+      TEST_DATE,
       3,
       6000, // 後続がないので開始タスクの +1000
     ]);
@@ -187,7 +169,7 @@ describe("startTask の割り込み（F-201 / データモデル定義書 §4.2�
 
   it("割り込み先の実行中タスクを現在時刻で終了できない（開始≦終了）なら開始せずエラー", async () => {
     const repo = inMemoryTaskRepository([
-      task({ id: 1, startedAt: new Date("2026-07-19T10:00:00Z"), sortOrder: 1000 }), // now(09:00) より後に開始
+      task({ id: 1, startedAt: new Date("2026-07-26T10:00:00Z"), sortOrder: 1000 }), // now(09:00) より後に開始
       task({ id: 2, sortOrder: 2000 }),
     ]);
 
@@ -198,7 +180,7 @@ describe("startTask の割り込み（F-201 / データモデル定義書 §4.2�
 });
 
 describe("undoStart（F-210: 開始打刻の取り消し）", () => {
-  const startedAt = new Date("2026-07-19T08:30:00Z");
+  const startedAt = new Date("2026-07-26T08:30:00Z");
   const undo = (
     repo: ReturnType<typeof inMemoryTaskRepository>,
     taskId: number,
@@ -217,7 +199,7 @@ describe("undoStart（F-210: 開始打刻の取り消し）", () => {
     expect(await undo(notStarted, 1)).toEqual({ ok: false, error: "not_running" });
 
     const completed = inMemoryTaskRepository([
-      task({ id: 1, startedAt, endedAt: new Date("2026-07-19T09:00:00Z") }),
+      task({ id: 1, startedAt, endedAt: new Date("2026-07-26T09:00:00Z") }),
     ]);
     expect(await undo(completed, 1)).toEqual({ ok: false, error: "not_running" });
   });
@@ -243,7 +225,7 @@ describe("undoStart（F-210: 開始打刻の取り消し）", () => {
   it("今日以外のタスクは並べ直さず打刻のクリアだけ行う（§4.5）", async () => {
     const sections: Section[] = [{ id: 2, name: "夜", startTime: "18:00", isArchived: false }];
     const repo = inMemoryTaskRepository([
-      task({ id: 1, taskDate: "2026-07-18", sectionId: 1, startedAt }),
+      task({ id: 1, taskDate: "2026-07-25", sectionId: 1, startedAt }),
     ]);
 
     expect((await undo(repo, 1, sections)).ok).toBe(true);
@@ -253,8 +235,8 @@ describe("undoStart（F-210: 開始打刻の取り消し）", () => {
 
   it("割り込みで開始していた場合も波及なし: 直前の完了タスクと再開タスクは残す", async () => {
     const repo = inMemoryTaskRepository([
-      task({ id: 1, startedAt, endedAt: new Date("2026-07-19T09:00:00Z"), sortOrder: 1000 }), // 割り込みで終了した直前タスク
-      task({ id: 2, startedAt: new Date("2026-07-19T09:00:00Z"), sortOrder: 2000 }), // 割り込みで開始した実行中タスク
+      task({ id: 1, startedAt, endedAt: new Date("2026-07-26T09:00:00Z"), sortOrder: 1000 }), // 割り込みで終了した直前タスク
+      task({ id: 2, startedAt: new Date("2026-07-26T09:00:00Z"), sortOrder: 2000 }), // 割り込みで開始した実行中タスク
       task({ id: 3, splitParentId: 1, sortOrder: 1500 }), // 生成済みの再開タスク（未実行）
     ]);
 
@@ -267,8 +249,8 @@ describe("undoStart（F-210: 開始打刻の取り消し）", () => {
 });
 
 describe("undoComplete（F-212: 完了の取り消し）", () => {
-  const startedAt = new Date("2026-07-19T08:30:00Z");
-  const endedAt = new Date("2026-07-19T09:00:00Z");
+  const startedAt = new Date("2026-07-26T08:30:00Z");
+  const endedAt = new Date("2026-07-26T09:00:00Z");
   const completed = { startedAt, endedAt };
   const undo = (
     repo: ReturnType<typeof inMemoryTaskRepository>,
@@ -357,7 +339,7 @@ describe("undoComplete（F-212: 完了の取り消し）", () => {
   });
 
   // 今日以外は過去日・未来日のいずれも並べ直さない（現在位置・これから領域が定義できないため）
-  it.each(["2026-07-18", "2026-07-20"])(
+  it.each(["2026-07-25", "2026-07-27"])(
     "今日以外（%s）のタスクは並べ直さず打刻のクリアだけ行う（§4.7）",
     async (taskDate) => {
       const sections: Section[] = [{ id: 2, name: "夜", startTime: "18:00", isArchived: false }];
@@ -399,8 +381,8 @@ describe("undoComplete（F-212: 完了の取り消し）", () => {
 describe("restoreCompletion（F-212: 完了の取り消しの取り消し）", () => {
   const snapshot = {
     taskId: 1,
-    startedAt: new Date("2026-07-19T08:30:00Z"),
-    endedAt: new Date("2026-07-19T09:00:00Z"),
+    startedAt: new Date("2026-07-26T08:30:00Z"),
+    endedAt: new Date("2026-07-26T09:00:00Z"),
     sectionId: 3,
     sortOrder: 1500,
   } as const;
@@ -452,7 +434,7 @@ describe("restoreCompletion（F-212: 完了の取り消しの取り消し）", (
 
 describe("finishTask（F-201: 終了打刻）", () => {
   it("実行中タスクを終了する", async () => {
-    const startedAt = new Date("2026-07-19T08:30:00Z");
+    const startedAt = new Date("2026-07-26T08:30:00Z");
     const repo = inMemoryTaskRepository([task({ id: 1, startedAt })]);
 
     expect((await finishTask(repo, { taskId: 1, now })).ok).toBe(true);
@@ -469,7 +451,7 @@ describe("finishTask（F-201: 終了打刻）", () => {
 
   it("開始より前の時刻では終了できない（開始 ≦ 終了）", async () => {
     const repo = inMemoryTaskRepository([
-      task({ id: 1, startedAt: new Date("2026-07-19T09:30:00Z") }),
+      task({ id: 1, startedAt: new Date("2026-07-26T09:30:00Z") }),
     ]);
     expect(await finishTask(repo, { taskId: 1, now })).toEqual({
       ok: false,
@@ -487,8 +469,8 @@ describe("finishTask（F-201: 終了打刻）", () => {
 });
 
 describe("updateTaskPunch（F-203: 打刻時刻の修正）", () => {
-  const startedAt = new Date("2026-07-19T08:00:00Z");
-  const endedAt = new Date("2026-07-19T08:30:00Z");
+  const startedAt = new Date("2026-07-26T08:00:00Z");
+  const endedAt = new Date("2026-07-26T08:30:00Z");
 
   /** 修正後の開始時刻に対応する HH:MM（クライアントが整形して送る値の代わり） */
   const clockOf = (at: Date) =>
@@ -508,7 +490,7 @@ describe("updateTaskPunch（F-203: 打刻時刻の修正）", () => {
 
   it("開始・終了時刻を書き換える", async () => {
     const repo = inMemoryTaskRepository([task({ id: 1, startedAt, endedAt })]);
-    const newStart = new Date("2026-07-19T07:45:00Z");
+    const newStart = new Date("2026-07-26T07:45:00Z");
 
     expect((await editPunch(repo, { taskId: 1, startedAt: newStart, endedAt })).ok).toBe(true);
     expect(repo.rows[0].startedAt).toEqual(newStart);
@@ -516,7 +498,7 @@ describe("updateTaskPunch（F-203: 打刻時刻の修正）", () => {
 
   it("実行中タスク（終了なし）の開始時刻も修正できる", async () => {
     const repo = inMemoryTaskRepository([task({ id: 1, startedAt })]);
-    const newStart = new Date("2026-07-19T07:30:00Z");
+    const newStart = new Date("2026-07-26T07:30:00Z");
 
     expect((await editPunch(repo, { taskId: 1, startedAt: newStart, endedAt: null })).ok).toBe(true);
     expect(repo.rows[0].endedAt).toBeNull();
@@ -528,7 +510,7 @@ describe("updateTaskPunch（F-203: 打刻時刻の修正）", () => {
     expect(
       await editPunch(repo, {
         taskId: 1,
-        startedAt: new Date("2026-07-19T09:00:00Z"),
+        startedAt: new Date("2026-07-26T09:00:00Z"),
         endedAt,
       })
     ).toEqual({ ok: false, error: "ended_before_started" });
@@ -561,7 +543,7 @@ describe("updateTaskPunch（F-203: 打刻時刻の修正）", () => {
     const repo = inMemoryTaskRepository([
       task({ id: 1, sectionId: 1, sortOrder: 1000, startedAt, endedAt }),
     ]);
-    const newStart = new Date("2026-07-19T03:10:00Z"); // JST 12:10
+    const newStart = new Date("2026-07-26T03:10:00Z"); // JST 12:10
 
     await editPunch(repo, { taskId: 1, startedAt: newStart, endedAt }, sections);
 
@@ -575,7 +557,7 @@ describe("updateTaskPunch（F-203: 打刻時刻の修正）", () => {
 
     await editPunch(
       repo,
-      { taskId: 1, startedAt, endedAt: new Date("2026-07-19T15:00:00Z") },
+      { taskId: 1, startedAt, endedAt: new Date("2026-07-26T15:00:00Z") },
       sections
     );
 
@@ -584,9 +566,9 @@ describe("updateTaskPunch（F-203: 打刻時刻の修正）", () => {
 
   it("今日以外の日付のタスクは移動しない", async () => {
     const repo = inMemoryTaskRepository([
-      task({ id: 1, taskDate: "2026-07-18", sectionId: 1, sortOrder: 1000, startedAt, endedAt }),
+      task({ id: 1, taskDate: "2026-07-25", sectionId: 1, sortOrder: 1000, startedAt, endedAt }),
     ]);
-    const newStart = new Date("2026-07-19T03:10:00Z");
+    const newStart = new Date("2026-07-26T03:10:00Z");
 
     await editPunch(repo, { taskId: 1, startedAt: newStart, endedAt }, sections);
 

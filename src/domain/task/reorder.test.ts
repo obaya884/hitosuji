@@ -1,34 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { moveTaskByStep, reorderTask, stepMoveDestination } from "./reorder";
-import type { Task } from "./task";
-
-function task(over: Partial<Task> & { id: number }): Task {
-  return {
-    taskDate: "2026-07-19",
-    name: `T${over.id}`,
-    estimateMinutes: 0,
-    sectionId: 1,
-    modeId: null,
-    projectId: null,
-    sortOrder: over.id * 1000,
-    startedAt: null,
-    endedAt: null,
-    comment: null,
-    routineId: null,
-    splitParentId: null,
-    postponedCount: 0,
-    ...over,
-  };
-}
+import { task } from "./testing/task";
 
 // 未分類を先頭にしたセクション表示順
 const SECTION_ORDER = [null, 1, 2] as const;
 
 describe("reorderTask（画面定義書01 O-6 / データモデル定義書 §3.5: 中間値で採番）", () => {
   const tasks = [
-    task({ id: 1, sortOrder: 1000 }),
-    task({ id: 2, sortOrder: 2000 }),
-    task({ id: 3, sortOrder: 3000 }),
+    task({ id: 1, sectionId: 1, sortOrder: 1000 }),
+    task({ id: 2, sectionId: 1, sortOrder: 2000 }),
+    task({ id: 3, sectionId: 1, sortOrder: 3000 }),
   ];
 
   it("先頭へ移動すると先頭タスクより小さい値になる", () => {
@@ -67,9 +48,9 @@ describe("reorderTask（画面定義書01 O-6 / データモデル定義書 §3.
 
   it("中間値が尽きたらグループ全体を1000刻みで振り直す", () => {
     const dense = [
-      task({ id: 1, sortOrder: 1000 }),
-      task({ id: 2, sortOrder: 1001 }),
-      task({ id: 3, sortOrder: 3000 }),
+      task({ id: 1, sectionId: 1, sortOrder: 1000 }),
+      task({ id: 2, sectionId: 1, sortOrder: 1001 }),
+      task({ id: 3, sectionId: 1, sortOrder: 3000 }),
     ];
     const r = reorderTask(dense, 3, { sectionId: 1, index: 1 }); // 1000 と 1001 の間
 
@@ -91,9 +72,9 @@ describe("reorderTask（画面定義書01 O-6 / データモデル定義書 §3.
 
 describe("moveTaskByStep（画面定義書01 §6: Shift+J/K で1つずつ移動）", () => {
   const tasks = [
-    task({ id: 1, sortOrder: 1000 }),
-    task({ id: 2, sortOrder: 2000 }),
-    task({ id: 3, sortOrder: 3000 }),
+    task({ id: 1, sectionId: 1, sortOrder: 1000 }),
+    task({ id: 2, sectionId: 1, sortOrder: 2000 }),
+    task({ id: 3, sectionId: 1, sortOrder: 3000 }),
   ];
 
   it("下へ1つ動かすと次のタスクと入れ替わる", () => {
@@ -141,9 +122,9 @@ describe("moveTaskByStep（画面定義書01 §6: Shift+J/K で1つずつ移動�
 
 describe("stepMoveDestination（画面定義書01 §6: Shift+J/K の移動先。採番せず位置だけ返す）", () => {
   const tasks = [
-    task({ id: 1, sortOrder: 1000 }),
-    task({ id: 2, sortOrder: 2000 }),
-    task({ id: 3, sortOrder: 3000 }),
+    task({ id: 1, sectionId: 1, sortOrder: 1000 }),
+    task({ id: 2, sectionId: 1, sortOrder: 2000 }),
+    task({ id: 3, sectionId: 1, sortOrder: 3000 }),
   ];
 
   it("グループ内で下へ1つは同一セクションの次の位置を返す", () => {

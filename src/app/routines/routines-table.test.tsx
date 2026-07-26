@@ -6,7 +6,8 @@ import { MODE_COLORS, type Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { Routine } from "@/domain/routine/routine";
 
-import { MODES, PROJECTS, routine, SECTIONS, TODAY } from "./_testing/fixtures";
+import { routine } from "@/domain/routine/testing/routine";
+import { MODES, PROJECTS, SECTIONS, TODAY } from "./_testing/fixtures";
 import {
   createRoutineAction,
   deleteRoutineAction,
