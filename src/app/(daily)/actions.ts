@@ -16,6 +16,7 @@ import {
   undoStart,
   updateTaskPunch,
   type CompletionSnapshot,
+  type PunchUsecaseError,
 } from "@/usecases/task/punch-usecases";
 import {
   deleteTask,
@@ -24,10 +25,15 @@ import {
   postponeTask,
   restoreTask,
   suspendTask,
+  type TaskOperationError,
 } from "@/usecases/task/operations";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import type { Task } from "@/domain/task/task";
-import { moveTaskByOneStep, setTaskSection } from "@/usecases/task/reorder-usecases";
+import {
+  moveTaskByOneStep,
+  setTaskSection,
+  type ReorderUsecaseError,
+} from "@/usecases/task/reorder-usecases";
 import { createRoutineFromTask } from "@/usecases/routine/routine-usecases";
 import { applyCarryOverAfterPunch } from "@/usecases/task/relocation-usecases";
 import type { ActionResult } from "@/app/_lib/action-result";
@@ -82,15 +88,15 @@ export async function updateTaskEstimateAction(
   return { ok: true };
 }
 
-const PUNCH_ERROR_MESSAGES: Record<string, string> = {
+// PunchUsecaseError が実際に返す5コードのみが対象（invalid_time・not_punched・no_started_at は
+// PunchEditError（domain/task/punch-edit.ts）由来でここでは到達しないため、型を閉じるにあたり削除した。
+// クライアント側の同名文言は daily-board.tsx が別に持つ
+const PUNCH_ERROR_MESSAGES: Record<PunchUsecaseError, string> = {
   task_not_found: "タスクが見つかりませんでした",
   already_started: "このタスクはすでに開始済みです",
   not_running: "実行中のタスクではありません",
   not_completed: "完了したタスクではありません",
   ended_before_started: "終了時刻が開始時刻より前になります",
-  invalid_time: "時刻は HH:MM 形式で入力してください",
-  not_punched: "打刻されていないため修正できません",
-  no_started_at: "開始時刻のないタスクに終了時刻は設定できません",
 };
 
 /** 開始打刻（F-201）。now はクライアントの現在時刻を受け取る */
@@ -180,7 +186,7 @@ export async function updateTaskPunchAction(
   return { ok: true };
 }
 
-const REORDER_ERROR_MESSAGES: Record<string, string> = {
+const REORDER_ERROR_MESSAGES: Record<ReorderUsecaseError, string> = {
   task_not_found: "タスクが見つかりませんでした",
 };
 
@@ -225,13 +231,21 @@ export async function setTaskSectionAction(
   return { ok: true };
 }
 
-const OPERATION_ERROR_MESSAGES: Record<string, string> = {
+const OPERATION_ERROR_MESSAGES: Record<TaskOperationError, string> = {
   ...PUNCH_ERROR_MESSAGES,
   not_postponable: "先送りできるのは未実行タスクだけです",
   not_completed: "複製して開始できるのは完了タスクだけです",
 };
 
-/** ルーチン化の失敗（画面定義書01 §4.1）。入力値の検証エラーは画面定義書02 §4 の項目に対応する */
+/**
+ * ルーチン化の失敗（画面定義書01 §4.1）。入力値の検証エラーは画面定義書02 §4 の項目に対応する。
+ * 対応するユースケース `createRoutineFromTask` の戻り値型 `CreateRoutineFromTaskError` は
+ * `RoutineUsecaseError | RoutineFromTaskError | "task_not_found"` で、下記より多くのコード
+ * （name_required・name_too_long・invalid_estimate・invalid_start_date・invalid_end_date・
+ * end_date_before_start_date・routine_not_found）を型上は許容する。文言未定のため T-42 では
+ * 型を閉じずに残した（`Record<string, string>` のまま）。使用箇所の `?? "ルーチン化に失敗しました"`
+ * もそのため残置している
+ */
 const ROUTINE_FROM_TASK_ERROR_MESSAGES: Record<string, string> = {
   task_not_found: "タスクが見つかりませんでした",
   estimate_required: "見積もりを入力してからルーチン化してください",
