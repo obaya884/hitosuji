@@ -3,6 +3,7 @@
 import {
   withTaskAppended,
   withTaskMoved,
+  withTaskRemoved,
   withTaskUpdated,
   type DailyGroup,
 } from "@/domain/task/daily-list";
@@ -74,7 +75,7 @@ export function applyOptimisticAction(
     case "project":
       return withTaskUpdated(groups, action.id, (t) => ({ ...t, projectId: action.projectId }));
     case "remove":
-      return groups.map((g) => ({ ...g, tasks: g.tasks.filter((t) => t.id !== action.id) }));
+      return withTaskRemoved(groups, action.id);
   }
 }
 

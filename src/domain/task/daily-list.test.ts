@@ -8,6 +8,7 @@ import {
   taskProgress,
   withTaskAppended,
   withTaskMoved,
+  withTaskRemoved,
   withTaskUpdated,
 } from "./daily-list";
 import { task } from "./testing/task";
@@ -267,5 +268,38 @@ describe("withTaskUpdated（N-01: インライン編集の楽観的更新。並�
   it("元のグループ列を変更しない", () => {
     withTaskUpdated(groups, 1, (t) => ({ ...t, name: "改" }));
     expect(groups[1].tasks[0].name).toBe("T1");
+  });
+});
+
+describe("withTaskRemoved（N-01: 削除の楽観的更新 / O-8）", () => {
+  const groups = groupTasksBySection(
+    [
+      task({ id: 1, sectionId: morning.id, sortOrder: 1000 }),
+      task({ id: 2, sectionId: morning.id, sortOrder: 2000 }),
+      task({ id: 3, sectionId: forenoon.id, sortOrder: 1000 }),
+    ],
+    [morning, forenoon]
+  );
+
+  it("一致する行だけ消し、グループの他フィールド（section・endTime）は変えない", () => {
+    const removed = withTaskRemoved(groups, 1);
+    expect(removed[1]).toEqual({ ...groups[1], tasks: [groups[1].tasks[1]] });
+    expect(removed[2]).toEqual(groups[2]);
+  });
+
+  it("未分類グループの行も同じ規則で消せる（どのグループに属していても取り除ける）", () => {
+    const withUnclassified = groupTasksBySection([task({ id: 9, sectionId: null })], [morning]);
+    const removed = withTaskRemoved(withUnclassified, 9);
+    expect(removed[0].tasks).toEqual([]);
+  });
+
+  it("該当しないID（サーバ確定で既に消えた行への操作）では全グループがそのまま", () => {
+    const removed = withTaskRemoved(groups, 999);
+    expect(removed.map((g) => g.tasks.map((t) => t.id))).toEqual([[], [1, 2], [3]]);
+  });
+
+  it("元のグループ列を変更しない", () => {
+    withTaskRemoved(groups, 1);
+    expect(groups[1].tasks.map((t) => t.id)).toEqual([1, 2]);
   });
 });
