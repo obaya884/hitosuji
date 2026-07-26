@@ -4,9 +4,11 @@
 # 使い方:
 #   npm run ledger:check
 #
-# 検査するのは「AI が長いテーブル行を手編集して壊した実績のある3種」だけ:
+# 検査するのは「AI が手編集して壊した実績のある型」だけ:
 #   ①テーブル行の列数が揃っていない  ②1行に複数のエントリが混入している
 #   ③テーブルの内側に空行がある
+#   ④台帳21 で §一覧の行と §詳細の節が1対1になっていない（片方だけ残る／重複する）
+#   ⑤台帳21 で詳細列のリンク先アンカーが行の ID と食い違う
 # 内容の妥当性（状態の整合・参照先の存在など）は見ない。
 set -eu
 
@@ -60,6 +62,56 @@ for path in targets:
         cols = line.count("|") - 1
         if expected is not None and cols != expected:
             failures.append((path, i, f"列数が {cols}（このテーブルは {expected}）"))
+
+
+# ④⑤ 台帳21 は「§一覧の1行 ＋ §詳細の1節」で1エントリ（台帳21 運用ルール3）。
+# 片方だけの手編集で索引と本文が離れる事故を防ぐ。closed_21 の「旧書式の記録」は
+# 別の `## ` 節なので、§一覧・§詳細の範囲を切って見るだけで自然に対象外になる
+def section_lines(lines, name):
+    start = next((i for i, l in enumerate(lines) if l.strip() == f"## {name}"), None)
+    if start is None:
+        return None
+    end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("## ")), len(lines))
+    return list(enumerate(lines[start + 1 : end], start=start + 2))
+
+
+for path in sorted(glob.glob("docs/案件/21_*.md") + glob.glob("docs/案件/closed_21_*.md")):
+    lines = open(path, encoding="utf-8").read().split("\n")
+    index = section_lines(lines, "一覧")
+    detail = section_lines(lines, "詳細")
+    if index is None or detail is None:
+        failures.append((path, 1, "§一覧 または §詳細 の節が無い"))
+        continue
+
+    listed = {}
+    for line_no, line in index:
+        m = re.match(r"^\|\s*(FB-\d+)\s*\|", line)
+        if not m:
+            continue
+        entry_id = m.group(1)
+        if entry_id in listed:
+            failures.append((path, line_no, f"{entry_id} の行が §一覧に複数ある"))
+        listed[entry_id] = line_no
+        # ⑤詳細列（4列目）のリンク先が自分の ID を指しているか
+        cells = line.split("|")
+        if len(cells) == 7 and f"(#{entry_id.lower()})" not in cells[4]:
+            failures.append((path, line_no, f"{entry_id} の詳細リンクが (#{entry_id.lower()}) を指していない"))
+
+    described = {}
+    for line_no, line in detail:
+        m = re.match(r"^###\s+(FB-\d+)\s*$", line)
+        if not m:
+            continue
+        if m.group(1) in described:
+            failures.append((path, line_no, f"{m.group(1)} の詳細節が複数ある"))
+        described[m.group(1)] = line_no
+
+    for entry_id, line_no in sorted(listed.items()):
+        if entry_id not in described:
+            failures.append((path, line_no, f"{entry_id} の詳細節（### {entry_id}）が無い"))
+    for entry_id, line_no in sorted(described.items()):
+        if entry_id not in listed:
+            failures.append((path, line_no, f"{entry_id} の詳細節に対応する §一覧の行が無い"))
 
 if failures:
     print("台帳の表構造に問題があります:", file=sys.stderr)
