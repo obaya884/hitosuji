@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [],
+    "ask": [],
+    "deny": [
+      "Bash(cat *.env*)",
+      "Bash(cat .env*)",
+      "Bash(head *.env*)",
+      "Bash(head .env*)",
+      "Bash(tail *.env*)",
+      "Bash(tail .env*)",
+      "Bash(less *.env*)",
+      "Bash(more *.env*)"
+    ]
+  }
+}
