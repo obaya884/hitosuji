@@ -3,6 +3,7 @@ import { addDays, type LogicalDate } from "@/domain/shared/logical-date";
 import { currentTaskId, moveSelection } from "@/domain/task/selection";
 import { taskStatus } from "@/domain/task/status";
 import type { Task } from "@/domain/task/task";
+import { isButtonTarget, isGlobalShortcutEvent } from "@/app/_lib/keyboard";
 import type { EditField, EditingCell } from "./daily-list";
 
 /**
@@ -60,16 +61,13 @@ export function useDailyShortcuts(params: DailyShortcutParams): void {
 
   useEffect(() => {
     function onKeyDownGlobal(e: KeyboardEvent) {
-      // テキスト入力中・IME変換中はショートカット無効（画面定義書01 §6）
-      const target = e.target as HTMLElement | null;
-      if (e.isComposing || target?.tagName === "INPUT" || target?.tagName === "TEXTAREA") return;
+      // IME変換中・修飾キー併用・テキスト入力中はショートカット無効（00_共通 §3 / 画面定義書01 §6）
+      if (!isGlobalShortcutEvent(e)) return;
       // 編集中（インライン編集・選択ポップオーバー表示中）は行操作キーを無効化する。
       // ポップオーバーは J/K/Enter を自前で拾うため、ここで素通しさせない（F-112）
       if (editing !== null) return;
       // datepicker 表示中も同様。カレンダーが自前で拾うキー以外を背後へ流さない（§3.1 / §6）
       if (pickerOpen) return;
-      // 修飾キーは Shift のみ使用する（§6）。Cmd/Ctrl 併用時はブラウザの既定動作に任せる
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
 
       const selected = orderedTasks.find((t) => t.id === selectedId) ?? null;
       const requestEdit = (field: EditField) => {
@@ -118,7 +116,7 @@ export function useDailyShortcuts(params: DailyShortcutParams): void {
         case "Enter":
           // ボタンにフォーカスが残っている場合はブラウザがそのボタンを押すので、
           // ここで打刻すると二重に発火する（打刻ボタンを押した直後など。00_共通 §3）
-          if (target?.tagName === "BUTTON") return;
+          if (isButtonTarget(e.target)) return;
           if (selected !== null) punch(selected); // 開始 →（実行中なら）終了
           return;
         case "i":

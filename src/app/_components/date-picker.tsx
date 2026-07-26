@@ -10,6 +10,7 @@ import {
   type WeekStart,
 } from "@/domain/shared/month-grid";
 import { ChevronLeftIcon, ChevronRightIcon } from "@/app/_components/icons";
+import { isOperableKeyEvent } from "@/app/_lib/keyboard";
 import { floatPanel } from "@/app/_lib/ui";
 import { useDismiss } from "@/app/_lib/use-dismiss";
 import { useFlipUp } from "@/app/_lib/use-flip-up";
@@ -48,8 +49,8 @@ export function DatePicker({ date, today, onSelect, onClose }: Props) {
   // キーボード操作（§3.1 / §6）。document で拾い、背後の行操作へ流さない（SelectPopover と同じ流儀）
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (e.isComposing) return;
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      // IME変換中・修飾キー併用は操作として扱わない（00_共通 §3）
+      if (!isOperableKeyEvent(e)) return;
       const move = (days: number) => {
         e.preventDefault();
         e.stopPropagation();
