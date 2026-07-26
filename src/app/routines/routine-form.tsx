@@ -18,10 +18,7 @@ type Props = Readonly<{
   modes: readonly Mode[];
   projects: readonly Project[];
   today: string;
-  /**
-   * 保存中（Server Action の応答待ち）。確定と取消をどちらも止める
-   * （00_共通 §2.3「新規追加行・新規作成フォームの保存中」）
-   */
+  /** 保存中（Server Action の応答待ち） */
   isPending: boolean;
   onSubmit: (input: RoutineInput) => void;
   onCancel: () => void;
@@ -34,7 +31,14 @@ const RECURRENCE_LABELS: Readonly<Record<RecurrenceType, string>> = {
   interval: "n日ごと",
 };
 
-/** 新規/編集フォーム（画面定義書02 §4）。繰り返し種別に応じて入力項目を出し分ける */
+/**
+ * 新規/編集フォーム（画面定義書02 §4）。繰り返し種別に応じて入力項目を出し分ける。
+ *
+ * 保存中（`isPending`）は 00_共通 §2.3 に従い、確定（保存）・取消と、**送信せず表示だけを
+ * 変えるその場の選択**（繰り返し種別・曜日・モード/プロジェクト）を止める。
+ * **テキスト入力欄は触れるままにする**——失敗して戻ってきたときに入力し直せるようにするため
+ * （§2.3「失敗時」）。値を送るのは保存ボタンだけなので、打っている間に送信は起きない
+ */
 export function RoutineForm({
   routine,
   modes,
@@ -124,6 +128,7 @@ export function RoutineForm({
                 type="radio"
                 name="recurrenceType"
                 checked={recurrenceType === type}
+                disabled={isPending}
                 onChange={() => setRecurrenceType(type)}
                 className="accent-accent"
               />
@@ -140,6 +145,7 @@ export function RoutineForm({
                 <button
                   key={preset.label}
                   type="button"
+                  disabled={isPending}
                   onClick={() => setWeekdays(preset.mask)}
                   className={btnSecondary}
                 >
@@ -153,6 +159,7 @@ export function RoutineForm({
                   <input
                     type="checkbox"
                     checked={(weekdays & (1 << weekday.bit)) !== 0}
+                    disabled={isPending}
                     onChange={() => setWeekdays((v) => toggleWeekday(v, weekday.bit))}
                     className="accent-accent"
                   />
@@ -232,6 +239,7 @@ export function RoutineForm({
             <span className="text-xs text-ink-muted">モード</span>
             <select
               value={modeId ?? ""}
+              disabled={isPending}
               onChange={(e) => setModeId(e.target.value === "" ? null : Number(e.target.value))}
               className={`mt-1 w-full ${inputBase}`}
             >
@@ -247,6 +255,7 @@ export function RoutineForm({
             <span className="text-xs text-ink-muted">プロジェクト</span>
             <select
               value={projectId ?? ""}
+              disabled={isPending}
               onChange={(e) =>
                 setProjectId(e.target.value === "" ? null : Number(e.target.value))
               }
@@ -263,11 +272,7 @@ export function RoutineForm({
         </div>
       </div>
 
-      {/*
-        保存中は確定も取消も止める（00_共通 §2.3「新規追加行・新規作成フォームの保存中」）——
-        保存の連打は同じルーチンを二重に作り、応答待ちの取消はフォームを閉じて
-        失敗のメッセージだけを残す
-      */}
+      {/* 保存中は確定も取消も止める（§2.3。連打は二重に作り、応答待ちの取消は入力を失わせる） */}
       <div className="mt-3 flex justify-end gap-2">
         <button
           type="button"

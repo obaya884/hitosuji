@@ -467,6 +467,37 @@ describe("RoutinesTable（画面定義書02 §5: 有効/無効・削除・編集
     });
   });
 
+  // 新規と編集は別々に配線するので、編集フォーム側も同じく見る（片方だけ渡し忘れても
+  // もう片方のテストは緑のままになるため）
+  it("保存中は編集フォームの「保存」「取消」も押せない（00_共通 §2.3）", async () => {
+    const pending = deferredAction();
+    vi.mocked(updateRoutineAction).mockReturnValue(pending.promise);
+    renderTable([routine({ id: 7 })]);
+    await click(screen.getByText("編集"));
+
+    await click(screen.getByText("保存"));
+
+    expect(screen.getByText<HTMLButtonElement>("保存").disabled).toBe(true);
+    expect(screen.getByText<HTMLButtonElement>("取消").disabled).toBe(true);
+
+    await act(async () => {
+      pending.resolve({ ok: true });
+    });
+  });
+
+  // §2.3「失敗時」——失敗して戻ってきたら入力し直せる（抑止が解けたままにならない）
+  it("保存に失敗したらフォームを残し、保存・取消を再び押せる状態へ戻す", async () => {
+    vi.mocked(createRoutineAction).mockResolvedValue({ ok: false, message: "保存に失敗しました" });
+    renderTable([]);
+    await click(screen.getByText("新規ルーチン"));
+
+    await click(screen.getByText("保存"));
+
+    expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
+    expect(screen.getByText<HTMLButtonElement>("保存").disabled).toBe(false);
+    expect(screen.getByText<HTMLButtonElement>("取消").disabled).toBe(false);
+  });
+
   // isPending は useServerAction がテーブル単位で1組しか持たない（行単位ではない）ため、
   // ある行の保存中は他の行の操作も一律で止まる。T-52 の引き上げ前から変わらない性質
   // （引き上げ前も useTransition をテーブル単位で1つだけ持っていた）で、ここで固定しておく

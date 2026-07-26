@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import { describeRecurrence, type Routine } from "@/domain/routine/routine";
@@ -114,6 +114,19 @@ export function RoutinesTable({
     run(action, () => setEditing(null));
   }
 
+  /** 新規（`target = null`）と編集で同じフォームを使う（画面定義書02 §4） */
+  const form = (target: Routine | null) => (
+    <RoutineForm
+      routine={target}
+      modes={modes}
+      projects={projects}
+      today={today}
+      isPending={isPending}
+      onSubmit={save}
+      onCancel={() => setEditing(null)}
+    />
+  );
+
   return (
     <section className="mt-4">
       <div className="flex items-center justify-between">
@@ -140,17 +153,7 @@ export function RoutinesTable({
         </p>
       )}
 
-      {editing === "new" && (
-        <RoutineForm
-          routine={null}
-          modes={modes}
-          projects={projects}
-          today={today}
-          isPending={isPending}
-          onSubmit={save}
-          onCancel={() => setEditing(null)}
-        />
-      )}
+      {editing === "new" && form(null)}
 
       <table className="mt-3 w-full text-sm">
         <thead>
@@ -277,17 +280,9 @@ export function RoutinesTable({
         <p className="mt-4 text-sm text-ink-muted">ルーチンはまだありません。</p>
       )}
 
+      {/* key で行ごとにフォームを作り直す（別の行を開いたとき入力を持ち越さない） */}
       {editing !== null && editing !== "new" && (
-        <RoutineForm
-          key={editing.id}
-          routine={editing}
-          modes={modes}
-          projects={projects}
-          today={today}
-          isPending={isPending}
-          onSubmit={save}
-          onCancel={() => setEditing(null)}
-        />
+        <Fragment key={editing.id}>{form(editing)}</Fragment>
       )}
     </section>
   );

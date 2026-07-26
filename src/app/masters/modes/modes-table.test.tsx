@@ -461,6 +461,9 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
         expect(screen.getByText("色はプリセットから選択してください")).not.toBeNull();
       });
       expect(screen.getByPlaceholderText("モード名")).not.toBeNull();
+      // 抑止が解けたままにならない＝入力し直して保存できる（§2.3「失敗時」）
+      expect(screen.getByRole("button", { name: "保存" })).toHaveProperty("disabled", false);
+      expect(screen.getByRole("button", { name: "取消" })).toHaveProperty("disabled", false);
     });
 
     // 「保存中に始める操作」も止める（§2.3）——押すと開いていたセルが閉じてしまう
@@ -503,6 +506,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       fireEvent.click(swatch);
       expect(screen.queryByRole("button", { name: "色 青" })).toBeNull();
 
+      // 成功すると新規行ごと閉じるので、他のテストと違い解除側は主張できない（act 警告を避けて終える）
       await act(async () => {
         pending.resolve({ ok: true });
       });

@@ -306,12 +306,14 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
       expect(screen.getByPlaceholderText("プロジェクト名")).not.toBeNull();
     });
 
-    // 「保存中に始める操作」も止める（§2.3）——押すと開いていたセルが閉じてしまう
-    it("保存中は「新規追加」を押せない", async () => {
+    // 「保存中に始める操作」も止める（§2.3）——押すと開いていたセルが閉じ、
+    // 失敗が返っても入力し直せなくなる。守りたいのは「開いている入力欄が残る」こと
+    it("保存中の「新規追加」は開いている編集セルを閉じない", async () => {
       const pending = deferredAction();
       vi.mocked(setProjectArchivedAction).mockReturnValue(pending.promise);
       renderTable();
-
+      // プロジェクトB を編集中にしたまま、別行のアーカイブで保存中にする
+      const input = startEditingCell("プロジェクトB");
       fireEvent.click(within(rowOf("プロジェクトA")).getByRole("button", { name: "アーカイブ" }));
 
       const create = await waitFor(() => {
@@ -320,6 +322,8 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
         return button;
       });
       fireEvent.click(create);
+
+      expect(screen.getByDisplayValue("プロジェクトB")).toBe(input);
       expect(screen.queryByPlaceholderText("プロジェクト名")).toBeNull();
 
       await act(async () => {
