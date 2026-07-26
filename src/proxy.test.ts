@@ -81,15 +81,15 @@ describe("proxy（要件定義書 N-03: Basic認証は環境変数が揃って�
     expectPassThrough(proxy(request()));
   });
 
-  // 空文字の扱いは仕様（N-03）に定めが無く、以下2本は現挙動の固定（characterization）。
-  // 空文字を未設定と同じ「素通し」に倒すのは fail-open 側の判断なので、fail-closed に
-  // 変えるなら仕様側の決定が要る（本 T-59 は種別「テスト」＝本番コード不変のため触らない）
-  it("両方が空文字なら未設定とみなして素通しする（現挙動の固定。仕様未定義）", () => {
+  // 以下2本は現挙動の固定（characterization）。空文字を未設定と同じ「素通し」に倒すのは
+  // fail-open 側の判断で、「未設定」と「空文字が入っている」を区別するかは FB-73 で方針決定待ち。
+  // fail-closed に倒すと決まればこの2本が更新対象になる
+  it("両方が空文字なら未設定とみなして素通しする（現挙動の固定。FB-73 で方針決定待ち）", () => {
     stubCredentials("", "");
     expectPassThrough(proxy(request()));
   });
 
-  it("片方だけ空文字でも未設定とみなして素通しする（現挙動の固定。仕様未定義）", () => {
+  it("片方だけ空文字でも未設定とみなして素通しする（現挙動の固定。FB-73 で方針決定待ち）", () => {
     stubCredentials(TEST_USER, "");
     expectPassThrough(proxy(request()));
   });
@@ -146,7 +146,8 @@ describe("proxy（要件定義書 N-03: 不正な Authorization ヘッダは 401
 
   it("スキーム名の大文字小文字が異なると 401 を返す（現状の実装は `Basic ` 前方一致）", () => {
     // RFC 7617 のスキーム名は本来 case-insensitive だが、実装は完全一致で判定している。
-    // 実ブラウザは `Basic` を送るため実害は無い。現挙動の固定（characterization）
+    // 実ブラウザは `Basic` を送るため実害は無く、case-insensitive にはしない判断が出ている
+    // （起票なし＝直す予定が無い。現挙動の固定）
     stubCredentials(TEST_USER, TEST_PASSWORD);
     expectUnauthorized(proxy(request(authHeader("basic ", `${TEST_USER}:${TEST_PASSWORD}`))));
   });
