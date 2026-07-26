@@ -76,6 +76,7 @@ export async function startTask(
     sameDay.map((t) => (t.id === started.id ? started : t)),
     started.sectionId
   );
+  // 再開タスクは新規なので自身は振り直しに含めない
   const placed = placeSortOrder(group, group.findIndex((t) => t.id === started.id) + 1);
 
   const draft = resumeTaskDraft(running, input.now);

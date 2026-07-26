@@ -33,14 +33,15 @@ export function relocationOnStart(
   if (destination === undefined) return null;
   if (task.sectionId === destination.id) return null;
 
-  const siblingSortOrders = sameDayTasks
-    .filter((t) => t.sectionId === destination.id && t.id !== task.id)
-    .map((t) => t.sortOrder);
+  const siblings = tasksInSection(
+    sameDayTasks.filter((t) => t.id !== task.id),
+    destination.id
+  );
 
   return {
     taskId: task.id,
     sectionId: destination.id,
-    sortOrder: appendSortOrder(siblingSortOrders),
+    sortOrder: appendSortOrder(siblings.map((t) => t.sortOrder)),
   };
 }
 
@@ -170,7 +171,8 @@ export function relocationOnUndoPunch(
 /**
  * 移動先セクション（`sectionId`）の `siblings` の `index` 番目へ `task` を差し込む Relocation 列。
  * 採番も振り直しも §3.5 の共通規則（`placeSortOrder`）が決め、ここは
- * 「実際に変わる行だけ動かす」ぶんを取り出すだけ
+ * 「実際に変わる行だけ動かす」ぶんを取り出すだけ。
+ * `siblings` は `placeSortOrder` と同じ前提——**`task` を除いた sort_order 昇順の並び**
  */
 function relocationsFor(
   task: Task,
@@ -183,7 +185,8 @@ function relocationsFor(
     return changedOnly([{ task, sortOrder: placed.sortOrder }], sectionId);
   }
 
-  // 中間値が尽きた: 移動先セクション全体の振り直しを、変更前のタスクへ突き合わせる
+  // 中間値が尽きた: 移動先セクション全体の振り直しを、変更前のタスクへ突き合わせる。
+  // `renumber` の taskId は `placeSortOrder` が `[task, ...siblings]` からのみ作るので必ず引ける
   const byId = new Map([task, ...siblings].map((t) => [t.id, t]));
   return changedOnly(
     placed.renumber.map(({ taskId, sortOrder }) => ({ task: byId.get(taskId)!, sortOrder })),

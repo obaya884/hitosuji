@@ -40,6 +40,36 @@ describe("suspendTask（F-204: 中断）", () => {
     );
   });
 
+  it("再開タスクの位置は同一セクション内だけで決まる（他セクションの行は挟まない）", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 3, sortOrder: 5000, startedAt }),
+      task({ id: 2, sectionId: 4, sortOrder: 5500 }), // 別セクション。跨いで挟まってはいけない
+    ]);
+
+    expect((await suspendTask(repo, { taskId: 1, now })).ok).toBe(true);
+
+    // セクション3の末尾なので +1000。絞り込みが壊れると 5250（5000 と 5500 の中間）になる
+    expect(repo.rows[2]).toEqual(
+      expect.objectContaining({ sectionId: 3, sortOrder: 6000 })
+    );
+  });
+
+  it("中間値が尽きたら振り直しを伴って再開タスクを挟む（§3.5 の renumber を suspend へ渡す）", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sortOrder: 1000, startedAt }),
+      task({ id: 2, sortOrder: 1001 }), // 直後に隙間が無い
+    ]);
+
+    expect((await suspendTask(repo, { taskId: 1, now })).ok).toBe(true);
+
+    // 元タスク・再開タスク・次タスクが 1000/2000/3000 へ振り直される
+    expect(repo.rows.map((t) => [t.id, t.sortOrder])).toEqual([
+      [1, 1000],
+      [2, 3000],
+      [3, 2000],
+    ]);
+  });
+
   it("中断後は実行中タスクがいなくなる", async () => {
     const repo = inMemoryTaskRepository([task({ id: 1, startedAt })]);
     await suspendTask(repo, { taskId: 1, now });

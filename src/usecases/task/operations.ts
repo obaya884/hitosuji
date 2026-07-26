@@ -41,7 +41,7 @@ export async function suspendTask(
   const sameDay = await repo.listByDate(target.taskDate);
   const group = tasksInSection(sameDay, target.sectionId);
   const index = group.findIndex((t) => t.id === target.id) + 1;
-  const placed = placeSortOrder(group, index);
+  const placed = placeSortOrder(group, index); // 新規タスクなので自身は振り直しに含めない
 
   const draft = resumeTaskDraft(target, input.now);
   await repo.suspend({
@@ -82,11 +82,10 @@ export async function duplicateTask(
   const group = tasksInSection(sameDay, sectionId);
   const indexInGroup =
     index === 0 ? 0 : group.findIndex((t) => t.id === ordered[index - 1].id) + 1;
-  const placed = placeSortOrder(group, indexInGroup);
+  const placed = placeSortOrder(group, indexInGroup); // 新規タスクなので自身は振り直しに含めない
 
   const draft = duplicateDraft(target);
   const created = await repos.tasks.create(
-    // sectionId は挿入位置のセクションに従う（F-111）
     newTaskFromDraft(draft, {
       taskDate: target.taskDate,
       sectionId,
@@ -125,7 +124,7 @@ export async function duplicateAndStartTask(
       ? sectionAt(sections, input.nowClock)?.id ?? target.sectionId
       : target.sectionId;
 
-  // 末尾採番なので最大値だけ見ればよいが、同ファイルの他操作に合わせて tasksInSection を通す
+  // セクション内の並びは常に tasksInSection で取り出す（末尾採番なので使うのは最大値だけ）
   const startedSortOrder = appendSortOrder(
     tasksInSection(sameDay, destinationSectionId).map((t) => t.sortOrder)
   );

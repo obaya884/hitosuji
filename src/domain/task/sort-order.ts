@@ -20,13 +20,13 @@ export type SortOrderPlacement = Readonly<{
 }>;
 
 /** 同一グループのタスクを sort_order 昇順に並べる（表示順の第2キー。§3.5） */
-export function bySortOrder(tasks: readonly Task[]): Task[] {
+export function sortedBySortOrder(tasks: readonly Task[]): Task[] {
   return [...tasks].sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
 /** 指定セクション（null = 未分類）のタスクを sort_order 昇順で取り出す（§3.5） */
 export function tasksInSection(tasks: readonly Task[], sectionId: number | null): Task[] {
-  return bySortOrder(tasks.filter((t) => t.sectionId === sectionId));
+  return sortedBySortOrder(tasks.filter((t) => t.sectionId === sectionId));
 }
 
 /** 末尾追加・ルーチン展開: セクション内最大値 +1000 */
@@ -41,7 +41,10 @@ export function appendSortOrder(siblingSortOrders: readonly number[]): number {
  * 新規作成・並び替え・自動セクション移動のすべてがこの1関数を通る
  */
 export function placeSortOrder(
-  /** 挿入対象を除いた、同一グループの sort_order 昇順の並び */
+  /**
+   * 挿入対象を除いた、同一グループの並び。**sort_order 昇順であること**
+   * （`tasksInSection` が保証する）。降順で渡すと前後の判定が壊れる
+   */
   siblings: readonly Task[],
   /** 挿入位置（0始まり。その位置に差し込む。範囲外は端へ丸める） */
   index: number,
@@ -49,7 +52,7 @@ export function placeSortOrder(
    * 挿入するタスク自身。既存タスクを動かす場合に渡すと振り直しへ自身も含める。
    * 新規作成（まだ id が無い）なら省略する
    */
-  moving: Task | null = null
+  moving?: Task
 ): SortOrderPlacement {
   const at = Math.max(0, Math.min(index, siblings.length));
   const before = at === 0 ? null : siblings[at - 1].sortOrder;
@@ -58,14 +61,15 @@ export function placeSortOrder(
   const middle = insertBetween(before, after);
   if (middle.ok) return { sortOrder: middle.value, renumber: [] };
 
-  // 中間値が尽きた: 挿入後の並びを1000刻みに振り直す（§3.5）
+  // 中間値が尽きた: 挿入後の並びを1000刻みに振り直す（§3.5）。
+  // `undefined` は挿入するタスク自身の席——新規作成はまだ id が無いので振り直しに含めない
   const numbers = renumberSortOrders(siblings.length + 1);
   const inserted = [...siblings.slice(0, at), moving, ...siblings.slice(at)];
 
   return {
     sortOrder: numbers[at],
     renumber: inserted.flatMap((task, i) =>
-      task === null ? [] : [{ taskId: task.id, sortOrder: numbers[i] }]
+      task === undefined ? [] : [{ taskId: task.id, sortOrder: numbers[i] }]
     ),
   };
 }
