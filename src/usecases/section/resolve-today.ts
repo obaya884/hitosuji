@@ -1,20 +1,17 @@
 // 日界（F-116）を踏まえた「今日」の解決。
-// タイムゾーン抽出（format）は presentation、日界セクションは repo 経由で得るため、
-// 両者を束ねるこの合成は presentation 層に置く（domain/usecase は now を持たない）。
-import { dayStartTimeOf, type Section } from "@/domain/section/section";
-import type { LogicalDate } from "@/domain/shared/logical-date";
+// 日付の導出そのものは domain（`todayLogicalDate`）が持ち、ここは日界セクションを
+// リポジトリから読む合成と、運用タイムゾーンを domain へ与える役に徹する（T-47 / T-55）
+import { dayStartTimeOf, startMinutes, type Section } from "@/domain/section/section";
+import { todayLogicalDate, type LogicalDate } from "@/domain/shared/logical-date";
+import { APP_TIME_ZONE } from "@/domain/shared/time-zone";
 import type { SectionRepository } from "@/usecases/ports/section-repository";
-import { todayLogicalDate } from "./format";
 
 /**
  * 取得済みのセクション配列から「今日」（論理日付）を日界を踏まえて解決する。
  * すでにセクションを読んでいる画面（二重 fetch を避けたい場所）で使う。
  */
-export function todayFromSections(
-  sections: readonly Section[],
-  now: Date = new Date()
-): LogicalDate {
-  return todayLogicalDate(now, dayStartTimeOf(sections));
+export function todayFromSections(sections: readonly Section[], now: Date): LogicalDate {
+  return todayLogicalDate(now, startMinutes(dayStartTimeOf(sections)), APP_TIME_ZONE);
 }
 
 /**
@@ -23,7 +20,7 @@ export function todayFromSections(
  */
 export async function resolveToday(
   sections: SectionRepository,
-  now: Date = new Date()
+  now: Date
 ): Promise<LogicalDate> {
   return todayFromSections(await sections.listAll(), now);
 }

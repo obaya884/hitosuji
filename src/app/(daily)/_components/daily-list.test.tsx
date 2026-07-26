@@ -8,7 +8,7 @@ import type { DailyGroup } from "@/domain/task/daily-list";
 import type { Task } from "@/domain/task/task";
 
 import { rgbOf, rowOf } from "@/app/_testing/dom";
-import { atJst, atLocal } from "@/domain/shared/testing/clock";
+import { atJst } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
 import { sectionGroup, unclassifiedGroup } from "../_testing/factories";
 import { DailyList, type EditingCell } from "./daily-list";
@@ -86,9 +86,9 @@ function renderList(overrides: Overrides = {}) {
       sections={overrides.sections ?? SECTIONS}
       selectedId={overrides.selectedId ?? null}
       editing={overrides.editing ?? null}
-      // `now` は2系統へ流れる——実打刻の表示（`formatClock`＝JST 固定）と、予想開始・
-      // セクション終了（`projectedStartTimes` / `sectionEndAt`＝ローカル解釈）。
-      // **各テストは自分が値を assert する側に合わせて `atJst` / `atLocal` を選ぶこと**
+      // `now` は実打刻の表示（`formatClock`）と予想開始・セクション終了
+      // （`projectedStartTimes` / `sectionEndAt`）の両方へ流れるが、どちらも
+      // `APP_TIME_ZONE` 基準なので `atJst` 一本で組める（T-47）
       now={overrides.now ?? atJst("10:00")}
       isToday={overrides.isToday ?? true}
       dayStartMinutes={overrides.dayStartMinutes ?? 0}
@@ -216,8 +216,8 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
 
     it("残り時間は（セクション終了 − 現在）− 未完了見積もり（F-110）", () => {
       renderList({
-        // ローカル時刻で組む（セクション終了時刻は論理日の暦日 0:00 起点で測る）
-        now: atLocal("07:00"),
+        // セクション終了時刻は論理日の暦日 0:00 起点で測る（起点は JST。T-47）
+        now: atJst("07:00"),
         groups: [morning([task({ id: 1, name: "朝食", estimateMinutes: 30 })])],
       });
 
@@ -229,7 +229,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
 
     it("残り時間のマイナスは警告色で示す（FB-31/FB-32: 溢れが読めるように）", () => {
       renderList({
-        now: atLocal("07:00"),
+        now: atJst("07:00"),
         groups: [morning([task({ id: 1, name: "朝食", estimateMinutes: 180 })])],
       });
 
@@ -240,7 +240,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
 
     it("プラスの残り時間は警告色にしない", () => {
       renderList({
-        now: atLocal("07:00"),
+        now: atJst("07:00"),
         groups: [morning([task({ id: 1, name: "朝食", estimateMinutes: 30 })])],
       });
 
@@ -252,7 +252,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
     it("表示日が今日でなければ残り時間を出さない（現在時刻起点の値のため）", () => {
       renderList({
         isToday: false,
-        now: atLocal("07:00"),
+        now: atJst("07:00"),
         groups: [morning([task({ id: 1, name: "朝食", estimateMinutes: 30 })])],
       });
 
@@ -264,7 +264,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
 
     it("現在時刻がセクション終了を過ぎた過去セクションでは残り時間を出さない", () => {
       renderList({
-        now: atLocal("10:00"),
+        now: atJst("10:00"),
         groups: [morning([task({ id: 1, name: "朝食", estimateMinutes: 30 })])],
       });
 
@@ -275,7 +275,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
       renderList({
         // 日界 06:00・深夜 02:00 は前の論理日の続き。午後（13:00–翌06:00）はまだ終わっていない
         dayStartMinutes: 360,
-        now: atLocal("02:00", "2026-07-27"),
+        now: atJst("02:00", "2026-07-27"),
         groups: [afternoon([task({ id: 1, name: "夜更かし", estimateMinutes: 60 })])],
       });
 
@@ -493,7 +493,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
   describe("予想開始時刻（F-120 / §3.3）", () => {
     it("未実行行にだけ弱色で `HH:MM–` を併記する", () => {
       renderList({
-        now: atLocal("10:00"), // 予想開始はローカル解釈（下の値のアサーションが TZ で揺れる）
+        now: atJst("10:00"), // 予想開始も JST 基準（下の値のアサーションは TZ で揺れない）
         groups: [
           morning([
             task({ id: 1, name: "朝食", startedAt: atJst("06:30"), endedAt: atJst("06:48") }),

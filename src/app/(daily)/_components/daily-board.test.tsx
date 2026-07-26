@@ -7,7 +7,7 @@ import type { Project } from "@/domain/project/project";
 import type { Section } from "@/domain/section/section";
 import { formatClock } from "@/app/_lib/format";
 import { otherRouterCalls, router } from "@/app/_testing/next-navigation";
-import { atLocal, TEST_DATE } from "@/domain/shared/testing/clock";
+import { atJst, TEST_DATE } from "@/domain/shared/testing/clock";
 import { groupTasksBySection } from "@/domain/task/daily-list";
 import type { Task } from "@/domain/task/task";
 import { task } from "@/domain/task/testing/task";
@@ -75,12 +75,12 @@ class ResizeObserverStub {
 }
 
 
-// 打刻の修正（F-203 / `applyClockTime`）は入力の `HH:MM` を**ローカル時刻**として解釈するので、
-// テストデータも壁時計（`atLocal`）で組む。一方で表示（`formatClock`）は `APP_TIME_ZONE` 固定なので、
-// **画面に出る時刻の期待値はリテラルで書かず `formatClock(atLocal(...))` で組み立てる**
+// 打刻の修正（F-203 / `applyClockTime`）も表示（`formatClock`）も `APP_TIME_ZONE` 固定の
+// 壁時計で扱うので、テストデータは `atJst` で組む（T-47）。それでも**画面に出る時刻の期待値は
+// リテラルで書かず `formatClock(atJst(...))` で組み立てる**（整形の書式を二重に書かないため）
 
 /** 打刻はクライアントの現在時刻を送る（§7）ので、時計を固定して観測できるようにする */
-const NOW = atLocal("10:30");
+const NOW = atJst("10:30");
 
 const SECTIONS: readonly Section[] = [
   { id: 1, name: "午前", startTime: "09:00", isArchived: false },
@@ -99,14 +99,14 @@ const COMPLETED = "レビュー";
 function defaultTasks(): Task[] {
   return [
     task({ id: 11, name: NOT_STARTED, sectionId: 1, sortOrder: 1000 }),
-    task({ id: 12, name: RUNNING, sectionId: 1, sortOrder: 2000, startedAt: atLocal("10:00") }),
+    task({ id: 12, name: RUNNING, sectionId: 1, sortOrder: 2000, startedAt: atJst("10:00") }),
     task({
       id: 13,
       name: COMPLETED,
       sectionId: 2,
       sortOrder: 1000,
-      startedAt: atLocal("09:00"),
-      endedAt: atLocal("09:20"),
+      startedAt: atJst("09:00"),
+      endedAt: atJst("09:20"),
     }),
   ];
 }
@@ -114,8 +114,8 @@ function defaultTasks(): Task[] {
 /** 完了の取り消し（O-15）が返す復帰用スナップショット（データモデル定義書 §4.7 の4列） */
 const SNAPSHOT: CompletionSnapshot = {
   taskId: 13,
-  startedAt: atLocal("09:00"),
-  endedAt: atLocal("09:20"),
+  startedAt: atJst("09:00"),
+  endedAt: atJst("09:20"),
   sectionId: 2,
   sortOrder: 1000,
 };
@@ -479,7 +479,7 @@ describe("DailyBoard の打刻（F-201 / F-211 / §7: クライアントの現�
   });
 
   it("送り先の未実行タスクがなければ選択は完了行に据え置く（F-211）", () => {
-    renderBoard([task({ id: 12, name: RUNNING, sectionId: 1, startedAt: atLocal("10:00") })]);
+    renderBoard([task({ id: 12, name: RUNNING, sectionId: 1, startedAt: atJst("10:00") })]);
     selectRow(RUNNING);
 
     fireEvent.click(within(row(RUNNING)).getByLabelText("終了"));
@@ -610,8 +610,8 @@ describe("DailyBoard の完了の取り消し（O-15 / F-212）", () => {
   it("完了タスクの U は打刻2列を即クリアし、確定後に Undo トーストを出す", async () => {
     const snapshot = {
       taskId: 13,
-      startedAt: atLocal("09:00"),
-      endedAt: atLocal("09:20"),
+      startedAt: atJst("09:00"),
+      endedAt: atJst("09:20"),
       sectionId: 2,
       sortOrder: 1000,
     };
@@ -623,7 +623,7 @@ describe("DailyBoard の完了の取り消し（O-15 / F-212）", () => {
     press("u");
     // 楽観的更新は打刻2列のクリアだけ（並べ直しはサーバ確定後。O-15）
     expect(vi.mocked(undoCompleteAction)).toHaveBeenCalledWith(13, NOW);
-    expect(within(row(COMPLETED)).queryByText(formatClock(atLocal("09:00")))).toBeNull();
+    expect(within(row(COMPLETED)).queryByText(formatClock(atJst("09:00")))).toBeNull();
     expect(within(row(COMPLETED)).queryByText("→ 0:20")).toBeNull();
 
     await gate.resolve({ ok: true, snapshot });
@@ -632,7 +632,7 @@ describe("DailyBoard の完了の取り消し（O-15 / F-212）", () => {
       task({ id: 13, name: COMPLETED, sectionId: 1, sortOrder: 1500 }),
     ]);
 
-    expect(within(row(COMPLETED)).queryByText(formatClock(atLocal("09:00")))).toBeNull();
+    expect(within(row(COMPLETED)).queryByText(formatClock(atJst("09:00")))).toBeNull();
     expect(screen.queryByText(`「${COMPLETED}」を未実行に戻しました`)).not.toBeNull();
   });
 
@@ -645,8 +645,8 @@ describe("DailyBoard の完了の取り消し（O-15 / F-212）", () => {
 
     expect(vi.mocked(restoreCompletionAction)).toHaveBeenCalledWith({
       taskId: 13,
-      startedAt: atLocal("09:00"),
-      endedAt: atLocal("09:20"),
+      startedAt: atJst("09:00"),
+      endedAt: atJst("09:20"),
       sectionId: 2,
       sortOrder: 1000,
     });
@@ -659,10 +659,10 @@ describe("DailyBoard の完了の取り消し（O-15 / F-212）", () => {
     selectRow(COMPLETED);
 
     press("u");
-    expect(within(row(COMPLETED)).queryByText(formatClock(atLocal("09:00")))).toBeNull();
+    expect(within(row(COMPLETED)).queryByText(formatClock(atJst("09:00")))).toBeNull();
     await gate.resolve({ ok: false, message: "保存に失敗しました" });
 
-    expect(within(row(COMPLETED)).queryByText(formatClock(atLocal("09:00")))).not.toBeNull();
+    expect(within(row(COMPLETED)).queryByText(formatClock(atJst("09:00")))).not.toBeNull();
     expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
     expect(screen.queryByText("取り消す")).toBeNull();
   });
@@ -840,8 +840,8 @@ describe("DailyBoard のインライン編集の検証（§8 / 00_共通 §2.3�
     expect(screen.queryByText("終了時刻は開始時刻より後にしてください")).not.toBeNull();
   });
 
-  // 引数の検証は `toHaveBeenCalledWith` を基準にし、**引数から導出した値を調べるときだけ**
-  // `mock.calls[0]` を使う（打刻の修正は入力の HH:MM がローカル時刻で解釈された結果を見るため）
+  // 引数の検証は `toHaveBeenCalledWith` を基準にし、**引数の一部だけを調べるときだけ**
+  // `mock.calls[0]` を使う（入力の HH:MM が `APP_TIME_ZONE` の壁時計として解釈された結果を見る）
   it("終了時刻の修正は開始時刻を保ったまま送る（F-203）", () => {
     renderBoard();
     selectRow(COMPLETED);
@@ -851,11 +851,10 @@ describe("DailyBoard のインライン編集の検証（§8 / 00_共通 §2.3�
 
     const call = vi.mocked(updateTaskPunchAction).mock.calls[0];
     expect(call[0]).toBe(13);
-    expect(call[1].startedAt).toEqual(atLocal("09:00"));
-    expect(call[1].endedAt?.getHours()).toBe(9);
-    expect(call[1].endedAt?.getMinutes()).toBe(30);
+    expect(call[1].startedAt).toEqual(atJst("09:00"));
+    expect(call[1].endedAt).toEqual(atJst("09:30"));
     // 移動先セクションの判定は開始時刻の HH:MM で行う（§4.2-c）
-    expect(call[2]).toBe(formatClock(atLocal("09:00")));
+    expect(call[2]).toBe(formatClock(atJst("09:00")));
   });
 
   it("開始時刻の修正はセクション判定用の HH:MM とクライアントの現在時刻を添えて送る（§4.2-c）", () => {
@@ -867,9 +866,8 @@ describe("DailyBoard のインライン編集の検証（§8 / 00_共通 §2.3�
 
     const call = vi.mocked(updateTaskPunchAction).mock.calls[0];
     expect(call[0]).toBe(12);
-    // HH:MM は利用者のタイムゾーンで解釈する（実行環境のローカル時刻で組み立てられる）
-    expect(call[1].startedAt.getHours()).toBe(9);
-    expect(call[1].startedAt.getMinutes()).toBe(15);
+    // HH:MM は運用タイムゾーンの壁時計として解釈する（実行環境の TZ に依らない。T-47）
+    expect(call[1].startedAt).toEqual(atJst("09:15"));
     expect(call[1].endedAt).toBeNull();
     expect(call[3]).toEqual(NOW);
   });
@@ -1194,7 +1192,7 @@ describe("DailyBoard の通知と行メニュー（画面定義書01 §8 / O-7 /
         id: 5,
         name: "読書",
         taskDate: "2026-07-25",
-        startedAt: atLocal("23:00", "2026-07-25"), // 前日
+        startedAt: atJst("23:00", "2026-07-25"), // 前日
       }),
     });
 

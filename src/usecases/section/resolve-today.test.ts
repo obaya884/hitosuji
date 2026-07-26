@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { inMemorySectionRepository } from "@/usecases/section/testing/in-memory-repository";
+import { inMemorySectionRepository } from "./testing/in-memory-repository";
 import type { Section } from "@/domain/section/section";
-import { resolveToday, todayFromSections } from "./today";
+import { resolveToday, todayFromSections } from "./resolve-today";
 
 // 日界セクション 朝 06:00（F-116）。日界より前の JST は前の暦日になる
 const dayStartMorning: Section = {

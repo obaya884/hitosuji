@@ -1,6 +1,7 @@
 // 論理日付 "YYYY-MM-DD"（データモデル定義書 §1: task_date は保存された論理日付。打刻時刻から導出しない）
 // 日界の将来導入に備え、日付の計算はこの純関数群に閉じる
 import { err, ok, type Result } from "./result";
+import { zonedParts } from "./time-zone";
 
 export type LogicalDate = string;
 
@@ -45,6 +46,21 @@ export function applyDayStart(
   dayStartMinutes: number
 ): LogicalDate {
   return minuteOfDay < dayStartMinutes ? addDays(calendarDate, -1) : calendarDate;
+}
+
+/**
+ * 現在時刻から「今日」（論理日付）を決める（F-116）。
+ * 暦日と壁時計は運用タイムゾーンで読み、日界より前の時間帯は前の暦日を今日とする。
+ * 日界が 0（既定の 00:00）なら暦日と一致する。
+ */
+export function todayLogicalDate(
+  now: Date,
+  dayStartMinutes: number,
+  timeZone: string
+): LogicalDate {
+  const { year, month, day, hours, minutes } = zonedParts(now, timeZone);
+  const calendarDate = toLogicalDate(new Date(Date.UTC(year, month - 1, day)));
+  return applyDayStart(calendarDate, hours * 60 + minutes, dayStartMinutes);
 }
 
 /** 曜日（0=日）。表示用の曜日名は presentation で解決する */

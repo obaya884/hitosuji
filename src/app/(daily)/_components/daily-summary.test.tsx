@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Section } from "@/domain/section/section";
 
-import { atJst, atLocal } from "@/domain/shared/testing/clock";
+import { atJst } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
 import { sectionGroup, unclassifiedGroup } from "../_testing/factories";
 import { DailySummary } from "./daily-summary";
@@ -26,8 +26,8 @@ function valueOf(label: string): string {
 // 値の式は domain の projection.test.ts が担保済み。ここは「何をいつ出すか」（§3.1）に絞る
 describe("DailySummary（画面定義書01 §3.1 / F-104・F-114: 終了予定・現在・残作業と1日全体の進捗）", () => {
   it("当日表示では終了予定・現在・残作業を並べる", () => {
-    // ローカル時刻で組む（終了予定の折返しは論理日の暦日 0:00 起点で測るため）
-    const now = atLocal("10:00");
+    // 終了予定の折返しは論理日の暦日 0:00 起点で測る（起点は JST。T-47）
+    const now = atJst("10:00");
     render(
       <DailySummary
         groups={[unclassifiedGroup([task({ id: 1, estimateMinutes: 30 }), task({ id: 2, estimateMinutes: 45 })])]}
@@ -60,7 +60,7 @@ describe("DailySummary（画面定義書01 §3.1 / F-104・F-114: 終了予定�
     render(
       <DailySummary
         groups={[unclassifiedGroup([task({ id: 1, estimateMinutes: 30 })])]}
-        now={atLocal("10:00")}
+        now={atJst("10:00")}
         isToday={false}
         dayStartMinutes={0}
       />
@@ -80,7 +80,7 @@ describe("DailySummary（画面定義書01 §3.1 / F-104・F-114: 終了予定�
     render(
       <DailySummary
         groups={[unclassifiedGroup([done, task({ id: 2 })])]}
-        now={atLocal("10:00")}
+        now={atJst("10:00")}
         isToday={false}
         dayStartMinutes={0}
       />
@@ -97,7 +97,7 @@ describe("DailySummary（画面定義書01 §3.1 / F-104・F-114: 終了予定�
           unclassifiedGroup([task({ id: 1, estimateMinutes: 30 })]),
           sectionGroup(MORNING, "09:00", [task({ id: 2, estimateMinutes: 15 })]),
         ]}
-        now={atLocal("10:00")}
+        now={atJst("10:00")}
         isToday
         dayStartMinutes={0}
       />
@@ -107,7 +107,7 @@ describe("DailySummary（画面定義書01 §3.1 / F-104・F-114: 終了予定�
   });
 
   it("日界を越える終了予定は折返し表記（25:30 形式）で警告色にする（F-104）", () => {
-    const now = atLocal("23:00");
+    const now = atJst("23:00");
     render(
       <DailySummary
         groups={[unclassifiedGroup([task({ id: 1, estimateMinutes: 150 })])]}
@@ -126,7 +126,7 @@ describe("DailySummary（画面定義書01 §3.1 / F-104・F-114: 終了予定�
     render(
       <DailySummary
         groups={[unclassifiedGroup([task({ id: 1, estimateMinutes: 30 })])]}
-        now={atLocal("23:00")}
+        now={atJst("23:00")}
         isToday
         dayStartMinutes={0}
       />
@@ -142,7 +142,7 @@ describe("DailySummary（画面定義書01 §3.1 / F-104・F-114: 終了予定�
     render(
       <DailySummary
         groups={[unclassifiedGroup([task({ id: 1, estimateMinutes: 60 })])]}
-        now={atLocal("02:00", "2026-07-27")}
+        now={atJst("02:00", "2026-07-27")}
         isToday
         dayStartMinutes={360}
       />

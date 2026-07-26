@@ -6,6 +6,7 @@ import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import { dayStartTimeOf, startMinutes, type Section } from "@/domain/section/section";
 import { weekdayIndex, type LogicalDate } from "@/domain/shared/logical-date";
+import { APP_TIME_ZONE } from "@/domain/shared/time-zone";
 import type { DailyGroup } from "@/domain/task/daily-list";
 import { stepMoveDestination } from "@/domain/task/reorder";
 import { keepSelection, selectionAfterFinish } from "@/domain/task/selection";
@@ -256,9 +257,12 @@ export function DailyBoard({
     );
   }
 
-  /** 開始・終了時刻のインライン修正（F-203）。HH:MM の解釈は利用者のタイムゾーンで行う */
+  /** 開始・終了時刻のインライン修正（F-203）。HH:MM の解釈は運用タイムゾーン固定（T-47） */
   function editPunch(task: Task, field: "startedAt" | "endedAt", hhmm: string) {
-    const edited = field === "startedAt" ? editStartedAt(task, hhmm) : editEndedAt(task, hhmm);
+    const edited =
+      field === "startedAt"
+        ? editStartedAt(task, hhmm, APP_TIME_ZONE)
+        : editEndedAt(task, hhmm, APP_TIME_ZONE);
     if (!edited.ok) {
       setError(PUNCH_EDIT_MESSAGES[edited.error]);
       return;
@@ -271,7 +275,7 @@ export function DailyBoard({
         ? { startedAt: edited.value, endedAt: task.endedAt }
         : { startedAt: task.startedAt, endedAt: edited.value };
 
-    // 移動先セクションの判定に使う HH:MM は、利用者のタイムゾーンで整形して送る（§4.2-c）。
+    // 移動先セクションの判定に使う HH:MM は、運用タイムゾーンで整形して送る（§4.2-c）。
     // 「今日」の判定に使う現在時刻も、他の打刻と同じくクライアントのものを送る
     run(
       () => updateTaskPunchAction(task.id, punch, formatClock(punch.startedAt), new Date()),
