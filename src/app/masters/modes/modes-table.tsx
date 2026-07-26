@@ -12,7 +12,7 @@ import {
   noticeDanger,
 } from "@/app/_lib/ui";
 import { PlusIcon } from "@/app/_components/icons";
-import { MODE_COLOR_PRESETS, MODE_COLORS, modeColorName, type Mode } from "@/domain/mode/mode";
+import { MODE_COLOR_PRESETS, modeColorName, type Mode } from "@/domain/mode/mode";
 import { ArchivedMasterSection } from "../_components/archived-master-section";
 import { useMasterAction } from "../_lib/use-master-action";
 import {
@@ -29,6 +29,9 @@ type Props = Readonly<{
 }>;
 
 type Editing = Readonly<{ id: number | "new"; name: string }>;
+
+/** 新規モードの既定色（プリセットの先頭＝赤。画面定義書03 §3.2） */
+const DEFAULT_MODE_COLOR = MODE_COLOR_PRESETS[0].value;
 
 /**
  * カラーバーを押すと開くプリセット13色の選択（画面定義書03 §3.2）。
@@ -88,7 +91,7 @@ function ColorPickerPopover({
 
 export function ModesTable({ active, archived, deletableIds }: Props) {
   const [editing, setEditing] = useState<Editing | null>(null);
-  const [newColor, setNewColor] = useState<string>(MODE_COLORS[0]);
+  const [newColor, setNewColor] = useState<string>(DEFAULT_MODE_COLOR);
   const [colorPickerId, setColorPickerId] = useState<number | "new" | null>(null);
   const { error, setError, isPending, run } = useMasterAction();
 
@@ -110,7 +113,7 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
     const color =
       editing.id === "new"
         ? newColor
-        : active.find((m) => m.id === editing.id)?.color ?? MODE_COLORS[0];
+        : active.find((m) => m.id === editing.id)?.color ?? DEFAULT_MODE_COLOR;
     const action =
       editing.id === "new"
         ? () => createModeAction({ name, color })
@@ -257,7 +260,7 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
         <button
           onClick={() => {
             setError(null);
-            setNewColor(MODE_COLORS[0]);
+            setNewColor(DEFAULT_MODE_COLOR);
             setEditing({ id: "new", name: "" });
           }}
           className={`inline-flex shrink-0 items-center gap-1 ${btnSecondary}`}

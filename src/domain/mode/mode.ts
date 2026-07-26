@@ -33,12 +33,16 @@ export const MODE_COLOR_PRESETS = [
   { value: "#9ca3af", name: "グレー" },
 ] as const;
 
+type ModeColorName = (typeof MODE_COLOR_PRESETS)[number]["name"];
+
 /** プリセットの色値だけを並べたもの（並びは §3.2 の表と同じ） */
 export const MODE_COLORS: readonly string[] = MODE_COLOR_PRESETS.map((p) => p.value);
 
-export type ModeColorName = (typeof MODE_COLOR_PRESETS)[number]["name"];
-
-/** 色名から色値を引く（初期データは色を名前で指定する。データモデル定義書 §5） */
+/**
+ * 色名から色値を引く（初期データは色を名前で指定する。データモデル定義書 §5）。
+ * 逆向きの `modeColorName` が関数なのに対しこちらを Record にしているのは、
+ * 呼び手が定数（`MODE_COLOR_BY_NAME["青"]`）で引くため色名の打ち間違いを型で弾きたいから
+ */
 export const MODE_COLOR_BY_NAME = Object.fromEntries(
   MODE_COLOR_PRESETS.map((p) => [p.name, p.value] as const)
 ) as Readonly<Record<ModeColorName, string>>;

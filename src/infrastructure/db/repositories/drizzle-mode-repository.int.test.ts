@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { MODE_COLOR_BY_NAME, MODE_COLORS, isPresetColor } from "@/domain/mode/mode";
+import { MODE_COLOR_BY_NAME, isPresetColor } from "@/domain/mode/mode";
 import { modes, routines, tasks } from "@/infrastructure/db/schema";
 import { createTestDb, truncateAll } from "@/infrastructure/db/testing/test-db";
 import { seedMasters } from "@/infrastructure/db/seed";
@@ -18,27 +18,27 @@ afterAll(async () => {
 
 describe("DrizzleModeRepository", () => {
   it("作成・一覧・更新・アーカイブが往復する", async () => {
-    const created = await repo.create({ name: "仕事", color: MODE_COLORS[8] });
+    const created = await repo.create({ name: "仕事", color: MODE_COLOR_BY_NAME["青"] });
     expect(created).toEqual({
       id: expect.any(Number),
       name: "仕事",
-      color: MODE_COLORS[8],
+      color: MODE_COLOR_BY_NAME["青"],
       isArchived: false,
     });
 
-    await repo.update(created.id, { name: "01.仕事", color: MODE_COLORS[5] });
+    await repo.update(created.id, { name: "01.仕事", color: MODE_COLOR_BY_NAME["緑"] });
     await repo.setArchived(created.id, true);
 
     expect(await repo.listAll()).toEqual([
-      { id: created.id, name: "01.仕事", color: MODE_COLORS[5], isArchived: true },
+      { id: created.id, name: "01.仕事", color: MODE_COLOR_BY_NAME["緑"], isArchived: true },
     ]);
   });
 });
 
 describe("物理削除の判定（画面定義書03 §4.1）", () => {
   it("タスクとルーチンの参照をどちらも数え、参照0件のモードは削除できる", async () => {
-    const used = await repo.create({ name: "使用中", color: MODE_COLORS[8] });
-    const unused = await repo.create({ name: "未使用", color: MODE_COLORS[5] });
+    const used = await repo.create({ name: "使用中", color: MODE_COLOR_BY_NAME["青"] });
+    const unused = await repo.create({ name: "未使用", color: MODE_COLOR_BY_NAME["緑"] });
 
     await db.insert(tasks).values([
       { taskDate: "2026-07-20", name: "T1", sortOrder: 1000, modeId: used.id },
@@ -71,7 +71,8 @@ describe("シードの初期データ（データモデル定義書 §5 / 画面
     expect(await db.select().from(modes)).toHaveLength(seeded.length);
   });
 
-  it("投入されるモードの色は §5 のとおり（仕事=青 / 暮らし=緑 / 休憩=グレー）", async () => {
+  // §5 の「灰」は §3.2 のプリセット名では「グレー」（同じ色を指す）
+  it("投入されるモードの色は §5 のとおり（仕事=青 / 暮らし=緑 / 休憩=灰）", async () => {
     await seedMasters(db);
     const colorOf = new Map((await repo.listAll()).map((m) => [m.name, m.color]));
 

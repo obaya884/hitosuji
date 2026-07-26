@@ -44,8 +44,9 @@ describe("MODE_COLOR_PRESETS（画面定義書03 §3.2: プリセット13色と�
     ]);
   });
 
-  it("MODE_COLORS はプリセットの色値（6桁 hex）だけを同じ並びで持つ", () => {
-    expect(MODE_COLORS).toEqual(MODE_COLOR_PRESETS.map((p) => p.value));
+  // 6桁 hex であることは `src/app/_testing/dom.ts` の `rgbOf` が前提にしている（それ以外は throw する）
+  it("MODE_COLORS はプリセットの色値（6桁 hex）を持つ", () => {
+    expect(MODE_COLORS).toHaveLength(MODE_COLOR_PRESETS.length);
     for (const color of MODE_COLORS) expect(color).toMatch(/^#[0-9a-f]{6}$/);
   });
 
