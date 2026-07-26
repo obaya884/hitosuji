@@ -1,25 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
+import { hasClass } from "../_testing/dom";
+import { otherRouterCalls, router } from "../_testing/next-navigation";
 import { DateNav } from "./date-nav";
-
-// `useRouter` はアプリのルータ文脈の外では動かないため差し替える
-// （アーキテクチャ定義書 §8「偽物を置いてよい境界」= フレームワークのランタイム API）。
-// 差し替えの目的は「呼ばれたか」の確認ではなく、遷移先 URL の契約（`?date=`）を固定すること
-const router = vi.hoisted(() => ({ push: vi.fn() }));
-vi.mock("next/navigation", () => ({
-  useRouter: () => router,
-}));
 
 const DATE = "2026-07-20"; // 月曜
 const WEEKDAY = 1;
-
-// クラスは部分文字列ではなくトークンで見る（`bg-accent` は `hover:bg-accent-weak` の部分文字列でもある）
-const hasClass = (el: Element, token: string) => el.classList.contains(token);
-
-beforeEach(() => {
-  vi.clearAllMocks();
-});
 
 function renderNav(props: Partial<React.ComponentProps<typeof DateNav>> = {}) {
   return render(<DateNav date={DATE} weekday={WEEKDAY} isToday basePath="/" {...props} />);
@@ -120,6 +107,8 @@ describe("DateNav（画面定義書01 §3.1: 日付表示と前日/翌日/今日
 
       expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(false);
       expect(router.push).toHaveBeenCalledExactlyOnceWith("/review?date=2026-07-25");
+      // 表示日は URL のクエリに持つ（O-1）ので、遷移手段は push だけ
+      expect(otherRouterCalls()).toEqual([]);
     });
 
     it("表示日と同じ日を選んだときは遷移しない（閉じるだけ）", () => {

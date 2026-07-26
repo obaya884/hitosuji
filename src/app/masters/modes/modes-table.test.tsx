@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MODE_COLORS, type Mode } from "@/domain/mode/mode";
 
-import { deferredAction, rowOf, startEditingCell } from "../_testing/table-helpers";
+import { rgbOf, rowOf } from "@/app/_testing/dom";
+import { deferredAction } from "@/app/_testing/actions";
+import { startEditingCell } from "../_testing/table-helpers";
 
 // Server Action の先は実DB接続と revalidatePath に届くため、同じ返り値の契約
 // （ActionResult）を返す偽物へ差し替える（アーキテクチャ定義書 §8「偽物を置いてよい境界」）
@@ -23,7 +25,7 @@ import {
 import { ModesTable } from "./modes-table";
 
 // プリセット13色のうちテストで使う3つ（画面定義書03 §3.2 の表の値）。
-// 添字（MODE_COLORS[0] 等）ではなく hex を直に置き、期待値の色名・rgb と読み合わせられるようにする
+// 添字（MODE_COLORS[0] 等）ではなく hex を直に置き、期待値の色名（「赤」等）と読み合わせられるようにする
 const RED = "#ef4444";
 const BLUE = "#3b82f6";
 const GRAY = "#9ca3af";
@@ -65,7 +67,6 @@ const colorPickerPanel = (): HTMLElement => {
 };
 
 beforeEach(() => {
-  vi.clearAllMocks();
   vi.mocked(createModeAction).mockResolvedValue({ ok: true });
   vi.mocked(updateModeAction).mockResolvedValue({ ok: true });
   vi.mocked(setModeArchivedAction).mockResolvedValue({ ok: true });
@@ -80,7 +81,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
     const bar = within(row)
       .getByRole("button", { name: "色を変更（現在: 赤）" })
       .querySelector("span");
-    expect(bar?.style.backgroundColor).toBe("rgb(239, 68, 68)");
+    expect(bar?.style.backgroundColor).toBe(rgbOf(RED));
     expect(within(row).getByText("赤")).not.toBeNull();
   });
 

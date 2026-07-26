@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { hasClass } from "../_testing/dom";
 import { DatePicker } from "./date-picker";
 
 // 表示日・今日はいずれも props で受け取る（「今日」の日界解決 F-116 は呼び出し側の責務）ため、
@@ -30,9 +31,6 @@ function dayCell(day: number): HTMLElement {
   expect(matched).toHaveLength(1);
   return matched[0];
 }
-
-// クラスは部分文字列ではなくトークンで見る（`bg-accent` は `hover:bg-accent-weak` の部分文字列でもある）
-const hasClass = (el: Element, token: string) => el.classList.contains(token);
 
 /** カーソル（未確定の選択日）のリングが付いた日セルのテキスト。常に1つのはず */
 function ringedDays(): (string | null)[] {

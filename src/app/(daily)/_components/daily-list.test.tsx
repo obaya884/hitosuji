@@ -7,6 +7,7 @@ import type { Section } from "@/domain/section/section";
 import type { DailyGroup } from "@/domain/task/daily-list";
 import type { Task } from "@/domain/task/task";
 
+import { rgbOf, rowOf } from "@/app/_testing/dom";
 import { atJst, atLocal } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
 import { sectionGroup, unclassifiedGroup } from "../_testing/factories";
@@ -28,15 +29,6 @@ const SECTIONS: readonly Section[] = [
   { id: 200, name: "午前", startTime: "09:00", isArchived: false },
   { id: 300, name: "午後", startTime: "13:00", isArchived: false },
 ];
-
-/**
- * `style.color` は `rgb()` 形式で返るため、期待値はフィクスチャの hex から組み立てる。
- * リテラルで書くとフィクスチャの色を変えたときだけ落ちる（挙動は変わっていないのに赤くなる）
- */
-function rgbOf(hex: string): string {
-  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)); // 6桁前提（`MODE_COLORS` はすべて6桁）
-  return `rgb(${r}, ${g}, ${b})`;
-}
 
 /** モードの色を名前で引く（添字だと並び替えで意味が変わり、どのモードの話か読めない） */
 function colorOf(name: string): string {
@@ -105,11 +97,6 @@ function renderList(overrides: Overrides = {}) {
     />
   );
   return { ...result, ...handlers };
-}
-
-/** タスク名からその行（tr）を引く */
-function rowOf(name: string): HTMLElement {
-  return screen.getByText(name).closest("tr") as HTMLElement;
 }
 
 /** 列の並び（§3.3）でセルを名前で引く。列位置の取り違えを検出できるようにする */

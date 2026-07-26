@@ -2,6 +2,8 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { deferredAction } from "@/app/_testing/actions";
+import { hasClass, rgbOf } from "@/app/_testing/dom";
 import { MODE_COLORS, type Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { Routine } from "@/domain/routine/routine";
@@ -13,7 +15,6 @@ import {
   deleteRoutineAction,
   setRoutineActiveAction,
   updateRoutineAction,
-  type RoutineActionResult,
 } from "./actions";
 import { RoutinesTable } from "./routines-table";
 
@@ -83,8 +84,8 @@ async function click(element: HTMLElement) {
 }
 
 beforeEach(() => {
-  // vi.mock の偽物はファイル内で共有されるため、呼び出し履歴と返り値をテストごとに初期化する
-  vi.clearAllMocks();
+  // vi.mock の偽物はファイル内で共有されるため、返り値をテストごとに置き直す
+  // （呼び出し履歴は setup.ts の afterEach が消す）
   vi.mocked(createRoutineAction).mockResolvedValue({ ok: true });
   vi.mocked(updateRoutineAction).mockResolvedValue({ ok: true });
   vi.mocked(setRoutineActiveAction).mockResolvedValue({ ok: true });
@@ -144,7 +145,7 @@ describe("RoutinesTable（画面定義書02 §3: 一覧の列と表記）", () =
     for (const col of [COL.mode, COL.project]) {
       const target = cell(container, 0, col);
       expect(target.textContent).toBe("-");
-      expect(target.firstElementChild?.className).toContain("text-ink-faint");
+      expect(hasClass(target.firstElementChild!, "text-ink-faint")).toBe(true);
     }
   });
 
@@ -205,14 +206,17 @@ describe("RoutinesTable（画面定義書02 §3: 一覧の列と表記）", () =
   it("モード色を名前の文字色に反映する（S-01 と同じ表現）", () => {
     const { container } = renderTable([routine({ id: 1, modeId: 2 })]);
 
-    // jsdom は inline style の色を rgb() 表記へ正規化する（MODES[1] = MODE_COLORS[1]）
-    expect(cell(container, 0, COL.name).style.color).toBe("rgb(249, 115, 22)");
+    // jsdom は inline style の色を rgb() 表記へ正規化する
+    // 添字ではなく id で引く（フィクスチャを並び替えても主張が変わらない）
+    expect(cell(container, 0, COL.name).style.color).toBe(
+      rgbOf(MODES.find((m) => m.id === 2)!.color)
+    );
   });
 
   it("無効ルーチンは行をグレーアウトし、名前にモード色を付けない", () => {
     const { container } = renderTable([routine({ id: 1, modeId: 2, isActive: false })]);
 
-    expect(rows(container)[0].className).toContain("text-ink-faint");
+    expect(hasClass(rows(container)[0], "text-ink-faint")).toBe(true);
     expect(cell(container, 0, COL.name).style.color).toBe("");
   });
 
@@ -350,17 +354,17 @@ describe("RoutinesTable（画面定義書02 §3.1: 列見出しのクリック�
     const mark = (label: string) => header(label).querySelector<HTMLElement>("button > span")!;
 
     expect(mark("開始想定").textContent).toBe("▲");
-    expect(mark("開始想定").className).not.toContain("invisible");
-    expect(mark("名前").className).toContain("invisible");
+    expect(hasClass(mark("開始想定"), "invisible")).toBe(false);
+    expect(hasClass(mark("名前"), "invisible")).toBe(true);
 
     fireEvent.click(screen.getByText("名前"));
     expect(mark("名前").textContent).toBe("▲");
-    expect(mark("名前").className).not.toContain("invisible");
-    expect(mark("開始想定").className).toContain("invisible");
+    expect(hasClass(mark("名前"), "invisible")).toBe(false);
+    expect(hasClass(mark("開始想定"), "invisible")).toBe(true);
 
     fireEvent.click(screen.getByText("名前"));
     expect(mark("名前").textContent).toBe("▼");
-    expect(mark("名前").className).not.toContain("invisible");
+    expect(hasClass(mark("名前"), "invisible")).toBe(false);
   });
 });
 
@@ -397,12 +401,8 @@ describe("RoutinesTable（画面定義書02 §5: 有効/無効・削除・編集
   // 「編集」だけは保存中も押せる（disabled を付けていない）。是非は FB-63 で検討中のため、
   // ここでは現状を固定するにとどめる
   it("保存中は有効トグルと削除を押せない（編集ボタンは押せる。FB-63 で検討中）", async () => {
-    let finish!: (result: RoutineActionResult) => void;
-    vi.mocked(setRoutineActiveAction).mockReturnValue(
-      new Promise<RoutineActionResult>((resolve) => {
-        finish = resolve;
-      })
-    );
+    const pending = deferredAction();
+    vi.mocked(setRoutineActiveAction).mockReturnValue(pending.promise);
     const { container } = renderTable([routine({ id: 7 })]);
     const checkbox = cell(container, 0, COL.active).querySelector<HTMLInputElement>("input")!;
     const remove = screen.getByText<HTMLButtonElement>("削除");
@@ -414,7 +414,7 @@ describe("RoutinesTable（画面定義書02 §5: 有効/無効・削除・編集
     expect(edit.disabled).toBe(false);
 
     await act(async () => {
-      finish({ ok: true });
+      pending.resolve({ ok: true });
     });
     expect(checkbox.disabled).toBe(false);
     expect(remove.disabled).toBe(false);
@@ -450,7 +450,7 @@ describe("RoutinesTable（画面定義書02 §5: 有効/無効・削除・編集
     await click(screen.getByText("削除"));
 
     const notice = screen.getByText("ルーチンが見つかりませんでした");
-    expect(notice.className).toContain("text-danger");
+    expect(hasClass(notice, "text-danger")).toBe(true);
   });
 });
 

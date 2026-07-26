@@ -1,11 +1,16 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { rgbOf } from "@/app/_testing/dom";
 import { SelectPopover, type PopoverOption } from "./select-popover";
+
+// この部品は色を `backgroundColor` へ素通しするだけでモードを知らない。**本番のどこにも
+// 無い色**を使うことで「渡された値をそのまま流している」ことを厳密に示す
+const WORK_COLOR = "#123456";
 
 const MODE_OPTIONS: readonly PopoverOption[] = [
   { id: null, label: "モードなし" },
-  { id: 1, label: "仕事", color: "#ff0000" },
+  { id: 1, label: "仕事", color: WORK_COLOR },
   { id: 2, label: "生活" },
   { id: 3, label: "学習" },
 ];
@@ -199,7 +204,7 @@ describe("SelectPopover（画面定義書01 O-5 / F-112: 候補をクリック�
 
     const [, work] = optionButtons(container);
     const bar = work.firstElementChild as HTMLElement;
-    expect(bar.style.backgroundColor).toBe("rgb(255, 0, 0)");
+    expect(bar.style.backgroundColor).toBe(rgbOf(WORK_COLOR));
     expect(bar.getAttribute("aria-hidden")).not.toBeNull();
   });
 

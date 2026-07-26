@@ -6,6 +6,7 @@ import { MODE_COLORS, type Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { Section } from "@/domain/section/section";
 import { formatClock } from "@/app/_lib/format";
+import { otherRouterCalls, router } from "@/app/_testing/next-navigation";
 import { atLocal, TEST_DATE } from "@/domain/shared/testing/clock";
 import { groupTasksBySection } from "@/domain/task/daily-list";
 import type { Task } from "@/domain/task/task";
@@ -37,12 +38,11 @@ import {
 } from "../actions";
 import { DailyBoard } from "./daily-board";
 
-// アーキテクチャ定義書 §8「偽物を置いてよい境界」が許す2つだけを偽物にする。
-// - `../actions`: `"use server"` の先が pg.Pool と revalidatePath に届くため素の jsdom では描画すらできない。
-//   目的は「呼ばれたか」の検証ではなく、成功・失敗のどちらを返すかを固定して楽観的更新（N-01）と
-//   ロールバックの両分岐を通すこと。返り値は本物と同じ契約に固定する（下の `vi.mocked(...)` が
-//   本物のシグネチャで型検査するので、契約を外した偽物は build で落ちる）
-// - `next/navigation`: アプリのルータ文脈の外では本物が動かない
+// このファイルが偽物にするのは `../actions` だけ（アーキテクチャ定義書 §8「偽物を置いてよい境界」）。
+// `"use server"` の先が pg.Pool と revalidatePath に届くため素の jsdom では描画すらできない。
+// 目的は「呼ばれたか」の検証ではなく、成功・失敗のどちらを返すかを固定して楽観的更新（N-01）と
+// ロールバックの両分岐を通すこと。返り値は本物と同じ契約に固定する（下の `vi.mocked(...)` が
+// 本物のシグネチャで型検査するので、契約を外した偽物は build で落ちる）。
 // 内側の協力者（domain・DailyList・useDailyShortcuts・Toast など）はすべて本物を使う
 vi.mock("../actions", () => ({
   addTaskAction: vi.fn(),
@@ -66,9 +66,6 @@ vi.mock("../actions", () => ({
   updateTaskEstimateAction: vi.fn(),
   updateTaskPunchAction: vi.fn(),
 }));
-
-const push = vi.fn();
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
 /** jsdom に無い API を局所的に補う（幾何の判定そのものは段3＝ブラウザテスト送り） */
 class ResizeObserverStub {
@@ -292,7 +289,6 @@ beforeEach(() => {
   // 選択行のスクロール追従（§5）は jsdom では測れない（幾何は段3送り）。呼び出し自体は通す
   Element.prototype.scrollIntoView = () => {};
   vi.useFakeTimers({ toFake: ["Date"], now: NOW });
-  vi.clearAllMocks();
 
   vi.mocked(addTaskAction).mockResolvedValue(CREATED);
   vi.mocked(createRoutineFromTaskAction).mockResolvedValue(OK);
@@ -1044,9 +1040,11 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
     press("H", { shiftKey: true });
     press("L", { shiftKey: true });
 
-    expect(push).toHaveBeenCalledWith("/?date=2026-07-19");
-    expect(push).toHaveBeenCalledWith("/?date=2026-07-21");
-    expect(push).toHaveBeenCalledTimes(2);
+    expect(router.push).toHaveBeenCalledWith("/?date=2026-07-19");
+    expect(router.push).toHaveBeenCalledWith("/?date=2026-07-21");
+    expect(router.push).toHaveBeenCalledTimes(2);
+    // 表示日は URL のクエリに持つ（O-1）ので、遷移手段は push だけ
+    expect(otherRouterCalls()).toEqual([]);
   });
 
   it("今日以外を表示中は「今日へ」を出す（isToday の配線。§3.1）", () => {

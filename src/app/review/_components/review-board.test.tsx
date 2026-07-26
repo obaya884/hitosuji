@@ -1,7 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import type { useRouter } from "next/navigation";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
+import { hasClass, rgbOf } from "@/app/_testing/dom";
+import { otherRouterCalls, router } from "@/app/_testing/next-navigation";
 import { MODE_COLORS, type Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import { atJst, TEST_DATE } from "@/domain/shared/testing/clock";
@@ -10,25 +11,6 @@ import { task } from "@/domain/task/testing/task";
 import type { DailyReviewView } from "@/usecases/review/review-usecases";
 
 import { ReviewBoard } from "./review-board";
-
-// next/navigation はアプリのルータ文脈の外では動かないため、本物と同じ契約
-// （useRouter の返り値＝AppRouterInstance）を返す偽物へ差し替える
-// （アーキテクチャ定義書 §8「偽物を置いてよい境界」）。過不足は useRouter の
-// 戻り値注釈が検査するので、各メソッドは素の vi.fn() でよい
-const { router } = vi.hoisted(() => ({
-  router: {
-    push: vi.fn(),
-    replace: vi.fn(),
-    refresh: vi.fn(),
-    prefetch: vi.fn(),
-    back: vi.fn(),
-    forward: vi.fn(),
-  },
-}));
-
-vi.mock("next/navigation", () => ({
-  useRouter: (): ReturnType<typeof useRouter> => router,
-}));
 
 const MODES: readonly Mode[] = [
   { id: 1, name: "モードA", color: MODE_COLORS[0], isArchived: false },
@@ -89,10 +71,6 @@ function logRow(index = 0): HTMLTableRowElement {
 
 /** 集計の列（§3.5: 名前 / 実績 / 割合） */
 const TOTAL = { name: 0, minutes: 1, share: 2 } as const;
-
-beforeEach(() => {
-  vi.clearAllMocks();
-});
 
 describe("ReviewBoard（画面定義書04 §3.1: 日付ナビ。§3.2: サマリ）", () => {
   // §3.1「S-01 と S-04 の表示日は連動させない」／O-1「URL のクエリに表示日を持つ」。
@@ -177,7 +155,7 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
     expect(cells[LOG.estimate].textContent).toBe("0:20");
     expect(cells[LOG.actual].textContent).toBe("0:18");
     expect(cells[LOG.diff].textContent).toBe("-0:02");
-    expect(cells[LOG.diff].className).not.toContain("text-danger");
+    expect(hasClass(cells[LOG.diff], "text-danger")).toBe(false);
   });
 
   it("超過は差異を `+` と警告色で出す", () => {
@@ -190,7 +168,7 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
 
     const diff = logRow().cells[LOG.diff];
     expect(diff.textContent).toBe("+0:10");
-    expect(diff.className).toContain("text-danger");
+    expect(hasClass(diff, "text-danger")).toBe(true);
   });
 
   it("実行中の行は終了時刻を `--:--` にし、実績と差異を空にする（実績が確定していない）", () => {
@@ -210,7 +188,7 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
 
     const cells = logRow().cells;
     expect(cells[LOG.estimate].textContent).toBe("--:--");
-    expect(cells[LOG.estimate].className).toContain("text-ink-faint");
+    expect(hasClass(cells[LOG.estimate], "text-ink-faint")).toBe(true);
     expect(cells[LOG.actual].textContent).toBe("0:30");
     expect(cells[LOG.diff].textContent).toBe("");
   });
@@ -224,7 +202,7 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
     for (const col of [LOG.mode, LOG.project]) {
       const target = logRow().cells[col];
       expect(target.textContent).toBe("-");
-      expect(target.firstElementChild?.className).toContain("text-ink-faint");
+      expect(hasClass(target.firstElementChild!, "text-ink-faint")).toBe(true);
     }
   });
 
@@ -234,9 +212,10 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
       totalMinutes: 30,
     });
 
-    // jsdom は inline style の色を rgb() 表記へ正規化する（MODES[1] = MODE_COLORS[1]）
-    expect(logRow().style.color).toBe("rgb(249, 115, 22)");
-    expect(logRow().className).not.toContain("text-ink-muted");
+    // jsdom は inline style の色を rgb() 表記へ正規化する
+    // 添字ではなく id で引く（フィクスチャを並び替えても主張が変わらない）
+    expect(logRow().style.color).toBe(rgbOf(MODES.find((m) => m.id === 2)!.color));
+    expect(hasClass(logRow(), "text-ink-muted")).toBe(false);
   });
 
   it("モード未設定の行は既定のグレーにする", () => {
@@ -246,7 +225,7 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
     });
 
     expect(logRow().style.color).toBe("");
-    expect(logRow().className).toContain("text-ink-muted");
+    expect(hasClass(logRow(), "text-ink-muted")).toBe(true);
   });
 
   it("アーカイブ済みマスタも名前をそのまま出す（過去タスクからの参照を保つ）", () => {
@@ -376,6 +355,8 @@ describe("ReviewBoard（画面定義書04 §5: 日付移動のショートカッ
     fireEvent.keyDown(window, { key: "H", shiftKey: true });
 
     expect(router.push).toHaveBeenCalledWith("/review?date=2026-07-25");
+    // 表示日は URL のクエリに持つ（O-1）ので、遷移手段は push だけ
+    expect(otherRouterCalls()).toEqual([]);
   });
 
   it("Shift+L で翌日へ移動する", () => {
