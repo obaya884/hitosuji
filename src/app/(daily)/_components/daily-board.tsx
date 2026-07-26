@@ -44,7 +44,7 @@ import {
   type CreatingActionResult,
   type DailyActionResult,
 } from "../actions";
-import { PUNCH_EDIT_MESSAGES, TASK_EDIT_MESSAGES } from "../_lib/error-messages";
+import { PUNCH_EDIT_MESSAGES, TASK_EDIT_MESSAGES } from "@/app/_lib/error-messages";
 import {
   applyOptimisticAction,
   optimisticTask,

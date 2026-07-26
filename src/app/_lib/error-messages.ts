@@ -1,14 +1,18 @@
-// デイリー画面のエラーコード → 画面表示用の日本語メッセージ（表示都合なので presentation に置く）。
-// クライアント（daily-board.tsx の入力検証・打刻修正）とサーバ（actions.ts）が同じ辞書を参照する（T-49）。
+// エラーコード → 画面表示用の日本語メッセージ（表示都合なので presentation に置く）。
+// クライアント（daily-board.tsx の入力検証・打刻修正）とサーバ（各 actions.ts）が同じ辞書を参照する（T-49）。
+// 置き場は画面配下と共有で分けず、文言辞書はすべてここに集める——同じコードの文言を画面をまたいで
+// 流用するため、境界を引くと1つの文言を追うのに複数ファイルを行き来することになる（T-75）。
 // ルーチン化を除く各辞書は `Record<エラーコード, string>` で閉じているので、コードを足すと型エラーで
 // 気づける（ルーチン化だけ `Partial` にしている理由は当該辞書の doc を参照）
 import type { TaskEditError } from "@/domain/task/edit";
 import type { PunchEditError } from "@/domain/task/punch-edit";
-import type { CreateRoutineFromTaskError } from "@/usecases/routine/routine-usecases";
+import type {
+  CreateRoutineFromTaskError,
+  RoutineUsecaseError,
+} from "@/usecases/routine/routine-usecases";
 import type { TaskOperationError } from "@/usecases/task/operations";
 import type { PunchUsecaseError } from "@/usecases/task/punch-usecases";
 import type { ReorderUsecaseError } from "@/usecases/task/reorder-usecases";
-import { ROUTINE_ERROR_MESSAGES } from "@/app/_lib/routine-error-messages";
 
 /** 打刻・並び替え・ルーチン化のいずれでも同じ失敗なので文言も1つ */
 const TASK_NOT_FOUND = "タスクが見つかりませんでした";
@@ -47,12 +51,50 @@ export const REORDER_MESSAGES: Record<ReorderUsecaseError, string> = {
   task_not_found: TASK_NOT_FOUND,
 };
 
-/** 中断・複製・複製して開始・先送り・削除（F-204 / F-111 / F-208 / F-107 / O-8） */
+/**
+ * 中断・複製・先送り・削除（F-204 / F-111 / F-107 / O-8）。
+ * `TaskOperationError ⊇ PunchUsecaseError` なので `PUNCH_MESSAGES` を広げた形になるが、
+ * **共有するコードの文言は打刻と完全に一致させる**——一致していれば辞書を取り違えても表示は変わらず、
+ * 型でも捕まらない取り違えが誤りでなくなる（T-74）。「複製して開始」だけが違う文言を出すため、
+ * その差は下の専用辞書へ隔離した。一致は `error-messages.test.ts` の不変条件テストが守る
+ */
 export const OPERATION_MESSAGES: Record<TaskOperationError, string> = {
   ...PUNCH_MESSAGES,
   not_postponable: "先送りできるのは未実行タスクだけです",
-  // 複製して開始（F-208）向けに PunchError の同キー（"完了したタスクではありません"）を上書きする
+};
+
+/**
+ * 複製して開始（F-208）専用。`not_completed`（複製元が完了でない）に「もう一回」の文脈を添えるため、
+ * ここだけ `OPERATION_MESSAGES` と文言が違う。**`TaskOperationError` を返す操作でこのコードへ
+ * 到達するのは `duplicateAndStartTask` だけ**（打刻の完了取り消しも同じコードを返すが、そちらは
+ * `PUNCH_MESSAGES` を引く）なので、差をこの辞書に閉じ込めれば共有辞書側は一致を保てる（T-74）。
+ *
+ * **`duplicateAndStartTaskAction` 以外から引かないこと**。`TaskOperationError ⊇ PunchUsecaseError`
+ * なので打刻系のコードを引いても型は通り、そのとき打刻の失敗に「複製して開始…」が出る
+ * （T-74 で消したかった症状そのもの）。この1本だけは型でもテストでも守れないため名前で示す
+ */
+export const DUPLICATE_AND_START_MESSAGES: Record<TaskOperationError, string> = {
+  ...OPERATION_MESSAGES,
   not_completed: "複製して開始できるのは完了タスクだけです",
+};
+
+/**
+ * ルーチン入力の検証エラー。ルーチン管理（画面定義書02 §4）とデイリーのルーチン化
+ * （画面定義書01 §4.1）が同じコードを表示する（FB-72 ②）
+ */
+export const ROUTINE_ERROR_MESSAGES: Record<RoutineUsecaseError, string> = {
+  name_required: "名前を入力してください",
+  name_too_long: "名前は50文字以内で入力してください",
+  invalid_estimate: "見積もりは1分以上の整数で入力してください",
+  invalid_start_time: "開始想定時刻を HH:MM 形式で入力してください",
+  invalid_start_date: "開始日を正しく入力してください",
+  invalid_end_date: "終了日を正しく入力してください",
+  end_date_before_start_date: "終了日は開始日以降にしてください",
+  weekdays_required: "曜日を1つ以上選んでください",
+  invalid_week_interval: "週間隔は1〜53の整数で入力してください",
+  invalid_month_day: "日は1〜31で入力してください",
+  invalid_interval_days: "間隔は1日以上で入力してください",
+  routine_not_found: "ルーチンが見つかりませんでした",
 };
 
 /**

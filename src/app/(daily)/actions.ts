@@ -34,12 +34,13 @@ import type { ActionResult } from "@/app/_lib/action-result";
 import { formatClock } from "@/app/_lib/format";
 import { resolveToday } from "@/usecases/section/resolve-today";
 import {
+  DUPLICATE_AND_START_MESSAGES,
   OPERATION_MESSAGES,
   PUNCH_MESSAGES,
   REORDER_MESSAGES,
   routineFromTaskErrorMessage,
   TASK_EDIT_MESSAGES,
-} from "./_lib/error-messages";
+} from "@/app/_lib/error-messages";
 import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
 import { createRoutineRepository } from "@/infrastructure/db/repositories/drizzle-routine-repository";
 import { createSectionRepository } from "@/infrastructure/db/repositories/drizzle-section-repository";
@@ -247,7 +248,7 @@ export async function duplicateAndStartTaskAction(
     { tasks: taskRepo, sections: sectionRepo },
     { taskId: id, now, nowClock, today }
   );
-  if (!result.ok) return { ok: false, message: OPERATION_MESSAGES[result.error] };
+  if (!result.ok) return { ok: false, message: DUPLICATE_AND_START_MESSAGES[result.error] };
   // 開始により前に残った未実行タスクを現在位置の直後へ繰り下げる（F-113 §4.2-b）
   await applyCarryOverAfterPunch(punchDeps, { date: today, today, nowClock });
   revalidatePath("/");

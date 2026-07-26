@@ -10,7 +10,7 @@ import {
 import type { RoutineInput } from "@/domain/routine/input";
 import { createRoutineRepository } from "@/infrastructure/db/repositories/drizzle-routine-repository";
 import type { ActionResult } from "@/app/_lib/action-result";
-import { ROUTINE_ERROR_MESSAGES } from "@/app/_lib/routine-error-messages";
+import { ROUTINE_ERROR_MESSAGES } from "@/app/_lib/error-messages";
 
 // 合成ルート: リポジトリ実装をユースケースへ注入する（アーキテクチャ定義書 §3）
 const repo = createRoutineRepository();
