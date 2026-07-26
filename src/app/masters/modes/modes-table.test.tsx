@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MODE_COLORS, type Mode } from "@/domain/mode/mode";
+import { MODE_COLOR_PRESETS, type Mode } from "@/domain/mode/mode";
 
 import { rgbOf, rowOf } from "@/app/_testing/dom";
 import { deferredAction } from "@/app/_testing/actions";
@@ -25,7 +25,7 @@ import {
 import { ModesTable } from "./modes-table";
 
 // プリセット13色のうちテストで使う3つ（画面定義書03 §3.2 の表の値）。
-// 添字（MODE_COLORS[0] 等）ではなく hex を直に置き、期待値の色名（「赤」等）と読み合わせられるようにする
+// 添字（MODE_COLOR_PRESETS[0].value 等）ではなく hex を直に置き、期待値の色名（「赤」等）と読み合わせられるようにする
 const RED = "#ef4444";
 const BLUE = "#3b82f6";
 const GRAY = "#9ca3af";
@@ -116,7 +116,19 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
 
       const panel = colorPickerPanel();
       expect(within(panel).queryByRole("textbox")).toBeNull();
-      expect(within(panel).getAllByRole("button")).toHaveLength(MODE_COLORS.length);
+      expect(within(panel).getAllByRole("button")).toHaveLength(MODE_COLOR_PRESETS.length);
+    });
+
+    // ラベル（色名）と塗り（色値）が同じプリセットの1件から出ていることを画面段で固定する
+    it("候補は色名に対応する色値で塗られる", () => {
+      renderTable();
+
+      openColorPicker(rowOf("モードA"), "赤");
+
+      for (const { value, name } of MODE_COLOR_PRESETS) {
+        const swatch = screen.getByRole("button", { name: `色 ${name}` });
+        expect(swatch.style.backgroundColor).toBe(rgbOf(value));
+      }
     });
 
     it("開くと現在値をハイライトする（00_共通 §2.1）", () => {

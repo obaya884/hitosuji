@@ -13,47 +13,47 @@ export type Mode = Readonly<{
 
 export type ModeError = NameError | "invalid_color";
 
-/** プリセット13色（画面定義書03 §3.2: 12色＋グレー。自由入力は設けない。N-05） */
-export const MODE_COLORS = [
-  "#ef4444", // 赤
-  "#f97316", // オレンジ
-  "#f59e0b", // 琥珀
-  "#eab308", // 黄
-  "#84cc16", // ライム
-  "#22c55e", // 緑
-  "#14b8a6", // ティール
-  "#06b6d4", // シアン
-  "#3b82f6", // 青
-  "#6366f1", // インディゴ
-  "#a855f7", // 紫
-  "#ec4899", // ピンク
-  "#9ca3af", // グレー（初期データ「休憩」で使う）
+/**
+ * プリセット13色（画面定義書03 §3.2 の表と1:1。12色＋グレー。自由入力は設けない。N-05）。
+ * 色値と色名は必ずここで対にする（別々のリストに分けると片方だけ増えて色名が静かに落ちる）
+ */
+export const MODE_COLOR_PRESETS = [
+  { value: "#ef4444", name: "赤" },
+  { value: "#f97316", name: "オレンジ" },
+  { value: "#f59e0b", name: "琥珀" },
+  { value: "#eab308", name: "黄" },
+  { value: "#84cc16", name: "ライム" },
+  { value: "#22c55e", name: "緑" },
+  { value: "#14b8a6", name: "ティール" },
+  { value: "#06b6d4", name: "シアン" },
+  { value: "#3b82f6", name: "青" },
+  { value: "#6366f1", name: "インディゴ" },
+  { value: "#a855f7", name: "紫" },
+  { value: "#ec4899", name: "ピンク" },
+  { value: "#9ca3af", name: "グレー" },
 ] as const;
 
-export function isPresetColor(color: string): boolean {
-  return (MODE_COLORS as readonly string[]).includes(color);
-}
+type ModeColorName = (typeof MODE_COLOR_PRESETS)[number]["name"];
 
-/** プリセット色の日本語名（画面定義書03 §3.2: バーの横に色名を併記する） */
-export const MODE_COLOR_NAMES: Readonly<Record<string, string>> = {
-  "#ef4444": "赤",
-  "#f97316": "オレンジ",
-  "#f59e0b": "琥珀",
-  "#eab308": "黄",
-  "#84cc16": "ライム",
-  "#22c55e": "緑",
-  "#14b8a6": "ティール",
-  "#06b6d4": "シアン",
-  "#3b82f6": "青",
-  "#6366f1": "インディゴ",
-  "#a855f7": "紫",
-  "#ec4899": "ピンク",
-  "#9ca3af": "グレー",
-};
+/** プリセットの色値だけを並べたもの（並びは §3.2 の表と同じ） */
+export const MODE_COLORS: readonly string[] = MODE_COLOR_PRESETS.map((p) => p.value);
+
+/**
+ * 色名から色値を引く（初期データは色を名前で指定する。データモデル定義書 §5）。
+ * 逆向きの `modeColorName` が関数なのに対しこちらを Record にしているのは、
+ * 呼び手が定数（`MODE_COLOR_BY_NAME["青"]`）で引くため色名の打ち間違いを型で弾きたいから
+ */
+export const MODE_COLOR_BY_NAME = Object.fromEntries(
+  MODE_COLOR_PRESETS.map((p) => [p.name, p.value] as const)
+) as Readonly<Record<ModeColorName, string>>;
+
+export function isPresetColor(color: string): boolean {
+  return MODE_COLORS.includes(color);
+}
 
 /** 色名を返す。未知の色（プリセット外）でも落ちず、hex 値をそのまま返す */
 export function modeColorName(color: string): string {
-  return MODE_COLOR_NAMES[color] ?? color;
+  return MODE_COLOR_PRESETS.find((p) => p.value === color)?.name ?? color;
 }
 
 export function validateModeInput(
