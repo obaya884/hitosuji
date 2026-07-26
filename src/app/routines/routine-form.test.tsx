@@ -9,7 +9,7 @@ import { MODES, PROJECTS, TODAY } from "./_testing/fixtures";
 import { RoutineForm } from "./routine-form";
 
 /** 新規（routine=null）と編集（routine あり）で同じフォームを使う（§4「新規/編集共通」） */
-function setup(target: Routine | null = null) {
+function setup(target: Routine | null = null, isPending = false) {
   const onSubmit = vi.fn();
   const onCancel = vi.fn();
   render(
@@ -18,6 +18,7 @@ function setup(target: Routine | null = null) {
       modes={MODES}
       projects={PROJECTS}
       today={TODAY}
+      isPending={isPending}
       onSubmit={onSubmit}
       onCancel={onCancel}
     />
@@ -419,5 +420,28 @@ describe("RoutineForm（画面定義書02 §4: 繰り返し種別に応じて入
 
     expect(onCancel).toHaveBeenCalledOnce();
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  // 00_共通 §2.3「新規追加行・新規作成フォームの保存中」——確定と取消をどちらも止める。
+  // 連打は同じルーチンを二重に作り、応答待ちの取消はフォームを閉じて失敗のメッセージだけを残す
+  it("保存中は「保存」を押せない（連打で二重に作らせない）", () => {
+    const { onSubmit } = setup(null, true);
+
+    const button = screen.getByText<HTMLButtonElement>("保存");
+    expect(button.disabled).toBe(true);
+
+    save();
+    save();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("保存中は「取消」を押せない（応答を待つ間に閉じさせない）", () => {
+    const { onCancel } = setup(null, true);
+
+    const button = screen.getByText<HTMLButtonElement>("取消");
+    expect(button.disabled).toBe(true);
+
+    fireEvent.click(button);
+    expect(onCancel).not.toHaveBeenCalled();
   });
 });

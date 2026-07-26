@@ -18,6 +18,11 @@ type Props = Readonly<{
   modes: readonly Mode[];
   projects: readonly Project[];
   today: string;
+  /**
+   * 保存中（Server Action の応答待ち）。確定と取消をどちらも止める
+   * （00_共通 §2.3「新規追加行・新規作成フォームの保存中」）
+   */
+  isPending: boolean;
   onSubmit: (input: RoutineInput) => void;
   onCancel: () => void;
 }>;
@@ -30,7 +35,15 @@ const RECURRENCE_LABELS: Readonly<Record<RecurrenceType, string>> = {
 };
 
 /** 新規/編集フォーム（画面定義書02 §4）。繰り返し種別に応じて入力項目を出し分ける */
-export function RoutineForm({ routine, modes, projects, today, onSubmit, onCancel }: Props) {
+export function RoutineForm({
+  routine,
+  modes,
+  projects,
+  today,
+  isPending,
+  onSubmit,
+  onCancel,
+}: Props) {
   const [name, setName] = useState(routine?.name ?? "");
   const [estimateMinutes, setEstimateMinutes] = useState(String(routine?.estimateMinutes ?? 15));
   const [scheduledStartTime, setScheduledStartTime] = useState(
@@ -250,11 +263,21 @@ export function RoutineForm({ routine, modes, projects, today, onSubmit, onCance
         </div>
       </div>
 
+      {/*
+        保存中は確定も取消も止める（00_共通 §2.3「新規追加行・新規作成フォームの保存中」）——
+        保存の連打は同じルーチンを二重に作り、応答待ちの取消はフォームを閉じて
+        失敗のメッセージだけを残す
+      */}
       <div className="mt-3 flex justify-end gap-2">
-        <button type="button" onClick={onCancel} className={`px-3 py-1 text-sm ${linkMuted}`}>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={isPending}
+          className={`px-3 py-1 text-sm ${linkMuted}`}
+        >
           取消
         </button>
-        <button type="button" onClick={submit} className={btnPrimary}>
+        <button type="button" onClick={submit} disabled={isPending} className={btnPrimary}>
           保存
         </button>
       </div>

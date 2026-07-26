@@ -490,6 +490,28 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
       expect(screen.getByPlaceholderText("セクション名")).not.toBeNull();
     });
 
+    // 「保存中に始める操作」も止める（§2.3）——押すと開いていたセルが閉じてしまう
+    it("保存中は「新規追加」を押せない", async () => {
+      const pending = deferredAction();
+      vi.mocked(archiveSectionAction).mockReturnValue(pending.promise);
+      renderTable();
+
+      fireEvent.click(within(rowOf("セクションB")).getByRole("button", { name: "アーカイブ" }));
+
+      const create = await waitFor(() => {
+        const button = screen.getByRole("button", { name: "新規追加" });
+        expect(button).toHaveProperty("disabled", true);
+        return button;
+      });
+      fireEvent.click(create);
+      expect(screen.queryByPlaceholderText("セクション名")).toBeNull();
+
+      await act(async () => {
+        pending.resolve({ ok: true });
+      });
+      expect(screen.getByRole("button", { name: "新規追加" })).toHaveProperty("disabled", false);
+    });
+
     // 新規行の保存中の抑止（§2.3「新規追加行の保存中」）は部品が持つが、
     // isPending を渡す配線は表ごとなのでここで見る
     it("保存中は新規行の「保存」「取消」を押せない", async () => {

@@ -430,6 +430,43 @@ describe("RoutinesTable（画面定義書02 §5: 有効/無効・削除・編集
     expect(edit.disabled).toBe(false);
   });
 
+  // 「保存中に始める操作」も止める（00_共通 §2.3）——開いていたフォームが閉じてしまうため
+  it("保存中は「新規ルーチン」を押せない", async () => {
+    const pending = deferredAction();
+    vi.mocked(setRoutineActiveAction).mockReturnValue(pending.promise);
+    const { container } = renderTable([routine({ id: 7 })]);
+    const checkbox = cell(container, 0, COL.active).querySelector<HTMLInputElement>("input")!;
+    const create = screen.getByText<HTMLButtonElement>("新規ルーチン");
+
+    await click(checkbox);
+    expect(create.disabled).toBe(true);
+
+    await click(create);
+    expect(screen.queryByLabelText("名前")).toBeNull();
+
+    await act(async () => {
+      pending.resolve({ ok: true });
+    });
+    expect(create.disabled).toBe(false);
+  });
+
+  // フォーム自身の抑止は routine-form.test.tsx が持つ。ここは isPending を渡す配線だけを見る
+  it("保存中はフォームの「保存」「取消」も押せない（新規作成フォーム。00_共通 §2.3）", async () => {
+    const pending = deferredAction();
+    vi.mocked(createRoutineAction).mockReturnValue(pending.promise);
+    renderTable([]);
+    await click(screen.getByText("新規ルーチン"));
+
+    await click(screen.getByText("保存"));
+
+    expect(screen.getByText<HTMLButtonElement>("保存").disabled).toBe(true);
+    expect(screen.getByText<HTMLButtonElement>("取消").disabled).toBe(true);
+
+    await act(async () => {
+      pending.resolve({ ok: true });
+    });
+  });
+
   // isPending は useServerAction がテーブル単位で1組しか持たない（行単位ではない）ため、
   // ある行の保存中は他の行の操作も一律で止まる。T-52 の引き上げ前から変わらない性質
   // （引き上げ前も useTransition をテーブル単位で1つだけ持っていた）で、ここで固定しておく

@@ -125,6 +125,8 @@ export function RoutinesTable({
             setError(null);
             setEditing("new");
           }}
+          // 保存中は新しい編集を始めさせない（開いていたフォームが閉じてしまう。00_共通 §2.3）
+          disabled={isPending}
           className={`inline-flex shrink-0 items-center gap-1 ${btnSecondary}`}
         >
           <PlusIcon className="h-3 w-3" />
@@ -144,6 +146,7 @@ export function RoutinesTable({
           modes={modes}
           projects={projects}
           today={today}
+          isPending={isPending}
           onSubmit={save}
           onCancel={() => setEditing(null)}
         />
@@ -281,6 +284,7 @@ export function RoutinesTable({
           modes={modes}
           projects={projects}
           today={today}
+          isPending={isPending}
           onSubmit={save}
           onCancel={() => setEditing(null)}
         />

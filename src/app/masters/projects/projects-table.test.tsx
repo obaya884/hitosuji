@@ -306,6 +306,28 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
       expect(screen.getByPlaceholderText("プロジェクト名")).not.toBeNull();
     });
 
+    // 「保存中に始める操作」も止める（§2.3）——押すと開いていたセルが閉じてしまう
+    it("保存中は「新規追加」を押せない", async () => {
+      const pending = deferredAction();
+      vi.mocked(setProjectArchivedAction).mockReturnValue(pending.promise);
+      renderTable();
+
+      fireEvent.click(within(rowOf("プロジェクトA")).getByRole("button", { name: "アーカイブ" }));
+
+      const create = await waitFor(() => {
+        const button = screen.getByRole("button", { name: "新規追加" });
+        expect(button).toHaveProperty("disabled", true);
+        return button;
+      });
+      fireEvent.click(create);
+      expect(screen.queryByPlaceholderText("プロジェクト名")).toBeNull();
+
+      await act(async () => {
+        pending.resolve({ ok: true });
+      });
+      expect(screen.getByRole("button", { name: "新規追加" })).toHaveProperty("disabled", false);
+    });
+
     // 00_共通 §2.3「新規追加行の保存中」——確定と取消をどちらも止める
     it("保存中の Enter 連打でも追加は1回だけ送る", async () => {
       const pending = deferredAction();

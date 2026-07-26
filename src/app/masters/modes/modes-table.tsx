@@ -152,6 +152,8 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
     <span className="relative inline-flex items-center gap-2">
       <button
         type="button"
+        // 送信せず表示だけを変える選択も保存中は止める（送る値と表示が食い違う。00_共通 §2.3）
+        disabled={isPending}
         onClick={() => setColorPickerId("new")}
         aria-label={`色を選択（現在: ${modeColorName(newColor)}）`}
       >
@@ -205,6 +207,8 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
             setNewColor(DEFAULT_MODE_COLOR);
             setEditingId("new");
           }}
+          // 保存中は新しい編集を始めさせない（開いていたセルが閉じてしまう。00_共通 §2.3）
+          disabled={isPending}
           className={`inline-flex shrink-0 items-center gap-1 ${btnSecondary}`}
         >
           <PlusIcon className="h-3 w-3" />
