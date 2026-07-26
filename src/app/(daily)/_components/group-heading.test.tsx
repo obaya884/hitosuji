@@ -7,13 +7,18 @@ import { afternoon, morning, unclassifiedGroup } from "../_testing/factories";
 import { headingOf } from "../_testing/table-helpers";
 import { GroupHeading, type GroupHeadingProps } from "./group-heading";
 
-/** props は `GroupHeadingProps` から派生させる（同じ形を手で写さない） */
-function renderHeading(overrides: Partial<GroupHeadingProps> = {}) {
+/**
+ * props は `GroupHeadingProps` から派生させる（同じ形を手で写さない）。**`group` だけ必須**——
+ * どのテストも自分が描くグループに依拠するので既定値を持たせない（アーキテクチャ定義書 §8）
+ */
+type Overrides = Partial<Omit<GroupHeadingProps, "group">> & Pick<GroupHeadingProps, "group">;
+
+function renderHeading(overrides: Overrides) {
   return render(
     <table>
       <tbody>
         <GroupHeading
-          group={overrides.group ?? unclassifiedGroup()}
+          group={overrides.group}
           // 見出しの `now` はセクション終了（`sectionEndAt`）へ流れる。`APP_TIME_ZONE` 基準
           // なので `atJst` 一本で組める（T-47。実打刻は見出しに出ない）
           now={overrides.now ?? atJst("10:00")}

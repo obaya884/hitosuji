@@ -9,11 +9,14 @@ import { cellsOf, checkedPopoverLabels, popoverLabels } from "../_testing/table-
 import { TaskRow, type TaskRowProps } from "./task-row";
 
 /**
- * props は `TaskRowProps` から派生させる（同じ形を手で写さない）。
+ * props は `TaskRowProps` から派生させる（同じ形を手で写さない）。**`task` だけ必須**——
+ * どのテストも自分が描く行に依拠するので既定値を持たせない（アーキテクチャ定義書 §8）。
  * **`isSelected: true` を使うテストを足すときは `scrollIntoView` の詰め物が必要**
  * （jsdom に無い。選択の追従は daily-list.test.tsx が詰め物ごと持っている）
  */
-function renderRow(overrides: Partial<TaskRowProps> = {}) {
+type Overrides = Partial<Omit<TaskRowProps, "task">> & Pick<TaskRowProps, "task">;
+
+function renderRow(overrides: Overrides) {
   const handlers = {
     onRename: vi.fn(),
     onEstimate: vi.fn(),
@@ -30,7 +33,7 @@ function renderRow(overrides: Partial<TaskRowProps> = {}) {
     <table>
       <tbody>
         <TaskRow
-          task={overrides.task ?? task({ id: 1 })}
+          task={overrides.task}
           index={overrides.index ?? 0}
           sectionId={overrides.sectionId ?? null}
           mode={overrides.mode}
@@ -250,20 +253,30 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
       expect(rowOf("朝食").style.color).toBe("");
     });
 
-    it("モード未設定の行はプロジェクト・モードのセルを弱色にする（§3.3）", () => {
-      renderRow({ task: task({ id: 1, name: "朝食" }) });
+    // グレーにする範囲（プロジェクト・モード・実績・実施時間とセクション併記。見積セルは対象外）
+    // は docs に条項がなく実装上の取り決め。条項化するかはヘッド経由でオーナーに確認中
+    it("モード未設定の行は対象セルすべてに既定のグレーを付ける", () => {
+      renderRow({ task: task({ id: 1, name: "朝食", sectionId: 100 }) });
 
-      const { project, mode } = cellsOf(rowOf("朝食"));
-      expect(project.classList.contains("text-ink-muted")).toBe(true);
-      expect(mode.classList.contains("text-ink-muted")).toBe(true);
+      const { name, project, mode, actual, time } = cellsOf(rowOf("朝食"));
+      for (const cell of [project, mode, actual, time]) {
+        expect(cell.classList.contains("text-ink-muted")).toBe(true);
+      }
+      // タスク名セルに併記されるセクション名も同じ規則で弱める
+      expect(within(name).getByText("朝").classList.contains("text-ink-muted")).toBe(true);
     });
 
-    it("モード設定済みの行はセルを弱色にしない（モード色を継承させる）", () => {
-      renderRow({ task: task({ id: 1, name: "朝食", modeId: 1 }), mode: modeOf("仕事") });
+    it("モード設定済みの行はどこにもグレーを付けない（モード色を効かせる）", () => {
+      renderRow({
+        task: task({ id: 1, name: "朝食", modeId: 1, sectionId: 100 }),
+        mode: modeOf("仕事"),
+      });
 
-      const { project, mode } = cellsOf(rowOf("朝食"));
-      expect(project.classList.contains("text-ink-muted")).toBe(false);
-      expect(mode.classList.contains("text-ink-muted")).toBe(false);
+      const { name, project, mode, actual, time } = cellsOf(rowOf("朝食"));
+      for (const cell of [project, mode, actual, time]) {
+        expect(cell.classList.contains("text-ink-muted")).toBe(false);
+      }
+      expect(within(name).getByText("朝").classList.contains("text-ink-muted")).toBe(false);
     });
   });
 

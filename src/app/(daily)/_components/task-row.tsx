@@ -142,7 +142,8 @@ export function TaskRow({
 
   // モード設定時は行の色を継承させ、未設定時のみ既定のグレーにする
   const isDimmed = mode === undefined;
-  const dimmed = isDimmed ? "text-ink-muted" : "";
+  // `AssignCell` は boolean を受け取って自分でクラスを決めるので、文字列が要るのは他のセルだけ
+  const dimmedClass = isDimmed ? "text-ink-muted" : "";
 
   return (
     <tr
@@ -199,7 +200,7 @@ export function TaskRow({
             <button
               type="button"
               onClick={() => onBeginEdit(task, "section")}
-              className={`hover:underline ${dimmed} opacity-80`}
+              className={`hover:underline ${dimmedClass} opacity-80`}
             >
               {sections.find((s) => s.id === task.sectionId)?.name ?? "未分類"}
             </button>
@@ -257,7 +258,7 @@ export function TaskRow({
           </button>
         )}
       </td>
-      <td className={`py-2.5 text-right font-mono tabular-nums ${dimmed}`}>
+      <td className={`py-2.5 text-right font-mono tabular-nums ${dimmedClass}`}>
         {actual !== null && (
           <span className={isOverEstimate(actual, task) ? "text-danger" : ""}>
             → {formatDuration(actual)}
@@ -270,7 +271,7 @@ export function TaskRow({
           </span>
         )}
       </td>
-      <td className={`py-2.5 text-right font-mono tabular-nums ${dimmed}`}>
+      <td className={`py-2.5 text-right font-mono tabular-nums ${dimmedClass}`}>
         {/* 開始・終了時刻のインライン修正（F-203）。未打刻のタスクは編集させない */}
         {task.startedAt !== null &&
           (editing === "startedAt" || editing === "endedAt" ? (

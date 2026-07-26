@@ -10,7 +10,7 @@ export type AssignCellProps = Readonly<{
   name?: string;
   options: readonly PopoverOption[];
   selectedId: number | null;
-  /** 弱色にするか（モード未設定の行。行の色を継承するかは呼び出し側が行単位で決める） */
+  /** true で既定のグレー（`text-ink-muted`）にする。false なら行の色を継承する（判定は行側が持つ） */
   isDimmed: boolean;
   isEditing: boolean;
   onOpen: () => void;

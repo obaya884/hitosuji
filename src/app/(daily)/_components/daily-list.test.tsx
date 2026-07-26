@@ -21,7 +21,7 @@ import { DailyList, type DailyListProps } from "./daily-list";
  * **`groups` は必須**——どのテストも自分が描く行に依拠するので、既定値を持たせない
  * （テストが依拠する値は呼び出し側に書く。アーキテクチャ定義書 §8）
  */
-type Overrides = Partial<DailyListProps> & Pick<DailyListProps, "groups">;
+type Overrides = Partial<Omit<DailyListProps, "groups">> & Pick<DailyListProps, "groups">;
 
 function listElement(overrides: Overrides, handlers: Handlers) {
   return (
