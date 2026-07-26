@@ -112,6 +112,30 @@ describe("MasterEditableCell（画面定義書03 §4「編集方式」/ 00_共�
       expect((input as HTMLInputElement).value).toBe("モードA");
     });
 
+    it("保存中は開いたままの入力欄からも確定できない（2件目の更新を飛ばさない。§2.3「保存中」）", () => {
+      const { onCommit, onClose } = renderCell({ isEditing: true, isPending: true });
+      const input = screen.getByDisplayValue("モードA");
+
+      fireEvent.change(input, { target: { value: "さらに改名" } });
+      fireEvent.blur(input);
+      fireEvent.keyDown(input, { key: "Enter" });
+
+      expect(onCommit).not.toHaveBeenCalled();
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it("保存中は Esc で取消せない（応答を待つ間に閉じると失敗のメッセージだけが残る）", () => {
+      const { onClose } = renderCell({ isEditing: true, isPending: true });
+      const input = screen.getByDisplayValue("モードA");
+      fireEvent.change(input, { target: { value: "書きかけ" } });
+
+      fireEvent.keyDown(input, { key: "Escape" });
+
+      expect(onClose).not.toHaveBeenCalled();
+      // 値も元へ戻さない（保存が返ってから続けて直せる）
+      expect((input as HTMLInputElement).value).toBe("書きかけ");
+    });
+
     // 判定そのものは keyboard.test.ts が持つ。ここは共通関数を通していることの確認（00_共通 §3）
     it("IME変換中の Enter・Esc は操作として扱わない", () => {
       const { onCommit, onClose } = renderCell({ isEditing: true });

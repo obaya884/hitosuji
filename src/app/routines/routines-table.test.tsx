@@ -403,9 +403,9 @@ describe("RoutinesTable（画面定義書02 §5: 有効/無効・削除・編集
     expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
   });
 
-  // 「編集」だけは保存中も押せる（disabled を付けていない）。是非は FB-63 で検討中のため、
-  // ここでは現状を固定するにとどめる
-  it("保存中は有効トグルと削除を押せない（編集ボタンは押せる。FB-63 で検討中）", async () => {
+  // この画面は保存完了を待って反映する（§1 で N-01 対象外）ので、00_共通 §2.3「保存中」の
+  // 適用対象。「編集」も止める＝古い値を抱えたフォームを開けない（FB-63）
+  it("保存中は有効トグル・削除・編集のいずれも押せない（00_共通 §2.3「保存中」）", async () => {
     const pending = deferredAction();
     vi.mocked(setRoutineActiveAction).mockReturnValue(pending.promise);
     const { container } = renderTable([routine({ id: 7 })]);
@@ -416,13 +416,18 @@ describe("RoutinesTable（画面定義書02 §5: 有効/無効・削除・編集
     await click(checkbox);
     expect(checkbox.disabled).toBe(true);
     expect(remove.disabled).toBe(true);
-    expect(edit.disabled).toBe(false);
+    expect(edit.disabled).toBe(true);
+
+    // 送信中に押しても編集フォームは開かない（古い値での上書きを防ぐ）
+    await click(edit);
+    expect(screen.queryByLabelText("名前")).toBeNull();
 
     await act(async () => {
       pending.resolve({ ok: true });
     });
     expect(checkbox.disabled).toBe(false);
     expect(remove.disabled).toBe(false);
+    expect(edit.disabled).toBe(false);
   });
 
   // isPending は useServerAction がテーブル単位で1組しか持たない（行単位ではない）ため、

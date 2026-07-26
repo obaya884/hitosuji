@@ -36,10 +36,18 @@ export function MasterNewRow({ isPending, onSave, onCancel, renderCells }: Props
     );
   }
 
-  // 新規行は保存経路が blur ではないので、Enter で直接保存する（IME 判定は共通関数に任せる）
+  // 新規行は保存経路が blur ではないので、Enter で直接保存する（IME 判定は共通関数に任せる）。
+  // 保存中は確定も取消も止める（§2.3「新規追加行の保存中」）——Enter の連打は同じ行を二重に作り、
+  // 応答待ちの取消は行を閉じて失敗のメッセージだけを残す
   const onKeyDown = inlineEditKeyHandler({
-    onEnter: (input) => save(input.closest("tr")),
-    onEscape: () => onCancel(),
+    onEnter: (input) => {
+      if (isPending) return;
+      save(input.closest("tr"));
+    },
+    onEscape: () => {
+      if (isPending) return;
+      onCancel();
+    },
   });
 
   return (
@@ -54,7 +62,7 @@ export function MasterNewRow({ isPending, onSave, onCancel, renderCells }: Props
         >
           保存
         </button>
-        <button onClick={onCancel} className={`px-2 ${linkMuted}`}>
+        <button onClick={onCancel} disabled={isPending} className={`px-2 ${linkMuted}`}>
           取消
         </button>
       </td>

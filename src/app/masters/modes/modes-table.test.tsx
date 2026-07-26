@@ -296,6 +296,31 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       );
     });
 
+    // 応答を待つ間も入力欄は開いたままなので、そこから確定できると2件目の UPDATE が飛ぶ
+    it("保存中に値を変えて確定し直しても2件目を送らない（00_共通 §2.3「保存中」）", async () => {
+      const pending = deferredAction();
+      vi.mocked(updateModeAction).mockReturnValue(pending.promise);
+      renderTable();
+      const input = startEditingCell("モードA");
+
+      fireEvent.change(input, { target: { value: "改名後" } });
+      fireEvent.blur(input);
+      await waitFor(() => {
+        expect(updateModeAction).toHaveBeenCalledOnce();
+      });
+
+      // まだ応答が返っていない状態での再確定（値を変えて blur・Enter）
+      fireEvent.change(input, { target: { value: "さらに改名" } });
+      fireEvent.blur(input);
+      fireEvent.keyDown(input, { key: "Enter" });
+
+      expect(updateModeAction).toHaveBeenCalledExactlyOnceWith(1, { name: "改名後", color: RED });
+
+      await act(async () => {
+        pending.resolve({ ok: true });
+      });
+    });
+
     it("失敗したらメッセージを出し、編集状態のまま残す（入力し直せる）", async () => {
       vi.mocked(updateModeAction).mockResolvedValue({
         ok: false,

@@ -305,6 +305,57 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
       });
       expect(screen.getByPlaceholderText("プロジェクト名")).not.toBeNull();
     });
+
+    // 00_共通 §2.3「新規追加行の保存中」——確定と取消をどちらも止める
+    it("保存中の Enter 連打でも追加は1回だけ送る", async () => {
+      const pending = deferredAction();
+      vi.mocked(createProjectAction).mockReturnValue(pending.promise);
+      renderTable();
+      fireEvent.click(screen.getByRole("button", { name: "新規追加" }));
+      const input = screen.getByPlaceholderText("プロジェクト名");
+      fireEvent.change(input, { target: { value: "新しいプロジェクト" } });
+
+      fireEvent.keyDown(input, { key: "Enter" });
+      await waitFor(() => {
+        expect(createProjectAction).toHaveBeenCalledOnce();
+      });
+      fireEvent.keyDown(input, { key: "Enter" });
+      fireEvent.keyDown(input, { key: "Enter" });
+
+      expect(createProjectAction).toHaveBeenCalledExactlyOnceWith({ name: "新しいプロジェクト" });
+
+      await act(async () => {
+        pending.resolve({ ok: true });
+      });
+    });
+
+    it("保存中は取消で新規行を閉じない（失敗のメッセージだけが残るのを防ぐ）", async () => {
+      const pending = deferredAction();
+      vi.mocked(createProjectAction).mockReturnValue(pending.promise);
+      renderTable();
+      fireEvent.click(screen.getByRole("button", { name: "新規追加" }));
+      fireEvent.change(screen.getByPlaceholderText("プロジェクト名"), {
+        target: { value: "新しいプロジェクト" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "保存" }));
+
+      const cancel = await waitFor(() => {
+        const button = screen.getByRole("button", { name: "取消" });
+        expect(button).toHaveProperty("disabled", true);
+        return button;
+      });
+      fireEvent.click(cancel);
+      fireEvent.keyDown(screen.getByPlaceholderText("プロジェクト名"), { key: "Escape" });
+
+      expect(screen.getByPlaceholderText("プロジェクト名")).not.toBeNull();
+
+      // 失敗が返ったら行は残り、入力し直せる（§2.3「失敗時」）
+      await act(async () => {
+        pending.resolve({ ok: false, message: "名前を入力してください" });
+      });
+      expect(screen.getByText("名前を入力してください")).not.toBeNull();
+      expect(screen.getByPlaceholderText("プロジェクト名")).not.toBeNull();
+    });
   });
 
   describe("アーカイブと物理削除（画面定義書03 §4 / §4.1）", () => {

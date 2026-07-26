@@ -167,6 +167,7 @@ describe("MasterNewRow（画面定義書03 §4: 新規行だけは明示的な�
     expect(fireEvent.mouseDown(screen.getByRole("button", { name: "保存" }))).toBe(false);
   });
 
+  // 保存中は確定も取消も止める（00_共通 §2.3「新規追加行の保存中」）
   it("保存中は「保存」を押せない（多重送信を防ぐ）", () => {
     const { saved } = renderNewRow({ isPending: true });
 
@@ -175,5 +176,27 @@ describe("MasterNewRow（画面定義書03 §4: 新規行だけは明示的な�
 
     fireEvent.click(save);
     expect(saved).toEqual([]);
+  });
+
+  it("保存中は Enter でも保存しない（連打で同じ行が二重に作られるのを防ぐ）", () => {
+    const { saved } = renderNewRow({ isPending: true });
+    fillName("新セクション");
+
+    fireEvent.keyDown(screen.getByPlaceholderText("セクション名"), { key: "Enter" });
+    fireEvent.keyDown(screen.getByPlaceholderText("セクション名"), { key: "Enter" });
+
+    expect(saved).toEqual([]);
+  });
+
+  it("保存中は「取消」も Esc も効かない（応答を待つ間に閉じると失敗のメッセージだけが残る）", () => {
+    const { onCancel } = renderNewRow({ isPending: true });
+
+    const cancel = screen.getByRole("button", { name: "取消" });
+    expect(cancel).toHaveProperty("disabled", true);
+
+    fireEvent.click(cancel);
+    fireEvent.keyDown(screen.getByPlaceholderText("セクション名"), { key: "Escape" });
+
+    expect(onCancel).not.toHaveBeenCalled();
   });
 });

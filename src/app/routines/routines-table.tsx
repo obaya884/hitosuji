@@ -240,6 +240,9 @@ export function RoutinesTable({
                       setError(null);
                       setEditing(isEditing ? null : routine);
                     }}
+                    // 保存中は編集を開かせない（この画面は保存完了を待って反映する＝§1 なので
+                    // 00_共通 §2.3「保存中」の適用対象。古い値での上書きを防ぐ。FB-63）
+                    disabled={isPending}
                     className={`px-2 ${linkAccent}`}
                   >
                     {isEditing ? "閉じる" : "編集"}
