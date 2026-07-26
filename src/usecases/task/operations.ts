@@ -5,7 +5,8 @@ import { addDays, type LogicalDate } from "@/domain/shared/logical-date";
 import { err, ok, type Result } from "@/domain/shared/result";
 import { sectionAt } from "@/domain/section/section";
 import { duplicateDraft, insertionIndexForDuplicate } from "@/domain/task/duplicate";
-import { canFinish, resumeTaskDraft, type PunchError } from "@/domain/task/punch";
+import { canFinish, resumeTaskDraft } from "@/domain/task/punch";
+import type { PunchUsecaseError } from "@/usecases/task/punch-usecases";
 import { newTaskFromDraft } from "@/usecases/task/from-draft";
 import { taskStatus } from "@/domain/task/status";
 import { orderTasksForDisplay } from "@/domain/task/daily-list";
@@ -17,11 +18,13 @@ import {
 } from "@/domain/task/sort-order";
 import type { Task, TaskId } from "@/domain/task/task";
 
-export type TaskOperationError =
-  | PunchError
-  | "task_not_found"
-  | "not_postponable"
-  | "not_completed";
+/**
+ * 打刻ユースケースの失敗をそのまま含む（割り込み・中断が打刻の判断を通り、いずれの操作も
+ * まずタスクを引くため）。`not_completed` は `PunchError` 由来なので個別に足さない。
+ * この包含関係（`TaskOperationError ⊇ PunchUsecaseError`）は表示文言の取り違えが型で
+ * 捕まらない原因でもある（T-74。`app/_lib/error-messages.ts` の doc を参照）
+ */
+export type TaskOperationError = PunchUsecaseError | "not_postponable";
 
 /**
  * 中断（F-204）。実行中タスクを現在時刻で終了し、
@@ -110,6 +113,7 @@ export async function duplicateAndStartTask(
 ): Promise<Result<Task, TaskOperationError>> {
   const target = await repos.tasks.findById(input.taskId);
   if (target === null) return err("task_not_found");
+  // このコードを返すのは本ユースケースだけ。文言は DUPLICATE_AND_START_MESSAGES が持つ（T-74）
   if (taskStatus(target) !== "completed") return err("not_completed");
 
   const [sameDay, sections] = await Promise.all([
