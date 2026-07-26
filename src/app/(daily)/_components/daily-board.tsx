@@ -45,6 +45,7 @@ import {
   type DailyActionResult,
 } from "../actions";
 import { PUNCH_EDIT_MESSAGES, TASK_EDIT_MESSAGES } from "@/app/_lib/error-messages";
+import type { EditingCell } from "../_lib/editing";
 import {
   applyOptimisticAction,
   optimisticTask,
@@ -52,7 +53,6 @@ import {
 } from "../_lib/optimistic";
 import { pendingUndoMessage, type PendingUndo, type UndoTarget } from "../_lib/undo";
 import { DailyList } from "./daily-list";
-import type { EditingCell } from "./task-row";
 import { DailySummary } from "./daily-summary";
 import { DateNav } from "@/app/_components/date-nav";
 import { ShortcutHelp } from "./shortcut-help";

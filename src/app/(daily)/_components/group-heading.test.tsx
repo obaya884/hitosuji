@@ -1,22 +1,14 @@
 import { render, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import type { DailyGroup } from "@/domain/task/daily-list";
-
 import { atJst } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
 import { afternoon, morning, unclassifiedGroup } from "../_testing/factories";
-import { GroupHeading } from "./group-heading";
+import { headingOf } from "../_testing/table-helpers";
+import { GroupHeading, type GroupHeadingProps } from "./group-heading";
 
-type Overrides = Readonly<{
-  group?: DailyGroup;
-  now?: Date;
-  isToday?: boolean;
-  dayStartMinutes?: number;
-  currentSectionId?: number | null;
-}>;
-
-function renderHeading(overrides: Overrides = {}) {
+/** props は `GroupHeadingProps` から派生させる（同じ形を手で写さない） */
+function renderHeading(overrides: Partial<GroupHeadingProps> = {}) {
   return render(
     <table>
       <tbody>
@@ -34,27 +26,20 @@ function renderHeading(overrides: Overrides = {}) {
   );
 }
 
-/** 見出し行（このファイルは1グループしか描かないので `tr` は1つだけ） */
-function heading(): HTMLElement {
-  const tr = document.querySelector("tr");
-  if (tr === null) throw new Error("セクション見出しが見つかりません");
-  return tr as HTMLElement;
-}
-
 // 現在セクションの強調（F-121）は `currentSectionId` の導出とセットで意味を持つため、
 // 「10:00 はどのセクションか」まで通す形で daily-list.test.tsx が見る
 describe("GroupHeading（画面定義書01 §3.2: セクション見出し行）", () => {
   it("セクション名と時間帯を出す", () => {
     renderHeading({ group: morning([task({ id: 1, name: "朝食" })]) });
 
-    expect(within(heading()).queryByText("06:00–09:00")).not.toBeNull();
+    expect(within(headingOf("朝")).queryByText("06:00–09:00")).not.toBeNull();
   });
 
   it("未分類グループは名前だけで、時間帯・残り時間を出さない（枠を持たない）", () => {
     renderHeading({ group: unclassifiedGroup([task({ id: 1, name: "買い出しメモ" })]) });
 
-    expect(heading().textContent).not.toContain("残り");
-    expect(heading().textContent).not.toContain("–");
+    expect(headingOf("未分類").textContent).not.toContain("残り");
+    expect(headingOf("未分類").textContent).not.toContain("–");
   });
 
   it("時間合計は完了は実績・未完了は見積もりを合算する（分母はセクション枠の長さ）", () => {
@@ -67,14 +52,14 @@ describe("GroupHeading（画面定義書01 §3.2: セクション見出し行）
       ]),
     });
 
-    expect(within(heading()).queryByText("0:48")).not.toBeNull();
-    expect(within(heading()).queryByText("/3:00")).not.toBeNull();
+    expect(within(headingOf("朝")).queryByText("0:48")).not.toBeNull();
+    expect(within(headingOf("朝")).queryByText("/3:00")).not.toBeNull();
   });
 
   it("時間合計が0のときは `--:--`（00_共通 §2.4）", () => {
     renderHeading({ group: morning([task({ id: 1, name: "朝食", estimateMinutes: 0 })]) });
 
-    expect(within(heading()).queryByText("--:--")).not.toBeNull();
+    expect(within(headingOf("朝")).queryByText("--:--")).not.toBeNull();
   });
 
   it("タスク進捗（実施済み/全件）を出す。実行中は実施済みに含めない（F-114）", () => {
@@ -86,15 +71,15 @@ describe("GroupHeading（画面定義書01 §3.2: セクション見出し行）
       ]),
     });
 
-    expect(within(heading()).queryByText("1/3")).not.toBeNull();
+    expect(within(headingOf("朝")).queryByText("1/3")).not.toBeNull();
   });
 
   it("0件のグループは見出しだけを置き、進捗・時間合計・残り時間を出さない（FB-25/FB-26）", () => {
     renderHeading({ group: morning([]) });
 
-    expect(within(heading()).queryByText("06:00–09:00")).not.toBeNull();
-    expect(heading().textContent).not.toContain("合計");
-    expect(heading().textContent).not.toContain("0/0");
+    expect(within(headingOf("朝")).queryByText("06:00–09:00")).not.toBeNull();
+    expect(headingOf("朝").textContent).not.toContain("合計");
+    expect(headingOf("朝").textContent).not.toContain("0/0");
   });
 
   it("残り時間は（セクション終了 − 現在）− 未完了見積もり（F-110）", () => {
@@ -105,8 +90,8 @@ describe("GroupHeading（画面定義書01 §3.2: セクション見出し行）
     });
 
     // 07:00 → 09:00 の120分から未完了見積もり30分を引いて +1:30
-    expect(heading().textContent).toContain("残り");
-    expect(within(heading()).queryByText("+1:30")).not.toBeNull();
+    expect(headingOf("朝").textContent).toContain("残り");
+    expect(within(headingOf("朝")).queryByText("+1:30")).not.toBeNull();
   });
 
   it("残り時間のマイナスは警告色で示す（FB-31/FB-32: 溢れが読めるように）", () => {
@@ -115,7 +100,7 @@ describe("GroupHeading（画面定義書01 §3.2: セクション見出し行）
       group: morning([task({ id: 1, name: "朝食", estimateMinutes: 180 })]),
     });
 
-    const remaining = within(heading()).queryByText("-1:00");
+    const remaining = within(headingOf("朝")).queryByText("-1:00");
     expect(remaining).not.toBeNull();
     expect(remaining?.classList.contains("text-danger")).toBe(true);
   });
@@ -126,7 +111,7 @@ describe("GroupHeading（画面定義書01 §3.2: セクション見出し行）
       group: morning([task({ id: 1, name: "朝食", estimateMinutes: 30 })]),
     });
 
-    const remaining = within(heading()).queryByText("+1:30");
+    const remaining = within(headingOf("朝")).queryByText("+1:30");
     expect(remaining).not.toBeNull();
     expect(remaining?.classList.contains("text-danger")).toBe(false);
   });
@@ -138,9 +123,9 @@ describe("GroupHeading（画面定義書01 §3.2: セクション見出し行）
       group: morning([task({ id: 1, name: "朝食", estimateMinutes: 30 })]),
     });
 
-    expect(heading().textContent).not.toContain("残り");
+    expect(headingOf("朝").textContent).not.toContain("残り");
     // 時間合計は日付・時刻に依らず出す
-    expect(heading().textContent).toContain("合計");
+    expect(headingOf("朝").textContent).toContain("合計");
   });
 
   it("現在時刻がセクション終了を過ぎた過去セクションでは残り時間を出さない", () => {
@@ -149,7 +134,7 @@ describe("GroupHeading（画面定義書01 §3.2: セクション見出し行）
       group: morning([task({ id: 1, name: "朝食", estimateMinutes: 30 })]),
     });
 
-    expect(heading().textContent).not.toContain("残り");
+    expect(headingOf("朝").textContent).not.toContain("残り");
   });
 
   it("日界（F-116）を跨ぐ枠でも残り時間を論理日の区切りで測る", () => {
@@ -162,6 +147,6 @@ describe("GroupHeading（画面定義書01 §3.2: セクション見出し行）
 
     // 02:00 → 06:00 の240分から未完了見積もり60分を引いて +3:00
     // （日界を 0 と取り違えると枠の終わりが翌々日の 06:00 になり +27:00 になる）
-    expect(within(heading()).queryByText("+3:00")).not.toBeNull();
+    expect(within(headingOf("午後")).queryByText("+3:00")).not.toBeNull();
   });
 });

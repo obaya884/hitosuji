@@ -11,23 +11,11 @@ import { CheckIcon, PlayIcon, StopIcon } from "@/app/_components/icons";
 import { formatClock, formatDuration, formatEstimate } from "@/app/_lib/format";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { inputBase } from "@/app/_lib/ui";
+import type { EditField } from "../_lib/editing";
 import { AssignCell } from "./assign-cell";
 import { RowMenu } from "./row-menu";
 import { RoutinizePopover } from "./routinize-popover";
 import { SelectPopover, type PopoverOption } from "./select-popover";
-
-export type EditField =
-  | "name"
-  | "estimate"
-  | "startedAt"
-  | "endedAt"
-  | "mode"
-  | "project"
-  | "section"
-  /** ルーチン化ポップオーバー（O-12 / §4.1） */
-  | "routinize";
-
-export type EditingCell = Readonly<{ taskId: number; field: EditField }>;
 
 /**
  * 行の props。**リスト（`DailyList`）はこの型から自分の Props を派生させる**ので、

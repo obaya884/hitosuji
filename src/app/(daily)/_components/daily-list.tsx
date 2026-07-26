@@ -6,15 +6,16 @@ import type { DailyGroup } from "@/domain/task/daily-list";
 import { formatProjectedStart, projectedStartTimes } from "@/domain/task/projection";
 import type { TaskId } from "@/domain/task/task";
 import { formatClock } from "@/app/_lib/format";
+import type { EditingCell } from "../_lib/editing";
 import { toSectionOptions } from "../_lib/section-options";
 import { GroupHeading, type GroupHeadingProps } from "./group-heading";
-import { TaskRow, type EditingCell, type TaskRowProps } from "./task-row";
+import { TaskRow, type TaskRowProps } from "./task-row";
 
 /**
  * リストの props。**行・見出しへそのまま渡す項目は子の型から派生させる**（同じ内容を2度書くと
  * 片方だけ変わる事故になるため。T-53）。ここで宣言するのはリストにしかない3つだけ
  */
-type Props = Pick<
+export type DailyListProps = Pick<
   TaskRowProps,
   | "modes"
   | "projects"
@@ -62,7 +63,7 @@ export function DailyList({
   isToday,
   dayStartMinutes,
   stickyHeight,
-}: Props) {
+}: DailyListProps) {
   const modeById = new Map(modes.map((m) => [m.id, m]));
   const projectById = new Map(projects.map((p) => [p.id, p]));
 

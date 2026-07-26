@@ -1,3 +1,5 @@
+"use client";
+
 import { UnsetMark } from "@/app/_components/unset-mark";
 import { SelectPopover, type PopoverOption } from "./select-popover";
 

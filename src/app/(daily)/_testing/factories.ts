@@ -1,7 +1,8 @@
 // デイリー配下のテスト（ユニット・コンポーネントとも）で使う DailyGroup の組み立てと、
 // 表（DailyList / GroupHeading / TaskRow）のテストが共有するマスタのフィクスチャ。
 // Task そのものと打刻時刻は全層共通の `@/domain/task/testing/task` と
-// `@/domain/shared/testing/clock` が持つ（T-43）。ここは表示単位（グループ）だけを扱う。
+// `@/domain/shared/testing/clock` が持つ（T-43）。ここが扱うのは表示単位（グループ）と、
+// デイリー画面でしか意味を持たないマスタの並びだけ（表の DOM 読み取りは `table-helpers.ts`）。
 import { MODE_COLOR_PRESETS, type Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { Section } from "@/domain/section/section";

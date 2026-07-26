@@ -1,10 +1,5 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
-
-import type { Mode } from "@/domain/mode/mode";
-import type { Project } from "@/domain/project/project";
-import type { Section } from "@/domain/section/section";
-import type { DailyGroup } from "@/domain/task/daily-list";
 
 import { rowOf } from "@/app/_testing/dom";
 import { atJst } from "@/domain/shared/testing/clock";
@@ -18,37 +13,14 @@ import {
   SECTIONS,
   unclassifiedGroup,
 } from "../_testing/factories";
-import { cellsOf, popoverLabels } from "../_testing/table-helpers";
-import { DailyList } from "./daily-list";
-import type { EditingCell } from "./task-row";
+import { cellsOf, headingOf, popoverLabels } from "../_testing/table-helpers";
+import { DailyList, type DailyListProps } from "./daily-list";
 
-type Overrides = Readonly<{
-  groups?: readonly DailyGroup[];
-  sections?: readonly Section[];
-  modes?: readonly Mode[];
-  projects?: readonly Project[];
-  selectedId?: number | null;
-  editing?: EditingCell | null;
-  now?: Date;
-  isToday?: boolean;
-  dayStartMinutes?: number;
-  stickyHeight?: number;
-}>;
+/** props は `DailyListProps` から派生させる（同じ形を手で写さない） */
+type Overrides = Partial<DailyListProps>;
 
-function renderList(overrides: Overrides = {}) {
-  const handlers = {
-    onRename: vi.fn(),
-    onEstimate: vi.fn(),
-    onPunch: vi.fn(),
-    onEditPunch: vi.fn(),
-    onAssign: vi.fn(),
-    onOperate: vi.fn(),
-    onRoutinize: vi.fn(),
-    onSelect: vi.fn(),
-    onBeginEdit: vi.fn(),
-    onEndEdit: vi.fn(),
-  };
-  const result = render(
+function listElement(overrides: Overrides, handlers: Handlers) {
+  return (
     <DailyList
       groups={overrides.groups ?? [unclassifiedGroup()]}
       modes={overrides.modes ?? MODES}
@@ -66,26 +38,50 @@ function renderList(overrides: Overrides = {}) {
       {...handlers}
     />
   );
-  return { ...result, ...handlers };
 }
 
-/**
- * セクション見出し行（td が1つ = colSpan の行）。タスク行にも同じセクション名が
- * 併記される（§3.3）ため、まず行の形で見出しだけに絞ってから名前で引く
- */
-function headingOf(label: string): HTMLElement {
-  const heading = [...document.querySelectorAll("tr")]
-    .filter((tr) => tr.querySelectorAll("td").length === 1)
-    .find((tr) => within(tr as HTMLElement).queryByText(label) !== null);
-  if (heading === undefined) throw new Error(`セクション見出し「${label}」が見つかりません`);
-  return heading as HTMLElement;
+type Handlers = Pick<
+  DailyListProps,
+  | "onRename"
+  | "onEstimate"
+  | "onPunch"
+  | "onEditPunch"
+  | "onAssign"
+  | "onOperate"
+  | "onRoutinize"
+  | "onSelect"
+  | "onBeginEdit"
+  | "onEndEdit"
+>;
+
+function renderList(overrides: Overrides = {}) {
+  const handlers = {
+    onRename: vi.fn(),
+    onEstimate: vi.fn(),
+    onPunch: vi.fn(),
+    onEditPunch: vi.fn(),
+    onAssign: vi.fn(),
+    onOperate: vi.fn(),
+    onRoutinize: vi.fn(),
+    onSelect: vi.fn(),
+    onBeginEdit: vi.fn(),
+    onEndEdit: vi.fn(),
+  };
+  const result = render(listElement(overrides, handlers));
+  return {
+    ...result,
+    ...handlers,
+    /** 同じ木のまま props を差し替える（行が再マウントされない＝追従の再実行を見られる） */
+    rerenderWith: (next: Overrides) => result.rerender(listElement(next, handlers)),
+  };
 }
 
 let scrollIntoView: Mock;
 
 beforeEach(() => {
   // jsdom はレイアウトを持たないため scrollIntoView が未実装。追従の有無だけを見る
-  // （どれだけスクロールするかは実測値依存なのでブラウザ段。アーキテクチャ定義書 §8）
+  // （どれだけスクロールするかは実測値依存なのでブラウザ段。アーキテクチャ定義書 §8）。
+  // **直代入は `restoreAllMocks` では戻らない**——毎テストの再代入で記録だけを新品にしている
   scrollIntoView = vi.fn();
   Element.prototype.scrollIntoView = scrollIntoView;
 });
@@ -192,6 +188,23 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
       expect(cellsOf(rowOf("メール")).time.textContent).toBe("08:05–");
     });
 
+    it("セクションをまたいで積み上げ、日界（F-116）を起点に折り返して表す", () => {
+      renderList({
+        // 日界 06:00・深夜 02:00 は前の論理日の続き（暦日 0:00 起点なら 02:00 と出てしまう）
+        dayStartMinutes: 360,
+        now: atJst("02:00", "2026-07-27"),
+        groups: [
+          morning([task({ id: 1, name: "夜の片付け", estimateMinutes: 90 })]),
+          forenoon([task({ id: 2, name: "日記", estimateMinutes: 15 })]),
+        ],
+      });
+
+      // 1件目は now そのまま、2件目は前セクションの見積もり90分ぶん後ろ（グループをまたいでも
+      // 積み上げをリセットしない）。どちらも論理日の中の位置として 24 時超えで表記する
+      expect(cellsOf(rowOf("夜の片付け")).time.textContent).toBe("26:00–");
+      expect(cellsOf(rowOf("日記")).time.textContent).toBe("27:30–");
+    });
+
     it("表示日が今日でなければ出さない（終了予定・残り時間と同じ規律）", () => {
       renderList({
         isToday: false,
@@ -224,6 +237,24 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
       expect(scrollIntoView).toHaveBeenCalledOnce();
       expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
       expect(scrollIntoView.mock.contexts[0]).toBe(rowOf("メール"));
+    });
+
+    // 選択したままの行が並び替え（Shift+J/K）や自動セクション移動（§4.2）で位置を変えたら
+    // 追従し直す。行は同じインスタンスのまま位置だけ変わるので、位置を見ていないと動かない
+    it("選択行の位置が変わったら追従し直す（§4.2 / §5 / FB-20）", () => {
+      const breakfast = task({ id: 1, name: "朝食" });
+      const mail = task({ id: 2, name: "メール" });
+      const { rerenderWith } = renderList({
+        selectedId: 2,
+        groups: [morning([breakfast, mail])],
+      });
+
+      expect(scrollIntoView).toHaveBeenCalledOnce();
+
+      // 選択行（メール）がセクション内で1つ上へ動く
+      rerenderWith({ selectedId: 2, groups: [morning([mail, breakfast])] });
+
+      expect(scrollIntoView).toHaveBeenCalledTimes(2);
     });
   });
 

@@ -1,37 +1,19 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { Mode } from "@/domain/mode/mode";
-import type { Project } from "@/domain/project/project";
-import type { Section } from "@/domain/section/section";
-import type { Task } from "@/domain/task/task";
-
 import { rowOf } from "@/app/_testing/dom";
 import { atJst } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
 import { colorOf, modeOf, MODES, PROJECTS, SECTIONS } from "../_testing/factories";
-import { cellsOf, popoverLabels } from "../_testing/table-helpers";
-import type { PopoverOption } from "./select-popover";
-import { TaskRow, type EditField } from "./task-row";
+import { cellsOf, checkedPopoverLabels, popoverLabels } from "../_testing/table-helpers";
+import { TaskRow, type TaskRowProps } from "./task-row";
 
-type Overrides = Readonly<{
-  task?: Task;
-  mode?: Mode;
-  project?: Project;
-  modes?: readonly Mode[];
-  projects?: readonly Project[];
-  sections?: readonly Section[];
-  sectionOptions?: readonly PopoverOption[];
-  index?: number;
-  sectionId?: number | null;
-  isSelected?: boolean;
-  editing?: EditField | null;
-  now?: Date;
-  projectedStart?: string | null;
-  stickyHeight?: number;
-}>;
-
-function renderRow(overrides: Overrides = {}) {
+/**
+ * props は `TaskRowProps` から派生させる（同じ形を手で写さない）。
+ * **`isSelected: true` を使うテストを足すときは `scrollIntoView` の詰め物が必要**
+ * （jsdom に無い。選択の追従は daily-list.test.tsx が詰め物ごと持っている）
+ */
+function renderRow(overrides: Partial<TaskRowProps> = {}) {
   const handlers = {
     onRename: vi.fn(),
     onEstimate: vi.fn(),
@@ -151,29 +133,46 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
       expect(cellsOf(rowOf("メール")).actual.textContent).toBe("(経過 0:12)");
     });
 
+    it("経過が見積もりを超えたら警告色（F-205。完了の実績超過と同じ規則）", () => {
+      renderRow({
+        now: atJst("09:00"),
+        task: task({ id: 1, name: "メール", estimateMinutes: 10, startedAt: atJst("08:05") }),
+      });
+
+      const { actual } = cellsOf(rowOf("メール"));
+      expect(actual.textContent).toBe("(経過 0:55)");
+      expect((actual.firstElementChild as HTMLElement).classList.contains("text-danger")).toBe(true);
+    });
+
     it("未実行は実績も経過も出さない", () => {
       renderRow({ task: task({ id: 1, name: "日次プラン" }) });
 
       expect(cellsOf(rowOf("日次プラン")).actual.textContent).toBe("");
     });
 
-    it("完了は開始–終了の両方を出し、実行中は開始だけを出す（F-203）", () => {
+    it("完了は開始–終了の両方を出す（F-203）", () => {
       renderRow({
         task: task({ id: 1, name: "朝食", startedAt: atJst("06:30"), endedAt: atJst("06:48") }),
       });
-      renderRow({ task: task({ id: 2, name: "メール", startedAt: atJst("08:05") }) });
 
       expect(cellsOf(rowOf("朝食")).time.textContent).toBe("06:30–06:48");
+    });
+
+    it("実行中は開始だけを出す（F-203）", () => {
+      renderRow({ task: task({ id: 1, name: "メール", startedAt: atJst("08:05") }) });
+
       expect(cellsOf(rowOf("メール")).time.textContent).toBe("08:05–");
     });
   });
 
   describe("未設定の表記（00_共通 §2.4: 空欄にしない）", () => {
-    it("未設定でも列の用途が読める aria-label を付ける", () => {
+    it("未設定でも列の用途が読める aria-label を付ける（列の並びは §3.3）", () => {
       renderRow({ task: task({ id: 1, name: "日次プラン" }) });
 
-      expect(screen.queryByLabelText("プロジェクト（未設定）")).not.toBeNull();
-      expect(screen.queryByLabelText("モード（未設定）")).not.toBeNull();
+      // 列位置つきで見る（2列は同じ `AssignCell` なので、label を入れ替えても位置を見ないと通る）
+      const { project, mode } = cellsOf(rowOf("日次プラン"));
+      expect(within(project).queryByLabelText("プロジェクト（未設定）")).not.toBeNull();
+      expect(within(mode).queryByLabelText("モード（未設定）")).not.toBeNull();
     });
 
     it("見積もり未設定（0分）は薄色の `--:--`（終了予定の計算に入っていないことを示す。§3.3）", () => {
@@ -195,19 +194,28 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
 
   describe("予想開始時刻（F-120 / §3.3）", () => {
     // 出す行の判定と時刻の積み上げは親（DailyList）の担当で daily-list.test.tsx が見る。
-    // 行が見るのは「実打刻の下に弱色で並べる」ところまで
-    it("渡されたら実打刻の後ろに弱色で併記する", () => {
+    // 行が見るのは「渡されたら実施時間セルに弱色で並べる」ところまで
+    it("渡されたら実施時間セルに弱色で出す", () => {
       renderRow({
         task: task({ id: 1, name: "日次プラン", estimateMinutes: 15 }),
         projectedStart: "10:00–",
       });
 
-      // 実施時間セルは「実打刻（あれば）→ 予想開始」の順に並ぶ（§3.3: 実打刻と同じ位置に
-      // 縦に並べて上から下へ時間の流れとして読ませる）ので、予想開始は常に最後の子
-      const projected = cellsOf(rowOf("日次プラン")).time.lastElementChild as HTMLElement;
-      expect(projected.textContent).toBe("10:00–");
+      const projected = within(cellsOf(rowOf("日次プラン")).time).getByText("10:00–");
       // 実打刻（確定した記録）との区別は弱色が担う
       expect(projected.classList.contains("text-ink-faint")).toBe(true);
+    });
+
+    it("実打刻がある行では実打刻の後ろに並べる（§3.3: 上から下へ時間の流れとして読ませる）", () => {
+      // DailyList は打刻済みの行に予想開始を渡さないが、並べる順序は行側の責務なので
+      // ここで固定する（渡されたら実打刻 → 予想開始の順）
+      renderRow({
+        task: task({ id: 1, name: "メール", startedAt: atJst("08:05") }),
+        projectedStart: "10:00–",
+      });
+
+      const { time } = cellsOf(rowOf("メール"));
+      expect([...time.children].map((child) => child.textContent)).toEqual(["08:05", "10:00–"]);
     });
   });
 
@@ -491,15 +499,23 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
       });
 
       expect(popoverLabels()).toEqual(["モードなし", "仕事", "生活"]);
+      // 現在値として渡すのは `task.modeId`（プロジェクトの id と取り違えていない）
+      expect(checkedPopoverLabels()).toEqual(["仕事"]);
 
       fireEvent.click(screen.getByText("生活"));
       expect(onAssign).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), "mode", 2);
     });
 
     it("プロジェクトの候補は「プロジェクトなし」＋有効プロジェクトのみ", () => {
-      const { onAssign } = renderRow({ editing: "project", task: task({ id: 1, name: "朝食" }) });
+      const { onAssign } = renderRow({
+        editing: "project",
+        // モードとは別の id を持たせ、現在値として渡す id を取り違えていないことも見る
+        task: task({ id: 1, name: "朝食", projectId: 11, modeId: 1 }),
+        mode: modeOf("仕事"),
+      });
 
       expect(popoverLabels()).toEqual(["プロジェクトなし", "サイト改善"]);
+      expect(checkedPopoverLabels()).toEqual(["サイト改善"]);
 
       fireEvent.click(screen.getByText("サイト改善"));
       expect(onAssign).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), "project", 11);
