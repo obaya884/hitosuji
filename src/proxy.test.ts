@@ -3,33 +3,42 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import proxy, { config } from "./proxy";
 
 // テスト内で組み立てる架空の資格情報。実運用の値は参照しない
-const USER = "unit-user";
-const PASSWORD = "unit-password";
+const TEST_USER = "unit-user";
+const TEST_PASSWORD = "unit-password";
 
 /**
  * 資格情報の環境変数を固定する（`undefined` は未設定）。
- * 片方だけ差し替えると実行環境に残った値を拾いうるため、常に2つとも書き換える。
+ * 片方だけ差し替えると実行環境（シェル・CI）に残った値を拾いうるため、常に2つとも書き換える。
  * 後始末は afterEach の `unstubAllEnvs` が対で行う。
+ * 差し替え対象はプロセス外の設定であって協力者ではないため、古典学派の方針（§8）に反しない。
  */
 function stubCredentials(user: string | undefined, password: string | undefined): void {
   vi.stubEnv("BASIC_AUTH_USER", user);
   vi.stubEnv("BASIC_AUTH_PASSWORD", password);
 }
 
-function requestWith(authorization?: string): NextRequest {
+function request(authorization?: string): NextRequest {
   return new NextRequest("http://localhost:3000/", {
     headers: authorization === undefined ? undefined : { authorization },
   });
 }
 
-/** `user:password` を base64 化した `Authorization` ヘッダ値 */
-function basicHeader(user: string, password: string): string {
-  return `Basic ${btoa(`${user}:${password}`)}`;
+/**
+ * `Authorization` ヘッダ値。`schemePrefix` はスキーム名と区切り文字までを含む
+ * （区切りが空白であること自体を検証したいテストがあるため、呼び出し側に持たせる）
+ */
+function authHeader(schemePrefix: string, decoded: string): string {
+  return `${schemePrefix}${btoa(decoded)}`;
 }
 
-/** 生の文字列（`:` を含まない等、正しい形でないものも渡せる）を base64 化した値 */
-function rawBasicHeader(decoded: string): string {
-  return `Basic ${btoa(decoded)}`;
+/** 正しい形の `Basic` ヘッダ値 */
+function basicHeader(user: string, password: string): string {
+  return authHeader("Basic ", `${user}:${password}`);
+}
+
+/** 復号後の文字列を直接指定する `Basic` ヘッダ値（`:` を含まない等、正しい形でないものも渡せる） */
+function basicHeaderOf(decoded: string): string {
+  return authHeader("Basic ", decoded);
 }
 
 /** `NextResponse.next()` = 後続へ素通し */
@@ -49,119 +58,145 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-describe("proxy（N-03: Basic認証は環境変数が揃っているときだけ有効）", () => {
+describe("proxy（要件定義書 N-03: Basic認証は環境変数が揃っているときだけ有効）", () => {
   it("両方未設定なら認証せず素通しする（ローカル開発）", () => {
     stubCredentials(undefined, undefined);
-    expectPassThrough(proxy(requestWith()));
+    expectPassThrough(proxy(request()));
+  });
+
+  it("未設定なら Authorization の内容によらず素通しする（誤った資格情報でも止めない）", () => {
+    // ローカル開発でブラウザに古い資格情報が残っている状況。素通しの判定は
+    // 環境変数だけで決まり、ヘッダの内容を見ない
+    stubCredentials(undefined, undefined);
+    expectPassThrough(proxy(request(basicHeader("other-user", "other-password"))));
   });
 
   it("ユーザ名だけ設定なら素通しする（片方では認証を有効にしない）", () => {
-    stubCredentials(USER, undefined);
-    expectPassThrough(proxy(requestWith()));
+    stubCredentials(TEST_USER, undefined);
+    expectPassThrough(proxy(request()));
   });
 
   it("パスワードだけ設定なら素通しする（片方では認証を有効にしない）", () => {
-    stubCredentials(undefined, PASSWORD);
-    expectPassThrough(proxy(requestWith()));
+    stubCredentials(undefined, TEST_PASSWORD);
+    expectPassThrough(proxy(request()));
   });
 
-  it("空文字の設定は未設定とみなして素通しする", () => {
+  // 空文字の扱いは仕様（N-03）に定めが無く、以下2本は現挙動の固定（characterization）。
+  // 空文字を未設定と同じ「素通し」に倒すのは fail-open 側の判断なので、fail-closed に
+  // 変えるなら仕様側の決定が要る（本 T-59 は種別「テスト」＝本番コード不変のため触らない）
+  it("両方が空文字なら未設定とみなして素通しする（現挙動の固定。仕様未定義）", () => {
     stubCredentials("", "");
-    expectPassThrough(proxy(requestWith()));
+    expectPassThrough(proxy(request()));
   });
 
-  it("両方設定されていれば認証を要求する（資格情報なしのアクセスを止める）", () => {
-    stubCredentials(USER, PASSWORD);
-    expectUnauthorized(proxy(requestWith()));
+  it("片方だけ空文字でも未設定とみなして素通しする（現挙動の固定。仕様未定義）", () => {
+    stubCredentials(TEST_USER, "");
+    expectPassThrough(proxy(request()));
+  });
+
+  it("両方設定されていれば認証を要求する（401＋WWW-Authenticate＋本文）", async () => {
+    stubCredentials(TEST_USER, TEST_PASSWORD);
+    const res = proxy(request());
+    expectUnauthorized(res);
+    expect(await res.text()).toBe("認証が必要です");
   });
 });
 
-describe("proxy（N-03: 資格情報の照合）", () => {
+describe("proxy（要件定義書 N-03: 資格情報の照合）", () => {
   it("ユーザ名・パスワードが一致すれば素通しする", () => {
-    stubCredentials(USER, PASSWORD);
-    expectPassThrough(proxy(requestWith(basicHeader(USER, PASSWORD))));
+    stubCredentials(TEST_USER, TEST_PASSWORD);
+    expectPassThrough(proxy(request(basicHeader(TEST_USER, TEST_PASSWORD))));
   });
 
   it("ユーザ名だけ一致しても 401 を返す", () => {
-    stubCredentials(USER, PASSWORD);
-    expectUnauthorized(proxy(requestWith(basicHeader(USER, `${PASSWORD}-wrong`))));
+    stubCredentials(TEST_USER, TEST_PASSWORD);
+    expectUnauthorized(proxy(request(basicHeader(TEST_USER, `${TEST_PASSWORD}-wrong`))));
   });
 
   it("パスワードだけ一致しても 401 を返す", () => {
-    stubCredentials(USER, PASSWORD);
-    expectUnauthorized(proxy(requestWith(basicHeader(`${USER}-wrong`, PASSWORD))));
+    stubCredentials(TEST_USER, TEST_PASSWORD);
+    expectUnauthorized(proxy(request(basicHeader(`${TEST_USER}-wrong`, TEST_PASSWORD))));
   });
 
   it("両方とも一致しなければ 401 を返す", () => {
-    stubCredentials(USER, PASSWORD);
-    expectUnauthorized(proxy(requestWith(basicHeader("other-user", "other-password"))));
+    stubCredentials(TEST_USER, TEST_PASSWORD);
+    expectUnauthorized(proxy(request(basicHeader("other-user", "other-password"))));
   });
 
   it("パスワードに `:` を含んでも一致すれば素通しする（区切りは最初の `:` のみ）", () => {
     const passwordWithColon = "pa:ss:word";
-    stubCredentials(USER, passwordWithColon);
-    expectPassThrough(proxy(requestWith(basicHeader(USER, passwordWithColon))));
+    stubCredentials(TEST_USER, passwordWithColon);
+    expectPassThrough(proxy(request(basicHeader(TEST_USER, passwordWithColon))));
   });
 
-  it("ユーザ名側に `:` を送っても、最初の `:` で切られるため 401 を返す", () => {
-    // 送信値 "unit:user:unit-password" は ユーザ名 "unit" / パスワード "user:unit-password" と解釈される
-    stubCredentials("unit:user", PASSWORD);
-    expectUnauthorized(proxy(requestWith(rawBasicHeader(`unit:user:${PASSWORD}`))));
+  it("設定のユーザ名に `:` が含まれると一致し得ない（区切りは最初の `:` のみ）", () => {
+    // 送信値 "unit:user:unit-password" は ユーザ名 "unit" / パスワード "user:unit-password" と
+    // 解釈されるため、設定のユーザ名 "unit:user" とは決して一致しない
+    stubCredentials("unit:user", TEST_PASSWORD);
+    const res = proxy(request(basicHeaderOf(`unit:user:${TEST_PASSWORD}`)));
+    expectUnauthorized(res);
   });
 });
 
-describe("proxy（N-03: 不正な Authorization ヘッダは 401 に倒す）", () => {
-  it("Authorization ヘッダが無ければ 401 と WWW-Authenticate を返す", async () => {
-    stubCredentials(USER, PASSWORD);
-    const res = proxy(requestWith());
-    expectUnauthorized(res);
-    expect(await res.text()).toBe("認証が必要です");
-  });
-
+describe("proxy（要件定義書 N-03: 不正な Authorization ヘッダは 401 に倒す）", () => {
   it("Basic 以外のスキームなら 401 を返す", () => {
-    stubCredentials(USER, PASSWORD);
-    expectUnauthorized(proxy(requestWith(`Bearer ${btoa(`${USER}:${PASSWORD}`)}`)));
+    stubCredentials(TEST_USER, TEST_PASSWORD);
+    expectUnauthorized(proxy(request(authHeader("Bearer ", `${TEST_USER}:${TEST_PASSWORD}`))));
   });
 
   it("スキーム名の大文字小文字が異なると 401 を返す（現状の実装は `Basic ` 前方一致）", () => {
-    // RFC 7617 のスキーム名は本来 case-insensitive だが、実装は完全一致で判定している
-    stubCredentials(USER, PASSWORD);
-    expectUnauthorized(proxy(requestWith(`basic ${btoa(`${USER}:${PASSWORD}`)}`)));
+    // RFC 7617 のスキーム名は本来 case-insensitive だが、実装は完全一致で判定している。
+    // 実ブラウザは `Basic` を送るため実害は無い。現挙動の固定（characterization）
+    stubCredentials(TEST_USER, TEST_PASSWORD);
+    expectUnauthorized(proxy(request(authHeader("basic ", `${TEST_USER}:${TEST_PASSWORD}`))));
+  });
+
+  it("スキーム名の直後が空白でなければ 401 を返す", () => {
+    // 前方一致の判定から末尾の空白が落ちると、区切りが何であれ6文字目以降を
+    // base64 として読んでしまう
+    stubCredentials(TEST_USER, TEST_PASSWORD);
+    expectUnauthorized(proxy(request(authHeader("Basic\t", `${TEST_USER}:${TEST_PASSWORD}`))));
   });
 
   it("base64 として解釈できない値でも例外にせず 401 を返す", () => {
-    stubCredentials(USER, PASSWORD);
-    expect(() => proxy(requestWith("Basic not-base64!!!"))).not.toThrow();
-    expectUnauthorized(proxy(requestWith("Basic not-base64!!!")));
+    stubCredentials(TEST_USER, TEST_PASSWORD);
+    // atob は例外を投げる。捕捉していなければ 401 ではなく例外で落ちる
+    expectUnauthorized(proxy(request("Basic not-base64!!!")));
   });
 
   it("base64 の長さが不正（4で割った余りが1）でも例外にせず 401 を返す", () => {
-    stubCredentials(USER, PASSWORD);
+    stubCredentials(TEST_USER, TEST_PASSWORD);
     // "YWJjZ" は5文字。atob は長さ不正として例外を投げる
-    expect(() => proxy(requestWith("Basic YWJjZ"))).not.toThrow();
-    expectUnauthorized(proxy(requestWith("Basic YWJjZ")));
+    expectUnauthorized(proxy(request("Basic YWJjZ")));
   });
 
   it("Basic の後ろが空でも 401 を返す", () => {
-    stubCredentials(USER, PASSWORD);
-    expectUnauthorized(proxy(requestWith("Basic ")));
+    stubCredentials(TEST_USER, TEST_PASSWORD);
+    expectUnauthorized(proxy(request("Basic ")));
   });
 
   it("`:` を含まない値なら 401 を返す", () => {
-    stubCredentials(USER, PASSWORD);
-    expectUnauthorized(proxy(requestWith(rawBasicHeader(USER))));
+    stubCredentials(TEST_USER, TEST_PASSWORD);
+    expectUnauthorized(proxy(request(basicHeaderOf(TEST_USER))));
   });
 
   it("`:` を含まない値は、設定値が「ユーザ名＋1文字」でも 401 を返す（区切り無しを通さない）", () => {
     // `sep === -1` を弾かないと decoded.slice(0, -1) / decoded.slice(0) が
     // それぞれユーザ名・パスワードと一致してしまう組み合わせ
-    stubCredentials(USER, `${USER}X`);
-    expectUnauthorized(proxy(requestWith(rawBasicHeader(`${USER}X`))));
+    stubCredentials(TEST_USER, `${TEST_USER}X`);
+    const res = proxy(request(basicHeaderOf(`${TEST_USER}X`)));
+    expectUnauthorized(res);
   });
 });
 
-describe("proxy の matcher（認証を通す経路の範囲）", () => {
+describe("proxy の matcher（要件定義書 N-03: 認証を通す経路の範囲）", () => {
+  // Next はパス全体との一致で matcher を評価するため、前後を固定して近似する。
+  // 実行時の突き合わせそのものではなく「除外パターンが何を意図しているか」を固定するテスト
   const matcher = new RegExp(`^${config.matcher[0]}$`);
+
+  it("matcher は1件（増えたらこのテストの対象も見直す）", () => {
+    expect(config.matcher).toHaveLength(1);
+  });
 
   it.each(["/", "/settings", "/api/tasks"])("アプリの経路 %s は認証の対象にする", (pathname) => {
     expect(matcher.test(pathname)).toBe(true);
