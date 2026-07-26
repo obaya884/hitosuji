@@ -1,7 +1,80 @@
 import type { KeyboardEvent } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { inlineEditKeyHandler } from "./keyboard";
+import { inlineEditKeyHandler, isPlainKeyEvent, isShortcutEvent } from "./keyboard";
+
+/** 判定に使う項目だけを持つキーイベント（既定は素のキー・フォーカスなし） */
+const keyEvent = (
+  override: Partial<{
+    isComposing: boolean;
+    metaKey: boolean;
+    ctrlKey: boolean;
+    altKey: boolean;
+    target: EventTarget | null;
+  }> = {}
+) => ({
+  isComposing: false,
+  metaKey: false,
+  ctrlKey: false,
+  altKey: false,
+  target: null,
+  ...override,
+});
+
+/** 指定タグの要素にフォーカスがある状態のイベント発生元 */
+const focusOn = (tagName: string) => ({ tagName }) as unknown as EventTarget;
+
+// 弾く条件のうち、イベント自体の形だけで決まるもの（オーバーレイ・画面ショートカットに共通）
+const BLOCKED_BY_EVENT = [
+  ["IME変換中", { isComposing: true }],
+  ["Cmd 併用", { metaKey: true }],
+  ["Ctrl 併用", { ctrlKey: true }],
+  ["Alt 併用", { altKey: true }],
+] as const;
+
+describe("isPlainKeyEvent（画面定義書00_共通 §3: IME変換中・修飾キー併用は操作として扱わない）", () => {
+  it("素のキーは操作として扱う", () => {
+    expect(isPlainKeyEvent(keyEvent())).toBe(true);
+  });
+
+  it.each(BLOCKED_BY_EVENT)("%s のキーは操作として扱わない", (_label, override) => {
+    expect(isPlainKeyEvent(keyEvent(override))).toBe(false);
+  });
+});
+
+describe("isShortcutEvent（画面定義書00_共通 §3: 画面全体のショートカットの共通ガード）", () => {
+  it("素のキーは操作として扱う", () => {
+    expect(isShortcutEvent(keyEvent())).toBe(true);
+  });
+
+  it.each(BLOCKED_BY_EVENT)("%s のキーは操作として扱わない", (_label, override) => {
+    expect(isShortcutEvent(keyEvent(override))).toBe(false);
+  });
+
+  it.each(["INPUT", "TEXTAREA"])(
+    "テキスト入力中（%s にフォーカス）は操作として扱わない",
+    (tagName) => {
+      expect(isShortcutEvent(keyEvent({ target: focusOn(tagName) }))).toBe(false);
+    }
+  );
+
+  it.each(["BUTTON", "DIV", "BODY"])(
+    "入力欄以外（%s）にフォーカスがあるだけでは弾かない",
+    (tagName) => {
+      expect(isShortcutEvent(keyEvent({ target: focusOn(tagName) }))).toBe(true);
+    }
+  );
+
+  it("発生元が無い（target が null）キーは操作として扱う", () => {
+    expect(isShortcutEvent(keyEvent({ target: null }))).toBe(true);
+  });
+
+  it("入力欄にフォーカスがあっても isPlainKeyEvent は弾かない（オーバーレイは入力欄を伴わない）", () => {
+    // 2つの関数の差はこの1点だけ。ここが崩れると datepicker・ポップオーバーの挙動が変わる
+    expect(isPlainKeyEvent(keyEvent({ target: focusOn("INPUT") }))).toBe(true);
+    expect(isShortcutEvent(keyEvent({ target: focusOn("INPUT") }))).toBe(false);
+  });
+});
 
 // jsdom を要さない（イベントの形だけを見る純粋関数）ため *.test.ts に置く
 describe("inlineEditKeyHandler（画面定義書00_共通 §2.3: Enter 保存 / Escape 取消、§3: IME変換中は操作として扱わない）", () => {
