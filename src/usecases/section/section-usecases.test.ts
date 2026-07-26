@@ -11,7 +11,7 @@ import {
   updateSection,
 } from "./section-usecases";
 
-// 古典学派: モックではなく Port の契約を満たすインメモリ実装（アーキテクチャ定義書 §8）
+// 古典学派: モックではなく Port の契約を満たすインメモリ実装（テスト戦略定義書 §2）
 function inMemoryRepo(
   initial: readonly Section[] = [],
   counts: Readonly<Record<SectionId, number>> = {}

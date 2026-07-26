@@ -1,4 +1,4 @@
-// Server Action の偽物を作る道具（T-43）。差し替えの是非は アーキテクチャ定義書 §8
+// Server Action の偽物を作る道具（T-43）。差し替えの是非は テスト戦略定義書 §2
 // 「偽物を置いてよい境界」を参照——ここが提供するのは**解決の時点をテストが握る**形だけ。
 import type { ActionResult } from "@/app/_lib/action-result";
 

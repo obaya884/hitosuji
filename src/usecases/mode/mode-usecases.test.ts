@@ -3,7 +3,7 @@ import type { ModeInput, ModeRepository } from "@/usecases/ports/mode-repository
 import { MODE_COLOR_PRESETS, type Mode, type ModeId } from "@/domain/mode/mode";
 import { createMode, deleteMode, listModes, setModeArchived, updateMode } from "./mode-usecases";
 
-// 古典学派: Port の契約を満たすインメモリ実装（アーキテクチャ定義書 §8）
+// 古典学派: Port の契約を満たすインメモリ実装（テスト戦略定義書 §2）
 function inMemoryRepo(
   initial: readonly Mode[] = [],
   counts: Readonly<Record<ModeId, number>> = {}

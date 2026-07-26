@@ -8,7 +8,7 @@
 #
 # CI はこの出力を PR コメントとジョブサマリの両方へ流す（.github/workflows/ci.yml）。
 # ファイル単位ではなく層単位に集計するのは、全体値だけでは
-# 「domain は高く app は意図的に低い」という実態が読めないため（アーキテクチャ定義書 §8）。
+# 「domain は高く app は意図的に低い」という実態が読めないため（テスト戦略定義書 §7）。
 set -eu
 
 cd "$(git rev-parse --show-toplevel)"

@@ -1,5 +1,5 @@
 // テスト用のインメモリ RoutineRepository。
-// 古典学派の「本物と同じ契約を満たす偽物」であってモックではない（アーキテクチャ定義書 §8）
+// 古典学派の「本物と同じ契約を満たす偽物」であってモックではない（テスト戦略定義書 §2）
 import type { RoutineRepository, RoutineTaskSeed } from "@/usecases/ports/routine-repository";
 import type { Routine, RoutineId } from "@/domain/routine/routine";
 import type { ValidRoutineInput } from "@/domain/routine/input";

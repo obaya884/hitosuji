@@ -9,7 +9,7 @@ import { GroupHeading, type GroupHeadingProps } from "./group-heading";
 
 /**
  * props は `GroupHeadingProps` から派生させる（同じ形を手で写さない）。**`group` だけ必須**——
- * どのテストも自分が描くグループに依拠するので既定値を持たせない（アーキテクチャ定義書 §8）
+ * どのテストも自分が描くグループに依拠するので既定値を持たせない（テスト戦略定義書 §4）
  */
 type Overrides = Partial<Omit<GroupHeadingProps, "group">> & Pick<GroupHeadingProps, "group">;
 
