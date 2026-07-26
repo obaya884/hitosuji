@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -423,6 +423,31 @@ describe("RoutinesTable（画面定義書02 §5: 有効/無効・削除・編集
     });
     expect(checkbox.disabled).toBe(false);
     expect(remove.disabled).toBe(false);
+  });
+
+  // isPending は useServerAction がテーブル単位で1組しか持たない（行単位ではない）ため、
+  // ある行の保存中は他の行の操作も一律で止まる。T-52 の引き上げ前から変わらない性質
+  // （引き上げ前も useTransition をテーブル単位で1つだけ持っていた）で、ここで固定しておく
+  it("保存中の抑止は行単位ではなくテーブル全体に及ぶ（isPending を共有するため）", async () => {
+    const pending = deferredAction();
+    vi.mocked(setRoutineActiveAction).mockReturnValue(pending.promise);
+    const { container } = renderTable([
+      routine({ id: 7, scheduledStartTime: "06:00" }),
+      routine({ id: 8, scheduledStartTime: "07:00" }),
+    ]);
+    const checkboxOfRow0 = cell(container, 0, COL.active).querySelector<HTMLInputElement>("input")!;
+    const otherRow = within(rows(container)[1]);
+
+    await click(checkboxOfRow0);
+
+    expect(otherRow.getByRole<HTMLButtonElement>("button", { name: "削除" }).disabled).toBe(true);
+    expect(otherRow.getByRole<HTMLInputElement>("checkbox").disabled).toBe(true);
+
+    await act(async () => {
+      pending.resolve({ ok: true });
+    });
+    expect(otherRow.getByRole<HTMLButtonElement>("button", { name: "削除" }).disabled).toBe(false);
+    expect(otherRow.getByRole<HTMLInputElement>("checkbox").disabled).toBe(false);
   });
 
   it("削除は確認ダイアログで取り消せる（O-4）", async () => {

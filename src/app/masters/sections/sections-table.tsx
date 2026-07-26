@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
+import { useServerAction } from "@/app/_lib/use-server-action";
 import { btnSecondary, inputBase, linkAccent, linkMuted, noticeDanger } from "@/app/_lib/ui";
 import { PlusIcon } from "@/app/_components/icons";
 import type { Section } from "@/domain/section/section";
 import { ArchivedMasterSection } from "../_components/archived-master-section";
-import { useMasterAction } from "../_lib/use-master-action";
 import {
   archiveSectionAction,
   createSectionAction,
@@ -31,7 +31,7 @@ type Editing =
 
 export function SectionsTable({ ranges, archived, deletableIds }: Props) {
   const [editing, setEditing] = useState<Editing | null>(null);
-  const { error, setError, isPending, run } = useMasterAction();
+  const { error, setError, isPending, run } = useServerAction();
 
   /**
    * 保存の経路は blur の1本だけにする（画面定義書03 §4「編集方式」）。

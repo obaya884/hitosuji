@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { useDismiss } from "@/app/_lib/use-dismiss";
+import { useServerAction } from "@/app/_lib/use-server-action";
 import {
   btnSecondary,
   floatPanel,
@@ -14,7 +15,6 @@ import {
 import { PlusIcon } from "@/app/_components/icons";
 import { MODE_COLOR_PRESETS, modeColorName, type Mode } from "@/domain/mode/mode";
 import { ArchivedMasterSection } from "../_components/archived-master-section";
-import { useMasterAction } from "../_lib/use-master-action";
 import {
   createModeAction,
   deleteModeAction,
@@ -93,7 +93,7 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
   const [editing, setEditing] = useState<Editing | null>(null);
   const [newColor, setNewColor] = useState<string>(DEFAULT_MODE_COLOR);
   const [colorPickerId, setColorPickerId] = useState<number | "new" | null>(null);
-  const { error, setError, isPending, run } = useMasterAction();
+  const { error, setError, isPending, run } = useServerAction();
 
   /**
    * 保存の経路は blur の1本だけにする（画面定義書03 §4「編集方式」）。
