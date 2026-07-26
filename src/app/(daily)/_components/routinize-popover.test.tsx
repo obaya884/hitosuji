@@ -5,7 +5,8 @@ import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
 import type { Section } from "@/domain/section/section";
 import type { Task } from "@/domain/task/task";
 
-import { at, task, TEST_DATE } from "../_testing/factories";
+import { atJst, TEST_DATE } from "@/domain/shared/testing/clock";
+import { task } from "@/domain/task/testing/task";
 import { RoutinizePopover } from "./routinize-popover";
 
 // TEST_DATE（= ファクトリ既定の taskDate）は日曜。週次の既定曜日・月次の既定日はここから決まる
@@ -30,7 +31,7 @@ function renderPopover(overrides: Overrides = {}) {
     <RoutinizePopover
       task={overrides.task ?? task({ id: 1 })}
       sections={overrides.sections ?? SECTIONS}
-      now={overrides.now ?? at("16:15")}
+      now={overrides.now ?? atJst("16:15")}
       onSubmit={onSubmit}
       onClose={onClose}
     />
@@ -137,7 +138,7 @@ describe("RoutinizePopover（画面定義書01 §4.1 / O-12: 最小の入力で�
     it("未分類かつ未打刻なら現在時刻", () => {
       renderPopover({
         task: task({ id: 1, sectionId: null }),
-        now: at("16:15"),
+        now: atJst("16:15"),
       });
 
       expect(inputFor("開始想定").value).toBe("16:15");

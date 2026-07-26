@@ -1,32 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { duplicateDraft, insertionIndexForDuplicate } from "./duplicate";
-import type { Task } from "./task";
+import { task } from "./testing/task";
 
-function task(over: Partial<Task> & { id: number }): Task {
-  return {
-    taskDate: "2026-07-19",
-    name: `T${over.id}`,
-    estimateMinutes: 30,
-    sectionId: 1,
-    modeId: 2,
-    projectId: 3,
-    sortOrder: over.id * 1000,
-    startedAt: null,
-    endedAt: null,
-    comment: null,
-    routineId: null,
-    splitParentId: null,
-    postponedCount: 0,
-    ...over,
-  };
-}
-
-const startedAt = new Date("2026-07-19T08:00:00Z");
-const endedAt = new Date("2026-07-19T08:30:00Z");
+const startedAt = new Date("2026-07-26T08:00:00Z");
+const endedAt = new Date("2026-07-26T08:30:00Z");
 
 describe("duplicateDraft（F-111: 名前・見積もり満額・モード・プロジェクトを引き継ぐ）", () => {
   it("引き継ぐ属性だけを取り出す", () => {
-    const original = task({ id: 1, estimateMinutes: 45 });
+    const original = task({ id: 1, estimateMinutes: 45, modeId: 2, projectId: 3 });
     expect(duplicateDraft(original)).toEqual({
       name: "T1",
       estimateMinutes: 45,

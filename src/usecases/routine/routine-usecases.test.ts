@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
 import type { RoutineInput } from "@/domain/routine/input";
-import type { Routine } from "@/domain/routine/routine";
-import type { Task } from "@/domain/task/task";
+import { routine } from "@/domain/routine/testing/routine";
+import { task } from "@/domain/task/testing/task";
 import { inMemoryTaskRepository } from "@/usecases/task/testing/in-memory-repository";
 import {
   createRoutineFromTask,
@@ -12,44 +12,6 @@ import {
   updateRoutine,
 } from "./routine-usecases";
 import { inMemoryRoutineRepository } from "./testing/in-memory-repository";
-
-function task(over: Partial<Task> & { id: number }): Task {
-  return {
-    taskDate: "2026-07-19",
-    name: `T${over.id}`,
-    estimateMinutes: 30,
-    sectionId: 1,
-    modeId: 2,
-    projectId: 3,
-    sortOrder: over.id * 1000,
-    startedAt: null,
-    endedAt: null,
-    comment: null,
-    routineId: null,
-    splitParentId: null,
-    postponedCount: 0,
-    ...over,
-  };
-}
-
-function routineRow(over: Partial<Routine> & { id: number }): Routine {
-  return {
-    name: `R${over.id}`,
-    estimateMinutes: 20,
-    scheduledStartTime: "06:30",
-    modeId: null,
-    projectId: null,
-    recurrenceType: "daily",
-    weekdays: null,
-    weekInterval: null,
-    monthDay: null,
-    intervalDays: null,
-    startDate: "2026-07-01",
-    endDate: null,
-    isActive: true,
-    ...over,
-  };
-}
 
 function input(over: Partial<RoutineInput> = {}): RoutineInput {
   return {
@@ -80,7 +42,9 @@ const choice: RoutineFromTaskChoice = {
 
 describe("createRoutineFromTask（F-305 / 画面定義書01 §4.1）", () => {
   it("タスクの名前・見積もり・モード・プロジェクトを引き継ぎ、開始日は翌日にする", async () => {
-    const tasks = inMemoryTaskRepository([task({ id: 1, name: "メールチェック" })]);
+    const tasks = inMemoryTaskRepository([
+      task({ id: 1, name: "メールチェック", estimateMinutes: 30, modeId: 2, projectId: 3 }),
+    ]);
     const routines = inMemoryRoutineRepository();
 
     const result = await createRoutineFromTask({ routines, tasks }, 1, choice);
@@ -94,7 +58,7 @@ describe("createRoutineFromTask（F-305 / 画面定義書01 §4.1）", () => {
       projectId: 3,
       recurrenceType: "daily",
       scheduledStartTime: "08:05",
-      startDate: "2026-07-20", // 元タスクの翌日（当日の二重展開を防ぐ）
+      startDate: "2026-07-27", // 元タスクの翌日（当日の二重展開を防ぐ）
       endDate: null,
       isActive: true,
     });
@@ -131,7 +95,8 @@ describe("createRoutineFromTask（F-305 / 画面定義書01 §4.1）", () => {
   });
 
   it("入力値が不正なときはドメインの検証エラーを返す（週次で曜日未選択）", async () => {
-    const tasks = inMemoryTaskRepository([task({ id: 1 })]);
+    // 見積もりは通る値にする（0 だと手前の estimate_required で落ちて曜日検証に届かない）
+    const tasks = inMemoryTaskRepository([task({ id: 1, estimateMinutes: 30 })]);
     const routines = inMemoryRoutineRepository();
 
     const result = await createRoutineFromTask({ routines, tasks }, 1, {
@@ -148,9 +113,9 @@ describe("createRoutineFromTask（F-305 / 画面定義書01 §4.1）", () => {
 describe("listRoutines（画面定義書02 §3: 開始想定時刻の昇順・同時刻は名前の自然順）", () => {
   it("開始想定時刻の昇順に並べ、同時刻は名前の自然順にする", async () => {
     const routines = inMemoryRoutineRepository([
-      routineRow({ id: 1, name: "掃除", scheduledStartTime: "12:00" }),
-      routineRow({ id: 2, name: "10.夜筋トレ", scheduledStartTime: "06:30" }),
-      routineRow({ id: 3, name: "02.朝食", scheduledStartTime: "06:30" }),
+      routine({ id: 1, name: "掃除", scheduledStartTime: "12:00" }),
+      routine({ id: 2, name: "10.夜筋トレ", scheduledStartTime: "06:30" }),
+      routine({ id: 3, name: "02.朝食", scheduledStartTime: "06:30" }),
     ]);
 
     expect((await listRoutines(routines)).map((r) => r.id)).toEqual([3, 2, 1]);
@@ -163,7 +128,7 @@ describe("listRoutines（画面定義書02 §3: 開始想定時刻の昇順・�
 
 describe("updateRoutine（画面定義書02 O-2: 編集は未展開の日から反映）", () => {
   it("既存ルーチンを更新する", async () => {
-    const routines = inMemoryRoutineRepository([routineRow({ id: 1, name: "朝食" })]);
+    const routines = inMemoryRoutineRepository([routine({ id: 1, name: "朝食" })]);
 
     const result = await updateRoutine(routines, 1, input({ name: "朝の支度" }));
 
@@ -172,7 +137,7 @@ describe("updateRoutine（画面定義書02 O-2: 編集は未展開の日から�
   });
 
   it("存在しないルーチンは routine_not_found", async () => {
-    const routines = inMemoryRoutineRepository([routineRow({ id: 1 })]);
+    const routines = inMemoryRoutineRepository([routine({ id: 1 })]);
 
     expect(await updateRoutine(routines, 999, input())).toEqual({
       ok: false,
@@ -181,7 +146,7 @@ describe("updateRoutine（画面定義書02 O-2: 編集は未展開の日から�
   });
 
   it("入力が不正なら検証エラーを返し、永続化しない", async () => {
-    const routines = inMemoryRoutineRepository([routineRow({ id: 1, name: "朝食" })]);
+    const routines = inMemoryRoutineRepository([routine({ id: 1, name: "朝食" })]);
 
     const result = await updateRoutine(
       routines,
@@ -196,7 +161,7 @@ describe("updateRoutine（画面定義書02 O-2: 編集は未展開の日から�
 
 describe("setRoutineActive（画面定義書02 O-3: 有効/無効の切替）", () => {
   it("有効を無効へ、無効を有効へ切り替える", async () => {
-    const routines = inMemoryRoutineRepository([routineRow({ id: 1, isActive: true })]);
+    const routines = inMemoryRoutineRepository([routine({ id: 1, isActive: true })]);
 
     expect(await setRoutineActive(routines, 1, false)).toEqual({ ok: true, value: 1 });
     expect(routines.rows[0].isActive).toBe(false);
@@ -206,7 +171,7 @@ describe("setRoutineActive（画面定義書02 O-3: 有効/無効の切替）", 
   });
 
   it("存在しないルーチンは routine_not_found", async () => {
-    const routines = inMemoryRoutineRepository([routineRow({ id: 1 })]);
+    const routines = inMemoryRoutineRepository([routine({ id: 1 })]);
 
     expect(await setRoutineActive(routines, 999, false)).toEqual({
       ok: false,
@@ -217,14 +182,14 @@ describe("setRoutineActive（画面定義書02 O-3: 有効/無効の切替）", 
 
 describe("deleteRoutine（画面定義書02 O-4: 削除。展開済みタスクは残る）", () => {
   it("既存ルーチンを削除する", async () => {
-    const routines = inMemoryRoutineRepository([routineRow({ id: 1 }), routineRow({ id: 2 })]);
+    const routines = inMemoryRoutineRepository([routine({ id: 1 }), routine({ id: 2 })]);
 
     expect(await deleteRoutine(routines, 1)).toEqual({ ok: true, value: 1 });
     expect(routines.rows.map((r) => r.id)).toEqual([2]);
   });
 
   it("存在しないルーチンは routine_not_found", async () => {
-    const routines = inMemoryRoutineRepository([routineRow({ id: 1 })]);
+    const routines = inMemoryRoutineRepository([routine({ id: 1 })]);
 
     expect(await deleteRoutine(routines, 999)).toEqual({
       ok: false,

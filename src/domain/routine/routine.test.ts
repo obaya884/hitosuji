@@ -7,27 +7,8 @@ import {
   weekdayPresetLabel,
   WEEKDAY_BITS,
   WEEKDAY_PRESETS,
-  type Routine,
 } from "./routine";
-
-function routine(over: Partial<Routine> & { id: number }): Routine {
-  return {
-    name: `R${over.id}`,
-    estimateMinutes: 20,
-    scheduledStartTime: "06:30",
-    modeId: null,
-    projectId: null,
-    recurrenceType: "daily",
-    weekdays: null,
-    weekInterval: null,
-    monthDay: null,
-    intervalDays: null,
-    startDate: "2026-01-01",
-    endDate: null,
-    isActive: true,
-    ...over,
-  };
-}
+import { routine } from "./testing/routine";
 
 describe("describeRecurrence（画面定義書02 §3: 繰り返しルールの要約表示）", () => {
   it("毎日は「毎日」", () => {

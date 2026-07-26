@@ -1,31 +1,13 @@
 import { describe, expect, it } from "vitest";
-import type { Mode } from "../mode/mode";
+import { MODE_COLORS, type Mode } from "../mode/mode";
 import type { Project } from "../project/project";
 import { compareByName } from "../shared/name-order";
 import { sortRoutines, type RoutineSortMasters } from "./order";
 import type { Routine } from "./routine";
-
-function routine(over: Partial<Routine> & { id: number }): Routine {
-  return {
-    name: `R${over.id}`,
-    estimateMinutes: 30,
-    scheduledStartTime: "09:00",
-    modeId: null,
-    projectId: null,
-    recurrenceType: "daily",
-    weekdays: null,
-    weekInterval: null,
-    monthDay: null,
-    intervalDays: null,
-    startDate: "2026-07-01",
-    endDate: null,
-    isActive: true,
-    ...over,
-  };
-}
+import { routine } from "./testing/routine";
 
 function mode(id: number, name: string): Mode {
-  return { id, name, color: "#3b82f6", isArchived: false };
+  return { id, name, color: MODE_COLORS[8], isArchived: false };
 }
 
 function project(id: number, name: string): Project {

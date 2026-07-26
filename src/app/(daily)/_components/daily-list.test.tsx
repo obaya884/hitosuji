@@ -1,19 +1,21 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
-import type { Mode } from "@/domain/mode/mode";
+import { MODE_COLORS, type Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { Section } from "@/domain/section/section";
 import type { DailyGroup } from "@/domain/task/daily-list";
 import type { Task } from "@/domain/task/task";
 
-import { at, sectionGroup, task, unclassifiedGroup } from "../_testing/factories";
+import { atJst, atLocal } from "@/domain/shared/testing/clock";
+import { task } from "@/domain/task/testing/task";
+import { sectionGroup, unclassifiedGroup } from "../_testing/factories";
 import { DailyList, type EditingCell } from "./daily-list";
 
 const MODES: readonly Mode[] = [
-  { id: 1, name: "仕事", color: "#ff0000", isArchived: false },
-  { id: 2, name: "生活", color: "#00ff00", isArchived: false },
-  { id: 3, name: "旧モード", color: "#0000ff", isArchived: true },
+  { id: 1, name: "仕事", color: MODE_COLORS[0], isArchived: false },
+  { id: 2, name: "生活", color: MODE_COLORS[5], isArchived: false },
+  { id: 3, name: "旧モード", color: MODE_COLORS[8], isArchived: true },
 ];
 
 const PROJECTS: readonly Project[] = [
@@ -26,6 +28,22 @@ const SECTIONS: readonly Section[] = [
   { id: 200, name: "午前", startTime: "09:00", isArchived: false },
   { id: 300, name: "午後", startTime: "13:00", isArchived: false },
 ];
+
+/**
+ * `style.color` は `rgb()` 形式で返るため、期待値はフィクスチャの hex から組み立てる。
+ * リテラルで書くとフィクスチャの色を変えたときだけ落ちる（挙動は変わっていないのに赤くなる）
+ */
+function rgbOf(hex: string): string {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)); // 6桁前提（`MODE_COLORS` はすべて6桁）
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+/** モードの色を名前で引く（添字だと並び替えで意味が変わり、どのモードの話か読めない） */
+function colorOf(name: string): string {
+  const mode = MODES.find((m) => m.name === name);
+  if (mode === undefined) throw new Error(`モード「${name}」がフィクスチャにありません`);
+  return rgbOf(mode.color);
+}
 
 /** 朝（06:00–09:00）のグループ */
 function morning(tasks: readonly Task[]): DailyGroup {
@@ -76,7 +94,10 @@ function renderList(overrides: Overrides = {}) {
       sections={overrides.sections ?? SECTIONS}
       selectedId={overrides.selectedId ?? null}
       editing={overrides.editing ?? null}
-      now={overrides.now ?? at("10:00")}
+      // `now` は2系統へ流れる——実打刻の表示（`formatClock`＝JST 固定）と、予想開始・
+      // セクション終了（`projectedStartTimes` / `sectionEndAt`＝ローカル解釈）。
+      // **各テストは自分が値を assert する側に合わせて `atJst` / `atLocal` を選ぶこと**
+      now={overrides.now ?? atJst("10:00")}
       isToday={overrides.isToday ?? true}
       dayStartMinutes={overrides.dayStartMinutes ?? 0}
       stickyHeight={overrides.stickyHeight ?? 0}
@@ -165,9 +186,9 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
         groups: [
           morning([
             // 見積もり20分・実績18分の完了タスク → 実績で数える
-            task({ id: 1, name: "朝食", estimateMinutes: 20, startedAt: at("06:30"), endedAt: at("06:48") }),
+            task({ id: 1, name: "朝食", estimateMinutes: 20, startedAt: atJst("06:30"), endedAt: atJst("06:48") }),
             // 実行中は見積もりで数える
-            task({ id: 2, name: "メール", estimateMinutes: 30, startedAt: at("08:05") }),
+            task({ id: 2, name: "メール", estimateMinutes: 30, startedAt: atJst("08:05") }),
           ]),
         ],
       });
@@ -187,8 +208,8 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
       renderList({
         groups: [
           morning([
-            task({ id: 1, name: "朝食", startedAt: at("06:30"), endedAt: at("06:48") }),
-            task({ id: 2, name: "メール", startedAt: at("08:05") }),
+            task({ id: 1, name: "朝食", startedAt: atJst("06:30"), endedAt: atJst("06:48") }),
+            task({ id: 2, name: "メール", startedAt: atJst("08:05") }),
             task({ id: 3, name: "日次プラン" }),
           ]),
         ],
@@ -209,7 +230,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
     it("残り時間は（セクション終了 − 現在）− 未完了見積もり（F-110）", () => {
       renderList({
         // ローカル時刻で組む（セクション終了時刻は論理日の暦日 0:00 起点で測る）
-        now: new Date(2026, 6, 26, 7, 0),
+        now: atLocal("07:00"),
         groups: [morning([task({ id: 1, name: "朝食", estimateMinutes: 30 })])],
       });
 
@@ -221,7 +242,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
 
     it("残り時間のマイナスは警告色で示す（FB-31/FB-32: 溢れが読めるように）", () => {
       renderList({
-        now: new Date(2026, 6, 26, 7, 0),
+        now: atLocal("07:00"),
         groups: [morning([task({ id: 1, name: "朝食", estimateMinutes: 180 })])],
       });
 
@@ -232,7 +253,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
 
     it("プラスの残り時間は警告色にしない", () => {
       renderList({
-        now: new Date(2026, 6, 26, 7, 0),
+        now: atLocal("07:00"),
         groups: [morning([task({ id: 1, name: "朝食", estimateMinutes: 30 })])],
       });
 
@@ -244,7 +265,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
     it("表示日が今日でなければ残り時間を出さない（現在時刻起点の値のため）", () => {
       renderList({
         isToday: false,
-        now: new Date(2026, 6, 26, 7, 0),
+        now: atLocal("07:00"),
         groups: [morning([task({ id: 1, name: "朝食", estimateMinutes: 30 })])],
       });
 
@@ -256,7 +277,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
 
     it("現在時刻がセクション終了を過ぎた過去セクションでは残り時間を出さない", () => {
       renderList({
-        now: new Date(2026, 6, 26, 10, 0),
+        now: atLocal("10:00"),
         groups: [morning([task({ id: 1, name: "朝食", estimateMinutes: 30 })])],
       });
 
@@ -267,7 +288,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
       renderList({
         // 日界 06:00・深夜 02:00 は前の論理日の続き。午後（13:00–翌06:00）はまだ終わっていない
         dayStartMinutes: 360,
-        now: new Date(2026, 6, 27, 2, 0),
+        now: atLocal("02:00", "2026-07-27"),
         groups: [afternoon([task({ id: 1, name: "夜更かし", estimateMinutes: 60 })])],
       });
 
@@ -279,7 +300,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
 
     it("現在時刻を含むセクションの見出しだけ地色を変える（F-121）", () => {
       renderList({
-        now: at("10:00"),
+        now: atJst("10:00"),
         groups: [
           unclassifiedGroup([task({ id: 1, name: "買い出しメモ" })]),
           morning([task({ id: 2, name: "朝食" })]),
@@ -298,7 +319,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
     it("表示日が今日でなければどのセクションも強調しない（F-121）", () => {
       renderList({
         isToday: false,
-        now: at("10:00"),
+        now: atJst("10:00"),
         groups: [
           morning([task({ id: 1, name: "朝食" })]),
           forenoon([task({ id: 2, name: "設計書レビュー" })]),
@@ -320,7 +341,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
     });
 
     it("実行中は終了ボタン", () => {
-      renderList({ groups: [morning([task({ id: 1, name: "メール", startedAt: at("08:05") })])] });
+      renderList({ groups: [morning([task({ id: 1, name: "メール", startedAt: atJst("08:05") })])] });
 
       const button = within(cellsOf(rowOf("メール")).punch).getByRole("button");
       expect(button.getAttribute("aria-label")).toBe("終了");
@@ -329,7 +350,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
 
     it("完了は操作なし（押せない）", () => {
       renderList({
-        groups: [morning([task({ id: 1, name: "朝食", startedAt: at("06:30"), endedAt: at("06:48") })])],
+        groups: [morning([task({ id: 1, name: "朝食", startedAt: atJst("06:30"), endedAt: atJst("06:48") })])],
       });
 
       const button = within(cellsOf(rowOf("朝食")).punch).getByRole("button");
@@ -341,7 +362,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
       renderList({
         groups: [
           morning([
-            task({ id: 1, name: "朝食", estimateMinutes: 20, startedAt: at("06:30"), endedAt: at("06:48") }),
+            task({ id: 1, name: "朝食", estimateMinutes: 20, startedAt: atJst("06:30"), endedAt: atJst("06:48") }),
           ]),
         ],
       });
@@ -355,7 +376,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
       renderList({
         groups: [
           morning([
-            task({ id: 1, name: "朝食", estimateMinutes: 10, startedAt: at("06:30"), endedAt: at("06:48") }),
+            task({ id: 1, name: "朝食", estimateMinutes: 10, startedAt: atJst("06:30"), endedAt: atJst("06:48") }),
           ]),
         ],
       });
@@ -368,7 +389,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
       renderList({
         groups: [
           morning([
-            task({ id: 1, name: "朝食", estimateMinutes: 0, startedAt: at("06:30"), endedAt: at("06:48") }),
+            task({ id: 1, name: "朝食", estimateMinutes: 0, startedAt: atJst("06:30"), endedAt: atJst("06:48") }),
           ]),
         ],
       });
@@ -382,7 +403,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
         groups: [
           morning([
             // 開始と終了が同じ＝実績0分。値は確定しているので `--:--` にはしない
-            task({ id: 1, name: "朝食", estimateMinutes: 20, startedAt: at("06:30"), endedAt: at("06:30") }),
+            task({ id: 1, name: "朝食", estimateMinutes: 20, startedAt: atJst("06:30"), endedAt: atJst("06:30") }),
           ]),
         ],
       });
@@ -392,8 +413,8 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
 
     it("実行中は経過を出す（F-205。実績は出さない）", () => {
       renderList({
-        now: at("08:17"),
-        groups: [morning([task({ id: 1, name: "メール", estimateMinutes: 30, startedAt: at("08:05") })])],
+        now: atJst("08:17"),
+        groups: [morning([task({ id: 1, name: "メール", estimateMinutes: 30, startedAt: atJst("08:05") })])],
       });
 
       expect(cellsOf(rowOf("メール")).actual.textContent).toBe("(経過 0:12)");
@@ -409,8 +430,8 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
       renderList({
         groups: [
           morning([
-            task({ id: 1, name: "朝食", startedAt: at("06:30"), endedAt: at("06:48") }),
-            task({ id: 2, name: "メール", startedAt: at("08:05") }),
+            task({ id: 1, name: "朝食", startedAt: atJst("06:30"), endedAt: atJst("06:48") }),
+            task({ id: 2, name: "メール", startedAt: atJst("08:05") }),
           ]),
         ],
       });
@@ -462,7 +483,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
       const row = rowOf("日次プラン");
       expect(cellsOf(row).mode.textContent).toBe("旧モード");
       // モードは行全体の文字色も担う（F-401）ので、名前だけでなく色も残ること
-      expect(row.style.color).toBe("rgb(0, 0, 255)");
+      expect(row.style.color).toBe(colorOf("旧モード"));
     });
 
     it("見積もり未設定（0分）は薄色の `--:--`（終了予定の計算に入っていないことを示す。§3.3）", () => {
@@ -485,11 +506,11 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
   describe("予想開始時刻（F-120 / §3.3）", () => {
     it("未実行行にだけ弱色で `HH:MM–` を併記する", () => {
       renderList({
-        now: at("10:00"),
+        now: atLocal("10:00"), // 予想開始はローカル解釈（下の値のアサーションが TZ で揺れる）
         groups: [
           morning([
-            task({ id: 1, name: "朝食", startedAt: at("06:30"), endedAt: at("06:48") }),
-            task({ id: 2, name: "メール", startedAt: at("08:05") }),
+            task({ id: 1, name: "朝食", startedAt: atJst("06:30"), endedAt: atJst("06:48") }),
+            task({ id: 2, name: "メール", startedAt: atJst("08:05") }),
             task({ id: 3, name: "日次プラン", estimateMinutes: 15 }),
           ]),
         ],
@@ -498,7 +519,8 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
       // 実施時間セルは「実打刻（あれば）→ 予想開始」の順に並ぶ（§3.3: 実打刻と同じ位置に
       // 縦に並べて上から下へ時間の流れとして読ませる）ので、予想開始は常に最後の子
       const projected = cellsOf(rowOf("日次プラン")).time.lastElementChild as HTMLElement;
-      expect(projected.textContent).toMatch(/^\d{2}:\d{2}–$/);
+      // メール（実行中）は見積もり未設定＝残り0分なので、次の行の予想開始は now そのもの
+      expect(projected.textContent).toBe("10:00–");
       // 実打刻（確定した記録）との区別は弱色が担う
       expect(projected.classList.contains("text-ink-faint")).toBe(true);
 
@@ -560,7 +582,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
     it("行全体のテキスト色に反映する", () => {
       renderList({ groups: [morning([task({ id: 1, name: "朝食", modeId: 1 })])] });
 
-      expect(rowOf("朝食").style.color).toBe("rgb(255, 0, 0)");
+      expect(rowOf("朝食").style.color).toBe(colorOf("仕事"));
     });
 
     it("モード未設定なら既定の文字色のまま（色を指定しない）", () => {
@@ -719,7 +741,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
     });
 
     describe("打刻時刻の修正（F-203）", () => {
-      const completed = task({ id: 1, name: "朝食", startedAt: at("06:30"), endedAt: at("06:48") });
+      const completed = task({ id: 1, name: "朝食", startedAt: atJst("06:30"), endedAt: atJst("06:48") });
 
       it("開始時刻・終了時刻それぞれのクリックで編集を始める", () => {
         const { onBeginEdit } = renderList({ groups: [morning([completed])] });
@@ -783,7 +805,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
       it("実行中タスクの終了時刻編集（`F`）は空欄から始める（まだ終了打刻がない）", () => {
         const { onEditPunch } = renderList({
           editing: { taskId: 1, field: "endedAt" },
-          groups: [morning([task({ id: 1, name: "メール", startedAt: at("08:05") })])],
+          groups: [morning([task({ id: 1, name: "メール", startedAt: atJst("08:05") })])],
         });
 
         const input = screen.getByRole("textbox");
@@ -831,7 +853,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
 
     it("候補は「現在のセクションへ」＋未分類＋有効セクション（時間帯付き）で、選ぶと割り当てる", () => {
       const { onAssign } = renderList({
-        now: at("10:00"),
+        now: atJst("10:00"),
         editing: { taskId: 1, field: "section" },
         groups: [morning([task({ id: 1, name: "朝食", sectionId: 100 })])],
       });
@@ -934,7 +956,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
     });
 
     it("実行中タスクでは中断ができ、先送りはできない", () => {
-      renderList({ groups: [morning([task({ id: 1, name: "メール", startedAt: at("08:05") })])] });
+      renderList({ groups: [morning([task({ id: 1, name: "メール", startedAt: atJst("08:05") })])] });
       openMenu(rowOf("メール"));
 
       expect((screen.getByText("中断") as HTMLButtonElement).disabled).toBe(false);
@@ -943,7 +965,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
 
     it("完了タスクでは中断も先送りもできない（複製はできる）", () => {
       renderList({
-        groups: [morning([task({ id: 1, name: "朝食", startedAt: at("06:30"), endedAt: at("06:48") })])],
+        groups: [morning([task({ id: 1, name: "朝食", startedAt: atJst("06:30"), endedAt: atJst("06:48") })])],
       });
       openMenu(rowOf("朝食"));
 
@@ -961,7 +983,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
 
     it("中断を選ぶと suspend で通知する（O-4 / F-204）", () => {
       const { onOperate } = renderList({
-        groups: [morning([task({ id: 1, name: "メール", startedAt: at("08:05") })])],
+        groups: [morning([task({ id: 1, name: "メール", startedAt: atJst("08:05") })])],
       });
       openMenu(rowOf("メール"));
 
@@ -1002,7 +1024,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
     it("打刻済みタスクの削除は確認を挟む（O-8）", () => {
       const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
       const { onOperate } = renderList({
-        groups: [morning([task({ id: 1, name: "朝食", startedAt: at("06:30"), endedAt: at("06:48") })])],
+        groups: [morning([task({ id: 1, name: "朝食", startedAt: atJst("06:30"), endedAt: atJst("06:48") })])],
       });
       openMenu(rowOf("朝食"));
 

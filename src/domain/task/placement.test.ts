@@ -1,25 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { placeNewTask } from "./placement";
-import type { Task } from "./task";
-
-function task(over: Partial<Task> & { id: number }): Task {
-  return {
-    taskDate: "2026-07-19",
-    name: `T${over.id}`,
-    estimateMinutes: 0,
-    sectionId: 1,
-    modeId: null,
-    projectId: null,
-    sortOrder: over.id * 1000,
-    startedAt: null,
-    endedAt: null,
-    comment: null,
-    routineId: null,
-    splitParentId: null,
-    postponedCount: 0,
-    ...over,
-  };
-}
+import { task } from "./testing/task";
 
 describe("placeNewTask（データモデル定義書 §3.5: 挿入位置の採番）", () => {
   const group = [

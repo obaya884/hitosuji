@@ -1,7 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { at, task } from "../_testing/factories";
+import { atJst } from "@/domain/shared/testing/clock";
+import { task } from "@/domain/task/testing/task";
 import { StaleRunningBanner } from "./stale-running-banner";
 
 // 画面定義書01 §8「実行中タスクが前日以前に放置されている（F-209）」
@@ -13,7 +14,7 @@ describe("StaleRunningBanner（画面定義書01 §8 / F-209: 前日以前の実
           id: 1,
           name: "就寝",
           taskDate: "2026-07-25",
-          startedAt: at("23:40", "2026-07-25"),
+          startedAt: atJst("23:40", "2026-07-25"),
         })}
       />
     );
@@ -26,7 +27,7 @@ describe("StaleRunningBanner（画面定義書01 §8 / F-209: 前日以前の実
   it("該当日を開くリンクはそのタスクの task_date を指す（打刻時刻から導出しない）", () => {
     render(
       <StaleRunningBanner
-        task={task({ id: 1, taskDate: "2026-07-25", startedAt: at("01:00", "2026-07-26") })}
+        task={task({ id: 1, taskDate: "2026-07-25", startedAt: atJst("01:00", "2026-07-26") })}
       />
     );
 

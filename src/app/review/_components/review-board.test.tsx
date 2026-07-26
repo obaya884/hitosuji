@@ -4,7 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MODE_COLORS, type Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
+import { atJst, TEST_DATE } from "@/domain/shared/testing/clock";
 import type { Task } from "@/domain/task/task";
+import { task } from "@/domain/task/testing/task";
 import type { DailyReviewView } from "@/usecases/review/review-usecases";
 
 import { ReviewBoard } from "./review-board";
@@ -28,7 +30,6 @@ vi.mock("next/navigation", () => ({
   useRouter: (): ReturnType<typeof useRouter> => router,
 }));
 
-const DATE = "2026-07-20"; // 月曜
 const MODES: readonly Mode[] = [
   { id: 1, name: "モードA", color: MODE_COLORS[0], isArchived: false },
   { id: 2, name: "モードB", color: MODE_COLORS[1], isArchived: false },
@@ -39,34 +40,12 @@ const PROJECTS: readonly Project[] = [
   { id: 19, name: "旧案件", isArchived: true },
 ];
 
-/** 日本時間の時刻から Date を作る（表示は Asia/Tokyo。_lib/format） */
-const at = (clock: string) => new Date(`${DATE}T${clock}:00+09:00`);
-
-function task(over: Partial<Task> & { id: number }): Task {
-  return {
-    taskDate: DATE,
-    name: `タスク${over.id}`,
-    estimateMinutes: 30,
-    sectionId: null,
-    modeId: null,
-    projectId: null,
-    sortOrder: over.id * 1000,
-    startedAt: null,
-    endedAt: null,
-    comment: null,
-    routineId: null,
-    splitParentId: null,
-    postponedCount: 0,
-    ...over,
-  };
-}
-
 /** 完了タスク（開始・終了の両方が打刻済み）。実績と差異が確定している行を作る */
 const done = (over: Partial<Task> & { id: number; startedAt: Date; endedAt: Date }) => task(over);
 
 function view(over: Partial<DailyReviewView> = {}): DailyReviewView {
   return {
-    date: DATE,
+    date: TEST_DATE,
     log: [],
     totalMinutes: 0,
     postponed: [],
@@ -121,16 +100,16 @@ describe("ReviewBoard（画面定義書04 §3.1: 日付ナビ。§3.2: サマリ
   it("日付ナビの移動先は S-04 に閉じる（前日・翌日・今日へ）", () => {
     renderBoard({}, false);
 
-    expect(screen.getByLabelText("前日").getAttribute("href")).toBe("/review?date=2026-07-19");
-    expect(screen.getByLabelText("翌日").getAttribute("href")).toBe("/review?date=2026-07-21");
+    expect(screen.getByLabelText("前日").getAttribute("href")).toBe("/review?date=2026-07-25");
+    expect(screen.getByLabelText("翌日").getAttribute("href")).toBe("/review?date=2026-07-27");
     expect(screen.getByText("今日へ").getAttribute("href")).toBe("/review");
   });
 
   it("画面見出しとサマリ（実行件数・実績合計・先送り件数）を出す", () => {
     renderBoard({
       log: [
-        done({ id: 1, startedAt: at("06:30"), endedAt: at("06:48") }),
-        done({ id: 2, startedAt: at("08:05"), endedAt: at("08:35") }),
+        done({ id: 1, startedAt: atJst("06:30"), endedAt: atJst("06:48") }),
+        done({ id: 2, startedAt: atJst("08:05"), endedAt: atJst("08:35") }),
       ],
       totalMinutes: 48,
       postponed: [task({ id: 3 })],
@@ -158,7 +137,7 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
   });
 
   it("列は 時刻/タスク名/モード/プロジェクト/見積/実績/差異 の順に並べる", () => {
-    renderBoard({ log: [done({ id: 1, startedAt: at("06:30"), endedAt: at("06:48") })] });
+    renderBoard({ log: [done({ id: 1, startedAt: atJst("06:30"), endedAt: atJst("06:48") })] });
 
     const labels = [...sectionOf("実績ログ").querySelectorAll("thead th")].map(
       (th) => th.textContent
@@ -183,8 +162,8 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
           estimateMinutes: 20,
           modeId: 1,
           projectId: 11,
-          startedAt: at("06:30"),
-          endedAt: at("06:48"),
+          startedAt: atJst("06:30"),
+          endedAt: atJst("06:48"),
         }),
       ],
       totalMinutes: 18,
@@ -204,7 +183,7 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
   it("超過は差異を `+` と警告色で出す", () => {
     renderBoard({
       log: [
-        done({ id: 1, estimateMinutes: 20, startedAt: at("06:30"), endedAt: at("07:00") }),
+        done({ id: 1, estimateMinutes: 20, startedAt: atJst("06:30"), endedAt: atJst("07:00") }),
       ],
       totalMinutes: 30,
     });
@@ -215,7 +194,7 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
   });
 
   it("実行中の行は終了時刻を `--:--` にし、実績と差異を空にする（実績が確定していない）", () => {
-    renderBoard({ log: [task({ id: 1, estimateMinutes: 20, startedAt: at("09:00") })] });
+    renderBoard({ log: [task({ id: 1, estimateMinutes: 20, startedAt: atJst("09:00") })] });
 
     const cells = logRow().cells;
     expect(cells[LOG.clock].textContent).toBe("09:00---:--");
@@ -225,7 +204,7 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
 
   it("見積もり未設定（0分）は薄色の `--:--` にし、差異は出さない（比べる相手がない）", () => {
     renderBoard({
-      log: [done({ id: 1, estimateMinutes: 0, startedAt: at("09:00"), endedAt: at("09:30") })],
+      log: [done({ id: 1, estimateMinutes: 0, startedAt: atJst("09:00"), endedAt: atJst("09:30") })],
       totalMinutes: 30,
     });
 
@@ -238,7 +217,7 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
 
   it("モード・プロジェクトが未設定なら薄色の `-` を出す（00_共通 §2.4）", () => {
     renderBoard({
-      log: [done({ id: 1, startedAt: at("09:00"), endedAt: at("09:30") })],
+      log: [done({ id: 1, startedAt: atJst("09:00"), endedAt: atJst("09:30") })],
       totalMinutes: 30,
     });
 
@@ -251,7 +230,7 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
 
   it("モード色を行全体のテキスト色に反映する（§2。S-01 と揃える）", () => {
     renderBoard({
-      log: [done({ id: 1, modeId: 2, startedAt: at("09:00"), endedAt: at("09:30") })],
+      log: [done({ id: 1, modeId: 2, startedAt: atJst("09:00"), endedAt: atJst("09:30") })],
       totalMinutes: 30,
     });
 
@@ -262,7 +241,7 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
 
   it("モード未設定の行は既定のグレーにする", () => {
     renderBoard({
-      log: [done({ id: 1, startedAt: at("09:00"), endedAt: at("09:30") })],
+      log: [done({ id: 1, startedAt: atJst("09:00"), endedAt: atJst("09:30") })],
       totalMinutes: 30,
     });
 
@@ -273,7 +252,7 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
   it("アーカイブ済みマスタも名前をそのまま出す（過去タスクからの参照を保つ）", () => {
     renderBoard({
       log: [
-        done({ id: 1, modeId: 9, projectId: 19, startedAt: at("09:00"), endedAt: at("09:30") }),
+        done({ id: 1, modeId: 9, projectId: 19, startedAt: atJst("09:00"), endedAt: atJst("09:30") }),
       ],
       totalMinutes: 30,
     });
@@ -284,19 +263,19 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
 
   it("タスク名から表示日の S-01 へ移動できる（O-2: 修正の導線）", () => {
     renderBoard({
-      log: [done({ id: 1, name: "点検", startedAt: at("09:00"), endedAt: at("09:30") })],
+      log: [done({ id: 1, name: "点検", startedAt: atJst("09:00"), endedAt: atJst("09:30") })],
       totalMinutes: 30,
     });
 
     const link = logRow().cells[LOG.name].querySelector("a");
-    expect(link?.getAttribute("href")).toBe(`/?date=${DATE}`);
+    expect(link?.getAttribute("href")).toBe(`/?date=${TEST_DATE}`);
   });
 
   it("view の並びのまま行を出す（並べ替えは usecase 側で確定している）", () => {
     renderBoard({
       log: [
-        done({ id: 1, name: "先", startedAt: at("06:30"), endedAt: at("06:40") }),
-        done({ id: 2, name: "後", startedAt: at("08:00"), endedAt: at("08:10") }),
+        done({ id: 1, name: "先", startedAt: atJst("06:30"), endedAt: atJst("06:40") }),
+        done({ id: 2, name: "後", startedAt: atJst("08:00"), endedAt: atJst("08:10") }),
       ],
       totalMinutes: 20,
     });
@@ -396,7 +375,7 @@ describe("ReviewBoard（画面定義書04 §5: 日付移動のショートカッ
 
     fireEvent.keyDown(window, { key: "H", shiftKey: true });
 
-    expect(router.push).toHaveBeenCalledWith("/review?date=2026-07-19");
+    expect(router.push).toHaveBeenCalledWith("/review?date=2026-07-25");
   });
 
   it("Shift+L で翌日へ移動する", () => {
@@ -404,7 +383,7 @@ describe("ReviewBoard（画面定義書04 §5: 日付移動のショートカッ
 
     fireEvent.keyDown(window, { key: "L", shiftKey: true });
 
-    expect(router.push).toHaveBeenCalledWith("/review?date=2026-07-21");
+    expect(router.push).toHaveBeenCalledWith("/review?date=2026-07-27");
   });
 
   it("T で今日へ戻る（日付パラメータなし）", () => {

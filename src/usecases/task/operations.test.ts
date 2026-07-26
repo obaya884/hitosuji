@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { SectionRepository } from "@/usecases/ports/section-repository";
 import type { Section } from "@/domain/section/section";
 import { taskStatus } from "@/domain/task/status";
-import type { Task } from "@/domain/task/task";
+import { TEST_DATE } from "@/domain/shared/testing/clock";
+import { task } from "@/domain/task/testing/task";
 import {
   deleteTask,
   duplicateAndStartTask,
@@ -13,32 +14,13 @@ import {
 } from "./operations";
 import { inMemoryTaskRepository } from "./testing/in-memory-repository";
 
-function task(over: Partial<Task> & { id: number }): Task {
-  return {
-    taskDate: "2026-07-19",
-    name: `T${over.id}`,
-    estimateMinutes: 30,
-    sectionId: 1,
-    modeId: 2,
-    projectId: 3,
-    sortOrder: over.id * 1000,
-    startedAt: null,
-    endedAt: null,
-    comment: null,
-    routineId: null,
-    splitParentId: null,
-    postponedCount: 0,
-    ...over,
-  };
-}
-
-const now = new Date("2026-07-19T09:00:00Z");
-const startedAt = new Date("2026-07-19T08:48:00Z"); // 実績12分
+const now = new Date("2026-07-26T09:00:00Z");
+const startedAt = new Date("2026-07-26T08:48:00Z"); // 実績12分
 
 describe("suspendTask（F-204: 中断）", () => {
   it("現在時刻で終了し、残り見積もりの再開タスクを直後に作る", async () => {
     const repo = inMemoryTaskRepository([
-      task({ id: 1, estimateMinutes: 30, startedAt, sortOrder: 1000 }),
+      task({ id: 1, estimateMinutes: 30, modeId: 2, projectId: 3, startedAt, sortOrder: 1000 }),
       task({ id: 2, sortOrder: 2000 }),
     ]);
 
@@ -74,7 +56,7 @@ describe("suspendTask（F-204: 中断）", () => {
 
   it("現在時刻が開始時刻より前なら中断できない（開始≦終了。再開タスクも作らない）", async () => {
     const repo = inMemoryTaskRepository([
-      task({ id: 1, startedAt: new Date("2026-07-19T10:00:00Z") }), // now(09:00) より後に開始
+      task({ id: 1, startedAt: new Date("2026-07-26T10:00:00Z") }), // now(09:00) より後に開始
     ]);
     expect(await suspendTask(repo, { taskId: 1, now })).toEqual({
       ok: false,
@@ -218,11 +200,21 @@ describe("duplicateAndStartTask（F-208: 複製して開始）", () => {
     sections: sectionRepo,
   });
   // 現在時刻 09:30（午前）を含むセクションへ複製タスクを置く
-  const input = { now, nowClock: "09:30", today: "2026-07-19" as const };
+  const input = { now, nowClock: "09:30", today: TEST_DATE };
 
   it("完了タスクを複製し、開始済みで現在時刻を含むセクションの末尾へ置く（複製元は完了のまま）", async () => {
     const repo = inMemoryTaskRepository([
-      task({ id: 1, sectionId: 1, estimateMinutes: 45, startedAt, endedAt: now, sortOrder: 1000 }), // 朝・完了
+      // 朝・完了
+      task({
+        id: 1,
+        sectionId: 1,
+        estimateMinutes: 45,
+        modeId: 2,
+        projectId: 3,
+        startedAt,
+        endedAt: now,
+        sortOrder: 1000,
+      }),
       task({ id: 2, sectionId: 2, sortOrder: 5000 }), // 午前・未実行
     ]);
 
@@ -283,7 +275,7 @@ describe("duplicateAndStartTask（F-208: 複製して開始）", () => {
     const result = await duplicateAndStartTask(repos(repo), {
       taskId: 1,
       ...input,
-      today: "2026-07-20", // 表示日は過去日（今日ではない）
+      today: "2026-07-27", // 表示日は過去日（今日ではない）
     });
     expect(result.ok && result.value.sectionId).toBe(1); // 現在時刻の午前ではなく複製元の朝
     expect(result.ok && result.value.sortOrder).toBe(2000); // 朝の末尾
@@ -337,7 +329,7 @@ describe("duplicateAndStartTask（F-208: 複製して開始）", () => {
   it("割り込み先の実行中タスクを現在時刻で終了できない（開始≦終了）ならエラー", async () => {
     const repo = inMemoryTaskRepository([
       task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }), // 完了（複製元）
-      task({ id: 2, sectionId: 2, startedAt: new Date("2026-07-19T10:00:00Z"), sortOrder: 5000 }), // now より後に開始した実行中
+      task({ id: 2, sectionId: 2, startedAt: new Date("2026-07-26T10:00:00Z"), sortOrder: 5000 }), // now より後に開始した実行中
     ]);
 
     expect(await duplicateAndStartTask(repos(repo), { taskId: 1, ...input })).toEqual({
@@ -354,24 +346,25 @@ describe("postponeTask（F-107: 先送り）", () => {
 
     expect((await postponeTask(repo, { taskId: 1 })).ok).toBe(true);
     expect(repo.rows[0]).toEqual(
-      expect.objectContaining({ taskDate: "2026-07-20", postponedCount: 2 })
+      expect.objectContaining({ taskDate: "2026-07-27", postponedCount: 2 })
     );
   });
 
   it("移動先の同セクション末尾へ置く", async () => {
     const repo = inMemoryTaskRepository([
-      task({ id: 1, sortOrder: 1000 }),
-      task({ id: 2, taskDate: "2026-07-20", sectionId: 1, sortOrder: 5000 }),
+      task({ id: 1, sectionId: 1, sortOrder: 1000 }),
+      task({ id: 2, taskDate: "2026-07-27", sectionId: 1, sortOrder: 5000 }),
     ]);
 
     await postponeTask(repo, { taskId: 1 });
     expect(repo.rows[0].sortOrder).toBe(6000);
   });
 
+  // 翌日の算出そのものは `addDays` へ委譲しており、月末・年末の丸めは logical-date.test.ts が担保する
   it("日付を指定して先送りできる", async () => {
     const repo = inMemoryTaskRepository([task({ id: 1 })]);
-    await postponeTask(repo, { taskId: 1, to: "2026-07-25" });
-    expect(repo.rows[0].taskDate).toBe("2026-07-25");
+    await postponeTask(repo, { taskId: 1, to: "2026-08-01" });
+    expect(repo.rows[0].taskDate).toBe("2026-08-01");
   });
 
   it("実行中・完了タスクは先送りできない", async () => {
@@ -424,11 +417,11 @@ describe("deleteTask / restoreTask（O-8: 削除と取り消し）", () => {
 
   it("ルーチン由来タスクの削除はその日のスキップを記録する（F-304: 再展開を防ぐ）", async () => {
     const repo = inMemoryTaskRepository([
-      task({ id: 1, routineId: 7, taskDate: "2026-07-19" }),
+      task({ id: 1, routineId: 7, taskDate: TEST_DATE }),
     ]);
 
     await deleteTask(repo, { taskId: 1 });
-    expect(repo.skips).toEqual([{ routineId: 7, taskDate: "2026-07-19" }]);
+    expect(repo.skips).toEqual([{ routineId: 7, taskDate: TEST_DATE }]);
   });
 
   it("非ルーチンタスクの削除ではスキップを記録しない", async () => {
@@ -439,7 +432,7 @@ describe("deleteTask / restoreTask（O-8: 削除と取り消し）", () => {
 
   it("ルーチン由来タスクの復元はスキップを解除する（F-304: 再展開を許す）", async () => {
     const repo = inMemoryTaskRepository([
-      task({ id: 1, routineId: 7, taskDate: "2026-07-19" }),
+      task({ id: 1, routineId: 7, taskDate: TEST_DATE }),
     ]);
 
     const deleted = await deleteTask(repo, { taskId: 1 });

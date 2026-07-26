@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { CompletionSnapshot } from "@/usecases/task/punch-usecases";
-import { at, task } from "../_testing/factories";
+import { atJst } from "@/domain/shared/testing/clock";
+import { task } from "@/domain/task/testing/task";
 import { pendingUndoMessage } from "./undo";
 
 // 保留は削除と完了の取り消しで共通の1スロット（画面定義書01 O-13）。文言だけが種類で分かれる。
 const SNAPSHOT: CompletionSnapshot = {
   taskId: 13,
-  startedAt: at("08:00"),
-  endedAt: at("08:30"),
+  startedAt: atJst("08:00"),
+  endedAt: atJst("08:30"),
   sectionId: 1,
   sortOrder: 1000,
 };

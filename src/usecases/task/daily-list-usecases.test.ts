@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { Task } from "@/domain/task/task";
+import { TEST_DATE } from "@/domain/shared/testing/clock";
+import { task } from "@/domain/task/testing/task";
 import { inMemoryTaskRepository as inMemoryRepo } from "./testing/in-memory-repository";
 import type { ModeRepository } from "@/usecases/ports/mode-repository";
 import type { ProjectRepository } from "@/usecases/ports/project-repository";
@@ -40,34 +41,15 @@ const emptyProjectRepo: ProjectRepository = {
   remove: async () => {},
 };
 
-function task(over: Partial<Task> & { id: number }): Task {
-  return {
-    taskDate: "2026-07-19",
-    name: `T${over.id}`,
-    estimateMinutes: 0,
-    sectionId: null,
-    modeId: null,
-    projectId: null,
-    sortOrder: 1000,
-    startedAt: null,
-    endedAt: null,
-    comment: null,
-    routineId: null,
-    splitParentId: null,
-    postponedCount: 0,
-    ...over,
-  };
-}
-
 describe("addTask（F-102 / 画面定義書01 §3.4: クイック追加）", () => {
   it("タスク名のみで、見積もり未設定・未実行・未分類のタスクを作る", async () => {
     const repo = inMemoryRepo();
-    const result = await addTask(repo, { date: "2026-07-19", name: "買い出しメモ" });
+    const result = await addTask(repo, { date: TEST_DATE, name: "買い出しメモ" });
 
     expect(result).toEqual({
       ok: true,
       value: expect.objectContaining({
-        taskDate: "2026-07-19",
+        taskDate: TEST_DATE,
         name: "買い出しメモ",
         estimateMinutes: 0,
         sectionId: null,
@@ -84,19 +66,19 @@ describe("addTask（F-102 / 画面定義書01 §3.4: クイック追加）", () 
       task({ id: 1, sectionId: null, sortOrder: 2000 }),
       task({ id: 2, sectionId: 5, sortOrder: 9000 }), // 別セクションの値には影響されない
     ]);
-    const result = await addTask(repo, { date: "2026-07-19", name: "新タスク" });
+    const result = await addTask(repo, { date: TEST_DATE, name: "新タスク" });
     expect(result.ok && result.value.sortOrder).toBe(3000);
   });
 
   it("他の日付のタスクは採番に影響しない（task_date ごとに独立）", async () => {
-    const repo = inMemoryRepo([task({ id: 1, taskDate: "2026-07-18", sortOrder: 8000 })]);
-    const result = await addTask(repo, { date: "2026-07-19", name: "新タスク" });
+    const repo = inMemoryRepo([task({ id: 1, taskDate: "2026-07-25", sortOrder: 8000 })]);
+    const result = await addTask(repo, { date: TEST_DATE, name: "新タスク" });
     expect(result.ok && result.value.sortOrder).toBe(1000);
   });
 
   it("空白のみの名前では作らない（§8: 何もしない）", async () => {
     const repo = inMemoryRepo();
-    expect(await addTask(repo, { date: "2026-07-19", name: "   " })).toEqual({
+    expect(await addTask(repo, { date: TEST_DATE, name: "   " })).toEqual({
       ok: false,
       error: "name_required",
     });
@@ -105,7 +87,7 @@ describe("addTask（F-102 / 画面定義書01 §3.4: クイック追加）", () 
 
   it("名前の前後の空白は除去する", async () => {
     const repo = inMemoryRepo();
-    const result = await addTask(repo, { date: "2026-07-19", name: " 朝食 " });
+    const result = await addTask(repo, { date: TEST_DATE, name: " 朝食 " });
     expect(result.ok && result.value.name).toBe("朝食");
   });
 });
@@ -185,31 +167,31 @@ describe("listDailyList の警告対象（画面定義書01 §8: 前日以前の
 
   it("実行中タスクが表示日より前ならバナー対象として返す", async () => {
     const repo = inMemoryRepo([
-      task({ id: 1, taskDate: "2026-07-18", startedAt: new Date("2026-07-18T23:00:00Z") }),
+      task({ id: 1, taskDate: "2026-07-25", startedAt: new Date("2026-07-25T23:00:00Z") }),
     ]);
-    const view = await listDailyList(deps(repo), "2026-07-19");
+    const view = await listDailyList(deps(repo), TEST_DATE);
     expect(view.staleRunningTask?.id).toBe(1);
   });
 
   it("実行中タスクが表示日と同じ日なら対象にしない", async () => {
     const repo = inMemoryRepo([
-      task({ id: 1, taskDate: "2026-07-19", startedAt: new Date("2026-07-19T09:00:00Z") }),
+      task({ id: 1, taskDate: TEST_DATE, startedAt: new Date("2026-07-26T09:00:00Z") }),
     ]);
-    const view = await listDailyList(deps(repo), "2026-07-19");
+    const view = await listDailyList(deps(repo), TEST_DATE);
     expect(view.staleRunningTask).toBeNull();
   });
 
   it("未来日を表示中に当日の実行中タスクがあっても対象にする（放置の検知が目的）", async () => {
     const repo = inMemoryRepo([
-      task({ id: 1, taskDate: "2026-07-19", startedAt: new Date("2026-07-19T09:00:00Z") }),
+      task({ id: 1, taskDate: TEST_DATE, startedAt: new Date("2026-07-26T09:00:00Z") }),
     ]);
-    const view = await listDailyList(deps(repo), "2026-07-20");
+    const view = await listDailyList(deps(repo), "2026-07-27");
     expect(view.staleRunningTask?.id).toBe(1);
   });
 
   it("実行中タスクがなければ対象なし", async () => {
-    const repo = inMemoryRepo([task({ id: 1, taskDate: "2026-07-18" })]);
-    const view = await listDailyList(deps(repo), "2026-07-19");
+    const repo = inMemoryRepo([task({ id: 1, taskDate: "2026-07-25" })]);
+    const view = await listDailyList(deps(repo), TEST_DATE);
     expect(view.staleRunningTask).toBeNull();
   });
 });
@@ -231,7 +213,7 @@ describe("listDailyList の並び順（FB-01 / 画面定義書03 §4: name 昇�
         modes: modeRepo,
         projects: emptyProjectRepo,
       },
-      "2026-07-19"
+      TEST_DATE
     );
     expect(view.modes.map((m) => m.name)).toEqual(["あんず", "いちご", "ぶどう"]);
   });
@@ -251,7 +233,7 @@ describe("listDailyList の並び順（FB-01 / 画面定義書03 §4: name 昇�
         modes: emptyModeRepo,
         projects: projectRepo,
       },
-      "2026-07-19"
+      TEST_DATE
     );
     expect(view.projects.map((p) => p.name)).toEqual(["case-a", "case-b"]);
   });
@@ -272,7 +254,7 @@ describe("listDailyList の並び順（FB-01 / 画面定義書03 §4: name 昇�
         modes: emptyModeRepo,
         projects: emptyProjectRepo,
       },
-      "2026-07-19"
+      TEST_DATE
     );
     expect(view.sections.map((s) => s.name)).toEqual(["朝", "昼", "夜"]);
   });
@@ -294,7 +276,7 @@ describe("listDailyList のマスタ一覧（F-401 / F-402 / 画面定義書01 �
         modes: emptyModeRepo,
         projects: projectRepo,
       },
-      "2026-07-19"
+      TEST_DATE
     );
     expect(view.projects.map((p) => p.name)).toEqual(["case-a", "case-b"]);
   });
@@ -314,7 +296,7 @@ describe("listDailyList のマスタ一覧（F-401 / F-402 / 画面定義書01 �
         modes: modeRepo,
         projects: emptyProjectRepo,
       },
-      "2026-07-19"
+      TEST_DATE
     );
     expect(view.modes.map((m) => m.name)).toEqual(["あんず", "いちご"]);
   });
