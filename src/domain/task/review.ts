@@ -1,4 +1,5 @@
 // レビュー画面の導出（S-04 / 画面定義書04 §3）。集計はすべて引数のタスクから導く
+import { bySortOrder } from "./sort-order";
 import { actualMinutes, type Task } from "./task";
 
 /** 実行済みタスク（`started_at` あり）。実績ログ・集計の母集団（§3.3） */
@@ -20,9 +21,7 @@ export function executionLog(tasks: readonly Task[]): readonly Task[] {
  * 他日へ移した分は移動先の日に属するため含まれない
  */
 export function postponedTasks(tasks: readonly Task[]): readonly Task[] {
-  return tasks
-    .filter((t) => t.startedAt === null)
-    .sort((a, b) => a.sortOrder - b.sortOrder);
+  return bySortOrder(tasks.filter((t) => t.startedAt === null));
 }
 
 /** 実績時間の合計（分）。実行中タスクは実績が確定していないため加算しない（§3.3） */

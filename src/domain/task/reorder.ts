@@ -1,7 +1,7 @@
 // 並び替え（画面定義書01 O-6 / データモデル定義書 §3.5）
 // 表示順は「セクション（start_time 順）→ sort_order」。移動先の前後から中間値を採番する
 import { err, ok, type Result } from "../shared/result";
-import { insertBetweenSortOrder, renumberSortOrders } from "./sort-order";
+import { placeSortOrder, tasksInSection, type Renumber } from "./sort-order";
 import type { Task, TaskId } from "./task";
 
 export type ReorderError = "task_not_found";
@@ -12,14 +12,8 @@ export type Reorder = Readonly<{
   sectionId: number | null;
   sortOrder: number;
   /** 中間値が尽きた場合の振り直し（グループ全体の新しい採番。空配列＝振り直しなし） */
-  renumber: readonly Readonly<{ taskId: TaskId; sortOrder: number }>[];
+  renumber: Renumber;
 }>;
-
-function sorted(tasks: readonly Task[], sectionId: number | null): Task[] {
-  return tasks
-    .filter((t) => t.sectionId === sectionId)
-    .sort((a, b) => a.sortOrder - b.sortOrder);
-}
 
 /**
  * タスクを指定セクションの指定位置（0始まり。その位置に差し込む）へ移動する採番を求める。
@@ -33,32 +27,15 @@ export function reorderTask(
   const target = tasks.find((t) => t.id === taskId);
   if (target === undefined) return err("task_not_found");
 
-  // 移動対象を除いた並びに対して挿入位置を決める
-  const others = sorted(tasks, destination.sectionId).filter((t) => t.id !== taskId);
-  const index = Math.max(0, Math.min(destination.index, others.length));
-
-  const before = index === 0 ? null : others[index - 1].sortOrder;
-  const after = index === others.length ? null : others[index].sortOrder;
-
-  const placed = insertBetweenSortOrder(before, after);
-  if (placed.ok) {
-    return ok({
-      taskId,
-      sectionId: destination.sectionId,
-      sortOrder: placed.value,
-      renumber: [],
-    });
-  }
-
-  // 中間値が尽きた: 移動後の並びで1000刻みに振り直す（データモデル定義書 §3.5）
-  const reordered = [...others.slice(0, index), target, ...others.slice(index)];
-  const numbers = renumberSortOrders(reordered.length);
+  // 移動対象を除いた並びに対して挿入位置を決める（採番と振り直しは §3.5 の共通規則）
+  const others = tasksInSection(tasks, destination.sectionId).filter((t) => t.id !== taskId);
+  const placed = placeSortOrder(others, destination.index, target);
 
   return ok({
     taskId,
     sectionId: destination.sectionId,
-    sortOrder: numbers[index],
-    renumber: reordered.map((t, i) => ({ taskId: t.id, sortOrder: numbers[i] })),
+    sortOrder: placed.sortOrder,
+    renumber: placed.renumber,
   });
 }
 
@@ -78,7 +55,7 @@ export function stepMoveDestination(
   const target = tasks.find((t) => t.id === taskId);
   if (target === undefined) return null;
 
-  const group = sorted(tasks, target.sectionId);
+  const group = tasksInSection(tasks, target.sectionId);
   const nextIndex = group.findIndex((t) => t.id === taskId) + step;
   if (nextIndex >= 0 && nextIndex < group.length) {
     return { sectionId: target.sectionId, index: nextIndex };
@@ -93,7 +70,7 @@ export function stepMoveDestination(
 
   const neighbor = sectionOrder[neighborIndex];
   // 下へ動くなら移動先の先頭、上へ動くなら移動先の末尾に入る
-  return { sectionId: neighbor, index: step === 1 ? 0 : sorted(tasks, neighbor).length };
+  return { sectionId: neighbor, index: step === 1 ? 0 : tasksInSection(tasks, neighbor).length };
 }
 
 /**

@@ -1,6 +1,7 @@
 // デイリーリストの表示順（画面定義書01 §3.2 / データモデル定義書 §3.5）
 // 表示順は「セクション（start_time 順）→ sort_order」。未分類はリスト先頭のインボックス
 import { byDayStartOrder, dayStartTimeOf, sectionRanges, type Section } from "../section/section";
+import { bySortOrder } from "./sort-order";
 import { actualMinutes, type Task, type TaskId } from "./task";
 
 export type DailyGroup = Readonly<{
@@ -10,10 +11,6 @@ export type DailyGroup = Readonly<{
   endTime: string | null;
   tasks: readonly Task[];
 }>;
-
-function bySortOrder(tasks: readonly Task[]): Task[] {
-  return [...tasks].sort((a, b) => a.sortOrder - b.sortOrder);
-}
 
 /**
  * タスクをセクションごとにまとめる（§3.2）。

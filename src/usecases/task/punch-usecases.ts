@@ -12,7 +12,7 @@ import {
   type PunchError,
 } from "@/domain/task/punch";
 import { newTaskFromDraft } from "@/usecases/task/from-draft";
-import { placeNewTask } from "@/domain/task/placement";
+import { placeSortOrder, tasksInSection } from "@/domain/task/sort-order";
 import { relocationOnPunchEdit, relocationOnStart, relocationOnUndoPunch } from "@/domain/task/relocation";
 import type { Task, TaskId } from "@/domain/task/task";
 
@@ -72,11 +72,11 @@ export async function startTask(
   // 再開タスクは開始タスクの直下（＝開始タスクと同じ日付・セクション）に置く。
   // 前日以前の実行中タスクを割り込んだ場合も当日側に生成される（データモデル定義書 §4.2）。
   // §4.2-a で開始タスクが移動した場合は移動先の直下になる
-  const group = sameDay
-    .map((t) => (t.id === started.id ? started : t))
-    .filter((t) => t.sectionId === started.sectionId)
-    .sort((a, b) => a.sortOrder - b.sortOrder);
-  const placed = placeNewTask(group, started.sectionId, group.findIndex((t) => t.id === started.id) + 1);
+  const group = tasksInSection(
+    sameDay.map((t) => (t.id === started.id ? started : t)),
+    started.sectionId
+  );
+  const placed = placeSortOrder(group, group.findIndex((t) => t.id === started.id) + 1);
 
   const draft = resumeTaskDraft(running, input.now);
   await repo.start({
