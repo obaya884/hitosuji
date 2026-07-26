@@ -66,7 +66,11 @@ export const OPERATION_MESSAGES: Record<TaskOperationError, string> = {
 /**
  * 複製して開始（F-208）専用。`not_completed`（複製元が完了でない）に「もう一回」の文脈を添えるため、
  * ここだけ `OPERATION_MESSAGES` と文言が違う。**このコードへ到達するのは
- * `duplicateAndStartTask` だけ**なので、差をこの辞書に閉じ込めれば共有辞書側は一致を保てる（T-74）
+ * `duplicateAndStartTask` だけ**なので、差をこの辞書に閉じ込めれば共有辞書側は一致を保てる（T-74）。
+ *
+ * **`duplicateAndStartTaskAction` 以外から引かないこと**。`TaskOperationError ⊇ PunchUsecaseError`
+ * なので打刻系のコードを引いても型は通り、そのとき打刻の失敗に「複製して開始…」が出る
+ * （T-74 で消したかった症状そのもの）。この1本だけは型でもテストでも守れないため名前で示す
  */
 export const DUPLICATE_AND_START_MESSAGES: Record<TaskOperationError, string> = {
   ...OPERATION_MESSAGES,
@@ -75,9 +79,7 @@ export const DUPLICATE_AND_START_MESSAGES: Record<TaskOperationError, string> = 
 
 /**
  * ルーチン入力の検証エラー。ルーチン管理（画面定義書02 §4）とデイリーのルーチン化
- * （画面定義書01 §4.1）が同じコードを表示する（FB-72 ②）。
- * `Record<RoutineUsecaseError, string>` で閉じているので、ドメインへエラーコードを足すと
- * ここが型エラーになる（文言の決め忘れを防ぐ）
+ * （画面定義書01 §4.1）が同じコードを表示する（FB-72 ②）
  */
 export const ROUTINE_ERROR_MESSAGES: Record<RoutineUsecaseError, string> = {
   name_required: "名前を入力してください",

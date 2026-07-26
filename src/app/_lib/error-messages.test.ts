@@ -102,7 +102,7 @@ const EXPECTED_ROUTINE_FROM_TASK: Record<CreateRoutineFromTaskError, string> = {
   routine_not_found: ROUTINE_FROM_TASK_FALLBACK,
 };
 
-describe("エラー文言辞書（T-49: クライアントとサーバが同じ辞書を参照する / T-75: 置き場は1か所）", () => {
+describe("エラー文言辞書（T-49: クライアントとサーバが同じ辞書を参照する）", () => {
   it("タスク編集（§3.3・§8）の対応表が期待どおり", () => {
     expect(TASK_EDIT_MESSAGES).toEqual(EXPECTED_TASK_EDIT);
   });
@@ -123,7 +123,7 @@ describe("エラー文言辞書（T-49: クライアントとサーバが同じ�
     expect(OPERATION_MESSAGES).toEqual(EXPECTED_OPERATION);
   });
 
-  it("複製して開始（F-208）の対応表が期待どおり（not_completed だけ文言が違う）", () => {
+  it("複製して開始（F-208）の対応表が期待どおり", () => {
     expect(DUPLICATE_AND_START_MESSAGES).toEqual(EXPECTED_DUPLICATE_AND_START);
   });
 
@@ -181,5 +181,17 @@ describe("同じコードは経路が違っても同じ文言を出す（FB-72: 
     for (const code of codes) {
       expect(OPERATION_MESSAGES[code]).toBe(PUNCH_MESSAGES[code]);
     }
+  });
+
+  /**
+   * 隔離した差が広がっていないこと。専用辞書の存在理由は `not_completed` の1件だけなので、
+   * 2件目の上書きが増えたらそれは共有辞書との新しい食い違いであり、隔離の前提が崩れている
+   */
+  it("複製して開始専用の辞書が共有辞書と違うのは not_completed の1件だけ（T-74）", () => {
+    const differing = (Object.keys(OPERATION_MESSAGES) as TaskOperationError[]).filter(
+      (code) => DUPLICATE_AND_START_MESSAGES[code] !== OPERATION_MESSAGES[code]
+    );
+
+    expect(differing).toEqual(["not_completed"]);
   });
 });
