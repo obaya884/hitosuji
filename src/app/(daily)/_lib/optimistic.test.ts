@@ -8,7 +8,8 @@ import { sectionGroup, unclassifiedGroup } from "../_testing/factories";
 import { applyOptimisticAction, optimisticTask, type OptimisticAction } from "./optimistic";
 
 // 見るのは「どのアクションが何をどこまで即時に反映するか」（画面定義書01 / N-01）。
-// グループ操作そのもの（挿入位置・境界の丸め）は domain/task/daily-list のテストが持つ。
+// グループ操作そのもの（挿入位置・境界の丸め・存在しないIDの扱い・不変性）は
+// domain/task/daily-list のテストが持つ。
 const MORNING: Section = { id: 1, name: "朝", startTime: "06:00", isArchived: false };
 
 const NOT_STARTED = task({ id: 11, name: "未実行" });
@@ -138,23 +139,6 @@ describe("applyOptimisticAction の即時反映（N-01 / 00_共通 §4）", () =
 
     expect(find(applied, 13)).toBeUndefined();
     expect(applied[1].tasks.map((t) => t.id)).toEqual([12]);
-    expect(applied[0].tasks).toEqual([NOT_STARTED]); // 全グループを写す実装なので他グループの不変も見る
-  });
-
-  // remove は唯一 domain の `withTask*` に委譲せず直書きしている枝なので、
-  // 「居ないID」と不変性はこの枝で確かめる（他の枝は domain 側のテストが持つ）
-  it("対象が居ない remove でも壊れない（サーバ確定で既に消えた行への操作）", () => {
-    const applied = apply({ type: "remove", id: 999 });
-
-    expect(applied.flatMap((g) => g.tasks).map((t) => t.id)).toEqual([11, 12, 13]);
-  });
-
-  it("元のグループ列を書き換えない（useOptimistic は前の状態を保つ）", () => {
-    const before = groups();
-
-    applyOptimisticAction(before, { type: "remove", id: 11 });
-
-    expect(before[0].tasks.map((t) => t.id)).toEqual([11]);
   });
 });
 

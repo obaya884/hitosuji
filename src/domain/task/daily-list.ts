@@ -127,7 +127,7 @@ export function withTaskMoved(
   const moving = groups.flatMap((g) => g.tasks).find((t) => t.id === taskId);
   if (moving === undefined) return [...groups];
 
-  const removed = groups.map((g) => ({ ...g, tasks: g.tasks.filter((t) => t.id !== taskId) }));
+  const removed = withTaskRemoved(groups, taskId);
   const moved = { ...moving, sectionId: destination.sectionId };
 
   const target = removed.find((g) => (g.section?.id ?? null) === destination.sectionId);
@@ -142,6 +142,20 @@ export function withTaskMoved(
       ? { ...g, tasks: [...g.tasks.slice(0, index), moved, ...g.tasks.slice(index)] }
       : g
   );
+}
+
+/**
+ * 指定タスクを取り除いた新しいグループ列を返す（楽観的更新の削除用 / O-8）。
+ * 対象が居なければ内容は変わらない。どのグループに属していても取り除ける
+ */
+export function withTaskRemoved(
+  groups: readonly DailyGroup[],
+  taskId: TaskId
+): DailyGroup[] {
+  return groups.map((group) => ({
+    ...group,
+    tasks: group.tasks.filter((t) => t.id !== taskId),
+  }));
 }
 
 /**
