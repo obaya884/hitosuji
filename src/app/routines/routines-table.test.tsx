@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { deferredAction } from "@/app/_testing/actions";
 import { hasClass, rgbOf } from "@/app/_testing/dom";
-import { MODE_COLORS, type Mode } from "@/domain/mode/mode";
+import { MODE_COLOR_PRESETS, type Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { Routine } from "@/domain/routine/routine";
 
@@ -150,7 +150,12 @@ describe("RoutinesTable（画面定義書02 §3: 一覧の列と表記）", () =
   });
 
   it("参照中であればアーカイブ済みマスタの名前も出す（過去の参照を保つ）", () => {
-    const archivedMode: Mode = { id: 9, name: "旧モード", color: MODE_COLORS[12], isArchived: true };
+    const archivedMode: Mode = {
+      id: 9,
+      name: "旧モード",
+      color: MODE_COLOR_PRESETS[12].value,
+      isArchived: true,
+    };
     const archivedProject: Project = { id: 19, name: "旧案件", isArchived: true };
     const { container } = renderTable([routine({ id: 1, modeId: 9, projectId: 19 })], {
       allModes: [...MODES, archivedMode],

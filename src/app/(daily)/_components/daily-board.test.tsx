@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MODE_COLORS, type Mode } from "@/domain/mode/mode";
+import { MODE_COLOR_PRESETS, type Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { Section } from "@/domain/section/section";
 import { formatClock } from "@/app/_lib/format";
@@ -86,7 +86,9 @@ const SECTIONS: readonly Section[] = [
   { id: 1, name: "午前", startTime: "09:00", isArchived: false },
   { id: 2, name: "午後", startTime: "13:00", isArchived: false },
 ];
-const MODES: readonly Mode[] = [{ id: 1, name: "集中", color: MODE_COLORS[8], isArchived: false }];
+const MODES: readonly Mode[] = [
+  { id: 1, name: "集中", color: MODE_COLOR_PRESETS[8].value, isArchived: false },
+];
 const PROJECTS: readonly Project[] = [{ id: 1, name: "改善", isArchived: false }];
 
 const NOT_STARTED = "資料作成";

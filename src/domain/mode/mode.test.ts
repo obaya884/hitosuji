@@ -9,8 +9,8 @@ import {
 
 describe("validateModeInput（画面定義書03 §3.2: 色はプリセットから選択・自由入力なし）", () => {
   it("プリセット色なら有効", () => {
-    const r = validateModeInput({ name: "仕事", color: MODE_COLORS[0] });
-    expect(r).toEqual({ ok: true, value: { name: "仕事", color: MODE_COLORS[0] } });
+    const r = validateModeInput({ name: "仕事", color: MODE_COLOR_PRESETS[0].value });
+    expect(r).toEqual({ ok: true, value: { name: "仕事", color: MODE_COLOR_PRESETS[0].value } });
   });
 
   it("プリセット外の色はエラー", () => {
@@ -19,7 +19,7 @@ describe("validateModeInput（画面定義書03 §3.2: 色はプリセットか�
   });
 
   it("名前が空ならエラー", () => {
-    const r = validateModeInput({ name: "", color: MODE_COLORS[0] });
+    const r = validateModeInput({ name: "", color: MODE_COLOR_PRESETS[0].value });
     expect(r).toEqual({ ok: false, error: "name_required" });
   });
 });

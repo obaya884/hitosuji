@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ModeInput, ModeRepository } from "@/usecases/ports/mode-repository";
-import { MODE_COLORS, type Mode, type ModeId } from "@/domain/mode/mode";
+import { MODE_COLOR_PRESETS, type Mode, type ModeId } from "@/domain/mode/mode";
 import { createMode, deleteMode, listModes, setModeArchived, updateMode } from "./mode-usecases";
 
 // 古典学派: Port の契約を満たすインメモリ実装（アーキテクチャ定義書 §8）
@@ -37,7 +37,7 @@ function inMemoryRepo(
   };
 }
 
-const blue = MODE_COLORS[8];
+const blue = MODE_COLOR_PRESETS[8].value;
 
 describe("listModes（画面定義書03 §4: name 昇順・アーカイブ済みは別枠）", () => {
   it("有効とアーカイブ済みを分け、それぞれ名前順に返す", async () => {

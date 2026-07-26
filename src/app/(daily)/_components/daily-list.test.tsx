@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
-import { MODE_COLORS, type Mode } from "@/domain/mode/mode";
+import { MODE_COLOR_PRESETS, type Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { Section } from "@/domain/section/section";
 import type { DailyGroup } from "@/domain/task/daily-list";
@@ -14,9 +14,9 @@ import { sectionGroup, unclassifiedGroup } from "../_testing/factories";
 import { DailyList, type EditingCell } from "./daily-list";
 
 const MODES: readonly Mode[] = [
-  { id: 1, name: "仕事", color: MODE_COLORS[0], isArchived: false },
-  { id: 2, name: "生活", color: MODE_COLORS[5], isArchived: false },
-  { id: 3, name: "旧モード", color: MODE_COLORS[8], isArchived: true },
+  { id: 1, name: "仕事", color: MODE_COLOR_PRESETS[0].value, isArchived: false },
+  { id: 2, name: "生活", color: MODE_COLOR_PRESETS[5].value, isArchived: false },
+  { id: 3, name: "旧モード", color: MODE_COLOR_PRESETS[8].value, isArchived: true },
 ];
 
 const PROJECTS: readonly Project[] = [

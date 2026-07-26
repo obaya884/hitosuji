@@ -25,7 +25,7 @@ import {
 import { ModesTable } from "./modes-table";
 
 // プリセット13色のうちテストで使う3つ（画面定義書03 §3.2 の表の値）。
-// 添字（MODE_COLORS[0] 等）ではなく hex を直に置き、期待値の色名（「赤」等）と読み合わせられるようにする
+// 添字（MODE_COLOR_PRESETS[0].value 等）ではなく hex を直に置き、期待値の色名（「赤」等）と読み合わせられるようにする
 const RED = "#ef4444";
 const BLUE = "#3b82f6";
 const GRAY = "#9ca3af";
