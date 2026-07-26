@@ -47,15 +47,15 @@ describe("AssignCell（画面定義書01 §3.3 / O-5: 割り当ての入口に�
     expect((button.firstElementChild as HTMLElement).classList.contains("text-ink-faint")).toBe(true);
   });
 
-  // `isDimmed` は「既定のグレーにするか」の真偽だけを受け取り、クラスの決定はここが持つ。
-  // どの行を・どのセルまでグレーにするかの規則は行側（task-row.test.tsx）が見る
-  it("指定があればセル全体を既定のグレー（text-ink-muted）にする", () => {
+  // `isDimmed` は「副次情報の色にするか」の真偽だけを受け取り、クラスの決定はここが持つ。
+  // どの行の・どのセルを対象にするかは §3.3「モード未設定行の色」で、配線は task-row.test.tsx
+  it("指定があればセル全体を副次情報の色（text-ink-muted）にする", () => {
     const { cell } = renderCell({ isDimmed: true });
 
     expect(cell.classList.contains("text-ink-muted")).toBe(true);
   });
 
-  it("指定がなければグレーのクラスを付けない（行の色をそのまま効かせる）", () => {
+  it("指定がなければ色のクラスを付けない（行の色をそのまま効かせる）", () => {
     const { cell } = renderCell();
 
     expect(cell.classList.contains("text-ink-muted")).toBe(false);

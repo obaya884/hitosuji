@@ -253,20 +253,23 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
       expect(rowOf("朝食").style.color).toBe("");
     });
 
-    // グレーにする範囲（プロジェクト・モード・実績・実施時間とセクション併記。見積セルは対象外）
-    // は docs に条項がなく実装上の取り決め。条項化するかはヘッド経由でオーナーに確認中
-    it("モード未設定の行は対象セルすべてに既定のグレーを付ける", () => {
-      renderRow({ task: task({ id: 1, name: "朝食", sectionId: 100 }) });
+    // グレーにする範囲は §3.3「モード未設定行の色」が正——モード・プロジェクト・セクションの
+    // 併記・実績・実施時間が対象で、タスク名と見積は既定の文字色のまま
+    it("モード未設定の行は対象セルすべてを副次情報の色にする（§3.3「モード未設定行の色」）", () => {
+      renderRow({ task: task({ id: 1, name: "朝食", estimateMinutes: 20, sectionId: 100 }) });
 
-      const { name, project, mode, actual, time } = cellsOf(rowOf("朝食"));
+      const { name, project, mode, estimate, actual, time } = cellsOf(rowOf("朝食"));
       for (const cell of [project, mode, actual, time]) {
         expect(cell.classList.contains("text-ink-muted")).toBe(true);
       }
-      // タスク名セルに併記されるセクション名も同じ規則で弱める
+      // タスク名セルに併記されるセクション名も対象
       expect(within(name).getByText("朝").classList.contains("text-ink-muted")).toBe(true);
+      // 見積は対象外（未設定に専用の薄い表記があるため。00_共通 §2.4）。タスク名も主情報なので対象外
+      expect(estimate.classList.contains("text-ink-muted")).toBe(false);
+      expect(within(name).getByText("朝食").classList.contains("text-ink-muted")).toBe(false);
     });
 
-    it("モード設定済みの行はどこにもグレーを付けない（モード色を効かせる）", () => {
+    it("モード設定済みの行はどこにもグレーを付けない（モード色を効かせる。F-401）", () => {
       renderRow({
         task: task({ id: 1, name: "朝食", modeId: 1, sectionId: 100 }),
         mode: modeOf("仕事"),
