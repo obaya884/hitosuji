@@ -16,7 +16,6 @@ import {
   undoStart,
   updateTaskPunch,
   type CompletionSnapshot,
-  type PunchUsecaseError,
 } from "@/usecases/task/punch-usecases";
 import {
   deleteTask,
@@ -25,23 +24,22 @@ import {
   postponeTask,
   restoreTask,
   suspendTask,
-  type TaskOperationError,
 } from "@/usecases/task/operations";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import type { Task } from "@/domain/task/task";
-import {
-  moveTaskByOneStep,
-  setTaskSection,
-  type ReorderUsecaseError,
-} from "@/usecases/task/reorder-usecases";
-import {
-  createRoutineFromTask,
-  type CreateRoutineFromTaskError,
-} from "@/usecases/routine/routine-usecases";
+import { moveTaskByOneStep, setTaskSection } from "@/usecases/task/reorder-usecases";
+import { createRoutineFromTask } from "@/usecases/routine/routine-usecases";
 import { applyCarryOverAfterPunch } from "@/usecases/task/relocation-usecases";
 import type { ActionResult } from "@/app/_lib/action-result";
 import { formatClock } from "@/app/_lib/format";
 import { resolveToday } from "@/app/_lib/today";
+import {
+  OPERATION_MESSAGES,
+  PUNCH_MESSAGES,
+  REORDER_MESSAGES,
+  routineFromTaskErrorMessage,
+  TASK_EDIT_MESSAGES,
+} from "./_lib/error-messages";
 import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
 import { createRoutineRepository } from "@/infrastructure/db/repositories/drizzle-routine-repository";
 import { createSectionRepository } from "@/infrastructure/db/repositories/drizzle-section-repository";
@@ -65,7 +63,7 @@ export async function addTaskAction(
   input: Readonly<{ date: LogicalDate; name: string }>
 ): Promise<CreatingActionResult> {
   const result = await addTask(taskRepo, input);
-  if (!result.ok) return { ok: false, message: "タスク名を入力してください" };
+  if (!result.ok) return { ok: false, message: TASK_EDIT_MESSAGES[result.error] };
   revalidatePath("/");
   // 追加したタスクを選択するため採番結果を返す（画面定義書01 §3.4 / FB-29）
   return { ok: true, createdId: result.value.id };
@@ -76,7 +74,7 @@ export async function renameTaskAction(
   name: string
 ): Promise<DailyActionResult> {
   const result = await renameTask(taskRepo, id, name);
-  if (!result.ok) return { ok: false, message: "タスク名を入力してください" };
+  if (!result.ok) return { ok: false, message: TASK_EDIT_MESSAGES[result.error] };
   revalidatePath("/");
   return { ok: true };
 }
@@ -86,19 +84,10 @@ export async function updateTaskEstimateAction(
   rawMinutes: string
 ): Promise<DailyActionResult> {
   const result = await updateTaskEstimate(taskRepo, id, rawMinutes);
-  if (!result.ok) return { ok: false, message: "見積もりは分（0以上の整数）で入力してください" };
+  if (!result.ok) return { ok: false, message: TASK_EDIT_MESSAGES[result.error] };
   revalidatePath("/");
   return { ok: true };
 }
-
-// 打刻修正（PunchEditError）系の文言はクライアント側 daily-board.tsx が持つ
-const PUNCH_ERROR_MESSAGES: Record<PunchUsecaseError, string> = {
-  task_not_found: "タスクが見つかりませんでした",
-  already_started: "このタスクはすでに開始済みです",
-  not_running: "実行中のタスクではありません",
-  not_completed: "完了したタスクではありません",
-  ended_before_started: "終了時刻が開始時刻より前になります",
-};
 
 /** 開始打刻（F-201）。now はクライアントの現在時刻を受け取る */
 export async function startTaskAction(id: number, now: Date): Promise<DailyActionResult> {
@@ -106,7 +95,7 @@ export async function startTaskAction(id: number, now: Date): Promise<DailyActio
   const today = await resolveToday(sectionRepo, now);
   const nowClock = formatClock(now);
   const result = await startTask(punchDeps, { taskId: id, now, nowClock, today });
-  if (!result.ok) return { ok: false, message: PUNCH_ERROR_MESSAGES[result.error] };
+  if (!result.ok) return { ok: false, message: PUNCH_MESSAGES[result.error] };
   // 開始したタスクより前に残っている未実行タスクを繰り下げる（F-113 §4.2-b）
   await applyCarryOverAfterPunch(punchDeps, { date: today, today, nowClock });
   revalidatePath("/");
@@ -120,7 +109,7 @@ export async function undoStartAction(id: number, now: Date): Promise<DailyActio
     nowClock: formatClock(now),
     today: await resolveToday(sectionRepo, now),
   });
-  if (!result.ok) return { ok: false, message: PUNCH_ERROR_MESSAGES[result.error] };
+  if (!result.ok) return { ok: false, message: PUNCH_MESSAGES[result.error] };
   revalidatePath("/");
   return { ok: true };
 }
@@ -140,7 +129,7 @@ export async function undoCompleteAction(
     nowClock: formatClock(now),
     today: await resolveToday(sectionRepo, now),
   });
-  if (!result.ok) return { ok: false, message: PUNCH_ERROR_MESSAGES[result.error] };
+  if (!result.ok) return { ok: false, message: PUNCH_MESSAGES[result.error] };
   revalidatePath("/");
   return { ok: true, snapshot: result.value };
 }
@@ -150,14 +139,14 @@ export async function restoreCompletionAction(
   snapshot: CompletionSnapshot
 ): Promise<DailyActionResult> {
   const result = await restoreCompletion(taskRepo, snapshot);
-  if (!result.ok) return { ok: false, message: PUNCH_ERROR_MESSAGES[result.error] };
+  if (!result.ok) return { ok: false, message: PUNCH_MESSAGES[result.error] };
   revalidatePath("/");
   return { ok: true };
 }
 
 export async function finishTaskAction(id: number, now: Date): Promise<DailyActionResult> {
   const result = await finishTask(taskRepo, { taskId: id, now });
-  if (!result.ok) return { ok: false, message: PUNCH_ERROR_MESSAGES[result.error] };
+  if (!result.ok) return { ok: false, message: PUNCH_MESSAGES[result.error] };
   const today = await resolveToday(sectionRepo, now);
   await applyCarryOverAfterPunch(punchDeps, { date: today, today, nowClock: formatClock(now) });
   revalidatePath("/");
@@ -182,14 +171,10 @@ export async function updateTaskPunchAction(
     // 「今日」の判定は他の打刻アクションと同じくクライアントの現在時刻＋日界（F-116）から導く
     today: await resolveToday(sectionRepo, now),
   });
-  if (!result.ok) return { ok: false, message: PUNCH_ERROR_MESSAGES[result.error] };
+  if (!result.ok) return { ok: false, message: PUNCH_MESSAGES[result.error] };
   revalidatePath("/");
   return { ok: true };
 }
-
-const REORDER_ERROR_MESSAGES: Record<ReorderUsecaseError, string> = {
-  task_not_found: "タスクが見つかりませんでした",
-};
 
 /** Shift+J/K での並び替え（O-6） */
 export async function moveTaskByStepAction(
@@ -199,7 +184,7 @@ export async function moveTaskByStepAction(
     { tasks: taskRepo, sections: sectionRepo },
     input
   );
-  if (!result.ok) return { ok: false, message: REORDER_ERROR_MESSAGES[result.error] };
+  if (!result.ok) return { ok: false, message: REORDER_MESSAGES[result.error] };
   revalidatePath("/");
   return { ok: true };
 }
@@ -227,47 +212,15 @@ export async function setTaskSectionAction(
   input: Readonly<{ taskId: number; date: LogicalDate; sectionId: number | null }>
 ): Promise<DailyActionResult> {
   const result = await setTaskSection(taskRepo, input);
-  if (!result.ok) return { ok: false, message: REORDER_ERROR_MESSAGES[result.error] };
+  if (!result.ok) return { ok: false, message: REORDER_MESSAGES[result.error] };
   revalidatePath("/");
   return { ok: true };
 }
 
-const OPERATION_ERROR_MESSAGES: Record<TaskOperationError, string> = {
-  ...PUNCH_ERROR_MESSAGES,
-  not_postponable: "先送りできるのは未実行タスクだけです",
-  // 複製して開始（F-208）向けに PunchError の同キー（"完了したタスクではありません"）を上書きする
-  not_completed: "複製して開始できるのは完了タスクだけです",
-};
-
-/**
- * ルーチン化の失敗（画面定義書01 §4.1）。入力値の検証エラーは画面定義書02 §4 の項目に対応する。
- * 対応するユースケース `createRoutineFromTask` の戻り値型 `CreateRoutineFromTaskError` は
- * `RoutineUsecaseError | RoutineFromTaskError | "task_not_found"` で、下記より多くのコード
- * （name_required・name_too_long・invalid_estimate・invalid_start_date・invalid_end_date・
- * end_date_before_start_date・routine_not_found）を型上は許容する。文言自体は
- * `routines/actions.ts` の `MESSAGES` に既にあるが、**ルーチン化経路でその文言を流用してよいか**は
- * 表示が変わる＝挙動変更の判断（オーナー判断）が要るため、T-42 では埋めず
- * `Partial<Record<CreateRoutineFromTaskError, string>>` として不足コードを型で表す。
- * 実際に `name_too_long` は到達しうる（タスク名は文字数無制限だがルーチン名は
- * `master-name.ts` の `MAX_NAME_LENGTH = 50` を超えられないため、50文字超のタスク名を
- * ルーチン化すると発生し、現状は下の `?? "ルーチン化に失敗しました"` に落ちる）。
- * 対応方針は FB として別途起票し、T-49（着手条件「T-42 に着手するとき」）で追跡する
- */
-const ROUTINE_FROM_TASK_ERROR_MESSAGES: Partial<Record<CreateRoutineFromTaskError, string>> = {
-  task_not_found: "タスクが見つかりませんでした",
-  estimate_required: "見積もりを入力してからルーチン化してください",
-  routine_derived_task: "ルーチン由来のタスクはルーチン化できません（ルーチン画面で編集してください）",
-  weekdays_required: "曜日を1つ以上選んでください",
-  invalid_week_interval: "週間隔は1〜53の整数で入力してください",
-  invalid_start_time: "開始想定時刻を HH:MM で入力してください",
-  invalid_interval_days: "間隔は1日以上で入力してください",
-  invalid_month_day: "日は1〜31で入力してください",
-};
-
 /** 中断（F-204） */
 export async function suspendTaskAction(id: number, now: Date): Promise<DailyActionResult> {
   const result = await suspendTask(taskRepo, { taskId: id, now });
-  if (!result.ok) return { ok: false, message: OPERATION_ERROR_MESSAGES[result.error] };
+  if (!result.ok) return { ok: false, message: OPERATION_MESSAGES[result.error] };
   revalidatePath("/");
   return { ok: true };
 }
@@ -275,7 +228,7 @@ export async function suspendTaskAction(id: number, now: Date): Promise<DailyAct
 /** 複製（F-111）。複製後に選択行を移すため、作られたタスクのIDを返す（O-11） */
 export async function duplicateTaskAction(id: number): Promise<CreatingActionResult> {
   const result = await duplicateTask({ tasks: taskRepo, sections: sectionRepo }, { taskId: id });
-  if (!result.ok) return { ok: false, message: OPERATION_ERROR_MESSAGES[result.error] };
+  if (!result.ok) return { ok: false, message: OPERATION_MESSAGES[result.error] };
   revalidatePath("/");
   return { ok: true, createdId: result.value.id };
 }
@@ -294,7 +247,7 @@ export async function duplicateAndStartTaskAction(
     { tasks: taskRepo, sections: sectionRepo },
     { taskId: id, now, nowClock, today }
   );
-  if (!result.ok) return { ok: false, message: OPERATION_ERROR_MESSAGES[result.error] };
+  if (!result.ok) return { ok: false, message: OPERATION_MESSAGES[result.error] };
   // 開始により前に残った未実行タスクを現在位置の直後へ繰り下げる（F-113 §4.2-b）
   await applyCarryOverAfterPunch(punchDeps, { date: today, today, nowClock });
   revalidatePath("/");
@@ -314,13 +267,7 @@ export async function createRoutineFromTaskAction(
     id,
     choice
   );
-  if (!result.ok) {
-    // 辞書に無いコード（上の ROUTINE_FROM_TASK_ERROR_MESSAGES 参照）は既定文言に落とす
-    return {
-      ok: false,
-      message: ROUTINE_FROM_TASK_ERROR_MESSAGES[result.error] ?? "ルーチン化に失敗しました",
-    };
-  }
+  if (!result.ok) return { ok: false, message: routineFromTaskErrorMessage(result.error) };
   // ルーチン一覧にも即座に現れるようにする（展開は翌日以降）
   revalidatePath("/routines");
   return { ok: true };
@@ -329,7 +276,7 @@ export async function createRoutineFromTaskAction(
 /** 先送り（F-107） */
 export async function postponeTaskAction(id: number): Promise<DailyActionResult> {
   const result = await postponeTask(taskRepo, { taskId: id });
-  if (!result.ok) return { ok: false, message: OPERATION_ERROR_MESSAGES[result.error] };
+  if (!result.ok) return { ok: false, message: OPERATION_MESSAGES[result.error] };
   revalidatePath("/");
   return { ok: true };
 }
@@ -339,7 +286,7 @@ export async function deleteTaskAction(
   id: number
 ): Promise<Readonly<{ ok: true; deleted: Task } | { ok: false; message: string }>> {
   const result = await deleteTask(taskRepo, { taskId: id });
-  if (!result.ok) return { ok: false, message: OPERATION_ERROR_MESSAGES[result.error] };
+  if (!result.ok) return { ok: false, message: OPERATION_MESSAGES[result.error] };
   revalidatePath("/");
   return { ok: true, deleted: result.value };
 }
@@ -347,7 +294,7 @@ export async function deleteTaskAction(
 /** 削除の取り消し（O-8） */
 export async function restoreTaskAction(deleted: Task): Promise<DailyActionResult> {
   const result = await restoreTask(taskRepo, deleted);
-  if (!result.ok) return { ok: false, message: OPERATION_ERROR_MESSAGES[result.error] };
+  if (!result.ok) return { ok: false, message: OPERATION_MESSAGES[result.error] };
   revalidatePath("/");
   return { ok: true };
 }

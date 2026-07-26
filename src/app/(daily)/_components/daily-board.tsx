@@ -43,6 +43,7 @@ import {
   type CreatingActionResult,
   type DailyActionResult,
 } from "../actions";
+import { PUNCH_EDIT_MESSAGES, TASK_EDIT_MESSAGES } from "../_lib/error-messages";
 import {
   applyOptimisticAction,
   optimisticTask,
@@ -69,13 +70,6 @@ type Props = Readonly<{
   /** 前日以前に放置されている実行中タスク（画面定義書01 §8） */
   staleRunningTask: Task | null;
 }>;
-
-const PUNCH_EDIT_MESSAGES: Record<string, string> = {
-  invalid_time: "時刻は HH:MM 形式で入力してください",
-  not_punched: "打刻されていないため修正できません",
-  no_started_at: "開始時刻のないタスクに終了時刻は設定できません",
-  ended_before_started: "終了時刻は開始時刻より後にしてください",
-};
 
 export function DailyBoard({
   date,
@@ -199,7 +193,7 @@ export function DailyBoard({
   function setEstimate(task: Task, raw: string) {
     const validated = validateEstimateMinutes(raw);
     if (!validated.ok) {
-      setError("見積もりは分（0以上の整数）で入力してください");
+      setError(TASK_EDIT_MESSAGES[validated.error]);
       return;
     }
     if (validated.value === task.estimateMinutes) return;
