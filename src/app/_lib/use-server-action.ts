@@ -2,10 +2,10 @@ import { useState, useTransition } from "react";
 import type { ActionResult } from "./action-result";
 
 /**
- * マスタ管理（modes/projects/sections）の各テーブル共通の Server Action 実行フック（画面定義書03）。
+ * Server Action 実行の共通フック（マスタ管理3テーブル・routines で使用。T-52）。
  * 実行前にエラーを消し、失敗時はメッセージを表示、成功時は `onSuccess` を呼ぶ（楽観更新はしない）。
  */
-export function useMasterAction() {
+export function useServerAction() {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import { describeRecurrence, type Routine } from "@/domain/routine/routine";
@@ -12,6 +12,7 @@ import {
 } from "@/domain/routine/order";
 import { sectionAt, type Section } from "@/domain/section/section";
 import { formatEstimate } from "@/app/_lib/format";
+import { useServerAction } from "@/app/_lib/use-server-action";
 import { btnSecondary, linkAccent, linkMuted, noticeDanger } from "@/app/_lib/ui";
 import { PlusIcon } from "@/app/_components/icons";
 import { UnsetMark } from "@/app/_components/unset-mark";
@@ -20,7 +21,6 @@ import {
   deleteRoutineAction,
   setRoutineActiveAction,
   updateRoutineAction,
-  type RoutineActionResult,
 } from "./actions";
 import { RoutineForm } from "./routine-form";
 
@@ -81,11 +81,10 @@ export function RoutinesTable({
   today,
 }: Props) {
   const [editing, setEditing] = useState<Routine | "new" | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [sort, setSort] = useState<Readonly<{ key: RoutineSortKey; direction: RoutineSortDirection }>>(
     { key: "scheduledStartTime", direction: "asc" }
   );
-  const [isPending, startTransition] = useTransition();
+  const { error, setError, isPending, run } = useServerAction();
 
   const modeById = new Map(allModes.map((m) => [m.id, m]));
   const projectById = new Map(allProjects.map((p) => [p.id, p]));
@@ -105,15 +104,6 @@ export function RoutinesTable({
         ? { key, direction: s.direction === "asc" ? "desc" : "asc" }
         : { key, direction: "asc" }
     );
-  }
-
-  function run(action: () => Promise<RoutineActionResult>, onSuccess?: () => void) {
-    setError(null);
-    startTransition(async () => {
-      const result = await action();
-      if (result.ok) onSuccess?.();
-      else setError(result.message);
-    });
   }
 
   function save(input: RoutineInput) {
