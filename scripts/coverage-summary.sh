@@ -26,7 +26,7 @@ SUMMARY = "coverage/coverage-summary.json"
 # 行ごとの実行回数。変更箇所カバレッジの判定に使う
 LCOV = "coverage/lcov.info"
 # 集計の粒度。src 直下2階層（src/domain・src/usecases・src/infrastructure・src/app）＝
-# アーキテクチャ定義書 §2 の依存方向の層に合わせる。末端ディレクトリまで割ると
+# アーキテクチャ定義書 §2 のレイヤー構成に合わせる。末端ディレクトリまで割ると
 # 1ファイルだけの行が並び、肝心の層ごとの数字を読む側が足し合わせる必要が出る
 LAYER_DEPTH = 2
 METRICS = ("statements", "branches", "functions", "lines")
