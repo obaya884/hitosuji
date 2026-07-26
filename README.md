@@ -28,6 +28,14 @@ npm run test:unit              # ユニットのみ
 npm run test:int               # 統合のみ
 ```
 
+UI の挙動を実ブラウザで測るときは、確認専用の環境を立てる（自動テストではない。T-37）:
+
+```bash
+npm run dev:check              # http://localhost:3100
+```
+
+確認専用DB（`hitosuji_check`。使い捨ての db-test コンテナ内）を作り直してフィクスチャを入れ、そこへ向けて dev サーバを起動する。**開発DB（:5432）には接続しない**ので、打刻・削除・複製を自由に試してよい。**データを元に戻すには `Ctrl+C` で止めて再実行する**（起動のたびに入れ直される）。
+
 PR と main への push では GitHub Actions（`.github/workflows/ci.yml`）が lint・build・test を自動実行する（統合テストは Postgres サービスコンテナを建てる）。Dependabot の依存更新PRもここで検証される。技術改善・負債返済などの活動は [技術改善バックログ](./docs/案件/23_技術改善バックログ.md) で管理する。
 
 ## デプロイ（Vercel + Neon）
