@@ -6,12 +6,7 @@ import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import { dayStartTimeOf, startMinutes, type Section } from "@/domain/section/section";
 import { weekdayIndex, type LogicalDate } from "@/domain/shared/logical-date";
-import {
-  withTaskAppended,
-  withTaskMoved,
-  withTaskUpdated,
-  type DailyGroup,
-} from "@/domain/task/daily-list";
+import type { DailyGroup } from "@/domain/task/daily-list";
 import { stepMoveDestination } from "@/domain/task/reorder";
 import { keepSelection, selectionAfterFinish } from "@/domain/task/selection";
 import { taskStatus } from "@/domain/task/status";
@@ -19,7 +14,6 @@ import { editEndedAt, editStartedAt } from "@/domain/task/punch-edit";
 import { validateEstimateMinutes, validateTaskName } from "@/domain/task/edit";
 import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
 import type { Task } from "@/domain/task/task";
-import type { CompletionSnapshot } from "@/usecases/task/punch-usecases";
 import { PlusIcon } from "@/app/_components/icons";
 import { formatClock } from "@/app/_lib/format";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
@@ -49,6 +43,12 @@ import {
   type CreatingActionResult,
   type DailyActionResult,
 } from "../actions";
+import {
+  applyOptimisticAction,
+  optimisticTask,
+  type OptimisticAction,
+} from "../_lib/optimistic";
+import { pendingUndoMessage, type PendingUndo, type UndoTarget } from "../_lib/undo";
 import { DailyList, type EditingCell } from "./daily-list";
 import { DailySummary } from "./daily-summary";
 import { DateNav } from "@/app/_components/date-nav";
@@ -70,121 +70,12 @@ type Props = Readonly<{
   staleRunningTask: Task | null;
 }>;
 
-// 楽観的更新（N-01）: 永続化を待たずに画面へ反映し、失敗時はサーバ状態へ巻き戻す
-type OptimisticAction =
-  | Readonly<{ type: "append"; task: Task }>
-  | Readonly<{ type: "rename"; id: number; name: string }>
-  | Readonly<{ type: "estimate"; id: number; minutes: number }>
-  | Readonly<{ type: "start"; id: number; at: Date }>
-  | Readonly<{ type: "unstart"; id: number }>
-  | Readonly<{ type: "uncomplete"; id: number }>
-  | Readonly<{ type: "finish"; id: number; at: Date }>
-  | Readonly<{ type: "punch"; id: number; startedAt: Date; endedAt: Date | null }>
-  | Readonly<{
-      type: "move";
-      id: number;
-      destination: Readonly<{ sectionId: number | null; index: number }>;
-    }>
-  | Readonly<{ type: "mode"; id: number; modeId: number | null }>
-  | Readonly<{ type: "project"; id: number; projectId: number | null }>
-  | Readonly<{ type: "remove"; id: number }>;
-
-function applyOptimisticAction(
-  groups: readonly DailyGroup[],
-  action: OptimisticAction
-): DailyGroup[] {
-  switch (action.type) {
-    case "append":
-      return withTaskAppended(groups, action.task);
-    case "rename":
-      return withTaskUpdated(groups, action.id, (t) => ({ ...t, name: action.name }));
-    case "estimate":
-      return withTaskUpdated(groups, action.id, (t) => ({
-        ...t,
-        estimateMinutes: action.minutes,
-      }));
-    // 割り込み時の「実行中タスクの終了・再開タスク生成」はサーバ確定後に反映される
-    case "start":
-      return withTaskUpdated(groups, action.id, (t) => ({ ...t, startedAt: action.at }));
-    // 未実行への並べ直し（§4.5）はサーバ確定後に反映される。まず打刻だけ消す
-    case "unstart":
-      return withTaskUpdated(groups, action.id, (t) => ({ ...t, startedAt: null }));
-    // 完了の取り消し（§4.7）も並べ直しはサーバ確定後。打刻2列のクリアだけ即時に反映する（O-15）
-    case "uncomplete":
-      return withTaskUpdated(groups, action.id, (t) => ({
-        ...t,
-        startedAt: null,
-        endedAt: null,
-      }));
-    case "finish":
-      return withTaskUpdated(groups, action.id, (t) => ({ ...t, endedAt: action.at }));
-    case "punch":
-      return withTaskUpdated(groups, action.id, (t) => ({
-        ...t,
-        startedAt: action.startedAt,
-        endedAt: action.endedAt,
-      }));
-    case "move":
-      return withTaskMoved(groups, action.id, action.destination);
-    case "mode":
-      return withTaskUpdated(groups, action.id, (t) => ({ ...t, modeId: action.modeId }));
-    case "project":
-      return withTaskUpdated(groups, action.id, (t) => ({ ...t, projectId: action.projectId }));
-    case "remove":
-      return groups.map((g) => ({ ...g, tasks: g.tasks.filter((t) => t.id !== action.id) }));
-  }
-}
-
-/**
- * 取り消せる直前の操作。削除（O-8）は復元用に削除したタスクを、完了の取り消し（O-15）は
- * 完了へ戻すための4列のスナップショット（データモデル定義書 §4.7）を持つ。
- * `name` はトーストの文言用（削除済みタスクの名前は画面から引けないため保持する）。
- * delete 枝では `task.name` と重複するが、文言の組み立てから種類分岐を消すため共通で持つ
- */
-type UndoTarget = Readonly<
-  { name: string } & (
-    | { type: "delete"; task: Task }
-    | { type: "uncomplete"; snapshot: CompletionSnapshot }
-  )
->;
-
-/**
- * 取り消しの保留（Undoトースト表示中の1件。画面定義書01 O-13）。削除と完了の取り消しで
- * **共通の1スロット**に持ち、後から来た操作が前の保留を置き換える。`seq` はトーストの再マウント用
- */
-type PendingUndo = UndoTarget & Readonly<{ seq: number }>;
-
-function pendingUndoMessage(pending: PendingUndo): string {
-  const phrase = pending.type === "delete" ? "削除しました" : "未実行に戻しました";
-  return `「${pending.name}」を${phrase}`;
-}
-
 const PUNCH_EDIT_MESSAGES: Record<string, string> = {
   invalid_time: "時刻は HH:MM 形式で入力してください",
   not_punched: "打刻されていないため修正できません",
   no_started_at: "開始時刻のないタスクに終了時刻は設定できません",
   ended_before_started: "終了時刻は開始時刻より後にしてください",
 };
-
-/** 楽観的更新で先に表示する仮タスク。負のIDでサーバ確定前だと分かるようにする */
-function optimisticTask(date: LogicalDate, name: string): Task {
-  return {
-    id: -Date.now(),
-    taskDate: date,
-    name,
-    estimateMinutes: 0,
-    sectionId: null,
-    modeId: null,
-    projectId: null,
-    sortOrder: Number.MAX_SAFE_INTEGER, // 未分類の末尾（§3.4）
-    startedAt: null,
-    endedAt: null,
-    comment: null,
-    routineId: null,
-    splitParentId: null,
-    postponedCount: 0,
-  };
-}
 
 export function DailyBoard({
   date,
@@ -280,7 +171,7 @@ export function DailyBoard({
     setPendingUndo({ ...undo, seq: ++pendingUndoSeq.current });
   }
 
-  // §3.4: Enter で追加 → 欄はクリアし、追加したタスクを選択（FB-29）。連続入力は N で欄に戻る。
+  // §3.4: Enter で追加 → 欄はクリアし、追加したタスクを選択（FB-29）。連続入力は `A` で欄に戻る（§6）。
   // 空のままの Enter は何もしない。欄からのフォーカス外しは呼び出し側で行う（ref をレンダー中に読まない）
   function add() {
     const trimmed = name.trim();
