@@ -1,5 +1,5 @@
 // テスト用のインメモリ TaskRepository。
-// 古典学派の「本物と同じ契約を満たす偽物」であってモックではない（アーキテクチャ定義書 §8）
+// 古典学派の「本物と同じ契約を満たす偽物」であってモックではない（テスト戦略定義書 §2）
 import type {
   DuplicateAndStartCommand,
   MoveCommand,

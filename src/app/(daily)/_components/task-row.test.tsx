@@ -10,7 +10,7 @@ import { TaskRow, type TaskRowProps } from "./task-row";
 
 /**
  * props は `TaskRowProps` から派生させる（同じ形を手で写さない）。**`task` だけ必須**——
- * どのテストも自分が描く行に依拠するので既定値を持たせない（アーキテクチャ定義書 §8）。
+ * どのテストも自分が描く行に依拠するので既定値を持たせない（テスト戦略定義書 §4）。
  * **`isSelected: true` を使うテストを足すときは `scrollIntoView` の詰め物が必要**
  * （jsdom に無い。選択の追従は daily-list.test.tsx が詰め物ごと持っている）
  */

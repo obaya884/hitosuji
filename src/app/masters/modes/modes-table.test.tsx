@@ -8,7 +8,7 @@ import { deferredAction } from "@/app/_testing/actions";
 import { startEditingCell } from "../_testing/table-helpers";
 
 // Server Action の先は実DB接続と revalidatePath に届くため、同じ返り値の契約
-// （ActionResult）を返す偽物へ差し替える（アーキテクチャ定義書 §8「偽物を置いてよい境界」）
+// （ActionResult）を返す偽物へ差し替える（テスト戦略定義書 §2「偽物を置いてよい境界」）
 vi.mock("./actions", () => ({
   createModeAction: vi.fn(),
   updateModeAction: vi.fn(),

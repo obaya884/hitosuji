@@ -19,7 +19,7 @@ import { DailyList, type DailyListProps } from "./daily-list";
 /**
  * props は `DailyListProps` から派生させる（同じ形を手で写さない）。
  * **`groups` は必須**——どのテストも自分が描く行に依拠するので、既定値を持たせない
- * （テストが依拠する値は呼び出し側に書く。アーキテクチャ定義書 §8）
+ * （テストが依拠する値は呼び出し側に書く。テスト戦略定義書 §4）
  */
 type Overrides = Partial<Omit<DailyListProps, "groups">> & Pick<DailyListProps, "groups">;
 
@@ -84,7 +84,7 @@ let scrollIntoView: Mock;
 
 beforeEach(() => {
   // jsdom はレイアウトを持たないため scrollIntoView が未実装。追従の有無だけを見る
-  // （どれだけスクロールするかは実測値依存なのでブラウザ段。アーキテクチャ定義書 §8）。
+  // （どれだけスクロールするかは実測値依存なのでブラウザ段。テスト戦略定義書 §3）。
   // **直代入は `restoreAllMocks` では戻らない**——毎テストの再代入で記録だけを新品にしている
   scrollIntoView = vi.fn();
   Element.prototype.scrollIntoView = scrollIntoView;

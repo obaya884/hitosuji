@@ -14,7 +14,7 @@ if (process.env.TEST_DATABASE_URL === undefined && existsSync(envWorktree)) {
   process.env.TEST_DATABASE_URL = match[1];
 }
 
-// テスト戦略はアーキテクチャ定義書 §8 参照
+// テスト戦略は docs/仕様/17_テスト戦略定義書.md 参照
 // - unit: domain 純関数のユニットテスト（*.test.ts）。DBなし・高速・多数
 // - integration: リポジトリ実装×実DB（*.int.test.ts）。db-test(:5433) が必要・少数
 export default defineConfig({
@@ -22,7 +22,7 @@ export default defineConfig({
     alias: { "@": path.resolve(import.meta.dirname, "src") },
   },
   test: {
-    // カバレッジは補助指標（数値ゲートは設けない）。詳細はアーキテクチャ定義書 §8
+    // カバレッジは補助指標（数値ゲートは設けない）。詳細はテスト戦略定義書 §7
     coverage: {
       provider: "v8",
       // json-summary（層ごとの集計）と lcovonly（行ごとの実行回数＝変更箇所カバレッジ）は
@@ -55,7 +55,7 @@ export default defineConfig({
       {
         extends: true,
         test: {
-          // コンポーネントテスト（アーキテクチャ定義書 §8）。jsdom を要するテストは
+          // コンポーネントテスト（テスト戦略定義書 §3）。jsdom を要するテストは
           // 対象が .ts（hooks 等）でも *.test.tsx に置く——拡張子が実行環境を表す
           name: "component",
           environment: "jsdom",

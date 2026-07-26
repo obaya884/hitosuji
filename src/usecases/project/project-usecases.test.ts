@@ -9,7 +9,7 @@ import {
   updateProject,
 } from "./project-usecases";
 
-// 古典学派: Port の契約を満たすインメモリ実装（アーキテクチャ定義書 §8）
+// 古典学派: Port の契約を満たすインメモリ実装（テスト戦略定義書 §2）
 function inMemoryRepo(
   initial: readonly Project[] = [],
   counts: Readonly<Record<ProjectId, number>> = {}

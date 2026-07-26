@@ -20,7 +20,7 @@ import { RoutinesTable } from "./routines-table";
 
 // actions.ts は "use server" で、その先は pg.Pool と revalidatePath に届くため素の jsdom では
 // 描画すらできない。同じ返り値の契約（RoutineActionResult）を返す偽物へ差し替える
-// （アーキテクチャ定義書 §8「偽物を置いてよい境界」）。目的は呼ばれ方の検証ではなく、
+// （テスト戦略定義書 §2「偽物を置いてよい境界」）。目的は呼ばれ方の検証ではなく、
 // 成功・失敗を固定して両分岐（フォームを閉じる / エラーを出して開いたまま）を通すこと。
 // 返り値の型は vi.mocked() が本物のシグネチャから引くのでここでは注釈しない
 vi.mock("./actions", () => ({
