@@ -31,12 +31,12 @@ type Editing =
   | Readonly<{ id: "new" }>;
 
 /** 終了時刻は次セクションの開始からの導出（入力しない）ことを示す添え書き（§3.1） */
-const derivedEndTime = (text: string) => (
+const derivedEndTime = (endTime: string) => (
   <span
     className="font-mono tabular-nums text-ink-faint"
     title="次のセクションの開始時刻から自動導出"
   >
-    {text}
+    –{endTime}
   </span>
 );
 
@@ -73,8 +73,7 @@ export function SectionsTable({ ranges, archived, deletableIds }: Props) {
       isPending={isPending}
       type="time"
       display={`${row.startTime}–${row.endTime}`}
-      adornment={derivedEndTime(`–${row.endTime}`)}
-      buttonClassName="font-mono tabular-nums"
+      adornment={derivedEndTime(row.endTime)}
       onStartEditing={() => {
         setError(null);
         setEditing({ id: row.id, field: "startTime" });
@@ -110,7 +109,7 @@ export function SectionsTable({ ranges, archived, deletableIds }: Props) {
           <td className="py-1 pr-2">
             <span className="flex items-center gap-1">
               <MasterNewRowInput field="startTime" type="time" onKeyDown={onKeyDown} />
-              {derivedEndTime("–自動")}
+              {derivedEndTime("自動")}
             </span>
           </td>
         </>

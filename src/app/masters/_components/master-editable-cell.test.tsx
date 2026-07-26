@@ -5,26 +5,19 @@ import { MasterEditableCell } from "./master-editable-cell";
 
 // マスタ管理3表が共有するインライン編集セル（画面定義書03 §4「編集方式」/ 00_共通 §2.3）。
 // ここでは部品としての作法を固定し、「何を送るか」の配線は各表のテストが持つ（T-44）
-function renderCell(
-  props: Partial<Parameters<typeof MasterEditableCell>[0]> = {}
-): Readonly<{ onStartEditing: () => void; onCommit: (value: string) => void; onClose: () => void }> {
+function renderCell(props: Partial<Parameters<typeof MasterEditableCell>[0]> = {}) {
   const handlers = {
     onStartEditing: vi.fn(),
-    onCommit: vi.fn(),
+    onCommit: vi.fn<(value: string) => void>(),
     onClose: vi.fn(),
   };
   render(
     <MasterEditableCell
-      isEditing={props.isEditing ?? false}
-      value={props.value ?? "モードA"}
-      isPending={props.isPending ?? false}
-      type={props.type}
-      display={props.display}
-      adornment={props.adornment}
-      buttonClassName={props.buttonClassName}
-      onStartEditing={props.onStartEditing ?? handlers.onStartEditing}
-      onCommit={props.onCommit ?? handlers.onCommit}
-      onClose={props.onClose ?? handlers.onClose}
+      isEditing={false}
+      value="モードA"
+      isPending={false}
+      {...handlers}
+      {...props}
     />
   );
   return handlers;

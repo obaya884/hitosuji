@@ -7,6 +7,14 @@ import type { ReactNode } from "react";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { inputBase } from "@/app/_lib/ui";
 
+/** マスタ管理で編集する値の種類。見た目（幅・字面）はここから導く */
+export type MasterInputType = "text" | "time";
+
+/** 入力欄の幅。時刻は内容に合わせる（`w-full` にすると桁の右に余白だけが伸びる） */
+export function masterInputClass(type: MasterInputType): string {
+  return type === "time" ? inputBase : `w-full ${inputBase}`;
+}
+
 type Props = Readonly<{
   /** 編集中はこのセルが入力欄になる（どのセルを開いているかは表が持つ） */
   isEditing: boolean;
@@ -14,13 +22,11 @@ type Props = Readonly<{
   value: string;
   /** 保存中（Server Action の応答待ち） */
   isPending: boolean;
-  type?: "text" | "time";
+  type?: MasterInputType;
   /** 閉じているときのボタン表示。既定は `value` そのまま（時間帯のように枠で見せる列で渡す） */
   display?: ReactNode;
   /** 入力欄の右に添える読み取り専用の表示（導出値など） */
   adornment?: ReactNode;
-  /** ボタン側の列固有のクラス（下線・非活性の見た目は本コンポーネントが付ける） */
-  buttonClassName?: string;
   onStartEditing: () => void;
   /** 値が変わったときだけ呼ばれる（送信する） */
   onCommit: (value: string) => void;
@@ -35,7 +41,6 @@ export function MasterEditableCell({
   type = "text",
   display,
   adornment,
-  buttonClassName = "text-left",
   onStartEditing,
   onCommit,
   onClose,
@@ -44,10 +49,13 @@ export function MasterEditableCell({
     return (
       <button
         type="button"
-        // 保存中は同じ行を編集させない（古い値での上書きを防ぐ。00_共通 §2.3「保存中」）
+        // 保存中は編集を開かせない（古い値での上書きを防ぐ。00_共通 §2.3「保存中」）。
+        // isPending は表ごとに1つなので、実際には保存が返るまで表のどのセルも開かない
         disabled={isPending}
         onClick={onStartEditing}
-        className={`${buttonClassName} hover:underline disabled:no-underline disabled:opacity-60`}
+        className={`${
+          type === "time" ? "font-mono tabular-nums" : "text-left"
+        } hover:underline disabled:no-underline disabled:opacity-60`}
       >
         {display ?? value}
       </button>
@@ -74,8 +82,7 @@ export function MasterEditableCell({
         if (next === value) onClose();
         else onCommit(next);
       }}
-      // 時刻入力は内容に合わせた幅にする（w-full にすると桁の右に余白だけが伸びる）
-      className={type === "time" ? inputBase : `w-full ${inputBase}`}
+      className={masterInputClass(type)}
     />
   );
 

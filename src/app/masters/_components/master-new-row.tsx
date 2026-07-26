@@ -5,23 +5,30 @@
 // 入力欄の並びは表ごとに違うので `renderCells` で受け取り、値は `data-field` から読む（T-44）。
 import type { KeyboardEventHandler, ReactNode } from "react";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
-import { inputBase, linkAccent, linkMuted } from "@/app/_lib/ui";
+import { linkAccent, linkMuted } from "@/app/_lib/ui";
+import { masterInputClass, type MasterInputType } from "./master-editable-cell";
+
+/** 新規追加行で入力する項目。書き手と読み手の綴りをコンパイラに突き合わせさせるため型で閉じる */
+export type MasterNewRowField = "name" | "startTime";
 
 type Props = Readonly<{
   /** 保存中（Server Action の応答待ち） */
   isPending: boolean;
   /**
-   * 保存。`fieldValue("name")` のように `data-field` の名前で入力値を読む
+   * 保存。`fieldValue("name")` のように項目名で入力値を読む
    * （未入力・欄が無い場合は空文字。値の検証はサーバ側が持つ）
    */
-  onSave: (fieldValue: (field: string) => string) => void;
+  onSave: (fieldValue: (field: MasterNewRowField) => string) => void;
   onCancel: () => void;
   /** 値の入力セル（`<td>` 群）。入力欄は `MasterNewRowInput` に `onKeyDown` を渡して作る */
   renderCells: (onKeyDown: KeyboardEventHandler<HTMLInputElement>) => ReactNode;
 }>;
 
 export function MasterNewRow({ isPending, onSave, onCancel, renderCells }: Props) {
-  /** 行の入力欄から値を読んで保存する。行は押された要素から辿る（ref を持たずに済む） */
+  /**
+   * 行の入力欄から値を読んで保存する。行は押された要素から辿る——`<tr>` に ref を張る形は
+   * lint（react-hooks/refs）が「レンダー中に ref を読む関数を渡している」として禁じる
+   */
   function save(row: HTMLTableRowElement | null) {
     if (row === null) return;
     onSave(
@@ -64,9 +71,9 @@ export function MasterNewRowInput({
   onKeyDown,
 }: Readonly<{
   /** `MasterNewRow` の `onSave` が値を読むときの名前 */
-  field: string;
+  field: MasterNewRowField;
   placeholder?: string;
-  type?: "text" | "time";
+  type?: MasterInputType;
   autoFocus?: boolean;
   onKeyDown: KeyboardEventHandler<HTMLInputElement>;
 }>) {
@@ -78,8 +85,7 @@ export function MasterNewRowInput({
       placeholder={placeholder}
       data-field={field}
       onKeyDown={onKeyDown}
-      // 幅の考え方は MasterEditableCell と同じ（時刻は内容幅）
-      className={type === "time" ? inputBase : `w-full ${inputBase}`}
+      className={masterInputClass(type)}
     />
   );
 }

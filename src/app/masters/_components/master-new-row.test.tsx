@@ -43,6 +43,13 @@ function renderNewRow(
 const fillName = (value: string) =>
   fireEvent.change(screen.getByPlaceholderText("セクション名"), { target: { value } });
 
+/** 時刻入力はプレースホルダを持てないので、保存時に読まれる項目名で引く */
+const timeInput = (): HTMLInputElement => {
+  const input = document.querySelector<HTMLInputElement>('input[data-field="startTime"]');
+  if (input === null) throw new Error("開始時刻の入力欄がありません");
+  return input;
+};
+
 describe("MasterNewRow（画面定義書03 §4: 新規行だけは明示的な保存・取消を置く）", () => {
   it("入力欄は空で始まり、名前欄が最初からフォーカスされる", () => {
     renderNewRow();
@@ -55,7 +62,7 @@ describe("MasterNewRow（画面定義書03 §4: 新規行だけは明示的な�
   it("「保存」は行の入力欄の値をまとめて渡す（欄の名前で引ける）", () => {
     const { saved } = renderNewRow();
     fillName("新セクション");
-    fireEvent.change(screen.getByDisplayValue(""), { target: { value: "21:00" } });
+    fireEvent.change(timeInput(), { target: { value: "21:00" } });
 
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
 
@@ -83,7 +90,7 @@ describe("MasterNewRow（画面定義書03 §4: 新規行だけは明示的な�
     const { saved } = renderNewRow();
     fillName("新セクション");
 
-    fireEvent.keyDown(screen.getByDisplayValue(""), { key: "Enter" });
+    fireEvent.keyDown(timeInput(), { key: "Enter" });
 
     expect(saved).toEqual([["新セクション", ""]]);
   });

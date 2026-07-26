@@ -163,7 +163,11 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
       </button>
       <span className="text-xs text-ink-muted">{modeColorName(newColor)}</span>
       {colorPickerId === "new" && (
-        <ColorPickerPopover selected={newColor} onSelect={setNewColor} onClose={() => setColorPickerId(null)} />
+        <ColorPickerPopover
+          selected={newColor}
+          onSelect={setNewColor}
+          onClose={() => setColorPickerId(null)}
+        />
       )}
     </span>
   );
@@ -172,17 +176,19 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
     <MasterNewRow
       isPending={isPending}
       onSave={(fieldValue) =>
-        run(
-          () => createModeAction({ name: fieldValue("name"), color: newColor }),
-          () => closeNewRow()
-        )
+        run(() => createModeAction({ name: fieldValue("name"), color: newColor }), closeNewRow)
       }
       onCancel={closeNewRow}
       renderCells={(onKeyDown) => (
         <>
           <td className="py-1 pr-2">{newColorCell}</td>
           <td className="py-1 pr-2">
-            <MasterNewRowInput field="name" placeholder="モード名" autoFocus onKeyDown={onKeyDown} />
+            <MasterNewRowInput
+              field="name"
+              placeholder="モード名"
+              autoFocus
+              onKeyDown={onKeyDown}
+            />
           </td>
         </>
       )}
