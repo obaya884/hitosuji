@@ -222,10 +222,24 @@ describe("proxy の matcher（要件定義書 N-03: 認証を通す経路の範�
     expect(matcher.test(pathname)).toBe(true);
   });
 
-  it.each(["/_next/static/chunk.js", "/_next/image", "/favicon.ico"])(
+  it.each(["/_next/static", "/_next/static/chunk.js", "/_next/image", "/favicon.ico"])(
     "静的アセットの経路 %s は認証の対象から外す",
     (pathname) => {
       expect(matcher.test(pathname)).toBe(false);
     }
   );
+
+  // 除外パターンは「その名前ちょうど」か「その配下」にだけ掛かる。`.` を任意の1文字として
+  // 扱ったり末尾の境界を置かなかったりすると、下の経路が静かに認証の外へ落ちる
+  it.each([
+    "/faviconXico", // `.` は任意の1文字ではない
+    "/favicon.icon", // 除外名の後ろに続きがあれば別の経路
+    "/favicon.ico.map",
+    "/_next/staticX",
+    "/_next/static-cache/chunk.js",
+    "/_next/imagex",
+    "/_nextX/static/chunk.js",
+  ])("静的アセットに似た名前の経路 %s は認証の対象にする", (pathname) => {
+    expect(matcher.test(pathname)).toBe(true);
+  });
 });

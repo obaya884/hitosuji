@@ -44,6 +44,8 @@ export default function proxy(req: NextRequest) {
   });
 }
 
+// 除外は「その名前ちょうど」か「その配下」だけに掛ける。`.` をエスケープせず末尾の境界も
+// 置かないと `/faviconXico` や `/_next/staticX` まで認証の外へ落ちる（N-03 の除外は狭く保つ）
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!(?:_next/static|_next/image|favicon\\.ico)(?:/|$)).*)"],
 };
