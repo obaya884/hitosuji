@@ -124,7 +124,7 @@ export type TaskRepository = Readonly<{
   move(command: MoveCommand): Promise<void>;
   /** 自動セクション移動（F-113）。まとめて1トランザクションで反映する */
   relocate(relocations: Relocations): Promise<void>;
-  /** モード・プロジェクトの割り当て（O-5） */
+  /** 中断（F-204 / O-4）。実行中タスクの終了と再開タスクの生成を1トランザクションで行う */
   suspend(command: SuspendCommand): Promise<void>;
   /**
    * 複製して開始（F-208 / データモデル定義書 §4.6）。開始済みの複製タスクを生成する。
@@ -143,6 +143,7 @@ export type TaskRepository = Readonly<{
   restore(task: Omit<Task, "id">, skip: RoutineSkip | null): Promise<Task>;
   /** 先送り（F-107）: task_date の付け替えと postponed_count の加算 */
   postpone(id: TaskId, input: Readonly<{ taskDate: LogicalDate; sortOrder: number }>): Promise<void>;
+  /** モード・プロジェクトの割り当て（O-5 / F-401・F-402） */
   updateClassification(
     id: TaskId,
     classification: Readonly<{ modeId?: number | null; projectId?: number | null }>
