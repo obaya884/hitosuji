@@ -9,6 +9,8 @@
 #   ③テーブルの内側に空行がある
 #   ④台帳21 で §一覧の行と §詳細の節が1対1になっていない（片方だけ残る／重複する）
 #   ⑤台帳21 で詳細列のリンク先アンカーが行の ID と食い違う
+#   ⑥台帳22 で熟度タグが語彙外・トリガ欄が空（トリガの無い行は next-task が永久に拾わない）
+#     ＋「仕様済」なのに参照先が `（未実装 / F-XXX）` のスタブ（過大申告は静かに起きる）
 # 内容の妥当性（状態の整合・参照先の存在など）は見ない。
 set -eu
 
@@ -64,7 +66,7 @@ for path in targets:
             failures.append((path, i, f"列数が {cols}（このテーブルは {expected}）"))
 
 
-# ④⑤ 台帳21 は「§一覧の1行 ＋ §詳細の1節」で1エントリ（台帳21 運用ルール3）。
+# ④⑤ 台帳21 は「§一覧の1行 ＋ §詳細の1節」で1エントリ。
 # 片方だけの手編集で索引と本文が離れる事故を防ぐ。closed_21 の「旧書式の記録」は
 # 別の `## ` 節なので、§一覧・§詳細の範囲を切って見るだけで自然に対象外になる
 def section_lines(lines, name):
@@ -112,6 +114,35 @@ for path in sorted(glob.glob("docs/案件/21_*.md") + glob.glob("docs/案件/clo
     for entry_id, line_no in sorted(described.items()):
         if entry_id not in listed:
             failures.append((path, line_no, f"{entry_id} の詳細節に対応する §一覧の行が無い"))
+
+
+# ⑥ 台帳22 は索引と詳細に分けず1エントリ1行。表にしたのは列で記入を強制するためなので、
+# 「埋まっているか」をここで見る。トリガは特に落ちやすい（平文だった頃は書かなくても成立した）
+MATURITY = {"仕様済", "設計済", "列済", "未詰め", "-"}
+
+# 「仕様済」を名乗れるのは参照先に操作仕様の実体があるときだけ。`（未実装 / F-XXX）` が付いた条項は
+# 要求文の言い換えなので該当しない（guide_21 の完了チェック3 が付ける印）。実績として、起票時から
+# 仕様済だった F-117 が着手時に UI をまるごと決め直しており、この過大申告は静かに起きる
+stub_ids = set()
+for path in glob.glob("docs/仕様/**/*.md", recursive=True):
+    stub_ids |= set(re.findall(r"（未実装 / ((?:F|N)-\d+)", open(path, encoding="utf-8").read()))
+
+for path in sorted(glob.glob("docs/案件/22_*.md")):
+    lines = open(path, encoding="utf-8").read().split("\n")
+    for line_no, line in enumerate(lines, start=1):
+        if not re.match(r"^\|\s*(?:F|N)-\d+\s*\|", line):
+            continue
+        cells = [c.strip() for c in line.split("|")]
+        # "| ID | タイトル | 熟度 | 内容 | トリガ | 参照 |" → 前後の空要素を含めて 8 要素
+        if len(cells) != 8:
+            continue  # 列数の異常は①が報告済み
+        entry_id, maturity, trigger = cells[1], cells[3], cells[5]
+        if maturity not in MATURITY:
+            failures.append((path, line_no, f"{entry_id} の熟度タグ「{maturity}」が語彙外"))
+        if maturity == "仕様済" and entry_id in stub_ids:
+            failures.append((path, line_no, f"{entry_id} は仕様済だが参照先が `（未実装 / {entry_id}）` のスタブ"))
+        if trigger in ("", "-"):
+            failures.append((path, line_no, f"{entry_id} のトリガ欄が空（着手条件を必ず書く）"))
 
 if failures:
     print("台帳の表構造に問題があります:", file=sys.stderr)
