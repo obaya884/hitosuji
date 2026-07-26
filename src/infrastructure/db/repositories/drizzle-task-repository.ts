@@ -17,24 +17,19 @@ import { routineSkips, tasks } from "@/infrastructure/db/schema";
 
 type Row = typeof tasks.$inferSelect;
 
-/** 振り直しをまとめて適用する（呼び出し側のトランザクション内で使う） */
-async function applyRenumber(
-  tx: Pick<Database, "update">,
-  renumber: Renumber | null | undefined
-): Promise<void> {
-  if (renumber === undefined || renumber === null) return;
+/** 振り直しをまとめて適用する（呼び出し側のトランザクション内で使う。空配列なら何もしない） */
+async function applyRenumber(tx: Pick<Database, "update">, renumber: Renumber): Promise<void> {
   const now = new Date();
   for (const row of renumber) {
     await tx.update(tasks).set({ sortOrder: row.sortOrder, updatedAt: now }).where(eq(tasks.id, row.taskId));
   }
 }
 
-/** 自動セクション移動をまとめて適用する（F-113 / データモデル定義書 §4.4） */
+/** 自動セクション移動をまとめて適用する（F-113 / データモデル定義書 §4.4。空配列なら何もしない） */
 async function applyRelocations(
   tx: Pick<Database, "update">,
-  relocations: Relocations | null | undefined
+  relocations: Relocations
 ): Promise<void> {
-  if (relocations === undefined || relocations === null) return;
   const now = new Date();
   for (const row of relocations) {
     await tx
@@ -52,17 +47,17 @@ async function writePunch(
   db: Database,
   id: TaskId,
   punch: Readonly<Partial<Pick<Task, "startedAt" | "endedAt">>>,
-  relocation: Relocations | null | undefined
+  relocations: Relocations
 ): Promise<void> {
   const now = new Date();
-  if (relocation === undefined || relocation === null || relocation.length === 0) {
+  if (relocations.length === 0) {
     await db.update(tasks).set({ ...punch, updatedAt: now }).where(eq(tasks.id, id));
     return;
   }
 
   await db.transaction(async (tx) => {
     await tx.update(tasks).set({ ...punch, updatedAt: now }).where(eq(tasks.id, id));
-    await applyRelocations(tx, relocation);
+    await applyRelocations(tx, relocations);
   });
 }
 
@@ -92,8 +87,8 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
       return rows.map(toDomain);
     },
 
-    async create(input: NewTask, renumber?: Renumber | null) {
-      if (renumber === undefined || renumber === null) {
+    async create(input: NewTask, renumber: Renumber) {
+      if (renumber.length === 0) {
         const [row] = await db.insert(tasks).values(input).returning();
         return toDomain(row);
       }
@@ -132,10 +127,9 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
 
     // 割り込みは「終了 → 再開タスク生成 → 開始」を1トランザクションで行う（アーキテクチャ定義書 §7）
     async start(command: StartCommand) {
-      const { taskId, startedAt, interruption, relocation } = command;
-      const hasRelocation = relocation !== undefined && relocation !== null && relocation.length > 0;
+      const { taskId, startedAt, interruption, relocations } = command;
 
-      if (interruption === null && !hasRelocation) {
+      if (interruption === null && relocations.length === 0) {
         await db
           .update(tasks)
           .set({ startedAt, updatedAt: new Date() })
@@ -147,7 +141,7 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
         // 自動セクション移動（F-113 §4.2-a）は打刻と同一トランザクションで反映する
         await db.transaction(async (tx) => {
           const now = new Date();
-          await applyRelocations(tx, relocation);
+          await applyRelocations(tx, relocations);
           await tx.update(tasks).set({ startedAt, updatedAt: now }).where(eq(tasks.id, taskId));
         });
         return;
@@ -156,7 +150,7 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
       await db.transaction(async (tx) => {
         const now = new Date();
         await applyRenumber(tx, interruption.renumber);
-        await applyRelocations(tx, relocation);
+        await applyRelocations(tx, relocations);
         await tx
           .update(tasks)
           .set({ endedAt: interruption.endedAt, updatedAt: now })
@@ -170,9 +164,9 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
     async updatePunch(
       id: TaskId,
       punch: Readonly<{ startedAt: Date; endedAt: Date | null }>,
-      relocation?: Relocations | null
+      relocations: Relocations
     ) {
-      await writePunch(db, id, punch, relocation);
+      await writePunch(db, id, punch, relocations);
     },
 
     async finish(id: TaskId, endedAt: Date) {
@@ -180,13 +174,13 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
     },
 
     // 開始打刻の取り消し（F-210 / データモデル定義書 §4.5）。started_at だけを null に戻す
-    async undoStart(id: TaskId, relocation?: Relocations | null) {
-      await writePunch(db, id, { startedAt: null }, relocation);
+    async undoStart(id: TaskId, relocations: Relocations) {
+      await writePunch(db, id, { startedAt: null }, relocations);
     },
 
     // 完了の取り消し（F-212 / データモデル定義書 §4.7）。started_at・ended_at をともに null に戻す
-    async undoComplete(id: TaskId, relocation?: Relocations | null) {
-      await writePunch(db, id, { startedAt: null, endedAt: null }, relocation);
+    async undoComplete(id: TaskId, relocations: Relocations) {
+      await writePunch(db, id, { startedAt: null, endedAt: null }, relocations);
     },
 
     // 複製して開始は「（割り込みなら）終了 → 再開タスク生成 → 複製タスクを開始済みで生成」を
@@ -286,7 +280,7 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
       const { taskId, sectionId, sortOrder, renumber } = command;
       const now = new Date();
 
-      if (renumber === null) {
+      if (renumber.length === 0) {
         await db
           .update(tasks)
           .set({ sectionId, sortOrder, updatedAt: now })

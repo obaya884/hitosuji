@@ -16,7 +16,7 @@ describe("reorderTask（画面定義書01 O-6 / データモデル定義書 §3.
     const r = reorderTask(tasks, 3, { sectionId: 1, index: 0 });
     expect(r).toEqual({
       ok: true,
-      value: { taskId: 3, sectionId: 1, sortOrder: 0, renumber: null },
+      value: { taskId: 3, sectionId: 1, sortOrder: 0, renumber: [] },
     });
   });
 

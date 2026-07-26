@@ -77,15 +77,18 @@ export async function addTask(
   const sameDay = await repo.listByDate(input.date);
   const unclassified = sameDay.filter((t) => t.sectionId === null).map((t) => t.sortOrder);
 
-  const created = await repo.create({
-    taskDate: input.date,
-    name,
-    estimateMinutes: 0, // 見積もり未設定（§3.4 既定値）
-    sectionId: null,
-    modeId: null,
-    projectId: null,
-    sortOrder: appendSortOrder(unclassified),
-  });
+  const created = await repo.create(
+    {
+      taskDate: input.date,
+      name,
+      estimateMinutes: 0, // 見積もり未設定（§3.4 既定値）
+      sectionId: null,
+      modeId: null,
+      projectId: null,
+      sortOrder: appendSortOrder(unclassified),
+    },
+    [] // 末尾追加なので振り直しは伴わない
+  );
   return ok(created);
 }
 

@@ -98,8 +98,9 @@ describe("start の割り込み（F-201: 終了・再開タスク生成・開始
           sortOrder: 3000,
           splitParentId: running.id,
         },
-        renumber: null,
+        renumber: [],
       },
+      relocations: [],
     });
 
     const after = await repo.listByDate("2026-07-19");
@@ -137,8 +138,9 @@ describe("start の割り込み（F-201: 終了・再開タスク生成・開始
             sortOrder: 3000,
             splitParentId: running.id,
           },
-          renumber: null,
+          renumber: [],
         },
+        relocations: [],
       })
     ).rejects.toThrow();
 
@@ -317,7 +319,7 @@ describe("suspend（F-204: 終了と再開タスク生成を1トランザクシ�
         sortOrder: 2000,
         splitParentId: running.id,
       },
-      renumber: null,
+      renumber: [],
     });
 
     const after = await repo.listByDate("2026-07-19");
@@ -583,7 +585,7 @@ describe("relocate（F-113 / データモデル定義書 §4.4: 自動セクシ�
       taskId: target.id,
       startedAt,
       interruption: null,
-      relocation: [{ taskId: target.id, sectionId: night.id, sortOrder: 1000 }],
+      relocations: [{ taskId: target.id, sectionId: night.id, sortOrder: 1000 }],
     });
 
     const [after] = await repo.listByDate("2026-07-19");
@@ -640,7 +642,7 @@ describe("undoStart（F-210 / データモデル定義書 §4.5: 開始打刻の
       ])
       .returning();
 
-    await repo.undoStart(target.id, null);
+    await repo.undoStart(target.id, []);
 
     const [after] = await repo.listByDate("2026-07-18");
     expect(after.startedAt).toBeNull();
@@ -690,7 +692,7 @@ describe("undoComplete（F-212 / データモデル定義書 §4.7: 完了の取
       .returning();
     const target = await insertCompleted("2026-07-18", morning.id);
 
-    await repo.undoComplete(target.id, null);
+    await repo.undoComplete(target.id, []);
 
     const [after] = await repo.listByDate("2026-07-18");
     expect(after.startedAt).toBeNull();

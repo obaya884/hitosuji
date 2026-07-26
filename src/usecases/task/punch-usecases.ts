@@ -47,7 +47,7 @@ export async function startTask(
     target.taskDate === input.today
       ? relocationOnStart(target, sameDay, await deps.sections.listAll(), input.nowClock)
       : null;
-  const relocations = relocation === null ? null : [relocation];
+  const relocations = relocation === null ? [] : [relocation];
 
   // 移動した場合、以降の配置計算（再開タスクの位置）は移動後の位置を基準にする
   const started =
@@ -61,7 +61,7 @@ export async function startTask(
       taskId: target.id,
       startedAt: input.now,
       interruption: null,
-      relocation: relocations,
+      relocations,
     });
     return ok(target.id);
   }
@@ -92,7 +92,7 @@ export async function startTask(
       }),
       renumber: placed.renumber,
     },
-    relocation: relocations,
+    relocations,
   });
   return ok(target.id);
 }
@@ -190,16 +190,15 @@ async function undoRelocations(
   deps: PunchDeps,
   target: Task,
   input: Readonly<{ nowClock: string; today: LogicalDate }>
-): Promise<Relocations | null> {
-  if (target.taskDate !== input.today) return null;
+): Promise<Relocations> {
+  if (target.taskDate !== input.today) return [];
 
-  const relocations = relocationOnUndoPunch(
+  return relocationOnUndoPunch(
     target,
     await deps.tasks.listByDate(target.taskDate),
     await deps.sections.listAll(),
     input.nowClock
   );
-  return relocations.length === 0 ? null : relocations;
 }
 
 /** 終了打刻（F-201） */
@@ -259,7 +258,7 @@ export async function updateTaskPunch(
   await repo.updatePunch(
     target.id,
     { startedAt: input.startedAt, endedAt: input.endedAt },
-    relocations.length === 0 ? null : relocations
+    relocations
   );
   return ok(target.id);
 }

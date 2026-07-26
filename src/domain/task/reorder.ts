@@ -11,8 +11,8 @@ export type Reorder = Readonly<{
   taskId: TaskId;
   sectionId: number | null;
   sortOrder: number;
-  /** 中間値が尽きた場合の振り直し（グループ全体の新しい採番） */
-  renumber: readonly Readonly<{ taskId: TaskId; sortOrder: number }>[] | null;
+  /** 中間値が尽きた場合の振り直し（グループ全体の新しい採番。空配列＝振り直しなし） */
+  renumber: readonly Readonly<{ taskId: TaskId; sortOrder: number }>[];
 }>;
 
 function sorted(tasks: readonly Task[], sectionId: number | null): Task[] {
@@ -46,7 +46,7 @@ export function reorderTask(
       taskId,
       sectionId: destination.sectionId,
       sortOrder: placed.value,
-      renumber: null,
+      renumber: [],
     });
   }
 
@@ -113,7 +113,7 @@ export function moveTaskByStep(
   const destination = stepMoveDestination(tasks, taskId, step, sectionOrder);
   if (destination === null) {
     // 端なので動かさない（現在位置のまま返す）
-    return ok({ taskId, sectionId: target.sectionId, sortOrder: target.sortOrder, renumber: null });
+    return ok({ taskId, sectionId: target.sectionId, sortOrder: target.sortOrder, renumber: [] });
   }
   return reorderTask(tasks, taskId, destination);
 }

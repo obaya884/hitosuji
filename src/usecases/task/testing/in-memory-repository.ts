@@ -32,10 +32,18 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
   const indexOf = (id: TaskId) => rows.findIndex((r) => r.id === id);
 
   /** section_id・sort_order のまとめ更新（自動セクション移動 F-113・打刻の取り消しの並べ直し） */
-  const applyRelocations = (relocations: Relocations | null | undefined) => {
-    for (const row of relocations ?? []) {
+  const applyRelocations = (relocations: Relocations) => {
+    for (const row of relocations) {
       const i = indexOf(row.taskId);
       rows[i] = { ...rows[i], sectionId: row.sectionId, sortOrder: row.sortOrder };
+    }
+  };
+
+  /** sort_order のまとめ更新（中間値が尽きたときの振り直し。データモデル定義書 §3.5） */
+  const applyRenumber = (renumber: Renumber) => {
+    for (const row of renumber) {
+      const i = indexOf(row.taskId);
+      rows[i] = { ...rows[i], sortOrder: row.sortOrder };
     }
   };
 
@@ -50,11 +58,8 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
     findRunning: async () =>
       rows.find((r) => r.startedAt !== null && r.endedAt === null) ?? null,
 
-    create: async (input: NewTask, renumber?: Renumber | null) => {
-      for (const row of renumber ?? []) {
-        const i = indexOf(row.taskId);
-        rows[i] = { ...rows[i], sortOrder: row.sortOrder };
-      }
+    create: async (input: NewTask, renumber: Renumber) => {
+      applyRenumber(renumber);
       const created: Task = {
         id: nextId++,
         splitParentId: null,
@@ -82,10 +87,7 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
     start: async (command: StartCommand) => {
       const { taskId, startedAt, interruption } = command;
       if (interruption !== null) {
-        for (const row of interruption.renumber ?? []) {
-          const j = indexOf(row.taskId);
-          rows[j] = { ...rows[j], sortOrder: row.sortOrder };
-        }
+        applyRenumber(interruption.renumber);
         const running = indexOf(interruption.runningTaskId);
         rows[running] = { ...rows[running], endedAt: interruption.endedAt };
         rows.push({
@@ -100,7 +102,7 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
         });
       }
       // 自動セクション移動（F-113 §4.2-a）は打刻と同じ操作の中で反映する
-      applyRelocations(command.relocation);
+      applyRelocations(command.relocations);
       const i = indexOf(taskId);
       rows[i] = { ...rows[i], startedAt };
     },
@@ -108,12 +110,12 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
     updatePunch: async (
       id: TaskId,
       punch: Readonly<{ startedAt: Date; endedAt: Date | null }>,
-      relocation?: Relocations | null
+      relocations: Relocations
     ) => {
       const i = indexOf(id);
       rows[i] = { ...rows[i], ...punch };
       // 開始時刻の修正に伴うセクション移動（§4.2-c）・完了の取り消しの復帰（§4.7）
-      applyRelocations(relocation);
+      applyRelocations(relocations);
     },
 
     finish: async (id: TaskId, endedAt: Date) => {
@@ -122,17 +124,17 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
     },
 
     // 開始打刻の取り消し（F-210）。started_at を null に戻し、並べ直しがあれば反映する
-    undoStart: async (id: TaskId, relocation?: Relocations | null) => {
+    undoStart: async (id: TaskId, relocations: Relocations) => {
       const i = indexOf(id);
       rows[i] = { ...rows[i], startedAt: null };
-      applyRelocations(relocation);
+      applyRelocations(relocations);
     },
 
     // 完了の取り消し（F-212）。started_at・ended_at をともに null に戻す
-    undoComplete: async (id: TaskId, relocation?: Relocations | null) => {
+    undoComplete: async (id: TaskId, relocations: Relocations) => {
       const i = indexOf(id);
       rows[i] = { ...rows[i], startedAt: null, endedAt: null };
-      applyRelocations(relocation);
+      applyRelocations(relocations);
     },
 
     // 複製して開始（F-208 / §4.6）。割り込みなら終了・再開タスク生成も伴う
@@ -167,10 +169,7 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
     },
 
     suspend: async (command: SuspendCommand) => {
-      for (const row of command.renumber ?? []) {
-        const j = indexOf(row.taskId);
-        rows[j] = { ...rows[j], sortOrder: row.sortOrder };
-      }
+      applyRenumber(command.renumber);
       const i = indexOf(command.taskId);
       rows[i] = { ...rows[i], endedAt: command.endedAt };
       rows.push({
@@ -219,10 +218,7 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
     },
 
     move: async (command: MoveCommand) => {
-      for (const { taskId, sortOrder } of command.renumber ?? []) {
-        const i = indexOf(taskId);
-        rows[i] = { ...rows[i], sortOrder };
-      }
+      applyRenumber(command.renumber);
       const i = indexOf(command.taskId);
       rows[i] = { ...rows[i], sectionId: command.sectionId, sortOrder: command.sortOrder };
     },

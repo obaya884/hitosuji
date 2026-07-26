@@ -10,7 +10,7 @@ describe("placeNewTask（データモデル定義書 §3.5: 挿入位置の採�
   ];
 
   it("先頭へ挿入すると先頭タスクより小さい値になる", () => {
-    expect(placeNewTask(group, 1, 0)).toEqual({ sectionId: 1, sortOrder: 0, renumber: null });
+    expect(placeNewTask(group, 1, 0)).toEqual({ sectionId: 1, sortOrder: 0, renumber: [] });
   });
 
   it("途中へ挿入すると前後の中間値になる", () => {
@@ -25,7 +25,7 @@ describe("placeNewTask（データモデル定義書 §3.5: 挿入位置の採�
     expect(placeNewTask([], null, 0)).toEqual({
       sectionId: null,
       sortOrder: 1000,
-      renumber: null,
+      renumber: [],
     });
   });
 
@@ -56,7 +56,7 @@ describe("placeNewTask（データモデル定義書 §3.5: 挿入位置の採�
     const placement = placeNewTask(dense, 1, 1);
 
     const after = [
-      ...(placement.renumber ?? []).map((r) => ({ id: r.taskId, sortOrder: r.sortOrder })),
+      ...placement.renumber.map((r) => ({ id: r.taskId, sortOrder: r.sortOrder })),
       { id: 0, sortOrder: placement.sortOrder },
     ].sort((a, b) => a.sortOrder - b.sortOrder);
 

@@ -6,8 +6,8 @@ import type { Task, TaskId } from "./task";
 export type Placement = Readonly<{
   sectionId: number | null;
   sortOrder: number;
-  /** 中間値が尽きたときの同一グループの振り直し（不要なら null） */
-  renumber: readonly Readonly<{ taskId: TaskId; sortOrder: number }>[] | null;
+  /** 中間値が尽きたときの同一グループの振り直し（空配列＝振り直しなし） */
+  renumber: readonly Readonly<{ taskId: TaskId; sortOrder: number }>[];
 }>;
 
 /**
@@ -24,7 +24,7 @@ export function placeNewTask(
   const after = clamped >= group.length ? null : group[clamped].sortOrder;
 
   const placed = insertBetweenSortOrder(before, after);
-  if (placed.ok) return { sectionId, sortOrder: placed.value, renumber: null };
+  if (placed.ok) return { sectionId, sortOrder: placed.value, renumber: [] };
 
   // 中間値が尽きた: 挿入後の並びを1000刻みに振り直す（データモデル定義書 §3.5）
   const numbers = renumberSortOrders(group.length + 1);
