@@ -744,6 +744,19 @@ describe("DailyBoard の U の切り分け（O-13: 保留 → 実行中 → 完�
     expect(screen.queryByText(`「${NOT_STARTED}」を削除しました`)).not.toBeNull();
     expect(screen.getAllByText("取り消す")).toHaveLength(1);
   });
+
+  // Undo が効くのはトーストが出ているあいだだけ（00_共通 §2.2）。
+  // トーストを閉じると保留は破棄され、以後の U は「保留なし」の分岐へ落ちる
+  it("トーストを閉じたあとの U は保留を解決しない（00_共通 §2.2）", async () => {
+    renderBoard();
+    selectRow(NOT_STARTED);
+    await pressAndSettle("d");
+
+    fireEvent.click(screen.getByLabelText("閉じる"));
+    await pressAndSettle("u");
+
+    expect(vi.mocked(restoreTaskAction)).not.toHaveBeenCalled();
+  });
 });
 
 describe("DailyBoard のクイック追加（§3.4 / F-102）", () => {

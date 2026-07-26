@@ -117,7 +117,7 @@ export function useDailyShortcuts(params: DailyShortcutParams): void {
           return;
         case "Enter":
           // ボタンにフォーカスが残っている場合はブラウザがそのボタンを押すので、
-          // ここで打刻すると二重に発火する（打刻ボタンを押した直後など）
+          // ここで打刻すると二重に発火する（打刻ボタンを押した直後など。00_共通 §3）
           if (target?.tagName === "BUTTON") return;
           if (selected !== null) punch(selected); // 開始 →（実行中なら）終了
           return;

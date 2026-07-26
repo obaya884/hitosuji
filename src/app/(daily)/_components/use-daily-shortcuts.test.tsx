@@ -338,7 +338,7 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
 
     // ボタンにフォーカスが残っていると Enter でブラウザがそのボタンを押すため、
     // ここで打刻すると二重に発火する（打刻ボタンを押した直後など）
-    it("ボタンにフォーカスがあるときの Enter は打刻しない（二重発火を防ぐ）", () => {
+    it("ボタンにフォーカスがあるときの Enter は打刻しない（00_共通 §3）", () => {
       const { spies } = renderShortcuts();
       const { button } = renderFocusTargets();
 
