@@ -16,6 +16,7 @@ import {
   undoStart,
   updateTaskPunch,
   type CompletionSnapshot,
+  type PunchUsecaseError,
 } from "@/usecases/task/punch-usecases";
 import {
   deleteTask,
@@ -24,11 +25,19 @@ import {
   postponeTask,
   restoreTask,
   suspendTask,
+  type TaskOperationError,
 } from "@/usecases/task/operations";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import type { Task } from "@/domain/task/task";
-import { moveTaskByOneStep, setTaskSection } from "@/usecases/task/reorder-usecases";
-import { createRoutineFromTask } from "@/usecases/routine/routine-usecases";
+import {
+  moveTaskByOneStep,
+  setTaskSection,
+  type ReorderUsecaseError,
+} from "@/usecases/task/reorder-usecases";
+import {
+  createRoutineFromTask,
+  type CreateRoutineFromTaskError,
+} from "@/usecases/routine/routine-usecases";
 import { applyCarryOverAfterPunch } from "@/usecases/task/relocation-usecases";
 import type { ActionResult } from "@/app/_lib/action-result";
 import { formatClock } from "@/app/_lib/format";
@@ -82,15 +91,13 @@ export async function updateTaskEstimateAction(
   return { ok: true };
 }
 
-const PUNCH_ERROR_MESSAGES: Record<string, string> = {
+// 打刻修正（PunchEditError）系の文言はクライアント側 daily-board.tsx が持つ
+const PUNCH_ERROR_MESSAGES: Record<PunchUsecaseError, string> = {
   task_not_found: "タスクが見つかりませんでした",
   already_started: "このタスクはすでに開始済みです",
   not_running: "実行中のタスクではありません",
   not_completed: "完了したタスクではありません",
   ended_before_started: "終了時刻が開始時刻より前になります",
-  invalid_time: "時刻は HH:MM 形式で入力してください",
-  not_punched: "打刻されていないため修正できません",
-  no_started_at: "開始時刻のないタスクに終了時刻は設定できません",
 };
 
 /** 開始打刻（F-201）。now はクライアントの現在時刻を受け取る */
@@ -180,7 +187,7 @@ export async function updateTaskPunchAction(
   return { ok: true };
 }
 
-const REORDER_ERROR_MESSAGES: Record<string, string> = {
+const REORDER_ERROR_MESSAGES: Record<ReorderUsecaseError, string> = {
   task_not_found: "タスクが見つかりませんでした",
 };
 
@@ -225,14 +232,28 @@ export async function setTaskSectionAction(
   return { ok: true };
 }
 
-const OPERATION_ERROR_MESSAGES: Record<string, string> = {
+const OPERATION_ERROR_MESSAGES: Record<TaskOperationError, string> = {
   ...PUNCH_ERROR_MESSAGES,
   not_postponable: "先送りできるのは未実行タスクだけです",
+  // 複製して開始（F-208）向けに PunchError の同キー（"完了したタスクではありません"）を上書きする
   not_completed: "複製して開始できるのは完了タスクだけです",
 };
 
-/** ルーチン化の失敗（画面定義書01 §4.1）。入力値の検証エラーは画面定義書02 §4 の項目に対応する */
-const ROUTINE_FROM_TASK_ERROR_MESSAGES: Record<string, string> = {
+/**
+ * ルーチン化の失敗（画面定義書01 §4.1）。入力値の検証エラーは画面定義書02 §4 の項目に対応する。
+ * 対応するユースケース `createRoutineFromTask` の戻り値型 `CreateRoutineFromTaskError` は
+ * `RoutineUsecaseError | RoutineFromTaskError | "task_not_found"` で、下記より多くのコード
+ * （name_required・name_too_long・invalid_estimate・invalid_start_date・invalid_end_date・
+ * end_date_before_start_date・routine_not_found）を型上は許容する。文言自体は
+ * `routines/actions.ts` の `MESSAGES` に既にあるが、**ルーチン化経路でその文言を流用してよいか**は
+ * 表示が変わる＝挙動変更の判断（オーナー判断）が要るため、T-42 では埋めず
+ * `Partial<Record<CreateRoutineFromTaskError, string>>` として不足コードを型で表す。
+ * 実際に `name_too_long` は到達しうる（タスク名は文字数無制限だがルーチン名は
+ * `master-name.ts` の `MAX_NAME_LENGTH = 50` を超えられないため、50文字超のタスク名を
+ * ルーチン化すると発生し、現状は下の `?? "ルーチン化に失敗しました"` に落ちる）。
+ * 対応方針は FB として別途起票し、T-49（着手条件「T-42 に着手するとき」）で追跡する
+ */
+const ROUTINE_FROM_TASK_ERROR_MESSAGES: Partial<Record<CreateRoutineFromTaskError, string>> = {
   task_not_found: "タスクが見つかりませんでした",
   estimate_required: "見積もりを入力してからルーチン化してください",
   routine_derived_task: "ルーチン由来のタスクはルーチン化できません（ルーチン画面で編集してください）",
@@ -294,7 +315,7 @@ export async function createRoutineFromTaskAction(
     choice
   );
   if (!result.ok) {
-    // 名前・日付の検証エラーはタスク由来の値なので通常起きない。取りこぼしても既定文言を出す
+    // 辞書に無いコード（上の ROUTINE_FROM_TASK_ERROR_MESSAGES 参照）は既定文言に落とす
     return {
       ok: false,
       message: ROUTINE_FROM_TASK_ERROR_MESSAGES[result.error] ?? "ルーチン化に失敗しました",

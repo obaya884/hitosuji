@@ -6,6 +6,7 @@ import {
   deleteRoutine,
   setRoutineActive,
   updateRoutine,
+  type RoutineUsecaseError,
 } from "@/usecases/routine/routine-usecases";
 import type { RoutineInput } from "@/domain/routine/input";
 import { createRoutineRepository } from "@/infrastructure/db/repositories/drizzle-routine-repository";
@@ -17,7 +18,7 @@ const PATH = "/routines";
 
 export type RoutineActionResult = ActionResult;
 
-const MESSAGES: Record<string, string> = {
+const MESSAGES: Record<RoutineUsecaseError, string> = {
   name_required: "名前を入力してください",
   name_too_long: "名前は50文字以内で入力してください",
   invalid_estimate: "見積もりは1分以上の整数で入力してください",
