@@ -21,7 +21,7 @@ function renderCell(overrides: Partial<AssignCellProps> = {}) {
             name={overrides.name}
             options={overrides.options ?? OPTIONS}
             selectedId={overrides.selectedId ?? null}
-            dimmed={overrides.dimmed ?? ""}
+            isDimmed={overrides.isDimmed ?? false}
             isEditing={overrides.isEditing ?? false}
             onOpen={overrides.onOpen ?? vi.fn()}
             onSelect={overrides.onSelect ?? vi.fn()}
@@ -45,6 +45,18 @@ describe("AssignCell（画面定義書01 §3.3 / O-5: 割り当ての入口に�
     // 空欄にしない（クリックして設定できることが伝わらないため）
     expect(button.textContent).toBe("-");
     expect((button.firstElementChild as HTMLElement).classList.contains("text-ink-faint")).toBe(true);
+  });
+
+  it("弱色の指定でセル全体を弱色にする（モード未設定の行。§3.3 / F-401）", () => {
+    const { cell } = renderCell({ isDimmed: true });
+
+    expect(cell.classList.contains("text-ink-muted")).toBe(true);
+  });
+
+  it("弱色の指定がなければ行の色を継承する（セル側で色を決めない）", () => {
+    const { cell } = renderCell();
+
+    expect(cell.classList.contains("text-ink-muted")).toBe(false);
   });
 
   it("割り当て済みは名前を出し、aria-label にも載せる", () => {

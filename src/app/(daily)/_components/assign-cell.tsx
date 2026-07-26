@@ -10,8 +10,8 @@ export type AssignCellProps = Readonly<{
   name?: string;
   options: readonly PopoverOption[];
   selectedId: number | null;
-  /** モード未設定の行を既定のグレーにするクラス（呼び出し側が行単位で決める） */
-  dimmed: string;
+  /** 弱色にするか（モード未設定の行。行の色を継承するかは呼び出し側が行単位で決める） */
+  isDimmed: boolean;
   isEditing: boolean;
   onOpen: () => void;
   onSelect: (id: number | null) => void;
@@ -28,14 +28,14 @@ export function AssignCell({
   name,
   options,
   selectedId,
-  dimmed,
+  isDimmed,
   isEditing,
   onOpen,
   onSelect,
   onClose,
 }: AssignCellProps) {
   return (
-    <td className={`relative py-2.5 text-sm ${dimmed}`}>
+    <td className={`relative py-2.5 text-sm ${isDimmed ? "text-ink-muted" : ""}`}>
       <button
         type="button"
         onClick={onOpen}

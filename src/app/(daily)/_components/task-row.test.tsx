@@ -249,6 +249,22 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
 
       expect(rowOf("朝食").style.color).toBe("");
     });
+
+    it("モード未設定の行はプロジェクト・モードのセルを弱色にする（§3.3）", () => {
+      renderRow({ task: task({ id: 1, name: "朝食" }) });
+
+      const { project, mode } = cellsOf(rowOf("朝食"));
+      expect(project.classList.contains("text-ink-muted")).toBe(true);
+      expect(mode.classList.contains("text-ink-muted")).toBe(true);
+    });
+
+    it("モード設定済みの行はセルを弱色にしない（モード色を継承させる）", () => {
+      renderRow({ task: task({ id: 1, name: "朝食", modeId: 1 }), mode: modeOf("仕事") });
+
+      const { project, mode } = cellsOf(rowOf("朝食"));
+      expect(project.classList.contains("text-ink-muted")).toBe(false);
+      expect(mode.classList.contains("text-ink-muted")).toBe(false);
+    });
   });
 
   describe("打刻ボタン（F-201）", () => {

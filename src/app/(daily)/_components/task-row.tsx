@@ -141,7 +141,8 @@ export function TaskRow({
   }, [isSelected, sectionId, index]);
 
   // モード設定時は行の色を継承させ、未設定時のみ既定のグレーにする
-  const dimmed = mode === undefined ? "text-ink-muted" : "";
+  const isDimmed = mode === undefined;
+  const dimmed = isDimmed ? "text-ink-muted" : "";
 
   return (
     <tr
@@ -218,7 +219,7 @@ export function TaskRow({
         name={project?.name}
         options={toOptions(projects, "プロジェクトなし")}
         selectedId={task.projectId}
-        dimmed={dimmed}
+        isDimmed={isDimmed}
         isEditing={editing === "project"}
         onOpen={() => onBeginEdit(task, "project")}
         onSelect={(id) => onAssign(task, "project", id)}
@@ -229,7 +230,7 @@ export function TaskRow({
         name={mode?.name}
         options={toOptions(modes, "モードなし", true)}
         selectedId={task.modeId}
-        dimmed={dimmed}
+        isDimmed={isDimmed}
         isEditing={editing === "mode"}
         onOpen={() => onBeginEdit(task, "mode")}
         onSelect={(id) => onAssign(task, "mode", id)}

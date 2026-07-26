@@ -16,13 +16,17 @@ import {
 import { cellsOf, headingOf, popoverLabels } from "../_testing/table-helpers";
 import { DailyList, type DailyListProps } from "./daily-list";
 
-/** props は `DailyListProps` から派生させる（同じ形を手で写さない） */
-type Overrides = Partial<DailyListProps>;
+/**
+ * props は `DailyListProps` から派生させる（同じ形を手で写さない）。
+ * **`groups` は必須**——どのテストも自分が描く行に依拠するので、既定値を持たせない
+ * （テストが依拠する値は呼び出し側に書く。アーキテクチャ定義書 §8）
+ */
+type Overrides = Partial<DailyListProps> & Pick<DailyListProps, "groups">;
 
 function listElement(overrides: Overrides, handlers: Handlers) {
   return (
     <DailyList
-      groups={overrides.groups ?? [unclassifiedGroup()]}
+      groups={overrides.groups}
       modes={overrides.modes ?? MODES}
       projects={overrides.projects ?? PROJECTS}
       sections={overrides.sections ?? SECTIONS}
@@ -54,7 +58,7 @@ type Handlers = Pick<
   | "onEndEdit"
 >;
 
-function renderList(overrides: Overrides = {}) {
+function renderList(overrides: Overrides) {
   const handlers = {
     onRename: vi.fn(),
     onEstimate: vi.fn(),
