@@ -9,8 +9,12 @@ import { canFinish, resumeTaskDraft, type PunchError } from "@/domain/task/punch
 import { newTaskFromDraft } from "@/usecases/task/from-draft";
 import { taskStatus } from "@/domain/task/status";
 import { orderTasksForDisplay } from "@/domain/task/daily-list";
-import { placeNewTask } from "@/domain/task/placement";
-import { appendSortOrder, SORT_ORDER_STEP } from "@/domain/task/sort-order";
+import {
+  appendSortOrder,
+  placeSortOrder,
+  SORT_ORDER_STEP,
+  tasksInSection,
+} from "@/domain/task/sort-order";
 import type { Task, TaskId } from "@/domain/task/task";
 
 export type TaskOperationError =
@@ -18,12 +22,6 @@ export type TaskOperationError =
   | "task_not_found"
   | "not_postponable"
   | "not_completed";
-
-function sortedInSection(tasks: readonly Task[], sectionId: number | null): Task[] {
-  return tasks
-    .filter((t) => t.sectionId === sectionId)
-    .sort((a, b) => a.sortOrder - b.sortOrder);
-}
 
 /**
  * 中断（F-204）。実行中タスクを現在時刻で終了し、
@@ -41,9 +39,9 @@ export async function suspendTask(
 
   // 再開タスクは元タスクの直後（データモデル定義書 §4.2-a）
   const sameDay = await repo.listByDate(target.taskDate);
-  const group = sortedInSection(sameDay, target.sectionId);
+  const group = tasksInSection(sameDay, target.sectionId);
   const index = group.findIndex((t) => t.id === target.id) + 1;
-  const placed = placeNewTask(group, target.sectionId, index);
+  const placed = placeSortOrder(group, index); // 新規タスクなので自身は振り直しに含めない
 
   const draft = resumeTaskDraft(target, input.now);
   await repo.suspend({
@@ -81,17 +79,16 @@ export async function duplicateTask(
 
   // 挿入位置の直前のタスクからセクションを決める（先頭なら未分類）
   const sectionId = index === 0 ? null : ordered[index - 1].sectionId;
-  const group = sortedInSection(sameDay, sectionId);
+  const group = tasksInSection(sameDay, sectionId);
   const indexInGroup =
     index === 0 ? 0 : group.findIndex((t) => t.id === ordered[index - 1].id) + 1;
-  const placed = placeNewTask(group, sectionId, indexInGroup);
+  const placed = placeSortOrder(group, indexInGroup); // 新規タスクなので自身は振り直しに含めない
 
   const draft = duplicateDraft(target);
   const created = await repos.tasks.create(
-    // sectionId は挿入位置のセクションに従う（F-111）
     newTaskFromDraft(draft, {
       taskDate: target.taskDate,
-      sectionId: placed.sectionId,
+      sectionId,
       sortOrder: placed.sortOrder,
     }),
     placed.renumber
@@ -127,9 +124,9 @@ export async function duplicateAndStartTask(
       ? sectionAt(sections, input.nowClock)?.id ?? target.sectionId
       : target.sectionId;
 
-  // 末尾採番なので最大値だけ見ればよいが、同ファイルの他操作に合わせて sortedInSection を通す
+  // セクション内の並びは常に tasksInSection で取り出す（末尾採番なので使うのは最大値だけ）
   const startedSortOrder = appendSortOrder(
-    sortedInSection(sameDay, destinationSectionId).map((t) => t.sortOrder)
+    tasksInSection(sameDay, destinationSectionId).map((t) => t.sortOrder)
   );
 
   const draft = duplicateDraft(target);
@@ -183,7 +180,7 @@ export async function postponeTask(
   const destination = input.to ?? addDays(target.taskDate, 1);
   const destinationTasks = await repo.listByDate(destination);
   const sortOrder = appendSortOrder(
-    sortedInSection(destinationTasks, target.sectionId).map((t) => t.sortOrder)
+    tasksInSection(destinationTasks, target.sectionId).map((t) => t.sortOrder)
   );
 
   await repo.postpone(target.id, { taskDate: destination, sortOrder });

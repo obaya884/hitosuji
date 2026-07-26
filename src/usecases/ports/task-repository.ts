@@ -1,11 +1,10 @@
 import type { LogicalDate } from "@/domain/shared/logical-date";
+import type { Renumber } from "@/domain/task/sort-order";
 import type { Task, TaskId } from "@/domain/task/task";
 
-/**
- * 採番の振り直し。挿入・移動と同じトランザクションで反映する（データモデル定義書 §3.5）。
- * **空配列＝振り直しなし**（「なにもしない」の表し方はこの1通りだけ）
- */
-export type Renumber = readonly Readonly<{ taskId: TaskId; sortOrder: number }>[];
+// 採番の振り直しは domain の規則そのもの（データモデル定義書 §3.5）。
+// Port は domain の型をそのまま契約に使う（同じ形を書き写さない）
+export type { Renumber };
 
 /** 特定日のルーチンスキップ（F-304 / データモデル定義書 §3.6） */
 export type RoutineSkip = Readonly<{ routineId: number; taskDate: LogicalDate }>;

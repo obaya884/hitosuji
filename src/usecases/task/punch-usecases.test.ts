@@ -147,6 +147,39 @@ describe("startTask の割り込み（F-201 / データモデル定義書 §4.2�
     expect(repo.rows[0].endedAt).toEqual(now);
   });
 
+  it("再開タスクの位置は開始タスクと同一セクション内だけで決まる（他セクションの行は挟まない）", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 9, startedAt, sortOrder: 1000 }),
+      task({ id: 2, sectionId: 3, sortOrder: 5000 }), // 開始タスク
+      task({ id: 3, sectionId: 4, sortOrder: 5500 }), // 同一日・別セクション。跨いで挟まってはいけない
+    ]);
+
+    await punch(repo, 2);
+
+    // セクション3の末尾なので +1000。絞り込みが壊れると 5250（5000 と 5500 の中間）になる
+    expect(repo.rows[3]).toEqual(
+      expect.objectContaining({ sectionId: 3, sortOrder: 6000 })
+    );
+  });
+
+  it("中間値が尽きたら振り直しを伴って再開タスクを挟む（§3.5 の renumber を start へ渡す）", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, startedAt, sortOrder: 1000 }),
+      task({ id: 2, sortOrder: 2000 }), // 開始タスク
+      task({ id: 3, sortOrder: 2001 }), // 直下に隙間が無い
+    ]);
+
+    await punch(repo, 2);
+
+    // 開始タスクの直下へ再開タスクが入り、グループ全体が 1000刻みへ振り直される
+    expect(repo.rows.map((t) => [t.id, t.sortOrder])).toEqual([
+      [1, 1000],
+      [2, 2000],
+      [3, 4000],
+      [4, 3000],
+    ]);
+  });
+
   it("見積もり未設定の実行中タスクは、再開タスクも未設定のまま（2026-07-19 オーナー判断）", async () => {
     const repo = inMemoryTaskRepository([
       task({ id: 1, estimateMinutes: 0, startedAt, sortOrder: 1000 }),

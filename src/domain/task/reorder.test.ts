@@ -62,6 +62,23 @@ describe("reorderTask（画面定義書01 O-6 / データモデル定義書 §3.
     ]);
   });
 
+  it("セクションを跨いで中間値が尽きても、振り直しは移動先セクションだけに閉じる", () => {
+    const dense = [
+      task({ id: 1, sectionId: 1, sortOrder: 1000 }), // 移動元。振り直しに混ざってはいけない
+      task({ id: 2, sectionId: 2, sortOrder: 1000 }),
+      task({ id: 3, sectionId: 2, sortOrder: 1001 }),
+    ];
+    const r = reorderTask(dense, 1, { sectionId: 2, index: 1 }); // 1000 と 1001 の間へ跨ぐ
+
+    expect(r.ok && [r.value.sectionId, r.value.sortOrder]).toEqual([2, 2000]);
+    // 移動するタスク自身も、移動後の位置の採番で renumber に現れる（sortOrder と同値）
+    expect(r.ok && r.value.renumber).toEqual([
+      { taskId: 2, sortOrder: 1000 },
+      { taskId: 1, sortOrder: 2000 },
+      { taskId: 3, sortOrder: 3000 },
+    ]);
+  });
+
   it("存在しないタスクはエラー", () => {
     expect(reorderTask(tasks, 99, { sectionId: 1, index: 0 })).toEqual({
       ok: false,

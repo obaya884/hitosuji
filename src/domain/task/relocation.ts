@@ -4,9 +4,10 @@ import { groupTasksBySection, orderTasksForDisplay } from "./daily-list";
 import { sectionAt, type Section } from "../section/section";
 import {
   appendSortOrder,
-  insertBetweenSortOrder,
+  placeSortOrder,
   renumberSortOrders,
   SORT_ORDER_STEP,
+  tasksInSection,
 } from "./sort-order";
 import { taskStatus } from "./status";
 import type { Task, TaskId } from "./task";
@@ -32,14 +33,15 @@ export function relocationOnStart(
   if (destination === undefined) return null;
   if (task.sectionId === destination.id) return null;
 
-  const siblingSortOrders = sameDayTasks
-    .filter((t) => t.sectionId === destination.id && t.id !== task.id)
-    .map((t) => t.sortOrder);
+  const siblings = tasksInSection(
+    sameDayTasks.filter((t) => t.id !== task.id),
+    destination.id
+  );
 
   return {
     taskId: task.id,
     sectionId: destination.id,
-    sortOrder: appendSortOrder(siblingSortOrders),
+    sortOrder: appendSortOrder(siblings.map((t) => t.sortOrder)),
   };
 }
 
@@ -58,9 +60,10 @@ export function relocationOnPunchEdit(
   const destination = sectionAt(sections, startClock);
   if (destination === undefined) return [];
 
-  const siblings = sameDayTasks
-    .filter((t) => t.sectionId === destination.id && t.id !== task.id)
-    .sort((a, b) => a.sortOrder - b.sortOrder);
+  const siblings = tasksInSection(
+    sameDayTasks.filter((t) => t.id !== task.id),
+    destination.id
+  );
 
   // 自分より遅い開始時刻の打刻済みタスク、または最初の未実行タスクの直前に入る
   const insertAt = siblings.findIndex(
@@ -68,19 +71,7 @@ export function relocationOnPunchEdit(
   );
   const index = insertAt === -1 ? siblings.length : insertAt;
 
-  const sortOrder = insertBetweenSortOrder(
-    siblings[index - 1]?.sortOrder ?? null,
-    siblings[index]?.sortOrder ?? null
-  );
-
-  // 中間値が尽きたら移動先セクション全体を振り直す（§3.5 の再採番）
-  if (!sortOrder.ok) {
-    const reordered = [...siblings.slice(0, index), task, ...siblings.slice(index)];
-    const sortOrders = renumberSortOrders(reordered.length);
-    return changedOnly(reordered, destination.id, (_, i) => sortOrders[i]);
-  }
-
-  return changedOnly([task], destination.id, () => sortOrder.value);
+  return relocationsFor(task, siblings, index, destination.id);
 }
 
 /**
@@ -137,13 +128,15 @@ export function planCarryOver(
   if (step < 1) {
     const reordered = [...stayBeforeInDestination, ...carryOverTargets, ...remainInDestination];
     const sortOrders = renumberSortOrders(reordered.length);
-    return changedOnly(reordered, destinationSectionId, (_, i) => sortOrders[i]);
+    return changedOnly(
+      reordered.map((task, i) => ({ task, sortOrder: sortOrders[i] })),
+      destinationSectionId
+    );
   }
 
   return changedOnly(
-    carryOverTargets,
-    destinationSectionId,
-    (_, i) => previousOrder + step * (i + 1)
+    carryOverTargets.map((task, i) => ({ task, sortOrder: previousOrder + step * (i + 1) })),
+    destinationSectionId
   );
 }
 
@@ -167,26 +160,38 @@ export function relocationOnUndoPunch(
   const destinationSectionId = currentPositionSectionId(running, sections, nowClock);
   if (destinationSectionId === null) return [];
 
-  const siblings = others
-    .filter((t) => t.sectionId === destinationSectionId)
-    .sort((a, b) => a.sortOrder - b.sortOrder);
+  const siblings = tasksInSection(others, destinationSectionId);
 
   // 「現在位置」＝実行中タスクの直後、なければ未実行タスクの先頭の直前（＝完了のログの後ろ）
   const index = currentPositionIndex(siblings, running);
 
-  const sortOrder = insertBetweenSortOrder(
-    siblings[index - 1]?.sortOrder ?? null,
-    siblings[index]?.sortOrder ?? null
-  );
+  return relocationsFor(task, siblings, index, destinationSectionId);
+}
 
-  // 中間値が尽きたら移動先セクション全体を振り直す（§3.5 の再採番）
-  if (!sortOrder.ok) {
-    const reordered = [...siblings.slice(0, index), task, ...siblings.slice(index)];
-    const sortOrders = renumberSortOrders(reordered.length);
-    return changedOnly(reordered, destinationSectionId, (_, i) => sortOrders[i]);
+/**
+ * 移動先セクション（`sectionId`）の `siblings` の `index` 番目へ `task` を差し込む Relocation 列。
+ * 採番も振り直しも §3.5 の共通規則（`placeSortOrder`）が決め、ここは
+ * 「実際に変わる行だけ動かす」ぶんを取り出すだけ。
+ * `siblings` は `placeSortOrder` と同じ前提——**`task` を除いた sort_order 昇順の並び**
+ */
+function relocationsFor(
+  task: Task,
+  siblings: readonly Task[],
+  index: number,
+  sectionId: number
+): Relocation[] {
+  const placed = placeSortOrder(siblings, index, task);
+  if (placed.renumber.length === 0) {
+    return changedOnly([{ task, sortOrder: placed.sortOrder }], sectionId);
   }
 
-  return changedOnly([task], destinationSectionId, () => sortOrder.value);
+  // 中間値が尽きた: 移動先セクション全体の振り直しを、変更前のタスクへ突き合わせる。
+  // `renumber` の taskId は `placeSortOrder` が `[task, ...siblings]` からのみ作るので必ず引ける
+  const byId = new Map([task, ...siblings].map((t) => [t.id, t]));
+  return changedOnly(
+    placed.renumber.map(({ taskId, sortOrder }) => ({ task: byId.get(taskId)!, sortOrder })),
+    sectionId
+  );
 }
 
 /**
@@ -222,16 +227,12 @@ function currentPositionIndex(
 
 /** 実際に section_id か sort_order が変わる行だけを Relocation にする（無駄な UPDATE を避ける） */
 function changedOnly(
-  tasks: readonly Task[],
-  sectionId: number,
-  sortOrderOf: (task: Task, index: number) => number
+  assignments: readonly Readonly<{ task: Task; sortOrder: number }>[],
+  sectionId: number
 ): Relocation[] {
-  const relocations: Relocation[] = [];
-  tasks.forEach((task, i) => {
-    const sortOrder = sortOrderOf(task, i);
-    if (task.sectionId !== sectionId || task.sortOrder !== sortOrder) {
-      relocations.push({ taskId: task.id, sectionId, sortOrder });
-    }
-  });
-  return relocations;
+  return assignments.flatMap(({ task, sortOrder }) =>
+    task.sectionId === sectionId && task.sortOrder === sortOrder
+      ? []
+      : [{ taskId: task.id, sectionId, sortOrder }]
+  );
 }
