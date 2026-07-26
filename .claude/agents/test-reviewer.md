@@ -38,6 +38,7 @@ model: opus
 - **docs 仕様そのものとの整合判定はしない**（実装が仕様条項と食い違うかは spec-reviewer の担当）。ここは「テスト側に穴が無いか」を見る
 - **テストの実行合否・lint・build は扱わない**（verifier の担当）。`test:coverage` はカバレッジ数値を得るために実行するだけで、失敗の切り分けは verifier に委ねる
 - コードは修正しない／本番（Neon・Vercel）には一切触れない／`.env.local` の内容を報告に含めない
+- **作業ツリーを変える git 操作をしない**（`stash` / `reset` / `checkout -- ` / `clean` / `restore`）——メインセッションの未コミットの作業が消える
 - 統合テストの `test:coverage` は `db-test`（:5433）が必要。未起動でユニット分だけしか取れない場合はその旨を明記する
 
 ## 報告形式

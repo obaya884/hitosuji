@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Section } from "@/domain/section/section";
 
-import { deferredAction, rowOf, startEditingCell } from "../_testing/table-helpers";
+import { rowOf } from "@/app/_testing/dom";
+import { deferredAction } from "@/app/_testing/actions";
+import { startEditingCell } from "../_testing/table-helpers";
 
 // Server Action の先は実DB接続と revalidatePath に届くため、同じ返り値の契約
 // （ActionResult）を返す偽物へ差し替える（アーキテクチャ定義書 §8「偽物を置いてよい境界」）
@@ -79,7 +81,6 @@ const startEditingStartTime = (
 };
 
 beforeEach(() => {
-  vi.clearAllMocks();
   vi.mocked(archiveSectionAction).mockResolvedValue({ ok: true });
   vi.mocked(createSectionAction).mockResolvedValue({ ok: true });
   vi.mocked(deleteSectionAction).mockResolvedValue({ ok: true });

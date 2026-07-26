@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ActionResult } from "./action-result";
-import { deferredAction } from "../_testing/table-helpers";
+import { deferredAction } from "@/app/_testing/actions";
 import { useMasterAction } from "./use-master-action";
 
 const ok = (): ActionResult => ({ ok: true });

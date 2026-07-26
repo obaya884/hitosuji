@@ -1,14 +1,9 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
+import { hasClass } from "../_testing/dom";
+import { pathname } from "../_testing/next-navigation";
 import { GlobalNav } from "./global-nav";
-
-// `usePathname` はアプリのルータ文脈の外では動かないため差し替える
-// （アーキテクチャ定義書 §8「偽物を置いてよい境界」= フレームワークのランタイム API）
-const pathname = vi.hoisted(() => ({ value: "/" }));
-vi.mock("next/navigation", () => ({
-  usePathname: () => pathname.value,
-}));
 
 /** レール内のナビ項目（ロゴを除く）を描画順に返す */
 function navItems() {
@@ -16,9 +11,6 @@ function navItems() {
     .getAllByRole("link")
     .filter((a) => a.closest("li") !== null);
 }
-
-// クラスは部分文字列ではなくトークンで見る（`bg-accent` は `hover:bg-accent-weak` の部分文字列でもある）
-const hasClass = (el: Element, token: string) => el.classList.contains(token);
 
 /** aria-current=page が付いている項目のラベル */
 function currentLabels() {

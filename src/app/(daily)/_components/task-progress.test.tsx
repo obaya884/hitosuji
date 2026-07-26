@@ -1,6 +1,7 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import { hasClass } from "@/app/_testing/dom";
 import { atJst } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
 
@@ -66,8 +67,8 @@ describe("TaskProgress（F-114: タスク消化の進捗。画面定義書01 §3
     const { container } = render(<TaskProgress tasks={[todo(1)]} />);
 
     const { track, label } = parts(container);
-    expect(track.className).toContain("w-20");
-    expect(label.className).toContain("text-xs");
+    expect(hasClass(track, "w-20")).toBe(true);
+    expect(hasClass(label, "text-xs")).toBe(true);
   });
 
   it("バー幅と文字サイズは呼び出し側が差し替えられる（§3.1 のサマリ行は1段大きい）", () => {
@@ -77,9 +78,9 @@ describe("TaskProgress（F-114: タスク消化の進捗。画面定義書01 §3
 
     const { track, label } = parts(container);
     // 差し替え先がバーと文字それぞれに効いていること（取り違えを検出する）
-    expect(track.className).toContain("w-40");
-    expect(track.className).not.toContain("w-20");
-    expect(label.className).toContain("text-sm");
-    expect(label.className).not.toContain("text-xs");
+    expect(hasClass(track, "w-40")).toBe(true);
+    expect(hasClass(track, "w-20")).toBe(false);
+    expect(hasClass(label, "text-sm")).toBe(true);
+    expect(hasClass(label, "text-xs")).toBe(false);
   });
 });

@@ -1,14 +1,8 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
+import { pathname } from "../_testing/next-navigation";
 import { NavTabs } from "./nav-tabs";
-
-// `usePathname` はアプリのルータ文脈の外では動かないため差し替える
-// （アーキテクチャ定義書 §8「偽物を置いてよい境界」= フレームワークのランタイム API）
-const pathname = vi.hoisted(() => ({ value: "/masters/sections" }));
-vi.mock("next/navigation", () => ({
-  usePathname: () => pathname.value,
-}));
 
 const TABS = [
   { href: "/masters/sections", label: "セクション" },

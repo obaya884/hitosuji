@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Project } from "@/domain/project/project";
 
-import { deferredAction, rowOf, startEditingCell } from "../_testing/table-helpers";
+import { rowOf } from "@/app/_testing/dom";
+import { deferredAction } from "@/app/_testing/actions";
+import { startEditingCell } from "../_testing/table-helpers";
 
 // Server Action の先は実DB接続と revalidatePath に届くため、同じ返り値の契約
 // （ActionResult）を返す偽物へ差し替える（アーキテクチャ定義書 §8「偽物を置いてよい境界」）
@@ -47,7 +49,6 @@ function renderTable(
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
   vi.mocked(createProjectAction).mockResolvedValue({ ok: true });
   vi.mocked(updateProjectAction).mockResolvedValue({ ok: true });
   vi.mocked(setProjectArchivedAction).mockResolvedValue({ ok: true });
