@@ -5,6 +5,7 @@
   "license": "AGPL-3.0-or-later",
   "scripts": {
     "dev": "sh scripts/dev.sh",
+    "dev:check": "sh scripts/dev-check.sh",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
