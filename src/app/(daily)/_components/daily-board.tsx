@@ -51,7 +51,8 @@ import {
   type OptimisticAction,
 } from "../_lib/optimistic";
 import { pendingUndoMessage, type PendingUndo, type UndoTarget } from "../_lib/undo";
-import { DailyList, type EditingCell } from "./daily-list";
+import { DailyList } from "./daily-list";
+import type { EditingCell } from "./task-row";
 import { DailySummary } from "./daily-summary";
 import { DateNav } from "@/app/_components/date-nav";
 import { ShortcutHelp } from "./shortcut-help";

@@ -6,7 +6,7 @@ import type { Task } from "@/domain/task/task";
 import { atJst } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
 
-import type { EditField } from "./daily-list";
+import type { EditField } from "./task-row";
 import { useDailyShortcuts, type DailyShortcutParams } from "./use-daily-shortcuts";
 
 // キー割り当ての正は画面定義書01 §6、修飾キー・IME・テキスト入力中の除外は 00_共通 §3。

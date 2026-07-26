@@ -4,7 +4,7 @@ import { currentTaskId, moveSelection } from "@/domain/task/selection";
 import { taskStatus } from "@/domain/task/status";
 import type { Task } from "@/domain/task/task";
 import { isButtonTarget, isGlobalShortcutEvent } from "@/app/_lib/keyboard";
-import type { EditField, EditingCell } from "./daily-list";
+import type { EditField, EditingCell } from "./task-row";
 
 /**
  * デイリー画面のグローバルキーボードショートカット（画面定義書01 §6）。
