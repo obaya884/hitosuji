@@ -20,9 +20,8 @@ import type { Task, TaskId } from "@/domain/task/task";
 
 /**
  * 打刻ユースケースの失敗をそのまま含む（割り込み・中断が打刻の判断を通り、いずれの操作も
- * まずタスクを引くため）。`not_completed` は `PunchError` 由来なので個別に足さない。
- * この包含関係（`TaskOperationError ⊇ PunchUsecaseError`）は表示文言の取り違えが型で
- * 捕まらない原因でもある（T-74。`app/_lib/error-messages.ts` の doc を参照）
+ * まずタスクを引くため）。`not_completed` は打刻ドメイン（`domain/task/punch.ts` の
+ * `PunchError`）由来なので個別に足さない
  */
 export type TaskOperationError = PunchUsecaseError | "not_postponable";
 
@@ -113,7 +112,8 @@ export async function duplicateAndStartTask(
 ): Promise<Result<Task, TaskOperationError>> {
   const target = await repos.tasks.findById(input.taskId);
   if (target === null) return err("task_not_found");
-  // このコードを返すのは本ユースケースだけ。文言は DUPLICATE_AND_START_MESSAGES が持つ（T-74）
+  // TaskOperationError を返す操作でこのコードを返すのはここだけ（打刻の完了取り消しも同じコードを
+  // 返し、そちらは PUNCH_MESSAGES）。文言は DUPLICATE_AND_START_MESSAGES が持つ（T-74）
   if (taskStatus(target) !== "completed") return err("not_completed");
 
   const [sameDay, sections] = await Promise.all([

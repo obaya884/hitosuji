@@ -65,8 +65,9 @@ export const OPERATION_MESSAGES: Record<TaskOperationError, string> = {
 
 /**
  * 複製して開始（F-208）専用。`not_completed`（複製元が完了でない）に「もう一回」の文脈を添えるため、
- * ここだけ `OPERATION_MESSAGES` と文言が違う。**このコードへ到達するのは
- * `duplicateAndStartTask` だけ**なので、差をこの辞書に閉じ込めれば共有辞書側は一致を保てる（T-74）。
+ * ここだけ `OPERATION_MESSAGES` と文言が違う。**`TaskOperationError` を返す操作でこのコードへ
+ * 到達するのは `duplicateAndStartTask` だけ**（打刻の完了取り消しも同じコードを返すが、そちらは
+ * `PUNCH_MESSAGES` を引く）なので、差をこの辞書に閉じ込めれば共有辞書側は一致を保てる（T-74）。
  *
  * **`duplicateAndStartTaskAction` 以外から引かないこと**。`TaskOperationError ⊇ PunchUsecaseError`
  * なので打刻系のコードを引いても型は通り、そのとき打刻の失敗に「複製して開始…」が出る
