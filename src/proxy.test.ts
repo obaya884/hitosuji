@@ -24,11 +24,20 @@ function request(authorization?: string): NextRequest {
 }
 
 /**
+ * ブラウザと同じ手順で base64 に符号化する（UTF-8 のバイト列にしてから base64）。
+ * `btoa` は latin1 の範囲しか受け付けないため、非 ASCII は先に `TextEncoder` で符号化する
+ */
+function encodeBase64(decoded: string): string {
+  const bytes = new TextEncoder().encode(decoded);
+  return btoa(String.fromCharCode(...bytes));
+}
+
+/**
  * `Authorization` ヘッダ値。`schemePrefix` はスキーム名と区切り文字までを含む
  * （区切りが空白であること自体を検証したいテストがあるため、呼び出し側に持たせる）
  */
 function authHeader(schemePrefix: string, decoded: string): string {
-  return `${schemePrefix}${btoa(decoded)}`;
+  return `${schemePrefix}${encodeBase64(decoded)}`;
 }
 
 /** 正しい形の `Basic` ヘッダ値 */
@@ -129,6 +138,15 @@ describe("proxy（要件定義書 N-03: 資格情報の照合）", () => {
     expectPassThrough(proxy(request(basicHeader(TEST_USER, passwordWithColon))));
   });
 
+  it("非 ASCII を含む資格情報でも一致すれば素通しする（UTF-8 で復号する）", () => {
+    // ブラウザは資格情報を UTF-8 で符号化して送る。latin1 で復号すると多バイト文字が
+    // 元の文字へ戻らず、設定値と一致し得なくなる（照合できる文字集合が ASCII に狭まる）
+    const user = "テスト利用者";
+    const password = "パスワード-Ω";
+    stubCredentials(user, password);
+    expectPassThrough(proxy(request(basicHeader(user, password))));
+  });
+
   it("設定のユーザ名に `:` が含まれると一致し得ない（区切りは最初の `:` のみ）", () => {
     // 送信値 "unit:user:unit-password" は ユーザ名 "unit" / パスワード "user:unit-password" と
     // 解釈されるため、設定のユーザ名 "unit:user" とは決して一致しない
@@ -159,15 +177,15 @@ describe("proxy（要件定義書 N-03: 不正な Authorization ヘッダは 401
     expectUnauthorized(proxy(request(authHeader("Basic\t", `${TEST_USER}:${TEST_PASSWORD}`))));
   });
 
-  it("base64 として解釈できない値でも例外にせず 401 を返す", () => {
+  it("base64 として解釈できない値でも 500 にせず 401 を返す", () => {
     stubCredentials(TEST_USER, TEST_PASSWORD);
-    // atob は例外を投げる。捕捉していなければ 401 ではなく例外で落ちる
+    // 復号器は不正な文字を黙って捨てるので、残りは資格情報の形にならず 401 に落ちる
     expectUnauthorized(proxy(request("Basic not-base64!!!")));
   });
 
-  it("base64 の長さが不正（4で割った余りが1）でも例外にせず 401 を返す", () => {
+  it("base64 の長さが不正（4で割った余りが1）でも 500 にせず 401 を返す", () => {
     stubCredentials(TEST_USER, TEST_PASSWORD);
-    // "YWJjZ" は5文字。atob は長さ不正として例外を投げる
+    // "YWJjZ" は5文字。単位に足りない末尾は捨てられ "abc" に復号されるため、区切りが無く 401
     expectUnauthorized(proxy(request("Basic YWJjZ")));
   });
 
@@ -190,6 +208,17 @@ describe("proxy（要件定義書 N-03: 不正な Authorization ヘッダは 401
   });
 });
 
+describe("proxy（要件定義書 N-03: 復号は base64 の妥当性を検査しない）", () => {
+  // 現挙動の固定（characterization）。復号器は不正な文字を黙って捨てるため、`atob` 時代は
+  // 例外＝401 だった「不正文字混じり」が復号を通る。資格情報を知らなければ通れないので
+  // 権限は広がらないが、「何を 401 にするか」の輪郭が変わった点を記録する。
+  // 厳格に弾く（fail-closed）へ倒すかは挙動レベルの仕様判断なので docs 側で決める
+  it("base64 に不正な文字が混じっていても、復号結果が一致すれば素通しする", () => {
+    stubCredentials(TEST_USER, TEST_PASSWORD);
+    expectPassThrough(proxy(request(`${basicHeader(TEST_USER, TEST_PASSWORD)}!!!`)));
+  });
+});
+
 describe("proxy の matcher（要件定義書 N-03: 認証を通す経路の範囲）", () => {
   // Next はパス全体との一致で matcher を評価するため、前後を固定して近似する。
   // 実行時の突き合わせそのものではなく「除外パターンが何を意図しているか」を固定するテスト
@@ -203,10 +232,26 @@ describe("proxy の matcher（要件定義書 N-03: 認証を通す経路の範�
     expect(matcher.test(pathname)).toBe(true);
   });
 
-  it.each(["/_next/static/chunk.js", "/_next/image", "/favicon.ico"])(
+  it.each(["/_next/static", "/_next/static/chunk.js", "/_next/image", "/favicon.ico"])(
     "静的アセットの経路 %s は認証の対象から外す",
     (pathname) => {
       expect(matcher.test(pathname)).toBe(false);
     }
   );
+
+  // 実装側コメントの「除外は先頭セグメントの名前ちょうどか、その配下だけ」を経路で固定する
+  it.each([
+    "/faviconXico", // `.` は任意の1文字ではない
+    "/favicon.icon", // 除外名の後ろに続きがあれば別の経路
+    "/favicon.ico.map",
+    "/_next/staticX",
+    "/_next/static-cache/chunk.js",
+    "/_next/imagex",
+    "/_nextX/static/chunk.js",
+    "/blog/favicon.ico", // 除外名が途中のセグメントに現れても掛からない
+    "/docs/_next/static/chunk.js",
+    "/settings/_next/image",
+  ])("静的アセットに似た名前の経路 %s は認証の対象にする", (pathname) => {
+    expect(matcher.test(pathname)).toBe(true);
+  });
 });
