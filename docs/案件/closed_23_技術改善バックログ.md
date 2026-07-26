@@ -32,6 +32,8 @@
 | T-50 | `sort_order` の採番・振り直し規則が domain 内で5か所に写っている | 内部設計 | 中 | 完了（2026-07-26）→ placeSortOrder へ集約し placement.ts を削除 #64。閾値の直上など生存変異3件を塞ぐ | [詳細](#t-50) |
 | T-47 | 時刻の「表示は Asia/Tokyo 固定・入力解釈はローカル」が非対称 | 内部設計 | 低 | 完了（2026-07-26）→ 解釈・導出・表示を APP_TIME_ZONE 固定へ #68。domain はタイムゾーンを引数で受け取り atLocal を廃止 | [詳細](#t-47) |
 | T-55 | `resolveToday` が presentation にありながらリポジトリを叩いている | 内部設計 | 低 | 完了（2026-07-26）→ usecases/section/resolve-today.ts へ移設 #68。todayLogicalDate は domain へ下げ now は presentation が渡す | [詳細](#t-55) |
+| T-74 | Server Action がどの文言辞書を引くかの配線を、型もテストも検証していない | テスト | 中 | 完了（2026-07-26）→ 文言差を DUPLICATE_AND_START_MESSAGES へ隔離 #65。共有2辞書は取り違えても文言が変わらない。残りは T-76 | [詳細](#t-74) |
+| T-75 | エラー文言辞書が画面配下と共有の2ファイルに分かれている | 内部設計 | 低 | 完了（2026-07-26）→ app/_lib/error-messages.ts 1ファイルへ統合 #65。残課題は T-77・T-78 | [詳細](#t-75) |
 
 ## 詳細
 
@@ -246,6 +248,8 @@
 - **範囲（2026-07-26・オーナー判断）**: **`projection.ts` のローカル解釈も本 T に含める**。`dayStartAt`（`base.setHours(0,0,0,0)` と `now.getHours()`）はセクション終了時刻・予想開始時刻の土台なので、ここを残すと「表示は JST 固定・導出はローカル」の非対称が半分残る。`applyClockTime` だけに絞る案は採らない（[T-62](#t-62) の危険もこの導出側に residual として残るため）
 - 着手条件: **解除済み**（振り分けが決まったので着手可能）。[T-55](#t-55) は本 T の裏面なので**一緒に片付ける**——タイムゾーンの持ち主が確定すれば `resolveToday` の配置も決まる
 - 関連: [T-43](./closed_23_技術改善バックログ.md#t-43)（**症状はテスト側で予防済み**——`at()` が同名・別契約で2つ存在した件は 2026-07-26 に `atJst()` / `atLocal()` の呼び分けへ解消した。ただし**根の非対称は本 T で未解決**） / [データモデル定義書](../仕様/14_データモデル定義書.md)（`task_date` は打刻時刻から導出しない） / T-39 第2バッチ③
+- **対応（2026-07-26・#68）**: `src/domain/shared/time-zone.ts` に `APP_TIME_ZONE` と壁時計の純関数（`zonedParts` / `fromZonedClock` / `withZonedClockTime`）を置き、`applyClockTime` / `editStartedAt` / `editEndedAt`（F-203）と `projection.ts` の論理日起点（F-116）をタイムゾーン引数へ変えた。表示（`formatClock`）も同じ純関数を通す。**domain は既定値を持たず、定数を束ねるのは usecases / presentation**。テストヘルパは `atLocal` を廃止し `atJst` 一本化。JST では結果が同一で挙動は変わらない。TZ 6種（UTC / New_York / +14 / −11 / London / Sydney）で全テスト緑、変異3件すべて赤。**運用タイムゾーンが Asia/Tokyo 固定である前提を[要件定義書](../仕様/12_要件定義書.md) §2.2 に明記**（どの仕様文書にも無かったことが `spec-reviewer` の指摘で判明）。夏時間に耐えるのは `fromZonedClock` 単体の契約で、上位の導出は「1日=24時間」前提のまま（Asia/Tokyo に夏時間が無いので成り立つ前提としてモジュール冒頭に明記）
+- 残った分: [T-62](./23_技術改善バックログ.md#t-62)（CI の TZ 宣言＝検出側。本 T で予防側は解消した）
 
 ### T-55
 
@@ -254,6 +258,32 @@
 - 着手条件: **解除済み**。T-47 と同じブランチで片付ける
 - 優先度の根拠: 実害はゼロ（正しく動きテストもある）。層の判別基準との食い違いが読み手を迷わせるだけなので、T-47 のついでが最も安い
 - 関連: T-47 / [アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md) §3
+- **対応（2026-07-26・#68）**: `resolveToday` / `todayFromSections` を `src/usecases/section/resolve-today.ts` へ移した（`expand.ts` と同じ「集約の非CRUD導出は独立ファイル」の流儀）。純粋な日付導出 `todayLogicalDate` は domain（`shared/logical-date.ts`）へ下げ、引数は `(now, timeZone, dayStartMinutes)`。**`now` の既定 `new Date()` は落として presentation（3つの page）が渡す形にした**（usecases に時計を持たせない）
+
+### T-74
+
+- 背景: `src/app/(daily)/actions.ts` の各 Server Action は「どのユースケースの失敗にどの辞書を当てるか」を手で対応づけているが、**その配線を型もテストも検証していない**。[T-49](#t-49) の変異6で実測——`startTaskAction` が引く辞書を `PUNCH_MESSAGES` から `OPERATION_MESSAGES` に差し替えても、**型検査も全テストも通った**
+- なぜ型で防げないか: `PunchUsecaseError ⊆ TaskOperationError` という包含関係があるため、広い方の辞書で狭い方のコードを引いてもコンパイルが通る。実際に変わるのは `not_completed` の文言だけ（`OPERATION_MESSAGES` が「複製して開始できるのは完了タスクだけです」で上書きしている）で、**打刻の失敗にルーチン化まわりの文言が出る**という静かな取り違えになる
+- なぜテストで防げないか: `actions.ts` は[アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md) §8 の線引きで自動テストの対象外。コンポーネントテストは Server Action をスタブするため、**辞書の選択という presentation 側の分岐を通らない**
+- **方針（2026-07-26・オーナー判断）**: **辞書間の文言差を「複製して開始」専用の辞書へ隔離する**。`OPERATION_MESSAGES` が `not_completed` を上書きしているのが差の全量なので、上書きを当該アクション専用の辞書へ出し、共有辞書は包含関係にあっても文言が完全一致する状態にする。**取り違えても文言が変わらない＝欠陥が構造的に消える**形で、差の再導入は `error-messages.test.ts` の不変条件テスト（共有コードで文言が一致すること）が検出する。挙動不変・[アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md) §8 の境界は動かさない
+- 採らなかった案: ①`actions.ts` に薄いテストを置く（§8 の境界を広げる docs 改訂＋合成ルートゆえ DB 前提のテストが要る。網は厚いが代償が大きい）②辞書の選択をユースケース側へ寄せる（表示文言＝presentation の都合を usecases へ持ち込み層の責務に反する）③ドメインエラー型を包含関係のない直和に分ける（意味的に共通な `task_not_found` 等を分ける不自然さが残り、全呼び出し元へ波及する）
+- 着手条件: `actions.ts` の辞書対応を増やすとき、または [T-60](#t-60)・[T-61](#t-61) でテストの網を広げるとき（§8 の境界を触る作業がまとまる）
+- 優先度の根拠: いま壊れてはいない（現在の配線は正しい）が、**取り違えても誰も気づけない**のが問題。文言の取り違えは実害が小さいので中に留める
+- 関連: [T-49](#t-49)（発見の契機。変異6が生存） / [アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md) §8 / T-60・T-61
+- **対応（2026-07-26・#65）**: `OPERATION_MESSAGES` から `not_completed` の上書きを外し、複製して開始（F-208）専用の `DUPLICATE_AND_START_MESSAGES` へ隔離した。`TaskOperationError` として `not_completed` を返すのは `duplicateAndStartTask`（`operations.ts`）だけ（`operations.ts` が import する打刻ドメイン関数は `canFinish` のみで、`not_completed` を返す `canUndoComplete` は import していない）なので**挙動不変**。T-49 の変異6（`startTaskAction` の辞書差し替え）を再実行し、**全5コードで文言が同一**であることを実測した。差の再導入・拡大は `error-messages.test.ts` の不変条件テスト2本が検出する（変異で実測）。あわせて `TaskOperationError` の重複メンバーを畳み `PunchUsecaseError | "not_postponable"` へ（集合は6コードで同一・網羅性検査が弱まらないことを変異で実測）。§8 の境界は動かしていない
+- **但し書き（残存リスク → [T-76](./23_技術改善バックログ.md#t-76)）**: 「取り違えても文言が変わらない」が成り立つのは**共有2辞書の間だけ**。`DUPLICATE_AND_START_MESSAGES` は `Record<TaskOperationError, string>` で包含が残るため、**打刻系アクションで誤って引いても型が通る**（`undoCompleteAction` で変異させ、型検査も全テストも緑のまま文言が変わることを実測）。歯止めは「1アクション専用の自己説明的な名前」と辞書 doc の明記のみ
+
+### T-75
+
+- 背景: エラー文言辞書が `src/app/(daily)/_lib/error-messages.ts`（デイリーの6辞書＋`routineFromTaskErrorMessage`）と `src/app/_lib/routine-error-messages.ts`（`ROUTINE_ERROR_MESSAGES` の12件）の2ファイルに分かれている。[T-49](./closed_23_技術改善バックログ.md#t-49) で集約したときに**「1画面でしか使わないものは画面配下・画面をまたぐものは共有」**で置き場を分けた結果で、ルーチン文言はルーチン管理（画面定義書02 §4）とデイリーのルーチン化（画面定義書01 §4.1）の双方から引かれるため共有側へ置いた
+- 分かれていることの読みにくさ: ①**名前の軸が揃っていない**——一方は領域名なしの `error-messages`、他方は領域名つきの `routine-error-messages`。ファイル名からは「デイリー用とルーチン用」に見えるが、実際の軸は「画面配下か共有か」 ②画面配下のファイルが共有側を import しており（`ROUTINE_FROM_TASK_MESSAGES` がルーチン文言を流用する）、**1つの文言を追うのに2ファイルを行き来する** ③文言を足すとき、どちらに書くかの判断が毎回必要になる
+- 方針（2026-07-26・オーナー決定）: **全部 `src/app/_lib/` へ寄せる**。画面配下と共有で分けず、文言辞書は1か所に集める
+- 対応方針: `(daily)/_lib/error-messages.ts` を `app/_lib/` へ移し、`routine-error-messages.ts` と名前の軸を揃える（1ファイルに統合するか `app/_lib/error-messages/` 配下へ領域ごとに置くかは着手時に決める）。テスト2本も一緒に動かす。import 元は3ファイル（`(daily)/actions.ts` / `(daily)/_components/daily-board.tsx` / `routines/actions.ts`）。**挙動は変えない**——文言・型・公開する名前を変えない純粋な移動
+- 着手条件: すぐ（小さい）。[T-74](#t-74) の方針が「文言差を専用辞書へ隔離」に決まり移動先は変わらないため、**T-74 と同じブランチで片付ける**（同じ辞書ファイルを触るので分けると衝突する）
+- 優先度の根拠: 実害は無く読み手の迷いだけ。ただし文言を足すたびに置き場の判断が発生するので、辞書を触る別件のついでに済ませたい
+- 関連: [T-49](./closed_23_技術改善バックログ.md#t-49)（分割の由来）/ T-74（同じ辞書まわり）/ [FB-71](./21_ユーザーフィードバック.md#fb-71)（`ROUTINE_FROM_TASK_MESSAGES` の未記入コード。移動しても残る）
+- **対応（2026-07-26・#65）**: 2ファイルを `src/app/_lib/error-messages.ts` **1ファイルに統合**（`error-messages/` 配下への領域分割は採らず——`ROUTINE_FROM_TASK_MESSAGES` が `ROUTINE_ERROR_MESSAGES` を参照しているため、分割すると「1文言を追うのに複数ファイル」が戻る）。テスト2本も統合し、旧ルーチン側の観点と条項参照（画面定義書02 §4）は `it` として保存。文言・型・公開名は無変更で、import 元3ファイルは指定子の差し替えのみ。**[アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md) §2 に「エラー文言辞書はコロケーションの例外として `_lib/` に置く」を追記**（コロケーション条項との字面上の食い違いを `spec-reviewer` が指摘）
+- 残課題: [T-77](./23_技術改善バックログ.md#t-77)（`ROUTINE_ERROR_MESSAGES` だけ命名軸が違う。公開名を変えない要件のため据え置き）/ [T-78](./23_技術改善バックログ.md#t-78)（`masters/_lib/action-result.ts` に同一文言の別辞書が残る）
 
 ## 旧書式の記録（2026-07-26 以前）
 
