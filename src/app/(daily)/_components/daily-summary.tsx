@@ -1,5 +1,6 @@
 "use client";
 
+import { APP_TIME_ZONE } from "@/domain/shared/time-zone";
 import type { DailyGroup } from "@/domain/task/daily-list";
 import {
   formatProjectedEnd,
@@ -27,7 +28,7 @@ export function DailySummary({ groups, now, isToday, dayStartMinutes }: Props) {
   const tasks = groups.flatMap((g) => g.tasks);
   const remaining = remainingMinutes(tasks, now);
   const end = projectedEndTime(tasks, now);
-  const overMidnight = isOverMidnight(end, now, dayStartMinutes);
+  const overMidnight = isOverMidnight(end, now, APP_TIME_ZONE, dayStartMinutes);
 
   return (
     // 本文より1段階大きい文字で、日付ナビの直後に左寄せで並べる（§3.1）
@@ -42,7 +43,7 @@ export function DailySummary({ groups, now, isToday, dayStartMinutes }: Props) {
           <span>
             <span className="font-sans text-sm text-ink-muted">終了予定 </span>
             <span className={overMidnight ? "font-medium text-danger" : "font-medium"}>
-              {formatProjectedEnd(end, now, dayStartMinutes)}
+              {formatProjectedEnd(end, now, APP_TIME_ZONE, dayStartMinutes)}
             </span>
           </span>
           <span>

@@ -1,11 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  formatClock,
-  formatDuration,
-  formatEstimate,
-  formatLogicalDate,
-  todayLogicalDate,
-} from "./format";
+import { formatClock, formatDuration, formatEstimate, formatLogicalDate } from "./format";
 
 describe("formatEstimate（画面定義書01 §3.3: 見積もり未設定は --:--）", () => {
   it("未設定（0分）は --:-- で表す", () => {
@@ -49,33 +43,5 @@ describe("formatClock（画面定義書01 §3.3: 打刻時刻は日本時間 HH:
   it("JST 深夜0時は 00:00（24:00 ではない）", () => {
     // 2026-07-20T15:00:00Z → JST 翌 00:00
     expect(formatClock(new Date("2026-07-20T15:00:00Z"))).toBe("00:00");
-  });
-});
-
-describe("todayLogicalDate（既定 = 日界 00:00・日本時間の暦日）", () => {
-  it("JST 23:59:59 はその日のまま", () => {
-    // 2026-07-20T14:59:59Z → JST 2026-07-20 23:59:59
-    expect(todayLogicalDate(new Date("2026-07-20T14:59:59Z"))).toBe("2026-07-20");
-  });
-
-  it("JST 0:00 を跨ぐと翌日の暦日になる（UTC 深夜帯で日付がずれる境界）", () => {
-    // 2026-07-20T15:00:00Z → JST 2026-07-21 00:00:00
-    expect(todayLogicalDate(new Date("2026-07-20T15:00:00Z"))).toBe("2026-07-21");
-  });
-});
-
-describe("todayLogicalDate（F-116: 日界を指定すると解決がずれる）", () => {
-  it("日界 06:00 で JST 05:59 はまだ前の暦日", () => {
-    // 2026-07-20T20:59:00Z → JST 2026-07-21 05:59 → 日界06:00前なので 07-20
-    expect(todayLogicalDate(new Date("2026-07-20T20:59:00Z"), "06:00")).toBe("2026-07-20");
-  });
-
-  it("日界 06:00 ちょうどはその暦日の今日", () => {
-    // 2026-07-20T21:00:00Z → JST 2026-07-21 06:00 → 07-21
-    expect(todayLogicalDate(new Date("2026-07-20T21:00:00Z"), "06:00")).toBe("2026-07-21");
-  });
-
-  it("日界 00:00 を明示しても既定（暦日）と一致する", () => {
-    expect(todayLogicalDate(new Date("2026-07-20T20:59:00Z"), "00:00")).toBe("2026-07-21");
   });
 });

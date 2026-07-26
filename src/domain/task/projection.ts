@@ -1,21 +1,24 @@
 // 終了予定時刻と残時間（F-104）・予想開始時刻（F-120 / データモデル定義書 §4.3）
-// DBには保存しない導出値。現在時刻は引数で受け取る（domain は now を持たない）
+// DBには保存しない導出値。現在時刻とタイムゾーンは引数で受け取る（domain は now も環境も持たない）
 import { offsetFromDayStart, startMinutes } from "../section/section";
+import { todayLogicalDate } from "../shared/logical-date";
+import { fromZonedClock } from "../shared/time-zone";
 import { taskStatus } from "./status";
 import { elapsedMinutes, type Task, type TaskId } from "./task";
 
 /**
  * 現在時刻が属する論理日の暦日 0:00（F-116）。日界（分）より前の時間帯は前の暦日が起点になる。
  * 折返し表記・超過警告・セクション終了時刻を、暦日 0:00 ではなく論理日の区切りで測るための基準。
+ * 暦日と壁時計は運用タイムゾーンで読む（表示の `formatClock` と同じ基準。T-47）。
+ * 論理日そのものの決定は `todayLogicalDate` に任せ（日界の規則を2か所に持たない）、
+ * その暦日 0:00 を運用タイムゾーンの壁時計として絶対時刻に戻す。
  * 既定（dayStartMinutes = 0）では now の暦日 0:00 に一致する。
  */
-function logicalBaseMidnight(now: Date, dayStartMinutes: number): Date {
-  const base = new Date(now);
-  base.setHours(0, 0, 0, 0);
-  if (now.getHours() * 60 + now.getMinutes() < dayStartMinutes) {
-    base.setDate(base.getDate() - 1);
-  }
-  return base;
+function logicalBaseMidnight(now: Date, timeZone: string, dayStartMinutes: number): Date {
+  const [year, month, day] = todayLogicalDate(now, timeZone, dayStartMinutes)
+    .split("-")
+    .map(Number);
+  return fromZonedClock({ year, month, day, hours: 0, minutes: 0 }, timeZone);
 }
 
 /**
@@ -74,14 +77,15 @@ export function projectedStartTimes(tasks: readonly Task[], now: Date): Map<Task
  * 論理日の暦日 0:00 を起点に測った時計数字（日界 F-116 を踏まえる。データモデル定義書 §4.3）。
  * 24:00 を超えると hours は 25, 26… と伸びる（折返し表記 `25:30` の材料）。
  * 既定（dayStartMinutes = 0）では now の暦日 0:00 起点。
- * 基準はランタイムのローカル時刻（実打刻の `formatClock` は JST 固定である点と異なる）
+ * 基準は運用タイムゾーン（実打刻の `formatClock` と同じ。T-47）
  */
 function logicalClock(
   at: Date,
   now: Date,
+  timeZone: string,
   dayStartMinutes: number
 ): { hours: number; minutes: number } {
-  const startOfBase = logicalBaseMidnight(now, dayStartMinutes);
+  const startOfBase = logicalBaseMidnight(now, timeZone, dayStartMinutes);
   const minutesFromBase = Math.floor((at.getTime() - startOfBase.getTime()) / 60_000);
   return {
     hours: Math.floor(minutesFromBase / 60),
@@ -94,8 +98,13 @@ function logicalClock(
  * 折返しの時計数字は論理日の暦日 0:00 起点（日界 F-116 を踏まえる。データモデル定義書 §4.3）。
  * 既定（dayStartMinutes = 0）では now の暦日 0:00 起点で従来どおり。
  */
-export function formatProjectedEnd(end: Date, now: Date, dayStartMinutes = 0): string {
-  const { hours, minutes } = logicalClock(end, now, dayStartMinutes);
+export function formatProjectedEnd(
+  end: Date,
+  now: Date,
+  timeZone: string,
+  dayStartMinutes = 0
+): string {
+  const { hours, minutes } = logicalClock(end, now, timeZone, dayStartMinutes);
   return `${hours}:${String(minutes).padStart(2, "0")}`;
 }
 
@@ -104,8 +113,13 @@ export function formatProjectedEnd(end: Date, now: Date, dayStartMinutes = 0): s
  * 実打刻（`09:35–`）と同じ列に並ぶので、時は2桁ゼロ埋め・区切りも実打刻と同じ en dash に揃える。
  * 24:00 超過は終了予定と同じ論理日基準の折返し表記（`25:30–`）
  */
-export function formatProjectedStart(start: Date, now: Date, dayStartMinutes = 0): string {
-  const { hours, minutes } = logicalClock(start, now, dayStartMinutes);
+export function formatProjectedStart(
+  start: Date,
+  now: Date,
+  timeZone: string,
+  dayStartMinutes = 0
+): string {
+  const { hours, minutes } = logicalClock(start, now, timeZone, dayStartMinutes);
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}–`;
 }
 
@@ -113,8 +127,13 @@ export function formatProjectedStart(start: Date, now: Date, dayStartMinutes = 0
  * 終了予定が論理日の区切り（次の日界）を越えるか（F-104: 警告色の判定に使う）。
  * 既定（dayStartMinutes = 0）では暦日 24:00 超過に一致する（データモデル定義書 §4.3）。
  */
-export function isOverMidnight(end: Date, now: Date, dayStartMinutes = 0): boolean {
-  const base = logicalBaseMidnight(now, dayStartMinutes);
+export function isOverMidnight(
+  end: Date,
+  now: Date,
+  timeZone: string,
+  dayStartMinutes = 0
+): boolean {
+  const base = logicalBaseMidnight(now, timeZone, dayStartMinutes);
   const nextDayStart = base.getTime() + (24 * 60 + dayStartMinutes) * 60_000;
   return end.getTime() >= nextDayStart;
 }
@@ -130,9 +149,10 @@ export function sectionEndAt(
   now: Date,
   startTime: string,
   endTime: string,
+  timeZone: string,
   dayStartMinutes = 0
 ): Date {
-  const base = logicalBaseMidnight(now, dayStartMinutes);
+  const base = logicalBaseMidnight(now, timeZone, dayStartMinutes);
   const startOffset = offsetFromDayStart(startMinutes(startTime), dayStartMinutes);
   const startAbs = base.getTime() + (dayStartMinutes + startOffset) * 60_000;
   return new Date(startAbs + sectionCapacityMinutes(startTime, endTime) * 60_000);

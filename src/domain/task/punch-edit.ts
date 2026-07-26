@@ -1,5 +1,6 @@
 // 打刻時刻のインライン修正（F-203 / 画面定義書01 §3.3・§8）
 import { err, ok, type Result } from "../shared/result";
+import { withZonedClockTime } from "../shared/time-zone";
 import type { Task } from "./task";
 
 export type PunchEditError =
@@ -27,22 +28,30 @@ export function parseClockTime(raw: string): Result<{ hours: number; minutes: nu
 
 /**
  * 時刻入力を、元の打刻の暦日に当てはめた Date へ変換する。
- * 時刻だけを直す操作なので日付は動かさない（日をまたぐ実行中タスクの扱いは画面定義書01 §8）
+ * 入力は運用タイムゾーン（引数で受け取る）の壁時計として解釈する——表示（`formatClock`）と同じ
+ * 基準にそろえるため（T-47）。時刻だけを直す操作なので日付は動かさない（日をまたぐ実行中タスクの
+ * 扱いは画面定義書01 §8）
  */
-export function applyClockTime(base: Date, raw: string): Result<Date, PunchEditError> {
+export function applyClockTime(
+  base: Date,
+  raw: string,
+  timeZone: string
+): Result<Date, PunchEditError> {
   const parsed = parseClockTime(raw);
   if (!parsed.ok) return parsed;
 
-  const applied = new Date(base);
-  applied.setHours(parsed.value.hours, parsed.value.minutes, 0, 0);
-  return ok(applied);
+  return ok(withZonedClockTime(base, parsed.value.hours, parsed.value.minutes, timeZone));
 }
 
 /** 開始時刻の修正。終了済みなら 開始 ≦ 終了 を保つ（F-203） */
-export function editStartedAt(task: Task, hhmm: string): Result<Date, PunchEditError> {
+export function editStartedAt(
+  task: Task,
+  hhmm: string,
+  timeZone: string
+): Result<Date, PunchEditError> {
   if (task.startedAt === null) return err("not_punched");
 
-  const applied = applyClockTime(task.startedAt, hhmm);
+  const applied = applyClockTime(task.startedAt, hhmm, timeZone);
   if (!applied.ok) return applied;
 
   if (task.endedAt !== null && applied.value.getTime() > task.endedAt.getTime()) {
@@ -52,11 +61,15 @@ export function editStartedAt(task: Task, hhmm: string): Result<Date, PunchEditE
 }
 
 /** 終了時刻の修正。開始打刻がない状態では終了時刻を持てない（ck_tasks_time と同じ制約） */
-export function editEndedAt(task: Task, hhmm: string): Result<Date, PunchEditError> {
+export function editEndedAt(
+  task: Task,
+  hhmm: string,
+  timeZone: string
+): Result<Date, PunchEditError> {
   if (task.startedAt === null) return err("no_started_at");
   if (task.endedAt === null) return err("not_punched");
 
-  const applied = applyClockTime(task.endedAt, hhmm);
+  const applied = applyClockTime(task.endedAt, hhmm, timeZone);
   if (!applied.ok) return applied;
 
   if (applied.value.getTime() < task.startedAt.getTime()) return err("ended_before_started");

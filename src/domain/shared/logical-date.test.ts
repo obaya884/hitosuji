@@ -4,8 +4,10 @@ import {
   applyDayStart,
   isValidLogicalDate,
   parseLogicalDate,
+  todayLogicalDate,
   weekdayIndex,
 } from "./logical-date";
+import { APP_TIME_ZONE } from "./time-zone";
 
 describe("isValidLogicalDate（データモデル定義書 §1: task_date は YYYY-MM-DD の論理日付）", () => {
   it("形式と実在日を検証する", () => {
@@ -55,6 +57,45 @@ describe("applyDayStart（F-116: 日界を踏まえて論理日付を決める�
   it("日界 0 なら常に暦日と一致する", () => {
     expect(applyDayStart("2026-07-21", 0, 0)).toBe("2026-07-21");
     expect(applyDayStart("2026-07-21", 5, 0)).toBe("2026-07-21");
+  });
+});
+
+describe("todayLogicalDate（F-116: 現在時刻から今日を決める。日界 0 なら運用タイムゾーンの暦日）", () => {
+  it("JST 23:59:59 はその日のまま", () => {
+    // 2026-07-20T14:59:59Z → JST 2026-07-20 23:59:59
+    expect(todayLogicalDate(new Date("2026-07-20T14:59:59Z"), APP_TIME_ZONE, 0)).toBe("2026-07-20");
+  });
+
+  it("JST 0:00 を跨ぐと翌日の暦日になる（UTC 深夜帯で日付がずれる境界）", () => {
+    // 2026-07-20T15:00:00Z → JST 2026-07-21 00:00:00
+    expect(todayLogicalDate(new Date("2026-07-20T15:00:00Z"), APP_TIME_ZONE, 0)).toBe("2026-07-21");
+  });
+
+  it("暦日はタイムゾーン引数で読む（実行環境のローカル時刻に依らない）", () => {
+    // 同じ瞬間が JST では 07-21、UTC では 07-20
+    expect(todayLogicalDate(new Date("2026-07-20T15:00:00Z"), "UTC", 0)).toBe("2026-07-20");
+  });
+});
+
+describe("todayLogicalDate（F-116: 日界を指定すると解決がずれる）", () => {
+  const DAY_START = 6 * 60; // 日界 06:00
+
+  it("日界 06:00 で JST 05:59 はまだ前の暦日", () => {
+    // 2026-07-20T20:59:00Z → JST 2026-07-21 05:59 → 日界06:00前なので 07-20
+    expect(todayLogicalDate(new Date("2026-07-20T20:59:00Z"), APP_TIME_ZONE, DAY_START)).toBe(
+      "2026-07-20"
+    );
+  });
+
+  it("日界 06:00 ちょうどはその暦日の今日", () => {
+    // 2026-07-20T21:00:00Z → JST 2026-07-21 06:00 → 07-21
+    expect(todayLogicalDate(new Date("2026-07-20T21:00:00Z"), APP_TIME_ZONE, DAY_START)).toBe(
+      "2026-07-21"
+    );
+  });
+
+  it("日界 0 なら暦日と一致する", () => {
+    expect(todayLogicalDate(new Date("2026-07-20T20:59:00Z"), APP_TIME_ZONE, 0)).toBe("2026-07-21");
   });
 });
 

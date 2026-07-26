@@ -32,7 +32,7 @@ import { createRoutineFromTask } from "@/usecases/routine/routine-usecases";
 import { applyCarryOverAfterPunch } from "@/usecases/task/relocation-usecases";
 import type { ActionResult } from "@/app/_lib/action-result";
 import { formatClock } from "@/app/_lib/format";
-import { resolveToday } from "@/app/_lib/today";
+import { resolveToday } from "@/usecases/section/resolve-today";
 import {
   OPERATION_MESSAGES,
   PUNCH_MESSAGES,

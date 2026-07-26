@@ -5,6 +5,7 @@ import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
 import { currentSectionId as deriveCurrentSectionId, type Section } from "@/domain/section/section";
+import { APP_TIME_ZONE } from "@/domain/shared/time-zone";
 import { sectionTotalMinutes, type DailyGroup } from "@/domain/task/daily-list";
 import {
   formatProjectedStart,
@@ -201,7 +202,10 @@ function projectedStartLabels(
     now
   );
   return new Map(
-    [...starts].map(([id, start]) => [id, formatProjectedStart(start, now, dayStartMinutes)])
+    [...starts].map(([id, start]) => [
+      id,
+      formatProjectedStart(start, now, APP_TIME_ZONE, dayStartMinutes),
+    ])
   );
 }
 
@@ -232,7 +236,7 @@ function GroupHeading({
   const endAt =
     group.section === null || group.endTime === null
       ? null
-      : sectionEndAt(now, group.section.startTime, group.endTime, dayStartMinutes);
+      : sectionEndAt(now, group.section.startTime, group.endTime, APP_TIME_ZONE, dayStartMinutes);
   const remaining =
     endAt !== null && isToday && now.getTime() < endAt.getTime()
       ? sectionRemainingMinutes(endAt, group.tasks, now)
