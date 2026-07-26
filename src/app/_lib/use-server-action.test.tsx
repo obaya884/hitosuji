@@ -8,9 +8,10 @@ import { useServerAction } from "./use-server-action";
 const ok = (): ActionResult => ({ ok: true });
 const failure = (message: string): ActionResult => ({ ok: false, message });
 
-// マスタ管理・routines は N-01（楽観的更新）の対象外で、保存の完了を待って反映する（画面定義書03 §1）
+// マスタ管理・routines は N-01（楽観的更新）の対象外で、保存の完了を待って反映する
+// （画面定義書02 §1・03 §1。両画面とも同文で規定）
 // action が reject（例外）したときの経路は未実装（run は catch していない）。FB-64 で扱うためここでは対象外
-describe("useServerAction（画面定義書03 §1: 保存の完了を待つ。楽観的更新はしない）", () => {
+describe("useServerAction（画面定義書02 §1・03 §1: 保存の完了を待つ。楽観的更新はしない）", () => {
   it("成功なら onSuccess を呼び、エラーは出さない", async () => {
     const onSuccess = vi.fn();
     const { result } = renderHook(() => useServerAction());
@@ -35,7 +36,7 @@ describe("useServerAction（画面定義書03 §1: 保存の完了を待つ。�
     expect(onSuccess).not.toHaveBeenCalled();
   });
 
-  it("onSuccess を省略しても成功時に落ちない（アーカイブ等の閉じる処理がない操作）", async () => {
+  it("onSuccess を省略しても成功時に落ちない（アーカイブ・削除・有効トグル等、閉じる処理がない操作）", async () => {
     const { result } = renderHook(() => useServerAction());
 
     await act(async () => {
