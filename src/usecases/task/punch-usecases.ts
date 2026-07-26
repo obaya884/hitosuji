@@ -43,17 +43,17 @@ export async function startTask(
   // 開始したタスク自身を、開始時刻を含むセクションへ移す（F-113 §4.2-a）。
   // 対象は今日のタスクのみ。打刻の書き込みと同一トランザクションで反映する
   const sameDay = await repo.listByDate(target.taskDate);
-  const relocation =
+  const startRelocation =
     target.taskDate === input.today
       ? relocationOnStart(target, sameDay, await deps.sections.listAll(), input.nowClock)
       : null;
-  const relocations = relocation === null ? null : [relocation];
+  const relocations = startRelocation === null ? [] : [startRelocation];
 
   // 移動した場合、以降の配置計算（再開タスクの位置）は移動後の位置を基準にする
   const started =
-    relocation === null
+    startRelocation === null
       ? target
-      : { ...target, sectionId: relocation.sectionId, sortOrder: relocation.sortOrder };
+      : { ...target, sectionId: startRelocation.sectionId, sortOrder: startRelocation.sortOrder };
 
   const running = await repo.findRunning();
   if (running === null) {
@@ -61,7 +61,7 @@ export async function startTask(
       taskId: target.id,
       startedAt: input.now,
       interruption: null,
-      relocation: relocations,
+      relocations,
     });
     return ok(target.id);
   }
@@ -92,7 +92,7 @@ export async function startTask(
       }),
       renumber: placed.renumber,
     },
-    relocation: relocations,
+    relocations,
   });
   return ok(target.id);
 }
@@ -115,7 +115,7 @@ export async function undoStart(
   const undoable = canUndoStart(target);
   if (!undoable.ok) return undoable;
 
-  const relocations = await undoRelocations(deps, target, input);
+  const relocations = await relocationsForUndoPunch(deps, target, input);
 
   await repo.undoStart(target.id, relocations);
   return ok(target.id);
@@ -150,7 +150,7 @@ export async function undoComplete(
   if (!undoable.ok) return undoable;
   const completed = undoable.value; // 打刻2列が絞り込まれた完了タスク
 
-  const relocations = await undoRelocations(deps, completed, input);
+  const relocations = await relocationsForUndoPunch(deps, completed, input);
 
   await repo.undoComplete(completed.id, relocations);
   return ok({
@@ -186,20 +186,19 @@ export async function restoreCompletion(
  * 打刻の取り消し（開始 §4.5 / 完了 §4.7）に伴う並べ直し。
  * 今日のタスクだけ未実行として並べ直す（今日以外は現在位置・これから領域が定義できない）
  */
-async function undoRelocations(
+async function relocationsForUndoPunch(
   deps: PunchDeps,
   target: Task,
   input: Readonly<{ nowClock: string; today: LogicalDate }>
-): Promise<Relocations | null> {
-  if (target.taskDate !== input.today) return null;
+): Promise<Relocations> {
+  if (target.taskDate !== input.today) return [];
 
-  const relocations = relocationOnUndoPunch(
+  return relocationOnUndoPunch(
     target,
     await deps.tasks.listByDate(target.taskDate),
     await deps.sections.listAll(),
     input.nowClock
   );
-  return relocations.length === 0 ? null : relocations;
 }
 
 /** 終了打刻（F-201） */
@@ -259,7 +258,7 @@ export async function updateTaskPunch(
   await repo.updatePunch(
     target.id,
     { startedAt: input.startedAt, endedAt: input.endedAt },
-    relocations.length === 0 ? null : relocations
+    relocations
   );
   return ok(target.id);
 }

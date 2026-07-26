@@ -1,7 +1,10 @@
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import type { Task, TaskId } from "@/domain/task/task";
 
-/** 採番の振り直し。挿入・移動と同じトランザクションで反映する（データモデル定義書 §3.5） */
+/**
+ * 採番の振り直し。挿入・移動と同じトランザクションで反映する（データモデル定義書 §3.5）。
+ * **空配列＝振り直しなし**（「なにもしない」の表し方はこの1通りだけ）
+ */
 export type Renumber = readonly Readonly<{ taskId: TaskId; sortOrder: number }>[];
 
 /** 特定日のルーチンスキップ（F-304 / データモデル定義書 §3.6） */
@@ -29,14 +32,15 @@ export type StartCommand = Readonly<{
   startedAt: Date;
   /**
    * 開始したタスク自身の移動（F-113 / 画面定義書01 §4.2-a）。
-   * started_at の書き込みと同一トランザクションで反映する
+   * started_at の書き込みと同一トランザクションで反映する。
+   * 動かすのは開始タスク自身だけなので 0件（移動なし）か1件のいずれかになる
    */
-  relocation?: Relocations | null;
+  relocations: Relocations;
   interruption: Readonly<{
     runningTaskId: TaskId;
     endedAt: Date;
     resumeTask: NewTask;
-    renumber: Renumber | null;
+    renumber: Renumber;
   }> | null;
 }>;
 
@@ -46,12 +50,13 @@ export type MoveCommand = Readonly<{
   sectionId: number | null;
   sortOrder: number;
   /** 中間値が尽きた場合の同一グループの振り直し */
-  renumber: Renumber | null;
+  renumber: Renumber;
 }>;
 
 /**
  * 自動セクション移動（F-113 / データモデル定義書 §4.4）。
- * 複数行の section_id・sort_order をまとめて更新する。途中まで移動した状態を残さないため1トランザクション
+ * 複数行の section_id・sort_order をまとめて更新する。途中まで移動した状態を残さないため1トランザクション。
+ * **空配列＝移動なし**（「なにもしない」の表し方はこの1通りだけ）
  */
 export type Relocations = readonly Readonly<{
   taskId: TaskId;
@@ -65,7 +70,7 @@ export type SuspendCommand = Readonly<{
   endedAt: Date;
   resumeTask: NewTask;
   /** 中間値が尽きた場合の同一グループの振り直し（データモデル定義書 §3.5） */
-  renumber: Renumber | null;
+  renumber: Renumber;
 }>;
 
 /**
@@ -91,7 +96,7 @@ export type TaskRepository = Readonly<{
   findById(id: TaskId): Promise<Task | null>;
   /** 実行中タスクは全日付を通じて最大1件（データモデル定義書 §3.5） */
   findRunning(): Promise<Task | null>;
-  create(input: NewTask, renumber?: Renumber | null): Promise<Task>;
+  create(input: NewTask, renumber: Renumber): Promise<Task>;
   rename(id: TaskId, name: string): Promise<void>;
   updateEstimate(id: TaskId, estimateMinutes: number): Promise<void>;
   start(command: StartCommand): Promise<void>;
@@ -102,24 +107,24 @@ export type TaskRepository = Readonly<{
   updatePunch(
     id: TaskId,
     punch: Readonly<{ startedAt: Date; endedAt: Date | null }>,
-    relocation?: Relocations | null
+    relocations: Relocations
   ): Promise<void>;
   finish(id: TaskId, endedAt: Date): Promise<void>;
   /**
    * 開始打刻の取り消し（F-210 / データモデル定義書 §4.5）。`started_at` を null に戻す。
    * 未実行への並べ直し（今日のみ）があれば同一トランザクションで反映する
    */
-  undoStart(id: TaskId, relocation?: Relocations | null): Promise<void>;
+  undoStart(id: TaskId, relocations: Relocations): Promise<void>;
   /**
    * 完了の取り消し（F-212 / データモデル定義書 §4.7）。`started_at`・`ended_at` をともに null に戻す。
    * 未実行への並べ直し（今日のみ）があれば同一トランザクションで反映する
    */
-  undoComplete(id: TaskId, relocation?: Relocations | null): Promise<void>;
+  undoComplete(id: TaskId, relocations: Relocations): Promise<void>;
   /** 並び替え（O-6）。振り直しを伴う場合も1トランザクションで反映する */
   move(command: MoveCommand): Promise<void>;
   /** 自動セクション移動（F-113）。まとめて1トランザクションで反映する */
   relocate(relocations: Relocations): Promise<void>;
-  /** モード・プロジェクトの割り当て（O-5） */
+  /** 中断（F-204 / O-4）。実行中タスクの終了と再開タスクの生成を1トランザクションで行う */
   suspend(command: SuspendCommand): Promise<void>;
   /**
    * 複製して開始（F-208 / データモデル定義書 §4.6）。開始済みの複製タスクを生成する。
@@ -138,6 +143,7 @@ export type TaskRepository = Readonly<{
   restore(task: Omit<Task, "id">, skip: RoutineSkip | null): Promise<Task>;
   /** 先送り（F-107）: task_date の付け替えと postponed_count の加算 */
   postpone(id: TaskId, input: Readonly<{ taskDate: LogicalDate; sortOrder: number }>): Promise<void>;
+  /** モード・プロジェクトの割り当て（O-5 / F-401・F-402） */
   updateClassification(
     id: TaskId,
     classification: Readonly<{ modeId?: number | null; projectId?: number | null }>

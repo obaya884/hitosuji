@@ -70,6 +70,29 @@ describe("DrizzleTaskRepository.listByDate（画面定義書01 §7: 表示日1�
   });
 });
 
+describe("start（F-201: 付帯更新なしの開始打刻）", () => {
+  it("割り込みも移動もなければ started_at だけを書き、配置は動かさない", async () => {
+    const [morning] = await db
+      .insert(sections)
+      .values([{ name: "朝", startTime: "06:00" }])
+      .returning();
+    const [target] = await db
+      .insert(tasks)
+      .values([
+        { taskDate: "2026-07-19", name: "開始対象", sortOrder: 1000, sectionId: morning.id },
+      ])
+      .returning();
+    const startedAt = new Date("2026-07-19T06:30:00Z");
+
+    await repo.start({ taskId: target.id, startedAt, interruption: null, relocations: [] });
+
+    const [after] = await repo.listByDate("2026-07-19");
+    expect(after.startedAt).toEqual(startedAt);
+    expect(after.endedAt).toBeNull();
+    expect([after.sectionId, after.sortOrder]).toEqual([morning.id, 1000]);
+  });
+});
+
 describe("start の割り込み（F-201: 終了・再開タスク生成・開始を1トランザクションで）", () => {
   it("3つの更新がすべて反映される", async () => {
     const startedAt = new Date("2026-07-19T08:48:00Z");
@@ -98,8 +121,9 @@ describe("start の割り込み（F-201: 終了・再開タスク生成・開始
           sortOrder: 3000,
           splitParentId: running.id,
         },
-        renumber: null,
+        renumber: [],
       },
+      relocations: [],
     });
 
     const after = await repo.listByDate("2026-07-19");
@@ -137,8 +161,9 @@ describe("start の割り込み（F-201: 終了・再開タスク生成・開始
             sortOrder: 3000,
             splitParentId: running.id,
           },
-          renumber: null,
+          renumber: [],
         },
+        relocations: [],
       })
     ).rejects.toThrow();
 
@@ -146,6 +171,100 @@ describe("start の割り込み（F-201: 終了・再開タスク生成・開始
     expect(after.find((t) => t.id === running.id)?.endedAt).toBeNull();
     expect(after.find((t) => t.id === target.id)?.startedAt).toBeNull();
     expect(after).toHaveLength(2);
+  });
+
+  // 割り込み（§4.2）に振り直し（§3.5）と自動セクション移動（§4.2-a）が同時に伴う経路。
+  // 付帯更新が両方とも非空になるのはここだけなので、5つの更新の合流をここで固定する
+  it("振り直しと移動を伴う割り込みで、5つの更新がすべて反映される", async () => {
+    const [night] = await db
+      .insert(sections)
+      .values([{ name: "夜", startTime: "18:00" }])
+      .returning();
+    const startedAt = new Date("2026-07-19T08:48:00Z");
+    const endedAt = new Date("2026-07-19T09:00:00Z");
+    const [running, target, neighbor] = await db
+      .insert(tasks)
+      .values([
+        { taskDate: "2026-07-19", name: "実行中", estimateMinutes: 30, sortOrder: 1000, startedAt },
+        { taskDate: "2026-07-19", name: "開始対象", sortOrder: 2000 },
+        { taskDate: "2026-07-19", name: "詰まっている隣", sortOrder: 2001 },
+      ])
+      .returning();
+
+    await repo.start({
+      taskId: target.id,
+      startedAt: endedAt,
+      interruption: {
+        runningTaskId: running.id,
+        endedAt,
+        resumeTask: {
+          taskDate: "2026-07-19",
+          name: "実行中",
+          estimateMinutes: 18,
+          sectionId: night.id,
+          modeId: null,
+          projectId: null,
+          sortOrder: 4000,
+          splitParentId: running.id,
+        },
+        renumber: [{ taskId: neighbor.id, sortOrder: 5000 }],
+      },
+      relocations: [{ taskId: target.id, sectionId: night.id, sortOrder: 3000 }],
+    });
+
+    const after = await repo.listByDate("2026-07-19");
+    const started = after.find((t) => t.id === target.id);
+    expect(after.find((t) => t.id === running.id)?.endedAt).toEqual(endedAt); // ①実行中を終了
+    expect(after.find((t) => t.splitParentId === running.id)).toEqual(
+      expect.objectContaining({ estimateMinutes: 18, sortOrder: 4000, startedAt: null })
+    ); // ②再開タスクを生成
+    expect(started?.startedAt).toEqual(endedAt); // ③対象を開始
+    expect([started?.sectionId, started?.sortOrder]).toEqual([night.id, 3000]); // ④対象を移動
+    expect(after.find((t) => t.id === neighbor.id)?.sortOrder).toBe(5000); // ⑤隣を振り直し
+  });
+
+  it("再開タスクの生成に失敗したら振り直しと移動も巻き戻る", async () => {
+    const [night] = await db
+      .insert(sections)
+      .values([{ name: "夜", startTime: "18:00" }])
+      .returning();
+    const startedAt = new Date("2026-07-19T08:48:00Z");
+    const endedAt = new Date("2026-07-19T09:00:00Z");
+    const [running, target, neighbor] = await db
+      .insert(tasks)
+      .values([
+        { taskDate: "2026-07-19", name: "実行中", sortOrder: 1000, startedAt },
+        { taskDate: "2026-07-19", name: "開始対象", sortOrder: 2000 },
+        { taskDate: "2026-07-19", name: "詰まっている隣", sortOrder: 2001 },
+      ])
+      .returning();
+
+    await expect(
+      repo.start({
+        taskId: target.id,
+        startedAt: endedAt,
+        interruption: {
+          runningTaskId: running.id,
+          endedAt,
+          resumeTask: {
+            taskDate: "2026-07-19",
+            name: "再開",
+            estimateMinutes: 10,
+            sectionId: 999999, // 存在しないセクション → FK違反
+            modeId: null,
+            projectId: null,
+            sortOrder: 4000,
+            splitParentId: running.id,
+          },
+          renumber: [{ taskId: neighbor.id, sortOrder: 5000 }],
+        },
+        relocations: [{ taskId: target.id, sectionId: night.id, sortOrder: 3000 }],
+      })
+    ).rejects.toThrow();
+
+    const after = await repo.listByDate("2026-07-19");
+    expect(after.find((t) => t.id === neighbor.id)?.sortOrder).toBe(2001); // 振り直しが巻き戻っている
+    expect(after.find((t) => t.id === target.id)?.sectionId).toBeNull(); // 移動も巻き戻っている
   });
 });
 
@@ -317,7 +436,7 @@ describe("suspend（F-204: 終了と再開タスク生成を1トランザクシ�
         sortOrder: 2000,
         splitParentId: running.id,
       },
-      renumber: null,
+      renumber: [],
     });
 
     const after = await repo.listByDate("2026-07-19");
@@ -456,6 +575,39 @@ describe("ルーチン由来タスクの削除とスキップ（F-304 / デー�
 });
 
 describe("create の振り直し（データモデル定義書 §3.5: 中間値が尽きたとき）", () => {
+  it("振り直しなし（空配列）は単文で挿入し、挿入行をドメイン表現で返す", async () => {
+    const created = await repo.create(
+      {
+        taskDate: "2026-07-19",
+        name: "クイック追加",
+        estimateMinutes: 0,
+        sectionId: null,
+        modeId: null,
+        projectId: null,
+        sortOrder: 1000,
+      },
+      []
+    );
+
+    expect(created).toEqual({
+      id: expect.any(Number),
+      taskDate: "2026-07-19",
+      name: "クイック追加",
+      estimateMinutes: 0,
+      sectionId: null,
+      modeId: null,
+      projectId: null,
+      sortOrder: 1000,
+      startedAt: null,
+      endedAt: null,
+      comment: null,
+      routineId: null,
+      splitParentId: null,
+      postponedCount: 0,
+    });
+    expect(await repo.listByDate("2026-07-19")).toEqual([created]);
+  });
+
   it("振り直しと挿入が同じトランザクションで反映される", async () => {
     const [first, second] = await db
       .insert(tasks)
@@ -513,6 +665,83 @@ describe("create の振り直し（データモデル定義書 §3.5: 中間値�
     const after = await repo.listByDate("2026-07-19");
     expect(after).toHaveLength(1);
     expect(after[0].sortOrder).toBe(1000); // 振り直しが巻き戻っている
+  });
+});
+
+describe("move（画面定義書01 O-6 / データモデル定義書 §3.5: 並び替え）", () => {
+  it("振り直しなし（空配列）は section_id と sort_order を単文で更新する", async () => {
+    const [morning, forenoon] = await db
+      .insert(sections)
+      .values([
+        { name: "朝", startTime: "06:00" },
+        { name: "午前", startTime: "09:00" },
+      ])
+      .returning();
+    const [target] = await db
+      .insert(tasks)
+      .values([
+        { taskDate: "2026-07-19", name: "移動対象", sortOrder: 1000, sectionId: morning.id },
+      ])
+      .returning();
+
+    await repo.move({ taskId: target.id, sectionId: forenoon.id, sortOrder: 1500, renumber: [] });
+
+    const [after] = await repo.listByDate("2026-07-19");
+    expect([after.sectionId, after.sortOrder]).toEqual([forenoon.id, 1500]);
+  });
+
+  it("振り直しを伴う移動は振り直しと本体更新が同じトランザクションで反映される", async () => {
+    await db
+      .insert(tasks)
+      .values([
+        { taskDate: "2026-07-19", name: "A", sortOrder: 1000 },
+        { taskDate: "2026-07-19", name: "B", sortOrder: 1001 },
+        { taskDate: "2026-07-19", name: "移動対象", sortOrder: 5000 },
+      ])
+      .returning();
+    const byName = Object.fromEntries(
+      (await repo.listByDate("2026-07-19")).map((t) => [t.name, t.id])
+    );
+
+    // A と B の間へ移動する（中間値が尽きているのでグループ全体を1000刻みへ振り直す）
+    await repo.move({
+      taskId: byName["移動対象"],
+      sectionId: null,
+      sortOrder: 2000,
+      renumber: [
+        { taskId: byName["A"], sortOrder: 1000 },
+        { taskId: byName["B"], sortOrder: 3000 },
+      ],
+    });
+
+    const after = (await repo.listByDate("2026-07-19")).sort((x, y) => x.sortOrder - y.sortOrder);
+    expect(after.map((t) => [t.name, t.sortOrder])).toEqual([
+      ["A", 1000],
+      ["移動対象", 2000],
+      ["B", 3000],
+    ]);
+  });
+
+  it("移動に失敗したら振り直しも巻き戻る", async () => {
+    const [a, target] = await db
+      .insert(tasks)
+      .values([
+        { taskDate: "2026-07-19", name: "A", sortOrder: 1000 },
+        { taskDate: "2026-07-19", name: "移動対象", sortOrder: 2000 },
+      ])
+      .returning();
+
+    await expect(
+      repo.move({
+        taskId: target.id,
+        sectionId: 999999, // 存在しないセクション → FK違反
+        sortOrder: 3000,
+        renumber: [{ taskId: a.id, sortOrder: 5000 }],
+      })
+    ).rejects.toThrow();
+
+    const after = await repo.listByDate("2026-07-19");
+    expect(after.find((t) => t.id === a.id)?.sortOrder).toBe(1000); // 振り直しが巻き戻っている
   });
 });
 
@@ -583,7 +812,7 @@ describe("relocate（F-113 / データモデル定義書 §4.4: 自動セクシ�
       taskId: target.id,
       startedAt,
       interruption: null,
-      relocation: [{ taskId: target.id, sectionId: night.id, sortOrder: 1000 }],
+      relocations: [{ taskId: target.id, sectionId: night.id, sortOrder: 1000 }],
     });
 
     const [after] = await repo.listByDate("2026-07-19");
@@ -622,7 +851,9 @@ describe("undoStart（F-210 / データモデル定義書 §4.5: 開始打刻の
     expect(after.sortOrder).toBe(500);
   });
 
-  it("並べ直しなし（今日以外）は started_at のクリアだけ行う", async () => {
+  // 並べ直しが空＝単文経路。「今日以外は並べ直さない」という規則そのものはユースケース側の
+  // 責務（punch-usecases の relocationsForUndoPunch）で、リポジトリは today を知らない
+  it("並べ直しが空なら started_at のクリアだけを単文で行う", async () => {
     const [morning] = await db
       .insert(sections)
       .values([{ name: "朝", startTime: "06:00" }])
@@ -640,7 +871,7 @@ describe("undoStart（F-210 / データモデル定義書 §4.5: 開始打刻の
       ])
       .returning();
 
-    await repo.undoStart(target.id, null);
+    await repo.undoStart(target.id, []);
 
     const [after] = await repo.listByDate("2026-07-18");
     expect(after.startedAt).toBeNull();
@@ -683,14 +914,15 @@ describe("undoComplete（F-212 / データモデル定義書 §4.7: 完了の取
     expect(after.sortOrder).toBe(500);
   });
 
-  it("並べ直しなし（今日以外）は打刻2列のクリアだけ行う", async () => {
+  // 上の undoStart と同じく、空配列＝単文経路の確認（「今日以外」の判断はユースケース側）
+  it("並べ直しが空なら打刻2列のクリアだけを単文で行う", async () => {
     const [morning] = await db
       .insert(sections)
       .values([{ name: "朝", startTime: "06:00" }])
       .returning();
     const target = await insertCompleted("2026-07-18", morning.id);
 
-    await repo.undoComplete(target.id, null);
+    await repo.undoComplete(target.id, []);
 
     const [after] = await repo.listByDate("2026-07-18");
     expect(after.startedAt).toBeNull();
