@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { MODE_COLORS, isPresetColor } from "@/domain/mode/mode";
+import { MODE_COLOR_BY_NAME, MODE_COLORS, isPresetColor } from "@/domain/mode/mode";
 import { modes, routines, tasks } from "@/infrastructure/db/schema";
 import { createTestDb, truncateAll } from "@/infrastructure/db/testing/test-db";
 import { seedMasters } from "@/infrastructure/db/seed";
@@ -69,5 +69,14 @@ describe("シードの初期データ（データモデル定義書 §5 / 画面
       expect(isPresetColor(mode.color), `${mode.name} の色 ${mode.color}`).toBe(true);
     }
     expect(await db.select().from(modes)).toHaveLength(seeded.length);
+  });
+
+  it("投入されるモードの色は §5 のとおり（仕事=青 / 暮らし=緑 / 休憩=グレー）", async () => {
+    await seedMasters(db);
+    const colorOf = new Map((await repo.listAll()).map((m) => [m.name, m.color]));
+
+    expect(colorOf.get("仕事")).toBe(MODE_COLOR_BY_NAME["青"]);
+    expect(colorOf.get("暮らし")).toBe(MODE_COLOR_BY_NAME["緑"]);
+    expect(colorOf.get("休憩")).toBe(MODE_COLOR_BY_NAME["グレー"]);
   });
 });

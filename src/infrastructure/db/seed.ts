@@ -1,5 +1,6 @@
 // 初期データ投入（データモデル定義書 §5）。空テーブルにのみ投入する冪等スクリプト
 import { pathToFileURL } from "node:url";
+import { MODE_COLOR_BY_NAME } from "@/domain/mode/mode";
 import type { Database } from "./index";
 import { modes, sections } from "./schema";
 
@@ -13,11 +14,11 @@ const SEED_SECTIONS = [
   { name: "深夜", startTime: "00:00", isDayStart: true },
 ];
 
-// 色は画面定義書03 §3.2 のプリセットから選ぶ（プリセット外だと画面で編集できなくなる）
+// 初期モード（データモデル定義書 §5 が正。色は画面定義書03 §3.2 のプリセットから引く）
 const SEED_MODES = [
-  { name: "仕事", color: "#3b82f6" },
-  { name: "暮らし", color: "#22c55e" },
-  { name: "休憩", color: "#9ca3af" },
+  { name: "仕事", color: MODE_COLOR_BY_NAME["青"] },
+  { name: "暮らし", color: MODE_COLOR_BY_NAME["緑"] },
+  { name: "休憩", color: MODE_COLOR_BY_NAME["グレー"] },
 ];
 
 export type SeedResult = Readonly<{ sections: string; modes: string }>;

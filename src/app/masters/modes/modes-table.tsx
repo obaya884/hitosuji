@@ -12,7 +12,7 @@ import {
   noticeDanger,
 } from "@/app/_lib/ui";
 import { PlusIcon } from "@/app/_components/icons";
-import { MODE_COLORS, modeColorName, type Mode } from "@/domain/mode/mode";
+import { MODE_COLOR_PRESETS, MODE_COLORS, modeColorName, type Mode } from "@/domain/mode/mode";
 import { ArchivedMasterSection } from "../_components/archived-master-section";
 import { useMasterAction } from "../_lib/use-master-action";
 import {
@@ -52,32 +52,32 @@ function ColorPickerPopover({
 
   return (
     <div ref={ref} className={`absolute z-10 mt-1 flex w-56 flex-wrap gap-1.5 p-2 ${floatPanel}`}>
-      {MODE_COLORS.map((color) => (
-        <span key={color} className="relative">
+      {MODE_COLOR_PRESETS.map(({ value, name }) => (
+        <span key={value} className="relative">
           <button
             type="button"
-            aria-label={`色 ${modeColorName(color)}`}
-            aria-pressed={selected === color}
-            onMouseEnter={() => setHovered(color)}
-            onMouseLeave={() => setHovered((c) => (c === color ? null : c))}
-            onFocus={() => setHovered(color)}
-            onBlur={() => setHovered((c) => (c === color ? null : c))}
+            aria-label={`色 ${name}`}
+            aria-pressed={selected === value}
+            onMouseEnter={() => setHovered(value)}
+            onMouseLeave={() => setHovered((c) => (c === value ? null : c))}
+            onFocus={() => setHovered(value)}
+            onBlur={() => setHovered((c) => (c === value ? null : c))}
             onClick={() => {
-              onSelect(color);
+              onSelect(value);
               onClose();
             }}
-            style={{ backgroundColor: color }}
+            style={{ backgroundColor: value }}
             className={`block h-6 w-6 rounded-full ${
-              selected === color ? "outline-solid outline-2 outline-offset-2 outline-ink" : ""
+              selected === value ? "outline-solid outline-2 outline-offset-2 outline-ink" : ""
             }`}
           />
           {/* 色だけでは選びにくいので、乗せた候補の名前を吹き出しで出す（画面定義書03 §3.2） */}
-          {hovered === color && (
+          {hovered === value && (
             <span
               role="tooltip"
               className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1 -translate-x-1/2 rounded-control bg-ink px-1.5 py-0.5 text-xs whitespace-nowrap text-paper"
             >
-              {modeColorName(color)}
+              {name}
             </span>
           )}
         </span>
