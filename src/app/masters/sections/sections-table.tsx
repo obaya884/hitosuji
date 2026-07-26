@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { useServerAction } from "@/app/_lib/use-server-action";
-import { btnSecondary, inputBase, linkAccent, linkMuted, noticeDanger } from "@/app/_lib/ui";
+import { btnSecondary, linkMuted, noticeDanger } from "@/app/_lib/ui";
 import { PlusIcon } from "@/app/_components/icons";
 import type { Section } from "@/domain/section/section";
 import { ArchivedMasterSection } from "../_components/archived-master-section";
+import { MasterEditableCell } from "../_components/master-editable-cell";
+import { MasterNewRow, MasterNewRowInput } from "../_components/master-new-row";
 import {
   archiveSectionAction,
   createSectionAction,
@@ -29,162 +30,92 @@ type Editing =
   | Readonly<{ id: number; field: "name" | "startTime" }>
   | Readonly<{ id: "new" }>;
 
+/** 終了時刻は次セクションの開始からの導出（入力しない）ことを示す添え書き（§3.1） */
+const derivedEndTime = (text: string) => (
+  <span
+    className="font-mono tabular-nums text-ink-faint"
+    title="次のセクションの開始時刻から自動導出"
+  >
+    {text}
+  </span>
+);
+
 export function SectionsTable({ ranges, archived, deletableIds }: Props) {
   const [editing, setEditing] = useState<Editing | null>(null);
   const { error, setError, isPending, run } = useServerAction();
 
-  /**
-   * 保存の経路は blur の1本だけにする（画面定義書03 §4「編集方式」）。
-   * 保存時は編集していないもう片方のフィールドは現在値をそのまま送る。
-   */
-  function commit(input: HTMLInputElement) {
-    if (editing === null || editing.id === "new") return;
-    const row = ranges.find((r) => r.id === editing.id);
-    if (row === undefined) return;
-
-    const value = input.value;
-    const original = editing.field === "name" ? row.name : row.startTime;
-
-    // 変更がなければ何もせず閉じる（クリックしただけで UPDATE が飛ばないように）
-    if (value === original) {
-      setEditing(null);
-      return;
-    }
-
-    const payload =
-      editing.field === "name"
-        ? { name: value, startTime: row.startTime }
-        : { name: row.name, startTime: value };
+  /** 更新は行の全項目をまとめて送る（§4）。編集していないもう片方は現在値をそのまま送る */
+  function update(id: number, payload: Readonly<{ name: string; startTime: string }>) {
     // 失敗時は編集状態のまま残し、入力し直せるようにする
-    run(() => updateSectionAction(editing.id as number, payload), () => setEditing(null));
+    run(() => updateSectionAction(id, payload), () => setEditing(null));
   }
-
-  const onKeyDown = inlineEditKeyHandler({
-    onEnter: (input) => input.blur(),
-    onEscape: (input) => {
-      // 元の値へ戻してから blur すると、commit が「変更なし」と判断して閉じるだけになる
-      if (editing !== null && editing.id !== "new") {
-        const row = ranges.find((r) => r.id === editing.id);
-        input.value = (editing.field === "name" ? row?.name : row?.startTime) ?? "";
-      }
-      input.blur();
-    },
-  });
 
   /** 名前セル。クリックでその場編集（§4「編集方式」） */
-  const nameCell = (row: SectionRow) =>
-    editing?.id === row.id && editing.field === "name" ? (
-      <input
-        autoFocus
-        defaultValue={row.name}
-        onKeyDown={onKeyDown}
-        onBlur={(e) => commit(e.currentTarget)}
-        className={`w-full ${inputBase}`}
-      />
-    ) : (
-      <button
-        type="button"
-        // 保存中は同じ行の他のセルを触らせない（古い値での上書きを防ぐ。§4「編集方式」）
-        disabled={isPending}
-        onClick={() => {
-          setError(null);
-          setEditing({ id: row.id, field: "name" });
-        }}
-        className="text-left hover:underline disabled:no-underline disabled:opacity-60"
-      >
-        {row.name}
-      </button>
-    );
+  const nameCell = (row: SectionRow) => (
+    <MasterEditableCell
+      isEditing={editing?.id === row.id && editing.field === "name"}
+      value={row.name}
+      isPending={isPending}
+      onStartEditing={() => {
+        setError(null);
+        setEditing({ id: row.id, field: "name" });
+      }}
+      onCommit={(name) => update(row.id, { name, startTime: row.startTime })}
+      onClose={() => setEditing(null)}
+    />
+  );
 
   /** 開始時刻セル。編集できるのは開始時刻のみで、終了時刻は次セクションの開始からの導出値（読み取り専用） */
-  const startTimeCell = (row: SectionRow) =>
-    editing?.id === row.id && editing.field === "startTime" ? (
-      <span className="flex items-center gap-1">
-        <input
-          type="time"
-          autoFocus
-          defaultValue={row.startTime}
-          onKeyDown={onKeyDown}
-          onBlur={(e) => commit(e.currentTarget)}
-          className={inputBase}
-        />
-        <span
-          className="font-mono tabular-nums text-ink-faint"
-          title="次のセクションの開始時刻から自動導出"
-        >
-          –{row.endTime}
-        </span>
-      </span>
-    ) : (
-      <button
-        type="button"
-        disabled={isPending}
-        onClick={() => {
-          setError(null);
-          setEditing({ id: row.id, field: "startTime" });
-        }}
-        className="font-mono tabular-nums hover:underline disabled:no-underline disabled:opacity-60"
-      >
-        {row.startTime}–{row.endTime}
-      </button>
-    );
+  const startTimeCell = (row: SectionRow) => (
+    <MasterEditableCell
+      isEditing={editing?.id === row.id && editing.field === "startTime"}
+      value={row.startTime}
+      isPending={isPending}
+      type="time"
+      display={`${row.startTime}–${row.endTime}`}
+      adornment={derivedEndTime(`–${row.endTime}`)}
+      buttonClassName="font-mono tabular-nums"
+      onStartEditing={() => {
+        setError(null);
+        setEditing({ id: row.id, field: "startTime" });
+      }}
+      onCommit={(startTime) => update(row.id, { name: row.name, startTime })}
+      onClose={() => setEditing(null)}
+    />
+  );
 
-  // 新規追加の行だけは明示的な保存・取消を置く（既存行の編集はセルのインライン編集）
-  function saveNew(tr: HTMLTableRowElement | null) {
-    if (tr === null) return;
-    const name = tr.querySelector<HTMLInputElement>('[data-field="name"]')?.value ?? "";
-    const startTime = tr.querySelector<HTMLInputElement>('[data-field="startTime"]')?.value ?? "";
-    run(() => createSectionAction({ name, startTime }), () => setEditing(null));
-  }
-
-  const onNewKeyDown = inlineEditKeyHandler({
-    onEnter: (input) => saveNew(input.closest("tr")),
-    onEscape: () => setEditing(null),
-  });
-
-  const newRow = (key: string) => (
-    <tr key={key} className="border-b border-line">
-      {/* 日界の選択は保存後に行う（新規行では空） */}
-      <td className="py-1" />
-      <td className="py-1 pr-2">
-        <input
-          autoFocus
-          defaultValue=""
-          onKeyDown={onNewKeyDown}
-          className={`w-full ${inputBase}`}
-          placeholder="セクション名"
-          data-field="name"
-        />
-      </td>
-      <td className="py-1 pr-2">
-        <span className="flex items-center gap-1">
-          <input
-            type="time"
-            defaultValue=""
-            onKeyDown={onNewKeyDown}
-            className={inputBase}
-            data-field="startTime"
-          />
-          {/* 終了時刻は次セクションの開始からの導出（入力しない）ことを新規追加時にも示す */}
-          <span className="font-mono tabular-nums text-ink-faint" title="次のセクションの開始時刻から自動導出">
-            –自動
-          </span>
-        </span>
-      </td>
-      <td className="py-1 text-right whitespace-nowrap">
-        <button
-          onMouseDown={(e) => e.preventDefault()} // blur より先に押下を拾う
-          onClick={(e) => saveNew(e.currentTarget.closest("tr"))}
-          disabled={isPending}
-          className={`px-2 ${linkAccent}`}
-        >
-          保存
-        </button>
-        <button onClick={() => setEditing(null)} className={`px-2 ${linkMuted}`}>
-          取消
-        </button>
-      </td>
-    </tr>
+  const newRow = (
+    <MasterNewRow
+      isPending={isPending}
+      onSave={(fieldValue) =>
+        run(
+          () =>
+            createSectionAction({ name: fieldValue("name"), startTime: fieldValue("startTime") }),
+          () => setEditing(null)
+        )
+      }
+      onCancel={() => setEditing(null)}
+      renderCells={(onKeyDown) => (
+        <>
+          {/* 日界の選択は保存後に行う（新規行では空） */}
+          <td className="py-1" />
+          <td className="py-1 pr-2">
+            <MasterNewRowInput
+              field="name"
+              placeholder="セクション名"
+              autoFocus
+              onKeyDown={onKeyDown}
+            />
+          </td>
+          <td className="py-1 pr-2">
+            <span className="flex items-center gap-1">
+              <MasterNewRowInput field="startTime" type="time" onKeyDown={onKeyDown} />
+              {derivedEndTime("–自動")}
+            </span>
+          </td>
+        </>
+      )}
+    />
   );
 
   return (
@@ -250,7 +181,7 @@ export function SectionsTable({ ranges, archived, deletableIds }: Props) {
               </td>
             </tr>
           ))}
-          {editing?.id === "new" && newRow("new")}
+          {editing?.id === "new" && newRow}
         </tbody>
       </table>
 

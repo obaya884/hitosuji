@@ -137,9 +137,9 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
       expect(updateProjectAction).not.toHaveBeenCalled();
     });
 
-    // 保存中の抑止（00_共通 §2.3「保存中」）は modes/sections の名前セルには入っているが
-    // projects には無い。実装の差は FB-63 で検討中のため、現状を正直に固定しておく
-    it("projects の名前セルは保存中も押せる（modes/sections と違い disabled が無い。FB-63 で検討中）", async () => {
+    // 行内に編集可能なセルが1つ（名前）だけでも保存中は開かせない（00_共通 §2.3「保存中」）。
+    // modes/sections と同じ部品（MasterEditableCell）を使うことで揃った（T-44 / FB-63）
+    it("保存中は名前セルを開けない（古い値での上書きを防ぐ）", async () => {
       const pending = deferredAction();
       vi.mocked(setProjectArchivedAction).mockReturnValue(pending.promise);
       renderTable();
@@ -147,24 +147,23 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
       fireEvent.click(within(rowOf("プロジェクトA")).getByRole("button", { name: "アーカイブ" }));
 
       const row = rowOf("プロジェクトA");
-      await waitFor(() => {
-        expect(within(row).getByRole("button", { name: "アーカイブ" })).toHaveProperty(
-          "disabled",
-          true
-        );
+      const nameCell = await waitFor(() => {
+        const cell = within(row).getByRole("button", { name: "プロジェクトA" });
+        expect(cell).toHaveProperty("disabled", true);
+        return cell;
       });
-      // 送信中でも名前セルは押せてしまい、古い値で編集を開始できる（＝条項からの逸脱の実体）
-      const nameCell = within(row).getByRole("button", { name: "プロジェクトA" });
-      expect(nameCell).toHaveProperty("disabled", false);
 
+      // 送信中に開こうとしても入力欄にならない（古い値を再送しうる経路が閉じている）
       fireEvent.click(nameCell);
-      expect(screen.getByDisplayValue("プロジェクトA")).not.toBeNull();
+      expect(screen.queryByDisplayValue("プロジェクトA")).toBeNull();
 
       await act(async () => {
         pending.resolve({ ok: true });
       });
-      // アーカイブが返ったあとも、送信前の値を抱えた入力欄が残る
-      expect(screen.getByDisplayValue("プロジェクトA")).not.toBeNull();
+      // 保存が返れば再び編集できる
+      expect(
+        within(rowOf("プロジェクトA")).getByRole("button", { name: "プロジェクトA" })
+      ).toHaveProperty("disabled", false);
     });
 
     it("失敗したらメッセージを出し、編集状態のまま残す（入力し直せる）", async () => {
@@ -198,7 +197,15 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
         expect(screen.getByText("名前を入力してください")).not.toBeNull();
       });
 
-      fireEvent.click(within(rowOf("プロジェクトB")).getByRole("button", { name: "プロジェクトB" }));
+      // メッセージの表示と isPending の解除は別のタイミングで届く。保存中は他行のセルも
+      // 押せない（§2.3）ので、押せる状態に戻るまで待ってからでないと click が無視される
+      const otherCell = await waitFor(() => {
+        const cell = within(rowOf("プロジェクトB")).getByRole("button", { name: "プロジェクトB" });
+        expect(cell).toHaveProperty("disabled", false);
+        return cell;
+      });
+
+      fireEvent.click(otherCell);
 
       expect(screen.queryByText("名前を入力してください")).toBeNull();
     });
