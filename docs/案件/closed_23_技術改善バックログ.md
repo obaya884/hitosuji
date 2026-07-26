@@ -257,3 +257,39 @@
 - 背景: 依存更新（Dependabot）の検証を手動（ブランチ取得 → `npm ci` → lint/build/test）で行っていた。定期的に発生するため機械化したかった。従来の自動チェックは Vercel ビルド（`next build`＝型チェックのみ）だけで、`npm run lint` と `npm test` は走っていなかった
 - 対応: `.github/workflows/ci.yml` を新設。`pull_request` と main への `push` で `npm ci` → `lint` → `build` → `test` を実行。統合テストは Postgres サービスコンテナ（`postgres:17-alpine`、DB=`hitosuji_test`）を建て、`TEST_DATABASE_URL` を渡す（マイグレーションは vitest の globalSetup が自動適用）。Node は本番に合わせて 24
 - 方針: CI は**検証のみ**。Dependabot PR がグリーンでもマージ（＝main への push ＝本番デプロイ）は手動で、オーナーの合図を待つ。自動マージ・CI 必須チェック化（ブランチ保護）はしない
+
+## T-39 コンポーネントテスト（jsdom）の導入
+
+- 種別: ツール整備 / 優先度: 中 / 状態: **完了（2026-07-26）**
+- **結果（第2バッチ完了時・`dcf49cf`）**: テスト **752 → 1343件**（80ファイル）。カバレッジは全体 Stmts **50.55% → 86.39%**、`src/app` **7.83% → 78.79%**。`src/domain` 99.69% / `src/usecases` 98.02% / `src/infrastructure` 79.18% は据え置き。本番コードの変更は `_lib/flip-up.ts`（新規）と `_lib/use-flip-up.ts`（判定式の委譲）のみで、**挙動は変えていない**
+- **完了と判断した根拠**: 統合後の main に対して `verifier`・`test-reviewer`・`code-quality-reviewer`・`spec-reviewer`・`refactor-scout` の5本をリポジトリ全体へ掛け、①全項目グリーン（JST・UTC 両方で 1343件、`test:component` 10連続緑）②統合起因の致命的な取り違えなし（6タイムゾーンで実測）③§8「偽物を置いてよい境界」を全26テストファイルが遵守 ④依存方向の違反ゼロ、を確認した。**残る作業は独立した T へ切り出した**（下記）ので本 T に残作業はない
+- **本 T から切り出した後続**: [T-43](./23_技術改善バックログ.md)（テストヘルパの集約）／T-44・T-52・T-54（マスタ3集約の重複）／T-45（共通キーガード）／T-48・T-53（大きいファイルの分割）／T-49（エラー文言辞書）／**T-59（`proxy.ts` のテスト・高）**／**T-60（usecases・infrastructure の未検証経路・高）**／T-61（コンポーネント段の残る穴）／T-62（CI の TZ 明示）。挙動が絡むものは FB-58〜FB-69 へ
+- 背景: presentation を「自動テスト対象外」と一括りにしていたが、実測すると `.tsx` の大半（22ファイル・約3,600行）は Client Component で、jsdom 上のコンポーネントテストで普通に測れる。さらに **hooks は `.ts` なので既に計測対象の内側にいて 0%** という状態だった（`use-daily-shortcuts.ts` 188行・`use-dismiss.ts`・`use-now.ts`・`keyboard.ts`）。段の呼び名と境界は[アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md) §8 が正
+- 対応方針: jsdom + `@testing-library/react` を入れ、vitest の project を `unit` / `component` / `integration` の3本にする。テストは `*.test.tsx`（jsdom を要するものは対象が `.ts` でも `.tsx` に置く）
+- 済（第1バッチ / 2026-07-26・PR #43 / b374c41）: 環境（jsdom＋`@testing-library/react`、project を unit / component / integration の3本、`test:component`）と、`use-now`・`use-dismiss`・`use-flip-up`（幾何に依存しないリセット分岐のみ）・`keyboard`・`TaskProgress`・`Toast` のテスト47件。カバレッジは `src/app` 8.96% → 21.46%（Stmts）、全体 72.59% → 75.76%
+- 第1バッチで判明: **`coverage.include` は「未実行ファイルを走査する範囲」しか制御せず、テストが読み込んだファイルは include に関係なく計上される**。そのため `.tsx` を2つテストした時点で「その2ファイルだけが 100% で分母に入り、未テストの33ファイルは見えない」非対称集計になった
+- 計測対象は `.tsx` を含む（T-33 で決着）。**各バッチの成果と未カバー箇所が PR コメントに出る**ので、次に何をテストすべきかは変更箇所カバレッジを見て決められる
+- Server Action を直 import するコンポーネント（`daily-board.tsx`・masters の各テーブル）は**素の jsdom では描画できない**（`actions.ts` の先が `pg.Pool` と `revalidatePath` に届く）。差し替えの可否と目的は[アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md) §8「偽物を置いてよい境界」が正
+- **第2バッチ（完了 / 2026-07-26・6並行・PR #45〜#50）**: 残る段2の対象を**ディレクトリ境界で6つに分割**し、worktree ごとのワーカーで並行実装した（体制は[git運用と並行開発体制定義書](../仕様/16_git運用と並行開発体制定義書.md) §2〜§5）。分割は新規テストファイルしか作らないため衝突面が実質ゼロ——例外は `use-flip-up.ts` の判定式抽出（唯一の本番コード変更）で、担当を⑥に限定した
+
+  | # | ブランチ | 対象（Stmts） |
+  |---|---|---|
+  | ① | `t-39-daily-shortcuts` | `use-daily-shortcuts.ts`（93）。画面定義書01 §6 は20キー超＋除外規則を持つ最大の条項表で、jsdom 段の本命 |
+  | ② | `t-39-daily-list` | `daily-list.tsx`（82）・`select-popover.tsx`（50）・`routinize-popover.tsx`（43）・`row-menu.tsx`（14）・`daily-summary.tsx`（7）・`shortcut-help.tsx`（6）・`stale-running-banner.tsx`（1） |
+  | ③ | `t-39-daily-board` | `daily-board.tsx`（198）。**N-01 の楽観的更新とロールバック**・undo キュー・ショートカットとの結線 |
+  | ④ | `t-39-masters` | `masters/**`（216）＝3テーブル（modes 76・sections 63・projects 47）＋`use-master-action`・`delete-master-button`・`archived-master-section`・`master-tabs`・`_lib/action-result` |
+  | ⑤ | `t-39-routines-review` | `routines-table.tsx`（44）・`review-board.tsx`（39）・`routine-form.tsx`（35） |
+  | ⑥ | `t-39-shared-components` | `_components/date-picker.tsx`（50）・`date-nav.tsx`（9）・`icons.tsx`（8）・`global-nav.tsx`（6）・`nav-tabs.tsx`（4）・`unset-mark.tsx`（1）＋`_lib/use-flip-up.ts` から純関数 `shouldFlipUp` を抽出 |
+
+  段2で到達しうるのは計 906 文と見積もり、`src/app` の分母 1295 文のうち残り 276 文は段外（`actions.ts` 4本＝216／`page.tsx`・`layout.tsx`・`icon.tsx`＝42／`proxy.ts`＝18）とした。**`proxy.ts` を段外としたのは誤りで、ユニットで測れる**——完了時のレビューで判明し T-59 として起票した
+- **第2バッチで得た教訓（次に並行でテストを書くとき効く）**:
+  - **段をまたいで重複を消すと、合成側でしか見えない配線が落ちる**。ヘッドが「日付移動のテストはフック側と重複」と判断して board 段から削らせたが、フック側は「与えられた `date` から `push` の引数を組む」ことしか主張せず、**フックへ何を渡すか（`date` と `today` の取り違え・`isToday` の配線）は board 段でしか固定できない**とレビューで判明し差し戻した。重複判定は「同じ関数を2回呼んでいるか」ではなく「**どちらの段でしか観測できない契約か**」で行う
+  - **盾が二重にあるとき、合成側のテストは弱い方の盾に隠れる**。FB-42（確定の `Enter` が背後の打刻へ抜ける）は `select-popover` の `stopPropagation` が防いでいるが、`daily-board` 経由では `setEditing(null)` が React の自動バッチで同一 dispatch 中に反映されず、`use-daily-shortcuts` の `editing` ガードだけで防げてしまう——**`stopPropagation` を外しても緑のまま**（変異で実測）。盾ごとに観測可能な段へテストを置く。段3への申し送りは T-03 に記録
+  - **カバレッジ 100% でも観点は抜ける**。`date-picker.tsx` のカーソル表示（`ring-1 ring-accent`）は丸ごと消しても全テストが緑で、**v8 の行カバレッジも 100% のまま**だった。数値は「実行されたか」しか語らない
+  - **エラー表示と `isPending` の解除は別のタイミングで届く**。マスタ管理のテストで「文言が出た瞬間に他行のセルを `click` すると、まだ `disabled` のままで無視される」flake を踏んだ（約2割の頻度で赤。実装は正しくテスト側の競合）。**エラー文言の出現だけを待って次の操作へ進まない**——押せる状態に戻るまで待つ
+  - **レビューは2巡で十分だった**。2巡目の新規指摘は「修正で入り込んだもの」ではなく「元からあった対の欠落」に集中し、**修正ループ自体の欠陥生成率はほぼゼロ**だった。一方で**ブランチをまたいだ統合の罠**（同名別契約の `at()`、既定の食い違う `task()`）は per-branch レビューでは原理的に見えず、マージ後に見るしかない（T-43）
+  - **presentation を厚くすると下層の穴が見える**。完了時のレビューで `proxy.ts` の 0%（T-59）と、統合テストが「トランザクションを張る分岐だけを厚く検証し、日常操作で最も通る単純 UPDATE 経路に実DBが一度も当たっていない」こと（T-60）が判明した
+- **共有ファイルは誰も触らない**（並行時の規律）: `src/app/_testing/setup.ts`・`vitest.config.ts`・`package.json`・各台帳と `log_*`。jsdom に無い API はテストファイル内で局所的に補い、全体で要るならヘッドがマージ後に集約する。依存追加（`@testing-library/user-event` 等）も禁止——6ブランチが同じ lock を書き換えて必ず衝突するため、操作は既存の `fireEvent` に揃える
+- 範囲外: async Server Component は E2E（T-03）。**幾何依存はブラウザテストへ**——ただし線引きは**ファイル単位ではなく「DOM の実測値を読む箇所」単位**。`use-flip-up.ts` の判定式は純粋算術なので `popover-scroll.ts` と同じ流儀で切り出せばユニット段に落とせる、と第1バッチ時点で見立てていた——**第2バッチ⑥で実際に `_lib/flip-up.ts` の `shouldFlipUp` として切り出し済み**で、00_共通 §2.1 の3条件と「上下どちらも狭い同点の場合は下のまま」という境界も `flip-up.test.ts` がユニット段で固定した。フックに残るのは実測値そのものを読む3行（`offsetHeight`・`getBoundingClientRect()`・`innerHeight`）だけで、そこが段3の担当
+- 検証の作法: 「テストが通る」だけでなく**実装を一時的に壊して赤くなることを確かめる**。第1バッチでは `Toast` の依存配列を `[]` から `[variant, onClose]` に変える変異で該当テストが落ちることを実測した（コメントと eslint-disable だけが防波堤だった契約をテストで固定できている証拠）。第2バッチでは6ワーカーとも全ての主要テストで変異検証を行い、**ヘッドの指示（FB-42 の住所・重複判定）を2件否定した**
+- 関連: T-33（`.tsx` を計測対象に含める決着。本 T の計器になった）/ T-03（FB-42 の再現条件の特定を宿題として引き継いだ）/ T-37（実機確認の仕組み化。ブラウザテストと機構が重なる）
