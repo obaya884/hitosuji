@@ -181,11 +181,14 @@ describe("MasterNewRow（画面定義書03 §4: 新規行だけは明示的な�
   it("保存中は Enter でも保存しない（連打で同じ行が二重に作られるのを防ぐ）", () => {
     const { saved } = renderNewRow({ isPending: true });
     fillName("新セクション");
+    const input = screen.getByPlaceholderText("セクション名");
 
-    fireEvent.keyDown(screen.getByPlaceholderText("セクション名"), { key: "Enter" });
-    fireEvent.keyDown(screen.getByPlaceholderText("セクション名"), { key: "Enter" });
+    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.keyDown(input, { key: "Enter" });
 
     expect(saved).toEqual([]);
+    // 止めるだけで操作は切らない（フォーカスは入力欄に残す）
+    expect(document.activeElement).toBe(input);
   });
 
   it("保存中は「取消」も Esc も効かない（応答を待つ間に閉じると失敗のメッセージだけが残る）", () => {

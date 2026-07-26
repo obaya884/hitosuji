@@ -349,11 +349,10 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
 
       expect(screen.getByPlaceholderText("プロジェクト名")).not.toBeNull();
 
-      // 失敗が返ったら行は残り、入力し直せる（§2.3「失敗時」）
+      // 失敗が返ってはじめて入力し直せる状態になる（§2.3「失敗時」の詳細は上のテストが持つ）
       await act(async () => {
         pending.resolve({ ok: false, message: "名前を入力してください" });
       });
-      expect(screen.getByText("名前を入力してください")).not.toBeNull();
       expect(screen.getByPlaceholderText("プロジェクト名")).not.toBeNull();
     });
   });

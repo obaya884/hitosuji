@@ -124,16 +124,25 @@ describe("MasterEditableCell（画面定義書03 §4「編集方式」/ 00_共�
       expect(onClose).not.toHaveBeenCalled();
     });
 
-    it("保存中は Esc で取消せない（応答を待つ間に閉じると失敗のメッセージだけが残る）", () => {
+    it("保存中の Enter は入力欄のフォーカスを奪わない（止めるだけで操作を切らない）", () => {
+      renderCell({ isEditing: true, isPending: true });
+      const input = screen.getByDisplayValue("モードA");
+
+      fireEvent.keyDown(input, { key: "Enter" });
+
+      expect(document.activeElement).toBe(input);
+    });
+
+    it("保存中の Esc は値を元へ戻さない（＝取消が効かない。応答を待つ間に閉じさせない）", () => {
       const { onClose } = renderCell({ isEditing: true, isPending: true });
       const input = screen.getByDisplayValue("モードA");
       fireEvent.change(input, { target: { value: "書きかけ" } });
 
       fireEvent.keyDown(input, { key: "Escape" });
 
-      expect(onClose).not.toHaveBeenCalled();
-      // 値も元へ戻さない（保存が返ってから続けて直せる）
+      // 書きかけが残るので、失敗して戻ってきたときに続けて直せる（§2.3「失敗時」）
       expect((input as HTMLInputElement).value).toBe("書きかけ");
+      expect(onClose).not.toHaveBeenCalled();
     });
 
     // 判定そのものは keyboard.test.ts が持つ。ここは共通関数を通していることの確認（00_共通 §3）

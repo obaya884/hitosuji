@@ -489,6 +489,29 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
       });
       expect(screen.getByPlaceholderText("セクション名")).not.toBeNull();
     });
+
+    // 新規行の保存中の抑止（§2.3「新規追加行の保存中」）は部品が持つが、
+    // isPending を渡す配線は表ごとなのでここで見る
+    it("保存中は新規行の「保存」「取消」を押せない", async () => {
+      const pending = deferredAction();
+      vi.mocked(createSectionAction).mockReturnValue(pending.promise);
+      renderTable();
+      fireEvent.click(screen.getByRole("button", { name: "新規追加" }));
+      fireEvent.change(screen.getByPlaceholderText("セクション名"), {
+        target: { value: "新セクション" },
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "保存" }));
+
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "保存" })).toHaveProperty("disabled", true);
+      });
+      expect(screen.getByRole("button", { name: "取消" })).toHaveProperty("disabled", true);
+
+      await act(async () => {
+        pending.resolve({ ok: true });
+      });
+    });
   });
 
   describe("アーカイブと物理削除（画面定義書03 §4 / §4.1）", () => {

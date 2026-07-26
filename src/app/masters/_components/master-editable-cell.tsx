@@ -67,17 +67,21 @@ export function MasterEditableCell({
       autoFocus
       type={type}
       defaultValue={value}
-      onKeyDown={inlineEditKeyHandler({
-        // 保存の経路は blur の1本だけにする（Enter は入力欄を抜けて合流させ、二重送信を避ける）
-        onEnter: (input) => input.blur(),
-        onEscape: (input) => {
-          // 保存中は取消も止める（応答を待つ間に閉じると失敗のメッセージだけが残る。§2.3「保存中」）
-          if (isPending) return;
-          // 元の値へ戻してから blur すると、下の onBlur が「変更なし」と判断して閉じるだけになる
-          input.value = value;
-          input.blur();
-        },
-      })}
+      // 保存中はキー操作を受け付けない＝確定も取消も止める（§2.3「保存中」）。
+      // ハンドラごと外すのは、Enter を通すと `blur()` だけが走って入力欄がフォーカスを失うため
+      onKeyDown={
+        isPending
+          ? undefined
+          : inlineEditKeyHandler({
+              // 保存の経路は blur の1本だけにする（Enter は入力欄を抜けて合流させ、二重送信を避ける）
+              onEnter: (input) => input.blur(),
+              onEscape: (input) => {
+                // 元の値へ戻してから blur すると、下の onBlur が「変更なし」と判断して閉じるだけになる
+                input.value = value;
+                input.blur();
+              },
+            })
+      }
       onBlur={(e) => {
         // 保存中は確定を止める（開いたままの入力欄で値を変えて確定すると2件目の更新が飛ぶ。§2.3「保存中」）
         if (isPending) return;

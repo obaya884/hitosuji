@@ -20,8 +20,11 @@ type Props = Readonly<{
    */
   onSave: (fieldValue: (field: MasterNewRowField) => string) => void;
   onCancel: () => void;
-  /** 値の入力セル（`<td>` 群）。入力欄は `MasterNewRowInput` に `onKeyDown` を渡して作る */
-  renderCells: (onKeyDown: KeyboardEventHandler<HTMLInputElement>) => ReactNode;
+  /**
+   * 値の入力セル（`<td>` 群）。入力欄は `MasterNewRowInput` に `onKeyDown` を渡して作る
+   * （保存中は `undefined` が渡る＝キー操作を受け付けない）
+   */
+  renderCells: (onKeyDown: KeyboardEventHandler<HTMLInputElement> | undefined) => ReactNode;
 }>;
 
 export function MasterNewRow({ isPending, onSave, onCancel, renderCells }: Props) {
@@ -37,18 +40,14 @@ export function MasterNewRow({ isPending, onSave, onCancel, renderCells }: Props
   }
 
   // 新規行は保存経路が blur ではないので、Enter で直接保存する（IME 判定は共通関数に任せる）。
-  // 保存中は確定も取消も止める（§2.3「新規追加行の保存中」）——Enter の連打は同じ行を二重に作り、
-  // 応答待ちの取消は行を閉じて失敗のメッセージだけを残す
-  const onKeyDown = inlineEditKeyHandler({
-    onEnter: (input) => {
-      if (isPending) return;
-      save(input.closest("tr"));
-    },
-    onEscape: () => {
-      if (isPending) return;
-      onCancel();
-    },
-  });
+  // 保存中はキー操作を受け付けない＝確定も取消も止める（§2.3「新規追加行の保存中」）——Enter の
+  // 連打は同じ行を二重に作り、応答待ちの取消は行を閉じて失敗のメッセージだけを残す
+  const onKeyDown = isPending
+    ? undefined
+    : inlineEditKeyHandler({
+        onEnter: (input) => save(input.closest("tr")),
+        onEscape: () => onCancel(),
+      });
 
   return (
     <tr className="border-b border-line">
@@ -83,7 +82,8 @@ export function MasterNewRowInput({
   placeholder?: string;
   type?: MasterInputType;
   autoFocus?: boolean;
-  onKeyDown: KeyboardEventHandler<HTMLInputElement>;
+  /** `MasterNewRow` から受け取る（保存中は `undefined`） */
+  onKeyDown: KeyboardEventHandler<HTMLInputElement> | undefined;
 }>) {
   return (
     <input
