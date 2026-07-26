@@ -5,6 +5,7 @@ import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
 import { currentSectionId as deriveCurrentSectionId, type Section } from "@/domain/section/section";
+import { APP_TIME_ZONE } from "@/domain/shared/time-zone";
 import { sectionTotalMinutes, type DailyGroup } from "@/domain/task/daily-list";
 import {
   formatProjectedStart,
@@ -14,7 +15,6 @@ import {
   sectionRemainingMinutes,
 } from "@/domain/task/projection";
 import { taskStatus } from "@/domain/task/status";
-import { APP_TIME_ZONE } from "@/domain/shared/time-zone";
 import { actualMinutes, elapsedMinutes, type Task, type TaskId } from "@/domain/task/task";
 import { CheckIcon, PlayIcon, StopIcon } from "@/app/_components/icons";
 import { UnsetMark } from "@/app/_components/unset-mark";

@@ -18,18 +18,16 @@ describe("zonedParts（絶対時刻を指定タイムゾーンの壁時計とし
       day: 21,
       hours: 0,
       minutes: 0,
-      seconds: 0,
     });
   });
 
-  it("JST 23:59:59 は時・分・秒をそのまま返す（h23 なので 24 時にはならない）", () => {
+  it("秒は切り捨てる（JST 23:59:59 → 23:59）", () => {
     expect(zonedParts(new Date("2026-07-20T14:59:59Z"), APP_TIME_ZONE)).toEqual({
       year: 2026,
       month: 7,
       day: 20,
       hours: 23,
       minutes: 59,
-      seconds: 59,
     });
   });
 
@@ -62,6 +60,26 @@ describe("fromZonedClock（壁時計から絶対時刻を作る）", () => {
     expect(zonedParts(at, APP_TIME_ZONE)).toMatchObject({ year: 2026, month: 7, day: 31 });
   });
 
+  it("month・hours の繰り上がりも許す（`Date.UTC` と同じ扱い）", () => {
+    const nextYear = fromZonedClock(
+      { year: 2026, month: 13, day: 1, hours: 0, minutes: 0 },
+      APP_TIME_ZONE
+    );
+    expect(zonedParts(nextYear, APP_TIME_ZONE)).toEqual({
+      year: 2027,
+      month: 1,
+      day: 1,
+      hours: 0,
+      minutes: 0,
+    });
+
+    const nextDay = fromZonedClock(
+      { year: 2026, month: 7, day: 26, hours: 24, minutes: 0 },
+      APP_TIME_ZONE
+    );
+    expect(zonedParts(nextDay, APP_TIME_ZONE)).toMatchObject({ month: 7, day: 27, hours: 0 });
+  });
+
   it("夏時間の切り替え日でも壁時計どおりの瞬間を返す（ずれを求め直す）", () => {
     // 2026-03-08 の NY は 02:00 EST → 03:00 EDT。03:00 EDT = 07:00Z
     // （仮の瞬間のずれ EST を1度しか使わないと 08:00Z になる）
@@ -69,12 +87,22 @@ describe("fromZonedClock（壁時計から絶対時刻を作る）", () => {
     expect(at.toISOString()).toBe("2026-03-08T07:00:00.000Z");
   });
 
+  it("夏時間の切り替えで存在しない壁時計は、切り替え前のずれで解いた瞬間になる（往復しない）", () => {
+    // 2026-03-08 の NY に 02:30 は存在しない（01:59:59 EST の次が 03:00:00 EDT）
+    const at = fromZonedClock({ year: 2026, month: 3, day: 8, hours: 2, minutes: 30 }, NEW_YORK);
+    expect(at.toISOString()).toBe("2026-03-08T06:30:00.000Z");
+    expect(zonedParts(at, NEW_YORK)).toMatchObject({ hours: 1, minutes: 30 }); // 読み戻すと 01:30 EST
+  });
+
+  it("夏時間の切り替えで2度ある壁時計は夏時間（EDT）側を採る", () => {
+    // 2026-11-01 の NY は 01:59:59 EDT のあと 01:00:00 EST に戻るので 01:30 が2度ある
+    const at = fromZonedClock({ year: 2026, month: 11, day: 1, hours: 1, minutes: 30 }, NEW_YORK);
+    expect(at.toISOString()).toBe("2026-11-01T05:30:00.000Z");
+  });
+
   it("夏時間でないゾーンの壁時計は往復しても変わらない", () => {
     const clock = { year: 2026, month: 12, day: 31, hours: 23, minutes: 59 };
-    expect(zonedParts(fromZonedClock(clock, APP_TIME_ZONE), APP_TIME_ZONE)).toEqual({
-      ...clock,
-      seconds: 0,
-    });
+    expect(zonedParts(fromZonedClock(clock, APP_TIME_ZONE), APP_TIME_ZONE)).toEqual(clock);
   });
 });
 

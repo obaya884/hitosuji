@@ -23,6 +23,14 @@ describe("applyClockTime（F-203: HH:MM を直接修正する）", () => {
     });
   });
 
+  it("解釈に使う壁時計は引数のタイムゾーンで決まる（定数を直接見ていない）", () => {
+    // 同じ打刻・同じ入力でも UTC で解釈すれば 09:05 は 09:05Z
+    expect(applyClockTime(new Date("2026-07-26T00:00:00Z"), "09:05", "UTC")).toEqual({
+      ok: true,
+      value: new Date("2026-07-26T09:05:00Z"),
+    });
+  });
+
   it("区切り文字なしの入力も受け付ける（1935 → 19:35、935 → 9:35）", () => {
     const base = atJst("08:00");
     expect(applyClockTime(base, "1935", APP_TIME_ZONE)).toEqual({ ok: true, value: atJst("19:35") });
@@ -68,6 +76,14 @@ describe("editStartedAt（F-203: 開始 ≦ 終了 の整合性チェック）",
   it("実行中タスクの開始時刻を修正できる", () => {
     const t = task({ id: 1, startedAt: atJst("08:00") });
     expect(editStartedAt(t, "07:30", APP_TIME_ZONE)).toEqual({ ok: true, value: atJst("07:30") });
+  });
+
+  it("解釈に使う壁時計は引数のタイムゾーンで決まる（定数を直接見ていない）", () => {
+    const t = task({ id: 1, startedAt: new Date("2026-07-26T00:00:00Z") }); // JST 09:00 / UTC 00:00
+    expect(editStartedAt(t, "07:30", "UTC")).toEqual({
+      ok: true,
+      value: new Date("2026-07-26T07:30:00Z"),
+    });
   });
 
   it("完了タスクでも終了時刻を超えなければ修正できる", () => {

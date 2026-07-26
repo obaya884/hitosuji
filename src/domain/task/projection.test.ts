@@ -245,6 +245,19 @@ describe("formatProjectedEnd（F-104: 24:00超過は翌日表記）", () => {
       )
     ).toBe("25:30");
   });
+
+  it("起点の暦日は引数のタイムゾーンで決まる（定数を直接見ていない）", () => {
+    // 同じ2つの瞬間を UTC で読むと now は 07-26 13:00・終了は同日 16:30 なので折返さない
+    expect(
+      formatProjectedEnd(new Date("2026-07-26T16:30:00Z"), new Date("2026-07-26T13:00:00Z"), "UTC")
+    ).toBe("16:30");
+  });
+
+  it("now の秒は起点に持ち込まない（暦日 0:00 が59秒ずれると表記が1分ずれる）", () => {
+    const nowWithSeconds = new Date(atJst("09:00").getTime() + 40_000);
+    expect(formatProjectedEnd(atJst("21:45"), nowWithSeconds, APP_TIME_ZONE)).toBe("21:45");
+    expect(isOverMidnight(atJst("00:00", "2026-07-27"), nowWithSeconds, APP_TIME_ZONE)).toBe(true);
+  });
 });
 
 describe("isOverMidnight（F-104: 警告色の判定）", () => {
@@ -282,6 +295,27 @@ describe("F-116: 折返し表記・超過警告を日界（論理日）基準で
     // 前日の日界=当日06:00までは収まる
     expect(isOverMidnight(atJst("05:00"), atJst("02:00"), APP_TIME_ZONE, DAY_START)).toBe(false);
     expect(isOverMidnight(atJst("07:00"), atJst("02:00"), APP_TIME_ZONE, DAY_START)).toBe(true);
+  });
+
+  it("論理日が前の暦日になるとき、月初・年初もまたげる（暦日の繰り下がり）", () => {
+    // 日界 06:00・now 08-01 02:00 → 論理日は 07-31。起点は 07-31 0:00 なので 05:00 は 29:00
+    expect(
+      formatProjectedEnd(
+        atJst("05:00", "2026-08-01"),
+        atJst("02:00", "2026-08-01"),
+        APP_TIME_ZONE,
+        DAY_START
+      )
+    ).toBe("29:00");
+    // 年初も同じ（now 2027-01-01 02:00 → 論理日は 2026-12-31）
+    expect(
+      formatProjectedEnd(
+        atJst("05:00", "2027-01-01"),
+        atJst("02:00", "2027-01-01"),
+        APP_TIME_ZONE,
+        DAY_START
+      )
+    ).toBe("29:00");
   });
 
   it("ちょうど次の日界（翌 06:00）で超過＝true。折返し表記は論理日の暦日0:00起点なので 30:00", () => {
@@ -328,6 +362,12 @@ describe("sectionEndAt（F-110: セクション終了時刻の絶対時刻）", 
     // JST 07-26 09:00 = 00:00Z。09:00–12:00 の終わりは JST 12:00 = 03:00Z
     const end = sectionEndAt(new Date("2026-07-26T00:00:00Z"), "09:00", "12:00", APP_TIME_ZONE);
     expect(end.toISOString()).toBe("2026-07-26T03:00:00.000Z");
+  });
+
+  it("枠の起点の暦日は引数のタイムゾーンで決まる（定数を直接見ていない）", () => {
+    // 同じ瞬間を UTC で読むと暦日 07-26 の 00:00 起点なので、09:00–12:00 の終わりは 12:00Z
+    const end = sectionEndAt(new Date("2026-07-26T00:00:00Z"), "09:00", "12:00", "UTC");
+    expect(end.toISOString()).toBe("2026-07-26T12:00:00.000Z");
   });
 
   it("日界 06:00 のとき、回転で末尾に来る深夜(00:00–06:00)は翌暦日に敷かれる（F-116）", () => {

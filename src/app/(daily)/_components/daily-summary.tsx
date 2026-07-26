@@ -1,5 +1,6 @@
 "use client";
 
+import { APP_TIME_ZONE } from "@/domain/shared/time-zone";
 import type { DailyGroup } from "@/domain/task/daily-list";
 import {
   formatProjectedEnd,
@@ -7,7 +8,6 @@ import {
   projectedEndTime,
   remainingMinutes,
 } from "@/domain/task/projection";
-import { APP_TIME_ZONE } from "@/domain/shared/time-zone";
 import { formatClock, formatDuration } from "@/app/_lib/format";
 import { TaskProgress } from "./task-progress";
 

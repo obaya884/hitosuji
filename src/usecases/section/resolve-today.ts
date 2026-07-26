@@ -11,7 +11,7 @@ import type { SectionRepository } from "@/usecases/ports/section-repository";
  * すでにセクションを読んでいる画面（二重 fetch を避けたい場所）で使う。
  */
 export function todayFromSections(sections: readonly Section[], now: Date): LogicalDate {
-  return todayLogicalDate(now, startMinutes(dayStartTimeOf(sections)), APP_TIME_ZONE);
+  return todayLogicalDate(now, APP_TIME_ZONE, startMinutes(dayStartTimeOf(sections)));
 }
 
 /**

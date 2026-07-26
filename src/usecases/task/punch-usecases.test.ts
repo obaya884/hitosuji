@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Section } from "@/domain/section/section";
 import { taskStatus } from "@/domain/task/status";
 import { TEST_DATE } from "@/domain/shared/testing/clock";
+import { APP_TIME_ZONE, zonedParts } from "@/domain/shared/time-zone";
 import { task } from "@/domain/task/testing/task";
 import { inMemorySectionRepository } from "@/usecases/section/testing/in-memory-repository";
 import {
@@ -505,9 +506,14 @@ describe("updateTaskPunch（F-203: 打刻時刻の修正）", () => {
   const startedAt = new Date("2026-07-26T08:00:00Z");
   const endedAt = new Date("2026-07-26T08:30:00Z");
 
-  /** 修正後の開始時刻に対応する HH:MM（クライアントが整形して送る値の代わり） */
-  const clockOf = (at: Date) =>
-    at.toLocaleTimeString("en-GB", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit" });
+  /**
+   * 修正後の開始時刻に対応する HH:MM（クライアントが `formatClock` で整形して送る値の代わり）。
+   * 基準は運用タイムゾーン（`APP_TIME_ZONE`）で、presentation の整形と同じ（T-47）
+   */
+  const clockOf = (at: Date) => {
+    const { hours, minutes } = zonedParts(at, APP_TIME_ZONE);
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+  };
 
   function editPunch(
     repo: ReturnType<typeof inMemoryTaskRepository>,

@@ -251,7 +251,7 @@ function quickAddInput(): HTMLElement {
 
 /**
  * 打刻修正（F-203）の入力欄。表示中の値ではなくプレースホルダで引く——
- * 表示は `APP_TIME_ZONE` 固定の整形なので、値で引くとテストが実行環境の TZ に縛られる
+ * 入力欄の初期値は `formatClock` の整形結果なので、値で引くと整形の書式に縛られる
  */
 function punchInput(): HTMLElement {
   return screen.getByPlaceholderText("1935");

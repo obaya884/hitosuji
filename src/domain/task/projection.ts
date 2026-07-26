@@ -1,7 +1,8 @@
 // 終了予定時刻と残時間（F-104）・予想開始時刻（F-120 / データモデル定義書 §4.3）
 // DBには保存しない導出値。現在時刻とタイムゾーンは引数で受け取る（domain は now も環境も持たない）
 import { offsetFromDayStart, startMinutes } from "../section/section";
-import { fromZonedClock, zonedParts } from "../shared/time-zone";
+import { todayLogicalDate } from "../shared/logical-date";
+import { fromZonedClock } from "../shared/time-zone";
 import { taskStatus } from "./status";
 import { elapsedMinutes, type Task, type TaskId } from "./task";
 
@@ -9,15 +10,15 @@ import { elapsedMinutes, type Task, type TaskId } from "./task";
  * 現在時刻が属する論理日の暦日 0:00（F-116）。日界（分）より前の時間帯は前の暦日が起点になる。
  * 折返し表記・超過警告・セクション終了時刻を、暦日 0:00 ではなく論理日の区切りで測るための基準。
  * 暦日と壁時計は運用タイムゾーンで読む（表示の `formatClock` と同じ基準。T-47）。
+ * 論理日そのものの決定は `todayLogicalDate` に任せ（日界の規則を2か所に持たない）、
+ * その暦日 0:00 を運用タイムゾーンの壁時計として絶対時刻に戻す。
  * 既定（dayStartMinutes = 0）では now の暦日 0:00 に一致する。
  */
 function logicalBaseMidnight(now: Date, timeZone: string, dayStartMinutes: number): Date {
-  const { year, month, day, hours, minutes } = zonedParts(now, timeZone);
-  const beforeDayStart = hours * 60 + minutes < dayStartMinutes;
-  return fromZonedClock(
-    { year, month, day: beforeDayStart ? day - 1 : day, hours: 0, minutes: 0 },
-    timeZone
-  );
+  const [year, month, day] = todayLogicalDate(now, timeZone, dayStartMinutes)
+    .split("-")
+    .map(Number);
+  return fromZonedClock({ year, month, day, hours: 0, minutes: 0 }, timeZone);
 }
 
 /**

@@ -55,8 +55,8 @@ export function applyDayStart(
  */
 export function todayLogicalDate(
   now: Date,
-  dayStartMinutes: number,
-  timeZone: string
+  timeZone: string,
+  dayStartMinutes: number
 ): LogicalDate {
   const { year, month, day, hours, minutes } = zonedParts(now, timeZone);
   const calendarDate = toLogicalDate(new Date(Date.UTC(year, month - 1, day)));

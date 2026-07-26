@@ -1,5 +1,5 @@
 // 表示フォーマット（画面定義書01 §3.3）
-import { APP_TIME_ZONE } from "@/domain/shared/time-zone";
+import { APP_TIME_ZONE, zonedParts } from "@/domain/shared/time-zone";
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"] as const;
 
@@ -18,14 +18,10 @@ export function formatEstimate(minutes: number): string {
   return minutes <= 0 ? "--:--" : formatDuration(minutes);
 }
 
-/** 打刻時刻を `HH:MM` へ（表示は日本時間） */
+/** 打刻時刻を `HH:MM` へ（表示は運用タイムゾーン＝日本時間。解釈・導出と同じ基準。T-47） */
 export function formatClock(at: Date): string {
-  return new Intl.DateTimeFormat("ja-JP", {
-    timeZone: APP_TIME_ZONE,
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(at);
+  const { hours, minutes } = zonedParts(at, APP_TIME_ZONE);
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 
 /** `YYYY-MM-DD(曜)`（画面定義書01 §3.1） */
