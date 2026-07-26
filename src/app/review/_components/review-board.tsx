@@ -10,7 +10,7 @@ import { actualMinutes, type Task } from "@/domain/task/task";
 import { DateNav } from "@/app/_components/date-nav";
 import { UnsetMark } from "@/app/_components/unset-mark";
 import { formatClock, formatDuration, formatEstimate } from "@/app/_lib/format";
-import { isShortcutEvent } from "@/app/_lib/keyboard";
+import { isGlobalShortcutEvent } from "@/app/_lib/keyboard";
 
 /**
  * レビュー画面（S-04 / 画面定義書04）。読み取り専用のため更新操作を持たず、
@@ -26,7 +26,7 @@ export function ReviewBoard({
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       // IME変換中・修飾キー併用（使うのは Shift のみ）・テキスト入力中は操作として扱わない（00_共通 §3）
-      if (!isShortcutEvent(e)) return;
+      if (!isGlobalShortcutEvent(e)) return;
 
       if (e.shiftKey) {
         if (e.key === "H") router.push(`/review?date=${addDays(date, -1)}`);

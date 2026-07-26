@@ -306,5 +306,18 @@ describe("DatePicker（画面定義書01 §3.1 / F-117: カレンダーから離
       expect(onSelect).not.toHaveBeenCalled();
       expect(onClose).not.toHaveBeenCalled();
     });
+
+    // 画面全体のショートカット（00_共通 §3 の「テキスト入力中は無効」）と違い、
+    // オーバーレイのキーナビは入力欄ガードを持たない＝現状の挙動を固定する。
+    // §3 はこの例外を明記していないため、統一の可否はオーナー裁定待ち（T-45）
+    it("入力欄にフォーカスがあってもカレンダーのキー操作は効く（オーバーレイは入力欄ガードを持たない）", () => {
+      const { onSelect, container } = renderPicker();
+      const input = container.appendChild(document.createElement("input"));
+
+      fireEvent.keyDown(input, { key: "l" });
+      fireEvent.keyDown(input, { key: "Enter" });
+
+      expect(onSelect).toHaveBeenCalledWith("2026-07-21");
+    });
   });
 });

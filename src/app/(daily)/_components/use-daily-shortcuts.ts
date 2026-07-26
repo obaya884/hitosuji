@@ -3,7 +3,7 @@ import { addDays, type LogicalDate } from "@/domain/shared/logical-date";
 import { currentTaskId, moveSelection } from "@/domain/task/selection";
 import { taskStatus } from "@/domain/task/status";
 import type { Task } from "@/domain/task/task";
-import { isShortcutEvent } from "@/app/_lib/keyboard";
+import { isButtonTarget, isGlobalShortcutEvent } from "@/app/_lib/keyboard";
 import type { EditField, EditingCell } from "./daily-list";
 
 /**
@@ -61,8 +61,8 @@ export function useDailyShortcuts(params: DailyShortcutParams): void {
 
   useEffect(() => {
     function onKeyDownGlobal(e: KeyboardEvent) {
-      // IME変換中・修飾キー併用・テキスト入力中はショートカット無効（00_共通 §3 / §6）
-      if (!isShortcutEvent(e)) return;
+      // IME変換中・修飾キー併用・テキスト入力中はショートカット無効（00_共通 §3 / 画面定義書01 §6）
+      if (!isGlobalShortcutEvent(e)) return;
       // 編集中（インライン編集・選択ポップオーバー表示中）は行操作キーを無効化する。
       // ポップオーバーは J/K/Enter を自前で拾うため、ここで素通しさせない（F-112）
       if (editing !== null) return;
@@ -116,7 +116,7 @@ export function useDailyShortcuts(params: DailyShortcutParams): void {
         case "Enter":
           // ボタンにフォーカスが残っている場合はブラウザがそのボタンを押すので、
           // ここで打刻すると二重に発火する（打刻ボタンを押した直後など。00_共通 §3）
-          if ((e.target as HTMLElement | null)?.tagName === "BUTTON") return;
+          if (isButtonTarget(e.target)) return;
           if (selected !== null) punch(selected); // 開始 →（実行中なら）終了
           return;
         case "i":

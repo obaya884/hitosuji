@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useState } from "react";
 import { CheckIcon } from "@/app/_components/icons";
-import { isPlainKeyEvent } from "@/app/_lib/keyboard";
+import { isOperableKeyEvent } from "@/app/_lib/keyboard";
 import { floatPanel } from "@/app/_lib/ui";
 import { useDismiss } from "@/app/_lib/use-dismiss";
 import { useFlipUp } from "@/app/_lib/use-flip-up";
@@ -52,9 +52,8 @@ export function SelectPopover({ options, selectedId, onSelect, onClose }: Props)
   // 表示中は背後の行操作キーが無効化される（daily-board 側で editing 中は素通し）
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      // IME変換中は操作として扱わない。修飾キーも使わない（00_共通 §3）。
-      // Cmd/Ctrl/Alt 併用はブラウザの既定動作へ委ねる
-      if (!isPlainKeyEvent(e)) return;
+      // IME変換中・修飾キー併用は操作として扱わない（00_共通 §3）
+      if (!isOperableKeyEvent(e)) return;
       if (e.key === "Escape") {
         onClose();
       } else if (e.key === "j") {
