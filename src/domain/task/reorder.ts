@@ -6,7 +6,7 @@ import type { Task, TaskId } from "./task";
 
 export type ReorderError = "task_not_found";
 
-/** 並び替えの結果。needsRenumber のときは同一グループ全体の振り直しが要る */
+/** 並び替えの結果 */
 export type Reorder = Readonly<{
   taskId: TaskId;
   sectionId: number | null;

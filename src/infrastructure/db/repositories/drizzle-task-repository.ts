@@ -17,7 +17,7 @@ import { routineSkips, tasks } from "@/infrastructure/db/schema";
 
 type Row = typeof tasks.$inferSelect;
 
-/** 振り直しをまとめて適用する（呼び出し側のトランザクション内で使う。空配列なら何もしない） */
+/** 振り直しをまとめて適用する（呼び出し側のトランザクション内で使う） */
 async function applyRenumber(tx: Pick<Database, "update">, renumber: Renumber): Promise<void> {
   const now = new Date();
   for (const row of renumber) {
@@ -25,11 +25,8 @@ async function applyRenumber(tx: Pick<Database, "update">, renumber: Renumber): 
   }
 }
 
-/** 自動セクション移動をまとめて適用する（F-113 / データモデル定義書 §4.4。空配列なら何もしない） */
-async function applyRelocations(
-  tx: Pick<Database, "update">,
-  relocations: Relocations
-): Promise<void> {
+/** 自動セクション移動をまとめて適用する（F-113 / データモデル定義書 §4.4） */
+async function applyRelocations(tx: Pick<Database, "update">, relocations: Relocations): Promise<void> {
   const now = new Date();
   for (const row of relocations) {
     await tx

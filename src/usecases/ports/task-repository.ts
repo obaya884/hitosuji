@@ -32,7 +32,8 @@ export type StartCommand = Readonly<{
   startedAt: Date;
   /**
    * 開始したタスク自身の移動（F-113 / 画面定義書01 §4.2-a）。
-   * started_at の書き込みと同一トランザクションで反映する
+   * started_at の書き込みと同一トランザクションで反映する。
+   * 動かすのは開始タスク自身だけなので 0件（移動なし）か1件のいずれかになる
    */
   relocations: Relocations;
   interruption: Readonly<{

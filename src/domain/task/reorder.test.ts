@@ -111,12 +111,16 @@ describe("moveTaskByStep（画面定義書01 §6: Shift+J/K で1つずつ移動�
     expect(first.ok && first.value.sectionId).toBe(2); // 朝 → 午前（空）
   });
 
-  it("リスト全体の先頭・末尾では動かさない", () => {
-    const first = moveTaskByStep(tasks, 1, -1, [1, 2]);
-    expect(first.ok && first.value.sortOrder).toBe(1000); // 変化なし
-
-    const last = moveTaskByStep(tasks, 3, 1, [1]);
-    expect(last.ok && last.value.sortOrder).toBe(3000); // 変化なし
+  it("リスト全体の先頭・末尾では動かさない（振り直しも伴わない）", () => {
+    // 現在位置をそのまま返す＝セクションも採番も変えず、renumber は空配列（§3.5）
+    expect(moveTaskByStep(tasks, 1, -1, [1, 2])).toEqual({
+      ok: true,
+      value: { taskId: 1, sectionId: 1, sortOrder: 1000, renumber: [] },
+    });
+    expect(moveTaskByStep(tasks, 3, 1, [1])).toEqual({
+      ok: true,
+      value: { taskId: 3, sectionId: 1, sortOrder: 3000, renumber: [] },
+    });
   });
 });
 
