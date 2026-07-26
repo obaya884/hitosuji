@@ -177,16 +177,15 @@ describe("proxy（要件定義書 N-03: 不正な Authorization ヘッダは 401
     expectUnauthorized(proxy(request(authHeader("Basic\t", `${TEST_USER}:${TEST_PASSWORD}`))));
   });
 
-  it("base64 として解釈できない値でも例外にせず 401 を返す", () => {
+  it("base64 として解釈できない値でも 500 にせず 401 を返す", () => {
     stubCredentials(TEST_USER, TEST_PASSWORD);
-    // 復号器がどう振る舞っても（例外／不正文字を無視して別物を返す）、資格情報の形に
-    // ならない値は 500 でも素通しでもなく 401 に倒す
+    // 復号器は不正な文字を黙って捨てるので、残りは資格情報の形にならず 401 に落ちる
     expectUnauthorized(proxy(request("Basic not-base64!!!")));
   });
 
-  it("base64 の長さが不正（4で割った余りが1）でも例外にせず 401 を返す", () => {
+  it("base64 の長さが不正（4で割った余りが1）でも 500 にせず 401 を返す", () => {
     stubCredentials(TEST_USER, TEST_PASSWORD);
-    // "YWJjZ" は5文字。base64 の単位（4文字）に足りない末尾を持つ
+    // "YWJjZ" は5文字。単位に足りない末尾は捨てられ "abc" に復号されるため、区切りが無く 401
     expectUnauthorized(proxy(request("Basic YWJjZ")));
   });
 
@@ -206,6 +205,17 @@ describe("proxy（要件定義書 N-03: 不正な Authorization ヘッダは 401
     stubCredentials(TEST_USER, `${TEST_USER}X`);
     const res = proxy(request(basicHeaderOf(`${TEST_USER}X`)));
     expectUnauthorized(res);
+  });
+});
+
+describe("proxy（要件定義書 N-03: 復号は base64 の妥当性を検査しない）", () => {
+  // 現挙動の固定（characterization）。復号器は不正な文字を黙って捨てるため、`atob` 時代は
+  // 例外＝401 だった「不正文字混じり」が復号を通る。資格情報を知らなければ通れないので
+  // 権限は広がらないが、「何を 401 にするか」の輪郭が変わった点を記録する。
+  // 厳格に弾く（fail-closed）へ倒すかは挙動レベルの仕様判断なので docs 側で決める
+  it("base64 に不正な文字が混じっていても、復号結果が一致すれば素通しする", () => {
+    stubCredentials(TEST_USER, TEST_PASSWORD);
+    expectPassThrough(proxy(request(`${basicHeader(TEST_USER, TEST_PASSWORD)}!!!`)));
   });
 });
 
@@ -229,8 +239,7 @@ describe("proxy の matcher（要件定義書 N-03: 認証を通す経路の範�
     }
   );
 
-  // 除外パターンは「その名前ちょうど」か「その配下」にだけ掛かる。`.` を任意の1文字として
-  // 扱ったり末尾の境界を置かなかったりすると、下の経路が静かに認証の外へ落ちる
+  // 実装側コメントの「除外は先頭セグメントの名前ちょうどか、その配下だけ」を経路で固定する
   it.each([
     "/faviconXico", // `.` は任意の1文字ではない
     "/favicon.icon", // 除外名の後ろに続きがあれば別の経路
@@ -239,6 +248,9 @@ describe("proxy の matcher（要件定義書 N-03: 認証を通す経路の範�
     "/_next/static-cache/chunk.js",
     "/_next/imagex",
     "/_nextX/static/chunk.js",
+    "/blog/favicon.ico", // 除外名が途中のセグメントに現れても掛からない
+    "/docs/_next/static/chunk.js",
+    "/settings/_next/image",
   ])("静的アセットに似た名前の経路 %s は認証の対象にする", (pathname) => {
     expect(matcher.test(pathname)).toBe(true);
   });

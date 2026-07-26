@@ -1,20 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const BASIC_PREFIX = "Basic ";
+
 type Credentials = Readonly<{ user: string; password: string }>;
 
 /**
  * `Authorization` ヘッダから資格情報を取り出す。`Basic <base64>` の形でない、または
  * 復号結果が `ユーザ名:パスワード` の形でなければ null（呼び出し側で 401 に倒す）。
- * 形が違うものは**分割より先にすべて弾く**ので、照合側は評価順に依存しない。
  */
 function parseBasicCredentials(header: string | null): Credentials | null {
-  if (!header?.startsWith("Basic ")) {
+  if (!header?.startsWith(BASIC_PREFIX)) {
     return null;
   }
   // ブラウザは資格情報を UTF-8 で符号化して送るため UTF-8 で復号する（照合できる文字は
-  // ASCII に限られない）。`Buffer` は base64 として解釈できない文字を無視し例外を投げないので、
-  // 不正な値は 500 ではなく「区切りを持たない文字列」に落ちて下の判定で 401 になる
-  const decoded = Buffer.from(header.slice("Basic ".length), "base64").toString("utf8");
+  // ASCII に限られない）。`Buffer` は base64 として不正な文字を黙って捨てるだけで例外を投げず、
+  // 符号化の妥当性そのものは検査しない——可否は下の形の判定と呼び出し側の厳密一致だけが決める
+  const decoded = Buffer.from(header.slice(BASIC_PREFIX.length), "base64").toString("utf8");
   // 区切りが無ければ資格情報の形ではない。ここで弾かないと slice が
   // 「末尾1文字を落とした文字列」と「全体」を返し、照合を通しうる
   const sep = decoded.indexOf(":");
@@ -44,8 +45,9 @@ export default function proxy(req: NextRequest) {
   });
 }
 
-// 除外は「その名前ちょうど」か「その配下」だけに掛ける。`.` をエスケープせず末尾の境界も
-// 置かないと `/faviconXico` や `/_next/staticX` まで認証の外へ落ちる（N-03 の除外は狭く保つ）
+// 除外は先頭セグメントが「その名前ちょうど」か「その配下」のときだけ掛ける。`.` をエスケープせず
+// 末尾の境界も置かないと `/faviconXico` や `/_next/staticX` まで認証の外へ落ちる（N-03 の除外は狭く保つ）。
+// Next はこの値を静的リテラルとして読むため、変数や配列 join へ括り出せない
 export const config = {
   matcher: ["/((?!(?:_next/static|_next/image|favicon\\.ico)(?:/|$)).*)"],
 };
