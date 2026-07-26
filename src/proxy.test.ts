@@ -24,11 +24,20 @@ function request(authorization?: string): NextRequest {
 }
 
 /**
+ * ブラウザと同じ手順で base64 に符号化する（UTF-8 のバイト列にしてから base64）。
+ * `btoa` は latin1 の範囲しか受け付けないため、非 ASCII は先に `TextEncoder` で符号化する
+ */
+function encodeBase64(decoded: string): string {
+  const bytes = new TextEncoder().encode(decoded);
+  return btoa(String.fromCharCode(...bytes));
+}
+
+/**
  * `Authorization` ヘッダ値。`schemePrefix` はスキーム名と区切り文字までを含む
  * （区切りが空白であること自体を検証したいテストがあるため、呼び出し側に持たせる）
  */
 function authHeader(schemePrefix: string, decoded: string): string {
-  return `${schemePrefix}${btoa(decoded)}`;
+  return `${schemePrefix}${encodeBase64(decoded)}`;
 }
 
 /** 正しい形の `Basic` ヘッダ値 */
@@ -129,6 +138,15 @@ describe("proxy（要件定義書 N-03: 資格情報の照合）", () => {
     expectPassThrough(proxy(request(basicHeader(TEST_USER, passwordWithColon))));
   });
 
+  it("非 ASCII を含む資格情報でも一致すれば素通しする（UTF-8 で復号する）", () => {
+    // ブラウザは資格情報を UTF-8 で符号化して送る。latin1 で復号すると多バイト文字が
+    // 元の文字へ戻らず、設定値と一致し得なくなる（照合できる文字集合が ASCII に狭まる）
+    const user = "テスト利用者";
+    const password = "パスワード-Ω";
+    stubCredentials(user, password);
+    expectPassThrough(proxy(request(basicHeader(user, password))));
+  });
+
   it("設定のユーザ名に `:` が含まれると一致し得ない（区切りは最初の `:` のみ）", () => {
     // 送信値 "unit:user:unit-password" は ユーザ名 "unit" / パスワード "user:unit-password" と
     // 解釈されるため、設定のユーザ名 "unit:user" とは決して一致しない
@@ -161,13 +179,14 @@ describe("proxy（要件定義書 N-03: 不正な Authorization ヘッダは 401
 
   it("base64 として解釈できない値でも例外にせず 401 を返す", () => {
     stubCredentials(TEST_USER, TEST_PASSWORD);
-    // atob は例外を投げる。捕捉していなければ 401 ではなく例外で落ちる
+    // 復号器がどう振る舞っても（例外／不正文字を無視して別物を返す）、資格情報の形に
+    // ならない値は 500 でも素通しでもなく 401 に倒す
     expectUnauthorized(proxy(request("Basic not-base64!!!")));
   });
 
   it("base64 の長さが不正（4で割った余りが1）でも例外にせず 401 を返す", () => {
     stubCredentials(TEST_USER, TEST_PASSWORD);
-    // "YWJjZ" は5文字。atob は長さ不正として例外を投げる
+    // "YWJjZ" は5文字。base64 の単位（4文字）に足りない末尾を持つ
     expectUnauthorized(proxy(request("Basic YWJjZ")));
   });
 

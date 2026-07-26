@@ -2,15 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 
 type Credentials = Readonly<{ user: string; password: string }>;
 
-// base64 として解釈できなければ null（呼び出し側で 401 に倒す）
-function decodeBasic(encoded: string): string | null {
-  try {
-    return atob(encoded);
-  } catch {
-    return null;
-  }
-}
-
 /**
  * `Authorization` ヘッダから資格情報を取り出す。`Basic <base64>` の形でない、または
  * 復号結果が `ユーザ名:パスワード` の形でなければ null（呼び出し側で 401 に倒す）。
@@ -20,11 +11,10 @@ function parseBasicCredentials(header: string | null): Credentials | null {
   if (!header?.startsWith("Basic ")) {
     return null;
   }
-  // 不正な base64 でも 500 ではなく 401 を返す（atob は例外を投げる）
-  const decoded = decodeBasic(header.slice("Basic ".length));
-  if (decoded === null) {
-    return null;
-  }
+  // ブラウザは資格情報を UTF-8 で符号化して送るため UTF-8 で復号する（照合できる文字は
+  // ASCII に限られない）。`Buffer` は base64 として解釈できない文字を無視し例外を投げないので、
+  // 不正な値は 500 ではなく「区切りを持たない文字列」に落ちて下の判定で 401 になる
+  const decoded = Buffer.from(header.slice("Basic ".length), "base64").toString("utf8");
   // 区切りが無ければ資格情報の形ではない。ここで弾かないと slice が
   // 「末尾1文字を落とした文字列」と「全体」を返し、照合を通しうる
   const sep = decoded.indexOf(":");
