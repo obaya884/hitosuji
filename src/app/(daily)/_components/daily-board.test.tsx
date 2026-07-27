@@ -164,8 +164,13 @@ const heldGates: (() => Promise<void>)[] = [];
  * React は未完了の非同期アクションを束ねて扱うので、**解決し忘れた保留は後続テストの巻き戻しまで
  * 止めてしまう**（嘘の赤になる）。取りこぼしても壊れないよう afterEach が保険で解決する
  *
+ * **型引数は省略しない**。成功値定数は `const OK: DailyActionResult = { ok: true }` のように宣言型より
+ * 狭い初期値を持ち、推論に任せると `T` が `{ ok: true }` へ狭まって失敗側が落ちる。そのまま
+ * `resolve({ ok: false, ... })` を書くと型エラーになる（実行時は正しく動くので、検査が無い間は
+ * 気づけなかった。T-69）
+ *
  * @param settleOnCleanup afterEach の保険で使う値（テスト本体が `resolve` すれば使われない）。
- *   上の成功値定数（`OK` / `CREATED` / `DELETE_OK` / `UNCOMPLETE_OK`）を渡す
+ *   型引数に対応する成功値定数（`OK` / `CREATED` / `DELETE_OK` / `UNCOMPLETE_OK`）を渡す
  */
 function hold<T>(settleOnCleanup: T) {
   let settle: (value: T) => void = () => {};
@@ -332,7 +337,7 @@ afterEach(async () => {
 
 describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 → 失敗時はトースト＋ロールバック）", () => {
   it("開始打刻はサーバ確定を待たずに実行中として反映する", () => {
-    const gate = hold(OK);
+    const gate = hold<DailyActionResult>(OK);
     vi.mocked(startTaskAction).mockReturnValue(gate.promise);
     renderBoard();
 
@@ -343,7 +348,7 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
   });
 
   it("開始打刻の失敗はエラートーストを出して未実行へ巻き戻す", async () => {
-    const gate = hold(OK);
+    const gate = hold<DailyActionResult>(OK);
     vi.mocked(startTaskAction).mockReturnValue(gate.promise);
     renderBoard();
 
@@ -355,7 +360,7 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
   });
 
   it("タスク名の変更は確定前に反映し、失敗すると元の名前へ戻す", async () => {
-    const gate = hold(OK);
+    const gate = hold<DailyActionResult>(OK);
     vi.mocked(renameTaskAction).mockReturnValue(gate.promise);
     renderBoard();
     selectRow(NOT_STARTED);
@@ -372,7 +377,7 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
   });
 
   it("エラートーストは × で閉じられる（00_共通 §2.2）", async () => {
-    const gate = hold(OK);
+    const gate = hold<DailyActionResult>(OK);
     vi.mocked(startTaskAction).mockReturnValue(gate.promise);
     renderBoard();
 
@@ -384,7 +389,7 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
   });
 
   it("見積もりの変更は確定前に反映し、失敗すると元の値へ戻す", async () => {
-    const gate = hold(OK);
+    const gate = hold<DailyActionResult>(OK);
     vi.mocked(updateTaskEstimateAction).mockReturnValue(gate.promise);
     // 巻き戻り先の 0:30 をテスト本文で決める（既定値に寄りかからない）
     renderBoard([task({ id: 11, name: NOT_STARTED, sectionId: 1, estimateMinutes: 30 })]);
@@ -400,7 +405,7 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
   });
 
   it("中断（O-4）は楽観的更新の対象外でサーバ確定まで実行中のまま", () => {
-    const gate = hold(OK);
+    const gate = hold<DailyActionResult>(OK);
     vi.mocked(suspendTaskAction).mockReturnValue(gate.promise);
     renderBoard();
     selectRow(RUNNING);
@@ -412,7 +417,7 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
   });
 
   it("複製（O-11）は採番をサーバが決めるため楽観的更新しない", () => {
-    const gate = hold(CREATED);
+    const gate = hold<CreatingActionResult>(CREATED);
     vi.mocked(duplicateTaskAction).mockReturnValue(gate.promise);
     renderBoard();
     selectRow(NOT_STARTED);
@@ -536,7 +541,7 @@ describe("DailyBoard の打刻（F-201 / F-211 / §7: クライアントの現�
 describe("DailyBoard の削除と取り消し（O-8 / F-115）", () => {
   it("削除は行を即座に消し、確定後に取り消せる Undo トーストを出す", async () => {
     const deleted = defaultTasks()[0];
-    const gate = hold(DELETE_OK);
+    const gate = hold<DeleteResult>(DELETE_OK);
     vi.mocked(deleteTaskAction).mockReturnValue(gate.promise);
     const { applyServerState } = renderBoard();
     selectRow(NOT_STARTED);
@@ -578,7 +583,7 @@ describe("DailyBoard の削除と取り消し（O-8 / F-115）", () => {
   });
 
   it("削除の失敗は行を戻してエラートーストだけを出す（Undo は出さない）", async () => {
-    const gate = hold(DELETE_OK);
+    const gate = hold<DeleteResult>(DELETE_OK);
     vi.mocked(deleteTaskAction).mockReturnValue(gate.promise);
     renderBoard();
     selectRow(NOT_STARTED);
@@ -615,7 +620,7 @@ describe("DailyBoard の完了の取り消し（O-15 / F-212）", () => {
       sectionId: 2,
       sortOrder: 1000,
     };
-    const gate = hold(UNCOMPLETE_OK);
+    const gate = hold<UndoCompleteResult>(UNCOMPLETE_OK);
     vi.mocked(undoCompleteAction).mockReturnValue(gate.promise);
     const { applyServerState } = renderBoard();
     selectRow(COMPLETED);
@@ -653,7 +658,7 @@ describe("DailyBoard の完了の取り消し（O-15 / F-212）", () => {
   });
 
   it("完了の取り消しが失敗したら打刻を戻してエラートーストを出す", async () => {
-    const gate = hold(UNCOMPLETE_OK);
+    const gate = hold<UndoCompleteResult>(UNCOMPLETE_OK);
     vi.mocked(undoCompleteAction).mockReturnValue(gate.promise);
     renderBoard();
     selectRow(COMPLETED);
@@ -718,7 +723,7 @@ describe("DailyBoard の U の切り分け（O-13: 保留 → 実行中 → 完�
 
 describe("DailyBoard のクイック追加（§3.4 / F-102）", () => {
   it("Enter で楽観的に行を出し、欄をクリアする", () => {
-    const gate = hold(CREATED);
+    const gate = hold<CreatingActionResult>(CREATED);
     vi.mocked(addTaskAction).mockReturnValue(gate.promise);
     renderBoard();
 
@@ -769,7 +774,7 @@ describe("DailyBoard のクイック追加（§3.4 / F-102）", () => {
   });
 
   it("追加の失敗は仮の行を取り消してエラートーストを出す", async () => {
-    const gate = hold(CREATED);
+    const gate = hold<CreatingActionResult>(CREATED);
     vi.mocked(addTaskAction).mockReturnValue(gate.promise);
     renderBoard();
 
@@ -875,7 +880,7 @@ describe("DailyBoard のインライン編集の検証（§8 / 00_共通 §2.3�
 
 describe("DailyBoard のショートカット結線（§6。キー判定そのものは use-daily-shortcuts が持つ）", () => {
   it("Shift+J は選択タスクを1つ下へ動かし、楽観的に並べ替える", () => {
-    const gate = hold(OK);
+    const gate = hold<DailyActionResult>(OK);
     vi.mocked(moveTaskByStepAction).mockReturnValue(gate.promise);
     renderBoard();
     selectRow(NOT_STARTED);
@@ -893,7 +898,7 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
   });
 
   it("並び替えが失敗したら並びを戻し、選択は移動対象に残す（N-01 / §5）", async () => {
-    const gate = hold(OK);
+    const gate = hold<DailyActionResult>(OK);
     vi.mocked(moveTaskByStepAction).mockReturnValue(gate.promise);
     renderBoard();
     selectRow(NOT_STARTED);
@@ -910,7 +915,7 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
   });
 
   it("一度も明示選択していない状態の並び替えも対象を選択として固定する（§5 / FB-50）", () => {
-    const gate = hold(OK);
+    const gate = hold<DailyActionResult>(OK);
     vi.mocked(moveTaskByStepAction).mockReturnValue(gate.promise);
     // 初期選択は「現在地」＝先頭の未実行タスク。固定しないと移動後に選択が再導出されて別タスクへ飛ぶ
     renderBoard([
@@ -947,7 +952,7 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
   });
 
   it("Shift+J はセクションを跨いで移動する（O-6。並びが同じでも所属が変わる）", () => {
-    const gate = hold(OK);
+    const gate = hold<DailyActionResult>(OK);
     vi.mocked(moveTaskByStepAction).mockReturnValue(gate.promise);
     renderBoard();
     selectRow(RUNNING); // 午前グループの最終行
@@ -971,7 +976,7 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
   });
 
   it("Shift+K は逆方向へ動かす", () => {
-    const gate = hold(OK);
+    const gate = hold<DailyActionResult>(OK);
     vi.mocked(moveTaskByStepAction).mockReturnValue(gate.promise);
     renderBoard();
     selectRow(RUNNING);
@@ -1093,7 +1098,7 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
 
 describe("DailyBoard の割り当て（O-5: モード・プロジェクト・セクション）", () => {
   it("モードの割り当ては楽観的に反映し、失敗すると未設定へ戻す", async () => {
-    const gate = hold(OK);
+    const gate = hold<DailyActionResult>(OK);
     vi.mocked(setTaskModeAction).mockReturnValue(gate.promise);
     renderBoard();
     selectRow(NOT_STARTED);
@@ -1110,7 +1115,7 @@ describe("DailyBoard の割り当て（O-5: モード・プロジェクト・セ
   });
 
   it("プロジェクトの割り当てもモードと同じ規則で楽観的に反映する（O-5 / F-402）", () => {
-    const gate = hold(OK);
+    const gate = hold<DailyActionResult>(OK);
     vi.mocked(setTaskProjectAction).mockReturnValue(gate.promise);
     renderBoard();
     selectRow(NOT_STARTED);
@@ -1123,7 +1128,7 @@ describe("DailyBoard の割り当て（O-5: モード・プロジェクト・セ
   });
 
   it("セクションの割り当ては移動先の末尾へ楽観的に動かし、失敗すると元の位置へ戻す（O-5 / §4.3）", async () => {
-    const gate = hold(OK);
+    const gate = hold<DailyActionResult>(OK);
     vi.mocked(setTaskSectionAction).mockReturnValue(gate.promise);
     renderBoard();
     selectRow(NOT_STARTED);
@@ -1257,7 +1262,7 @@ describe("DailyBoard の通知と行メニュー（画面定義書01 §8 / O-7 /
   });
 
   it("先送り（O-7）は行メニューから実行し、楽観的更新はしない", () => {
-    const gate = hold(OK);
+    const gate = hold<DailyActionResult>(OK);
     vi.mocked(postponeTaskAction).mockReturnValue(gate.promise);
     renderBoard();
 

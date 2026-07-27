@@ -64,6 +64,10 @@ jobs:
 
       - run: npm ci
       - run: npm run lint
+      # テストファイルの型を見るのはここだけ（T-69）。next build の型検査はアプリのビルドを
+      # 通る範囲しか見ず、vitest は型を検査せず実行するため、tsc を通さないとテストの型は
+      # 誰の網にもかからない
+      - run: npm run typecheck
       - run: npm run build
       # npm test と同じテストを走らせつつカバレッジも採る（T-38）。
       # --no-file-parallelism による直列化で数秒増えるだけなので、CI では常に計測側を回す
