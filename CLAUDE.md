@@ -146,7 +146,7 @@ Next.js 16 (App Router) + TypeScript / Tailwind CSS 4 / Drizzle ORM + node-postg
 - `npm run db:migrate` — マイグレーション適用
 - `npm run db:seed` — 初期データ投入（冪等）
 - `npm run db:studio` — Drizzle Studio（DB閲覧）
-- `npm run build` / `npm run lint` / `npm run typecheck`（`tsc --noEmit`。**テストファイルの型を見るのはこれだけ** — `build` はアプリのビルドを通る範囲しか型検査せず、vitest は型を検査しない。T-69）
+- `npm run build` / `npm run lint` / `npm run typecheck`（`tsc --noEmit`。**テストファイルの型を見るのはこれだけ**。理由は[テスト戦略定義書](./docs/仕様/17_テスト戦略定義書.md) §9）
 - `npm run wt:new -- <ブランチ名>` — 並行作業用 worktree の一括セットアップ（`../hitosuji-wt/` 配下に worktree＋ブランチ＋`npm ci`＋専用テストDB＋`.env.worktree`＋dev サーバ用の固有ポートと `.env.local` リンク）。起点は `origin` を fetch して検査し、**進んでいれば中断**・**遅れていれば警告**する（意図的なら `--allow-unpushed`・fetch を省くなら `--no-fetch`）
 - `npm run wt:rm -- <ブランチ名>` — worktree の後片付け（worktree・ローカルブランチ・テストDBの削除）
 - `npm run wt:overlap` — 稼働中ブランチの変更ファイルが重なっていないかを機械判定する（重なりありなら終了コード 1。仕様/16 §1.3）

@@ -12,7 +12,7 @@ model: sonnet
 呼び出し時に対象範囲の指定があればそれに絞る。指定がなければ以下を順に実行:
 
 1. `npm run lint`
-2. `npm run typecheck`（`tsc --noEmit`。**テストファイルの型を見るのはここだけ** — `build` はアプリのビルドを通る範囲しか型検査せず、vitest は型を検査しない）
+2. `npm run typecheck`（`tsc --noEmit`。**テストファイルの型を見るのはここだけ**。理由はテスト戦略定義書 §9）
 3. `npm run build`
 4. `npm run test:unit`
 5. `npm run test:int`（`docker compose up -d db-test` で :5433 のテスト用DBを起動してから）
