@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
 import { rowOf } from "@/app/_testing/dom";
+import { formatClock } from "@/app/_lib/format";
+import { currentSectionId } from "@/domain/section/section";
 import { atJst } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
 import {
@@ -24,20 +26,31 @@ import { DailyList, type DailyListProps } from "./daily-list";
 type Overrides = Partial<Omit<DailyListProps, "groups">> & Pick<DailyListProps, "groups">;
 
 function listElement(overrides: Overrides, handlers: Handlers) {
+  const sections = overrides.sections ?? SECTIONS;
+  // `now` は実打刻の表示（`formatClock`）と予想開始・セクション終了
+  // （`projectedStartTimes` / `sectionEndAt`）の両方へ流れるが、どちらも
+  // `APP_TIME_ZONE` 基準なので `atJst` 一本で組める（T-47）
+  const now = overrides.now ?? atJst("10:00");
+  const isToday = overrides.isToday ?? true;
+
   return (
     <DailyList
       groups={overrides.groups}
       modes={overrides.modes ?? MODES}
       projects={overrides.projects ?? PROJECTS}
-      sections={overrides.sections ?? SECTIONS}
+      sections={sections}
       selectedId={overrides.selectedId ?? null}
       editing={overrides.editing ?? null}
-      // `now` は実打刻の表示（`formatClock`）と予想開始・セクション終了
-      // （`projectedStartTimes` / `sectionEndAt`）の両方へ流れるが、どちらも
-      // `APP_TIME_ZONE` 基準なので `atJst` 一本で組める（T-47）
-      now={overrides.now ?? atJst("10:00")}
-      isToday={overrides.isToday ?? true}
+      now={now}
+      isToday={isToday}
       dayStartMinutes={overrides.dayStartMinutes ?? 0}
+      // 現在セクションは board が求めて配る（§5 の現在地探索と F-121 の強調で共用）。
+      // ここでは board と同じ導出を既定値にして、now / isToday を渡すだけのテストを保つ
+      currentSectionId={
+        overrides.currentSectionId !== undefined
+          ? overrides.currentSectionId
+          : currentSectionId(sections, formatClock(now), isToday)
+      }
       stickyHeight={overrides.stickyHeight ?? 0}
       {...handlers}
     />

@@ -4,12 +4,17 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
-import { dayStartTimeOf, startMinutes, type Section } from "@/domain/section/section";
+import {
+  currentSectionId as deriveCurrentSectionId,
+  dayStartTimeOf,
+  startMinutes,
+  type Section,
+} from "@/domain/section/section";
 import { weekdayIndex, type LogicalDate } from "@/domain/shared/logical-date";
 import { APP_TIME_ZONE } from "@/domain/shared/time-zone";
 import type { DailyGroup } from "@/domain/task/daily-list";
 import { stepMoveDestination } from "@/domain/task/reorder";
-import { keepSelection, selectionAfterFinish } from "@/domain/task/selection";
+import { firstNotStartedId, keepSelection } from "@/domain/task/selection";
 import { taskStatus } from "@/domain/task/status";
 import { editEndedAt, editStartedAt } from "@/domain/task/punch-edit";
 import { validateEstimateMinutes, validateTaskName } from "@/domain/task/edit";
@@ -130,9 +135,13 @@ export function DailyBoard({
     [optimisticGroups]
   );
 
+  // 現在セクション（§4.3 の定義＝現在時刻を含むセクション）。現在地の探索（§5）と
+  // 見出しの強調（F-121）の両方が要るので、sections 全体を持つここで1回だけ求めて配る
+  const currentSectionId = deriveCurrentSectionId(sections, formatClock(now), isToday);
+
   // 選択行は描画時に導出する（§5）。未選択や、削除・日付移動で選択が消えた場合は
-  // 「現在地」（実行中、なければ最初の未実行）へ自動的に戻る
-  const selectedId = keepSelection(orderedTasks, rawSelectedId);
+  // 「現在地」（実行中、なければ現在セクション → 未分類 → 表示順全体 の順の未実行）へ自動的に戻る
+  const selectedId = keepSelection(orderedTasks, rawSelectedId, currentSectionId);
 
   // 引数順は runSelectingCreated と揃えて action を先頭にする（読み違い防止）
   function run(action: () => Promise<DailyActionResult>, optimistic: OptimisticAction) {
@@ -221,8 +230,8 @@ export function DailyBoard({
       run(() => finishTaskAction(task.id, now), { type: "finish", id: task.id, at: now });
       // 終了打刻で完了したら選択行を次の未実行タスクへ送る（F-211 / §5）。この時点の
       // orderedTasks は楽観的更新の適用前で終了対象がまだ実行中として残るため、currentTaskId で
-      // はなく selectionAfterFinish を使う。送り先がなければ据え置く（setSelectedId しない）
-      const next = selectionAfterFinish(orderedTasks);
+      // はなく firstNotStartedId を使う。送り先がなければ据え置く（setSelectedId しない）
+      const next = firstNotStartedId(orderedTasks, currentSectionId);
       if (next !== null) setSelectedId(next);
     }
   }
@@ -412,6 +421,7 @@ export function DailyBoard({
     pickerOpen: showDatePicker,
     orderedTasks,
     selectedId,
+    currentSectionId,
     hasPendingUndo: pendingUndo !== null,
     date,
     quickAddRef,
@@ -533,6 +543,7 @@ export function DailyBoard({
         now={now}
         isToday={isToday}
         dayStartMinutes={dayStartMinutes}
+        currentSectionId={currentSectionId}
         stickyHeight={stickyHeight}
       />
     </>

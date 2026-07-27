@@ -1,11 +1,9 @@
 "use client";
 
-import { currentSectionId as deriveCurrentSectionId } from "@/domain/section/section";
 import { APP_TIME_ZONE } from "@/domain/shared/time-zone";
 import type { DailyGroup } from "@/domain/task/daily-list";
 import { formatProjectedStart, projectedStartTimes } from "@/domain/task/projection";
 import type { TaskId } from "@/domain/task/task";
-import { formatClock } from "@/app/_lib/format";
 import type { EditingCell } from "../_lib/editing";
 import { toSectionOptions } from "../_lib/section-options";
 import { GroupHeading, type GroupHeadingProps } from "./group-heading";
@@ -32,8 +30,9 @@ export type DailyListProps = Pick<
   | "onEndEdit"
   | "stickyHeight"
 > &
-  // `now` / `isToday` / `dayStartMinutes` は見出しと行の両方へ渡る（見出し側から引く）
-  Pick<GroupHeadingProps, "now" | "isToday" | "dayStartMinutes"> &
+  // `now` / `isToday` / `dayStartMinutes` は見出しと行の両方へ渡る（見出し側から引く）。
+  // `currentSectionId` は現在地の探索（§5）と共用するため board が求めて配る
+  Pick<GroupHeadingProps, "now" | "isToday" | "dayStartMinutes" | "currentSectionId"> &
   Readonly<{
     groups: readonly DailyGroup[];
     selectedId: number | null;
@@ -62,14 +61,13 @@ export function DailyList({
   now,
   isToday,
   dayStartMinutes,
+  currentSectionId,
   stickyHeight,
 }: DailyListProps) {
   const modeById = new Map(modes.map((m) => [m.id, m]));
   const projectById = new Map(projects.map((p) => [p.id, p]));
 
   const projectedStarts = projectedStartLabels(groups, now, isToday, dayStartMinutes);
-  // 現在セクションの強調（§3.2 / F-121）。sections 全体が要るため親で1回だけ求める
-  const currentSectionId = deriveCurrentSectionId(sections, formatClock(now), isToday);
   // セクション選択の候補（O-5 / §4.3）。先頭の固定項目が currentSectionId を要るため、
   // 行ではなくここで組んで渡す（モード・プロジェクトの候補は行側で組む）
   const sectionOptions = toSectionOptions(sections, currentSectionId);

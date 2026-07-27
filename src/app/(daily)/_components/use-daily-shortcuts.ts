@@ -19,6 +19,8 @@ export type DailyShortcutParams = Readonly<{
   orderedTasks: readonly Task[];
   /** 表示時に導出された選択行 ID（keepSelection 後の値） */
   selectedId: number | null;
+  /** 現在時刻を含むセクション（§4.3）。`C` の現在地探索（§5）に渡す。今日でなければ null */
+  currentSectionId: number | null;
   /** 取り消しの保留（Undoトースト表示中）があるか。`U` の切り分けで最優先する（O-13） */
   hasPendingUndo: boolean;
   date: LogicalDate;
@@ -43,6 +45,7 @@ export function useDailyShortcuts(params: DailyShortcutParams): void {
     pickerOpen,
     orderedTasks,
     selectedId,
+    currentSectionId,
     hasPendingUndo,
     date,
     quickAddRef,
@@ -116,7 +119,7 @@ export function useDailyShortcuts(params: DailyShortcutParams): void {
           setSelectedId((current) => moveSelection(orderedTasks, current, -1));
           return;
         case "c": // 現在地へジャンプ（§5）
-          setSelectedId(currentTaskId(orderedTasks));
+          setSelectedId(currentTaskId(orderedTasks, currentSectionId));
           return;
         case "Enter":
           // ボタンにフォーカスが残っている場合はブラウザがそのボタンを押すので、

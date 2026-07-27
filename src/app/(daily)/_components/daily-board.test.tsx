@@ -94,6 +94,8 @@ const PROJECTS: readonly Project[] = [{ id: 1, name: "改善", isArchived: false
 const NOT_STARTED = "資料作成";
 const RUNNING = "定例会議";
 const COMPLETED = "レビュー";
+/** 未分類（インボックス）の未実行タスク。表示順ではリストの先頭に来る（§3.2） */
+const INBOX = "未分類のメモ";
 
 /** 未実行・実行中・完了が1件ずつある1日（表示順は 午前[未実行, 実行中] → 午後[完了]） */
 function defaultTasks(): Task[] {
@@ -481,6 +483,17 @@ describe("DailyBoard の打刻（F-201 / F-211 / §7: クライアントの現�
 
     expect(isSelected(NOT_STARTED)).toBe(true);
     expect(isSelected(RUNNING)).toBe(false);
+  });
+
+  it("終了打刻の送り先も未分類ではなく現在セクションの未実行（F-211 / §5 / FB-78）", () => {
+    // 現在時刻 10:30 が属するのは 午前（09:00-13:00）。未分類はリスト先頭に居るが送り先にしない
+    renderBoard([task({ id: 10, name: INBOX }), ...defaultTasks()]);
+    selectRow(RUNNING);
+
+    fireEvent.click(within(row(RUNNING)).getByLabelText("終了"));
+
+    expect(isSelected(NOT_STARTED)).toBe(true);
+    expect(isSelected(INBOX)).toBe(false);
   });
 
   it("送り先の未実行タスクがなければ選択は完了行に据え置く（F-211）", () => {
@@ -1028,6 +1041,40 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
     press("c");
 
     expect(isSelected(RUNNING)).toBe(true);
+  });
+
+  /**
+   * 現在セクションの導出（`sections` と現在時刻が要る）は board が担うので、探索順が実際に
+   * 効くかはここでしか固定できない。現在時刻 10:30 が属するのは 午前（09:00-13:00）
+   */
+  it("C は未分類（リスト先頭）ではなく現在セクションの未実行を選ぶ（§5 / FB-78）", () => {
+    renderBoard([
+      task({ id: 10, name: INBOX }),
+      task({ id: 11, name: NOT_STARTED, sectionId: 1, sortOrder: 1000 }),
+      task({ id: 13, name: COMPLETED, sectionId: 2, startedAt: atJst("09:00"), endedAt: atJst("09:20") }),
+    ]);
+    selectRow(COMPLETED);
+
+    press("c");
+
+    expect(isSelected(NOT_STARTED)).toBe(true);
+    expect(isSelected(INBOX)).toBe(false);
+  });
+
+  it("表示日が今日でなければ現在セクションを定義できず、表示順で最初の未実行へ戻る（§5）", () => {
+    renderBoard(
+      [
+        task({ id: 10, name: INBOX }),
+        task({ id: 11, name: NOT_STARTED, sectionId: 1, sortOrder: 1000 }),
+        task({ id: 13, name: COMPLETED, sectionId: 2, startedAt: atJst("09:00"), endedAt: atJst("09:20") }),
+      ],
+      { date: "2026-07-20", today: TEST_DATE, isToday: false }
+    );
+    selectRow(COMPLETED);
+
+    press("c");
+
+    expect(isSelected(INBOX)).toBe(true);
   });
 
   it("R はタスク名のインライン編集を開く", () => {
