@@ -82,7 +82,10 @@ function isOverEstimate(minutes: number, task: Task): boolean {
   return task.estimateMinutes > 0 && minutes > task.estimateMinutes;
 }
 
-/** タスク1件の行（画面定義書01 §3.3）。1タスク=1行で、セルのクリックが編集・割り当ての入口になる */
+/**
+ * タスク1件の行（画面定義書01 §3.3）。1タスク=1行で、セルのクリックが編集・割り当ての入口になる。
+ * インライン編集の入力欄はいずれも非制御にして確定時に値を読む（親が編集状態だけを持てば済む）
+ */
 export function TaskRow({
   task,
   index,
@@ -113,14 +116,9 @@ export function TaskRow({
   const actual = actualMinutes(task);
   const elapsed = elapsedMinutes(task, now);
 
-  // 入力欄は非制御にして、確定時に値を読む（親が編集状態だけを持てば済む）
-  function initialValue(field: EditField): string {
-    if (field === "name") return task.name;
-    if (field === "estimate") return String(task.estimateMinutes || "");
-    if (field === "startedAt") return task.startedAt === null ? "" : formatClock(task.startedAt);
-    if (field === "endedAt") return task.endedAt === null ? "" : formatClock(task.endedAt);
-    return "";
-  }
+  // 修正できるのは打刻済みの時刻だけなので、編集中でも打刻がなければ null（＝入力欄を出さない。§3.3）
+  const editingPunchAt =
+    editing === "startedAt" ? task.startedAt : editing === "endedAt" ? task.endedAt : null;
 
   function commit(input: HTMLInputElement) {
     const value = input.value;
@@ -182,7 +180,7 @@ export function TaskRow({
         {editing === "name" ? (
           <input
             autoFocus
-            defaultValue={initialValue("name")}
+            defaultValue={task.name}
             onKeyDown={onKeyDown}
             onBlur={(e) => commit(e.currentTarget)}
             className={`w-full ${inputBase}`}
@@ -242,7 +240,7 @@ export function TaskRow({
           <input
             autoFocus
             inputMode="numeric"
-            defaultValue={initialValue("estimate")}
+            defaultValue={String(task.estimateMinutes || "")}
             onKeyDown={onKeyDown}
             onBlur={(e) => commit(e.currentTarget)}
             placeholder="分"
@@ -274,11 +272,11 @@ export function TaskRow({
       <td className={`py-2.5 text-right font-mono tabular-nums ${dimmedClass}`}>
         {/* 開始・終了時刻のインライン修正（F-203）。未打刻のタスクは編集させない */}
         {task.startedAt !== null &&
-          (editing === "startedAt" || editing === "endedAt" ? (
+          (editingPunchAt !== null ? (
             <input
               autoFocus
               key={editing}
-              defaultValue={initialValue(editing)}
+              defaultValue={formatClock(editingPunchAt)}
               // 打ち直しが前提の項目なので既存値を全選択して始める（§3.3 / FB-23）
               onFocus={(e) => e.currentTarget.select()}
               onKeyDown={onKeyDown}

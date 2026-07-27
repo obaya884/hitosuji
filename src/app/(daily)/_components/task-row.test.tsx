@@ -380,6 +380,22 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
       expect(within(cellsOf(row).estimate).queryByText("0:20")).not.toBeNull();
     });
 
+    // 打刻の初期値は行トップで導出する（`editingPunchAt`）ため、打刻を持つ行で
+    // 他のセルを編集しても実施時間セルが入力欄に化けないことを併せて見る
+    it("打刻済みの行でも編集は1セルだけに効く（実施時間セルは表示のまま残る）", () => {
+      renderRow({
+        editing: "name",
+        task: task({ id: 1, name: "朝食", startedAt: atJst("06:30"), endedAt: atJst("06:48") }),
+      });
+
+      expect(screen.getAllByRole("textbox")).toHaveLength(1);
+      const row = screen.getByRole("textbox").closest("tr") as HTMLElement;
+      expect(within(cellsOf(row).time).getAllByRole("button").map((b) => b.textContent)).toEqual([
+        "06:30",
+        "06:48",
+      ]);
+    });
+
     it("見積もりは分の整数で編集する（F-103）", () => {
       const { onEstimate, onEndEdit } = renderRow({
         editing: "estimate",
@@ -435,8 +451,8 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
         expect(time.querySelector("button")).toBeNull();
       });
 
-      // `B` は選択行の状態を見ずに編集状態へ入る（use-daily-shortcuts）。未打刻の行には
-      // 直すべき値が無いので、編集状態になっても入力欄を出さない側で受け止めている
+      // 打刻済みの時刻だけを修正できる（§3.3）。`B`/`F` 側も同じ条件で編集状態に入らない
+      // （use-daily-shortcuts。FB-68）ので、ここは行側の受け止めを固定する
       it("未実行タスクは開始時刻の編集状態でも入力欄を出さない", () => {
         renderRow({
           editing: "startedAt",
@@ -471,28 +487,33 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
         expect(onEndEdit).toHaveBeenCalledOnce();
       });
 
-      it("終了時刻の編集は終了時刻を初期値にする（開始と取り違えない）", () => {
-        renderRow({ editing: "endedAt", task: completed });
+      it("終了時刻の編集は終了時刻を初期値にし、終了時刻として確定する（開始と取り違えない）", () => {
+        const { onEditPunch, onEndEdit } = renderRow({ editing: "endedAt", task: completed });
 
-        expect(screen.getByRole("textbox")).toHaveProperty("value", "06:48");
+        const input = screen.getByRole("textbox");
+        expect(input).toHaveProperty("value", "06:48");
+
+        fireEvent.change(input, { target: { value: "0930" } });
+        fireEvent.blur(input);
+
+        expect(onEditPunch).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), "endedAt", "0930");
+        expect(onEndEdit).toHaveBeenCalledOnce();
       });
 
-      it("実行中タスクの終了時刻編集（`F`）は空欄から始める（まだ終了打刻がない）", () => {
-        const { onEditPunch } = renderRow({
+      it("実行中タスクは終了時刻の編集状態でも入力欄を出さない（§3.3: 修正できるのは打刻済みの時刻だけ）", () => {
+        renderRow({
           editing: "endedAt",
           task: task({ id: 1, name: "メール", startedAt: atJst("08:05") }),
         });
 
-        const input = screen.getByRole("textbox");
-        expect(input).toHaveProperty("value", "");
+        expect(screen.queryByRole("textbox")).toBeNull();
+      });
 
-        fireEvent.change(input, { target: { value: "0830" } });
-        fireEvent.blur(input);
-        expect(onEditPunch).toHaveBeenCalledWith(
-          expect.objectContaining({ id: 1 }),
-          "endedAt",
-          "0830"
-        );
+      it("実行中タスクは終了時刻のクリック入口を出さない（開始時刻だけ押せる）", () => {
+        renderRow({ task: task({ id: 1, name: "メール", startedAt: atJst("08:05") }) });
+
+        const { time } = cellsOf(rowOf("メール"));
+        expect(within(time).getAllByRole("button").map((b) => b.textContent)).toEqual(["08:05"]);
       });
     });
   });

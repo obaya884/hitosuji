@@ -72,6 +72,11 @@ export function useDailyShortcuts(params: DailyShortcutParams): void {
       const selected = orderedTasks.find((t) => t.id === selectedId) ?? null;
       const requestEdit = (field: EditField) => {
         if (selected === null) return;
+        // 打刻時刻を修正できるのは打刻済みの側だけ（§3.3 / §6 / F-203）。行側も同じ条件で
+        // 入力欄を描くので、ここで揃えないと「編集中だが入力欄が無い」状態になり、
+        // editing を解除する発火源が無いまま全ショートカットが止まる（FB-68）
+        if (field === "startedAt" && selected.startedAt === null) return;
+        if (field === "endedAt" && selected.endedAt === null) return;
         // 押したキー自体が編集欄へ入力されないように既定動作を止める
         e.preventDefault();
         setEditing({ taskId: selected.id, field });

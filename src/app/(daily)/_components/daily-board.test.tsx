@@ -823,6 +823,20 @@ describe("DailyBoard のインライン編集の検証（§8 / 00_共通 §2.3�
     expect(vi.mocked(updateTaskEstimateAction)).not.toHaveBeenCalled();
   });
 
+  // FB-68 の症状を通しで固定する。フック側は「編集を開かない」、行側は「入力欄を出さない」
+  // としか見ておらず、両者の合成である「キーボードが死なない」はここでしか見えない
+  it("未打刻タスクの B／F はキーボード操作を止めない（FB-68）", () => {
+    renderBoard();
+    selectRow(NOT_STARTED);
+
+    press("b");
+    press("f");
+    press("j"); // 編集状態に入っていれば全ショートカットが止まり、選択は動かない
+
+    expect(screen.queryByPlaceholderText("1935")).toBeNull();
+    expect(isSelected(RUNNING)).toBe(true);
+  });
+
   it("打刻の修正（F-203）は不正な時刻を送信せずエラートーストを出す", () => {
     renderBoard();
     selectRow(RUNNING);
