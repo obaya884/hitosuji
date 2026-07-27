@@ -82,7 +82,10 @@ function isOverEstimate(minutes: number, task: Task): boolean {
   return task.estimateMinutes > 0 && minutes > task.estimateMinutes;
 }
 
-/** タスク1件の行（画面定義書01 §3.3）。1タスク=1行で、セルのクリックが編集・割り当ての入口になる */
+/**
+ * タスク1件の行（画面定義書01 §3.3）。1タスク=1行で、セルのクリックが編集・割り当ての入口になる。
+ * インライン編集の入力欄はいずれも非制御にして確定時に値を読む（親が編集状態だけを持てば済む）
+ */
 export function TaskRow({
   task,
   index,
@@ -113,7 +116,6 @@ export function TaskRow({
   const actual = actualMinutes(task);
   const elapsed = elapsedMinutes(task, now);
 
-  // 各入力欄は非制御にして、確定時に値を読む（親が編集状態だけを持てば済む）。
   // 修正できるのは打刻済みの時刻だけなので、編集中でも打刻がなければ null（＝入力欄を出さない。§3.3）
   const editingPunchAt =
     editing === "startedAt" ? task.startedAt : editing === "endedAt" ? task.endedAt : null;
