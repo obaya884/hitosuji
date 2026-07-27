@@ -12,15 +12,16 @@ model: sonnet
 呼び出し時に対象範囲の指定があればそれに絞る。指定がなければ以下を順に実行:
 
 1. `npm run lint`
-2. `npm run build`
-3. `npm run test:unit`
-4. `npm run test:int`（`docker compose up -d db-test` で :5433 のテスト用DBを起動してから）
-5. スキーマ変更（`src/infrastructure/db/schema.ts` / `migrations/` の差分）がある場合のみ:
+2. `npm run typecheck`（`tsc --noEmit`。**テストファイルの型を見るのはここだけ**。理由はテスト戦略定義書 §9）
+3. `npm run build`
+4. `npm run test:unit`
+5. `npm run test:int`（`docker compose up -d db-test` で :5433 のテスト用DBを起動してから）
+6. スキーマ変更（`src/infrastructure/db/schema.ts` / `migrations/` の差分）がある場合のみ:
    - `docker compose up -d` でローカルDBの起動を確認
    - `npm run db:migrate`
    - `npm run db:seed`（冪等なので再実行してよい）
    - 必要なら `psql postgresql://hitosuji:hitosuji@localhost:5432/hitosuji` で制約・データを直接確認
-6. 疎通確認を指示された場合のみ: `npm run dev` をバックグラウンドで起動し、対象ページの HTTP ステータスと表示内容を curl で確認。**確認後は起動したプロセスを必ず停止する**
+7. 疎通確認を指示された場合のみ: `npm run dev` をバックグラウンドで起動し、対象ページの HTTP ステータスと表示内容を curl で確認。**確認後は起動したプロセスを必ず停止する**
 
 ## 制約
 

@@ -37,7 +37,7 @@ npm run dev:check              # http://localhost:3100
 
 確認専用DB（`hitosuji_check`。使い捨ての db-test コンテナ内）を作り直してフィクスチャを入れ、そこへ向けて dev サーバを起動する。**開発DB（:5432）には接続しない**ので、打刻・削除・複製を自由に試してよい。**データを元に戻すには `Ctrl+C` で止めて再実行する**（起動のたびに入れ直される）。
 
-PR と main への push では GitHub Actions（`.github/workflows/ci.yml`）が lint・build・カバレッジ付きテスト（`test:coverage`）を自動実行し、層別のカバレッジ集計を PR コメントとジョブサマリへ出す（統合テストは Postgres サービスコンテナを建てる。読み方は[テスト戦略定義書](./docs/仕様/17_テスト戦略定義書.md) §7）。Dependabot の依存更新PRもここで検証される。技術改善・負債返済などの活動は [技術改善バックログ](./docs/案件/23_技術改善バックログ.md) で管理する。
+PR と main への push では GitHub Actions（`.github/workflows/ci.yml`）が lint・型検査（`typecheck`）・build・カバレッジ付きテスト（`test:coverage`）を自動実行し、層別のカバレッジ集計を PR コメントとジョブサマリへ出す（統合テストは Postgres サービスコンテナを建てる。読み方は[テスト戦略定義書](./docs/仕様/17_テスト戦略定義書.md) §7）。Dependabot の依存更新PRもここで検証される。技術改善・負債返済などの活動は [技術改善バックログ](./docs/案件/23_技術改善バックログ.md) で管理する。
 
 ## デプロイ（Vercel + Neon）
 
