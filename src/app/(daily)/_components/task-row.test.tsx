@@ -380,6 +380,22 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
       expect(within(cellsOf(row).estimate).queryByText("0:20")).not.toBeNull();
     });
 
+    // 打刻の初期値は行トップで導出する（`editingPunchAt`）ため、打刻を持つ行で
+    // 他のセルを編集しても実施時間セルが入力欄に化けないことを併せて見る
+    it("打刻済みの行でも編集は1セルだけに効く（実施時間セルは表示のまま残る）", () => {
+      renderRow({
+        editing: "name",
+        task: task({ id: 1, name: "朝食", startedAt: atJst("06:30"), endedAt: atJst("06:48") }),
+      });
+
+      expect(screen.getAllByRole("textbox")).toHaveLength(1);
+      const row = screen.getByRole("textbox").closest("tr") as HTMLElement;
+      expect(within(cellsOf(row).time).getAllByRole("button").map((b) => b.textContent)).toEqual([
+        "06:30",
+        "06:48",
+      ]);
+    });
+
     it("見積もりは分の整数で編集する（F-103）", () => {
       const { onEstimate, onEndEdit } = renderRow({
         editing: "estimate",
@@ -471,20 +487,26 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
         expect(onEndEdit).toHaveBeenCalledOnce();
       });
 
-      it("終了時刻の編集は終了時刻を初期値にする（開始と取り違えない）", () => {
-        renderRow({ editing: "endedAt", task: completed });
+      it("終了時刻の編集は終了時刻を初期値にし、終了時刻として確定する（開始と取り違えない）", () => {
+        const { onEditPunch, onEndEdit } = renderRow({ editing: "endedAt", task: completed });
 
-        expect(screen.getByRole("textbox")).toHaveProperty("value", "06:48");
+        const input = screen.getByRole("textbox");
+        expect(input).toHaveProperty("value", "06:48");
+
+        fireEvent.change(input, { target: { value: "0930" } });
+        fireEvent.blur(input);
+
+        expect(onEditPunch).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), "endedAt", "0930");
+        expect(onEndEdit).toHaveBeenCalledOnce();
       });
 
-      it("実行中タスクは終了時刻の編集状態でも入力欄を出さず、開始時刻はそのまま読める", () => {
+      it("実行中タスクは終了時刻の編集状態でも入力欄を出さない（§3.3: 修正できるのは打刻済みの時刻だけ）", () => {
         renderRow({
           editing: "endedAt",
           task: task({ id: 1, name: "メール", startedAt: atJst("08:05") }),
         });
 
         expect(screen.queryByRole("textbox")).toBeNull();
-        expect(screen.queryByText("08:05")).not.toBeNull();
       });
 
       it("実行中タスクは終了時刻のクリック入口を出さない（開始時刻だけ押せる）", () => {
