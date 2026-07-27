@@ -36,6 +36,7 @@ import {
   type CreatingActionResult,
   type DailyActionResult,
 } from "../actions";
+import { headingOf, popoverLabels } from "../_testing/table-helpers";
 import { DailyBoard } from "./daily-board";
 
 // このファイルが偽物にするのは `../actions` だけ（テスト戦略定義書 §2「偽物を置いてよい境界」）。
@@ -107,6 +108,25 @@ function defaultTasks(): Task[] {
       name: COMPLETED,
       sectionId: 2,
       sortOrder: 1000,
+      startedAt: atJst("09:00"),
+      endedAt: atJst("09:20"),
+    }),
+  ];
+}
+
+/**
+ * 未分類の未実行＋現在セクション（午前）の未実行＋午後の完了。実行中を含まないので
+ * 現在地は規則2（現在セクションの未実行 = NOT_STARTED）で決まる。素の表示順で探すと
+ * 先頭の INBOX に当たってしまう組み合わせ（FB-78）
+ */
+function inboxAndSections(): Task[] {
+  return [
+    task({ id: 10, name: INBOX }),
+    task({ id: 11, name: NOT_STARTED, sectionId: 1, sortOrder: 1000 }),
+    task({
+      id: 13,
+      name: COMPLETED,
+      sectionId: 2,
       startedAt: atJst("09:00"),
       endedAt: atJst("09:20"),
     }),
@@ -475,7 +495,7 @@ describe("DailyBoard の打刻（F-201 / F-211 / §7: クライアントの現�
     expect(within(row(RUNNING)).queryByText("→ 0:30")).not.toBeNull();
   });
 
-  it("終了打刻で完了したら選択行を最初の未実行タスクへ送る（F-211 / §5）", () => {
+  it("終了打刻で完了したら選択行を現在地へ送る（F-211 / §5）", () => {
     renderBoard();
     selectRow(RUNNING);
 
@@ -485,7 +505,7 @@ describe("DailyBoard の打刻（F-201 / F-211 / §7: クライアントの現�
     expect(isSelected(RUNNING)).toBe(false);
   });
 
-  it("終了打刻の送り先も未分類ではなく現在セクションの未実行（F-211 / §5 / FB-78）", () => {
+  it("終了打刻の送り先も未分類ではなく現在セクションの未実行（F-211 / §5 規則2 / FB-78）", () => {
     // 現在時刻 10:30 が属するのは 午前（09:00-13:00）。未分類はリスト先頭に居るが送り先にしない
     renderBoard([task({ id: 10, name: INBOX }), ...defaultTasks()]);
     selectRow(RUNNING);
@@ -494,6 +514,19 @@ describe("DailyBoard の打刻（F-201 / F-211 / §7: クライアントの現�
 
     expect(isSelected(NOT_STARTED)).toBe(true);
     expect(isSelected(INBOX)).toBe(false);
+  });
+
+  it("現在セクションに未実行がなければ送り先は未分類（F-211 / §5 規則3）", () => {
+    renderBoard([
+      task({ id: 10, name: INBOX }),
+      task({ id: 12, name: RUNNING, sectionId: 1, startedAt: atJst("10:00") }),
+      task({ id: 13, name: NOT_STARTED, sectionId: 2 }), // 午後＝現在セクションより後ろ
+    ]);
+    selectRow(RUNNING);
+
+    fireEvent.click(within(row(RUNNING)).getByLabelText("終了"));
+
+    expect(isSelected(INBOX)).toBe(true);
   });
 
   it("送り先の未実行タスクがなければ選択は完了行に据え置く（F-211）", () => {
@@ -1047,12 +1080,8 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
    * 現在セクションの導出（`sections` と現在時刻が要る）は board が担うので、探索順が実際に
    * 効くかはここでしか固定できない。現在時刻 10:30 が属するのは 午前（09:00-13:00）
    */
-  it("C は未分類（リスト先頭）ではなく現在セクションの未実行を選ぶ（§5 / FB-78）", () => {
-    renderBoard([
-      task({ id: 10, name: INBOX }),
-      task({ id: 11, name: NOT_STARTED, sectionId: 1, sortOrder: 1000 }),
-      task({ id: 13, name: COMPLETED, sectionId: 2, startedAt: atJst("09:00"), endedAt: atJst("09:20") }),
-    ]);
+  it("C は未分類（リスト先頭）ではなく現在セクションの未実行を選ぶ（§5 規則2 / FB-78）", () => {
+    renderBoard(inboxAndSections());
     selectRow(COMPLETED);
 
     press("c");
@@ -1061,20 +1090,37 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
     expect(isSelected(INBOX)).toBe(false);
   });
 
-  it("表示日が今日でなければ現在セクションを定義できず、表示順で最初の未実行へ戻る（§5）", () => {
-    renderBoard(
-      [
-        task({ id: 10, name: INBOX }),
-        task({ id: 11, name: NOT_STARTED, sectionId: 1, sortOrder: 1000 }),
-        task({ id: 13, name: COMPLETED, sectionId: 2, startedAt: atJst("09:00"), endedAt: atJst("09:20") }),
-      ],
-      { date: "2026-07-20", today: TEST_DATE, isToday: false }
-    );
+  it("現在セクションに未実行がなければ未分類を選ぶ（後段のセクションより先。§5 規則3）", () => {
+    // 規則3 は「未分類が表示順の先頭」（§3.2）に乗っているので、実グルーピング
+    // （`groupTasksBySection`）を通す board 段でしか結合を確かめられない
+    renderBoard([
+      task({ id: 10, name: INBOX }),
+      task({ id: 11, name: COMPLETED, sectionId: 1, startedAt: atJst("09:00"), endedAt: atJst("09:20") }),
+      task({ id: 13, name: NOT_STARTED, sectionId: 2 }), // 午後＝現在セクションより後ろ
+    ]);
     selectRow(COMPLETED);
 
     press("c");
 
     expect(isSelected(INBOX)).toBe(true);
+  });
+
+  it("表示日が今日でなければ現在セクションを定義できず、表示順で最初の未実行へ戻る（§5）", () => {
+    renderBoard(inboxAndSections(), { date: "2026-07-20", today: TEST_DATE, isToday: false });
+    selectRow(COMPLETED);
+
+    press("c");
+
+    expect(isSelected(INBOX)).toBe(true);
+  });
+
+  it("初期選択も現在地の規則に従う（未選択のまま未分類へは行かない。§5 / FB-78）", () => {
+    // `keepSelection` の未選択フォールバックが探索順を通ることを board 段で見る
+    // （実行中を置かないので規則1 では決まらない）
+    renderBoard(inboxAndSections());
+
+    expect(isSelected(NOT_STARTED)).toBe(true);
+    expect(isSelected(INBOX)).toBe(false);
   });
 
   it("R はタスク名のインライン編集を開く", () => {
@@ -1154,6 +1200,36 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
 
     expect(screen.queryByLabelText("前月")).not.toBeNull();
     expect(vi.mocked(deleteTaskAction)).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * 現在セクションは board が `sections`・現在時刻・表示日から導出して配る（§4.3）。
+ * 受け取った値の描画は GroupHeading / SelectPopover のテストが見るので、ここで見るのは
+ * **導出して配れているか**（配線を切っても他段のテストは緑のままになるため）
+ */
+describe("DailyBoard の現在セクションの導出（§4.3 / F-121）", () => {
+  it("現在時刻を含むセクションの見出しだけ強調する（F-121）", () => {
+    renderBoard(); // NOW = 10:30 → 午前（09:00-13:00）
+
+    expect(headingOf("午前").classList.contains("bg-band-now")).toBe(true);
+    expect(headingOf("午後").classList.contains("bg-band-now")).toBe(false);
+  });
+
+  it("表示日が今日でなければどのセクションも強調しない（F-121）", () => {
+    renderBoard(defaultTasks(), { date: "2026-07-20", today: TEST_DATE, isToday: false });
+
+    expect(headingOf("午前").classList.contains("bg-band-now")).toBe(false);
+    expect(headingOf("午後").classList.contains("bg-band-now")).toBe(false);
+  });
+
+  it("セクション選択の候補先頭に「現在のセクションへ」を出す（O-5 / §4.3）", () => {
+    renderBoard();
+    selectRow(NOT_STARTED);
+
+    press("s");
+
+    expect(popoverLabels()[0]).toBe("現在のセクションへ（午前）");
   });
 });
 

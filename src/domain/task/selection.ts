@@ -5,7 +5,7 @@ import { taskStatus } from "./status";
 import type { Task, TaskId } from "./task";
 
 /**
- * 「現在地」（§5）: 実行中タスク、なければ `firstNotStartedId` の探索順で決まる未実行タスク。
+ * 「現在地」（§5）: 実行中タスク（規則1）、なければ `currentNotStartedId`（規則2〜4）。
  * 初期選択と C キーのジャンプ先の両方に使う（同じ規則）
  */
 export function currentTaskId(
@@ -15,24 +15,16 @@ export function currentTaskId(
   const running = orderedTasks.find((t) => taskStatus(t) === "running");
   if (running !== undefined) return running.id;
 
-  return firstNotStartedId(orderedTasks, currentSectionId);
+  return currentNotStartedId(orderedTasks, currentSectionId);
 }
 
 /**
- * 現在地の未実行タスク（§5 の規則 2〜4）: **現在セクション → 未分類 → 表示順全体**の順に探し、
- * 最初に見つかった未実行タスクを返す。素の表示順だけで探すと、リスト先頭（§3.2）の未分類に
- * 未実行が1件でもあれば常にそこへ当たり、トリアージ前のインボックスへ飛んでしまう（FB-78）。
- *
- * 未分類（規則3）に専用の分岐を持たないのは、**未分類が表示順の先頭にある**（§3.2）ため
- * 全体探索（規則4）がそのまま未分類を先に見るから。規則3 と規則4 の順序は自動的に満たされる。
- * `currentSectionId` が null（表示日が今日でない等、現在セクションが定まらない）のときは
- * 規則2 を飛ばし、表示順の先頭から探す。
- *
- * 終了打刻後の送り先（F-211）もこの探索そのもの——呼び出し側は楽観的更新の適用前スナップショットを
- * 渡すため終了したばかりのタスクはまだ実行中として含まれる。実行中を優先する `currentTaskId` だと
- * その行を選び直してしまうので、実行中を見ないこちらを使う
+ * 現在地の未実行タスク（§5 の規則2〜4）: **現在セクション → 未分類 → 表示順全体**の順に探す。
+ * 素の表示順だけで探すとリスト先頭（§3.2）の未分類が常に先に当たり、打刻ループの最中に
+ * トリアージ前のインボックスへ飛んでしまう（FB-78）。`currentSectionId` が null
+ * （表示日が今日でない等）なら規則2 を飛ばす。実行中タスクは見ない（呼び分けは `currentTaskId` と F-211）
  */
-export function firstNotStartedId(
+export function currentNotStartedId(
   orderedTasks: readonly Task[],
   currentSectionId: SectionId | null
 ): TaskId | null {
@@ -43,7 +35,9 @@ export function firstNotStartedId(
     if (inCurrentSection !== undefined) return inCurrentSection.id; // 規則2
   }
 
-  return notStarted[0]?.id ?? null; // 規則3・規則4（未分類がリスト先頭なので同じ探索で足りる）
+  // 規則3（未分類）に専用の分岐は要らない——未分類は表示順の先頭（§3.2）なので、
+  // 規則4 の全体探索がそのまま未分類を先に見る
+  return notStarted[0]?.id ?? null;
 }
 
 /** 選択行を1つ移動する（J/K・↑↓）。端では止まる */
@@ -65,7 +59,11 @@ export function moveSelection(
   return orderedTasks[next].id;
 }
 
-/** 選択が実在するタスクを指しているかを保つ（削除・日付移動の後に使う） */
+/**
+ * 選択が実在するタスクを指しているかを保つ（削除・日付移動の後に使う）。
+ * `TaskId` / `SectionId` はどちらも素の `number` で取り違えても型が捕まえないため、
+ * 第2引数は**いま選ばれている行**、第3引数は**現在セクション**（現在地の導出に使う）
+ */
 export function keepSelection(
   orderedTasks: readonly Task[],
   selectedId: TaskId | null,

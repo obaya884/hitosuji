@@ -275,7 +275,7 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
       expect(state.current.selectedId).toBe(RUNNING.id);
     });
 
-    it("C は実行中がなければ最初の未実行タスクへジャンプする（初期選択と同じ規則）", () => {
+    it("C は実行中がなく現在セクションも定まらなければ表示順で最初の未実行へジャンプする（§5 規則4）", () => {
       const { state } = renderStateful({
         selectedId: LATER.id,
         orderedTasks: [COMPLETED, NEXT_UP, LATER],

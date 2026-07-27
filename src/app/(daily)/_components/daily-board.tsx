@@ -14,7 +14,7 @@ import { weekdayIndex, type LogicalDate } from "@/domain/shared/logical-date";
 import { APP_TIME_ZONE } from "@/domain/shared/time-zone";
 import type { DailyGroup } from "@/domain/task/daily-list";
 import { stepMoveDestination } from "@/domain/task/reorder";
-import { firstNotStartedId, keepSelection } from "@/domain/task/selection";
+import { currentNotStartedId, keepSelection } from "@/domain/task/selection";
 import { taskStatus } from "@/domain/task/status";
 import { editEndedAt, editStartedAt } from "@/domain/task/punch-edit";
 import { validateEstimateMinutes, validateTaskName } from "@/domain/task/edit";
@@ -229,9 +229,9 @@ export function DailyBoard({
     } else {
       run(() => finishTaskAction(task.id, now), { type: "finish", id: task.id, at: now });
       // 終了打刻で完了したら選択行を次の未実行タスクへ送る（F-211 / §5）。この時点の
-      // orderedTasks は楽観的更新の適用前で終了対象がまだ実行中として残るため、currentTaskId で
-      // はなく firstNotStartedId を使う。送り先がなければ据え置く（setSelectedId しない）
-      const next = firstNotStartedId(orderedTasks, currentSectionId);
+      // orderedTasks は楽観的更新の適用前で終了対象がまだ実行中として残るため、実行中を優先する
+      // currentTaskId だとその行を選び直してしまう。送り先がなければ据え置く（setSelectedId しない）
+      const next = currentNotStartedId(orderedTasks, currentSectionId);
       if (next !== null) setSelectedId(next);
     }
   }
@@ -388,7 +388,7 @@ export function DailyBoard({
     if (selectedId === null) return;
 
     // 移動タスクへ選択を固定する（§5）。未選択（rawSelectedId=null）のままだと移動後に
-    // keepSelection が選択を「現在地（先頭の未実行）」へ再導出し、別タスクへ飛ぶ（FB-50）
+    // keepSelection が選択を「現在地」（§5）へ再導出し、別タスクへ飛ぶ（FB-50）
     setSelectedId(selectedId);
 
     // 表示中のセクション順（アーカイブ済み含む）。サーバ確定は displaySectionOrder(sameDay, sections)
