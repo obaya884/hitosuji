@@ -89,6 +89,11 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // drizzle-kit 生成物
     "src/infrastructure/db/migrations/**",
+    // git 管理外だが flat config は .gitignore を読まないので明示する。
+    // `npm run dev:check` の出力先（T-37。既定の `.next` と分ける）
+    ".next-check/**",
+    // remember プラグインの作業ディレクトリ（`.remember/.gitignore` が `*` で全除外）
+    ".remember/**",
   ]),
 ]);
 
