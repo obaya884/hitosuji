@@ -435,8 +435,8 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
         expect(time.querySelector("button")).toBeNull();
       });
 
-      // `B` は選択行の状態を見ずに編集状態へ入る（use-daily-shortcuts）。未打刻の行には
-      // 直すべき値が無いので、編集状態になっても入力欄を出さない側で受け止めている
+      // 打刻済みの時刻だけを修正できる（§3.3）。`B`/`F` 側も同じ条件で編集状態に入らない
+      // （use-daily-shortcuts。FB-68）ので、ここは行側の受け止めを固定する
       it("未実行タスクは開始時刻の編集状態でも入力欄を出さない", () => {
         renderRow({
           editing: "startedAt",
@@ -477,22 +477,21 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
         expect(screen.getByRole("textbox")).toHaveProperty("value", "06:48");
       });
 
-      it("実行中タスクの終了時刻編集（`F`）は空欄から始める（まだ終了打刻がない）", () => {
-        const { onEditPunch } = renderRow({
+      it("実行中タスクは終了時刻の編集状態でも入力欄を出さず、開始時刻はそのまま読める", () => {
+        renderRow({
           editing: "endedAt",
           task: task({ id: 1, name: "メール", startedAt: atJst("08:05") }),
         });
 
-        const input = screen.getByRole("textbox");
-        expect(input).toHaveProperty("value", "");
+        expect(screen.queryByRole("textbox")).toBeNull();
+        expect(screen.queryByText("08:05")).not.toBeNull();
+      });
 
-        fireEvent.change(input, { target: { value: "0830" } });
-        fireEvent.blur(input);
-        expect(onEditPunch).toHaveBeenCalledWith(
-          expect.objectContaining({ id: 1 }),
-          "endedAt",
-          "0830"
-        );
+      it("実行中タスクは終了時刻のクリック入口を出さない（開始時刻だけ押せる）", () => {
+        renderRow({ task: task({ id: 1, name: "メール", startedAt: atJst("08:05") }) });
+
+        const { time } = cellsOf(rowOf("メール"));
+        expect(within(time).getAllByRole("button").map((b) => b.textContent)).toEqual(["08:05"]);
       });
     });
   });
