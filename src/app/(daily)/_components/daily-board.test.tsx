@@ -122,7 +122,7 @@ function defaultTasks(): Task[] {
 function inboxAndSections(): Task[] {
   return [
     task({ id: 10, name: INBOX }),
-    task({ id: 11, name: NOT_STARTED, sectionId: 1, sortOrder: 1000 }),
+    task({ id: 11, name: NOT_STARTED, sectionId: 1 }),
     task({
       id: 13,
       name: COMPLETED,
@@ -1091,11 +1091,16 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
   });
 
   it("現在セクションに未実行がなければ未分類を選ぶ（後段のセクションより先。§5 規則3）", () => {
-    // 規則3 は「未分類が表示順の先頭」（§3.2）に乗っているので、実グルーピング
-    // （`groupTasksBySection`）を通す board 段でしか結合を確かめられない
+    // 規則3 は実グルーピング（`groupTasksBySection`）を通す board 段でしか結合を確かめられない
     renderBoard([
       task({ id: 10, name: INBOX }),
-      task({ id: 11, name: COMPLETED, sectionId: 1, startedAt: atJst("09:00"), endedAt: atJst("09:20") }),
+      task({
+        id: 11,
+        name: COMPLETED,
+        sectionId: 1,
+        startedAt: atJst("09:00"),
+        endedAt: atJst("09:20"),
+      }),
       task({ id: 13, name: NOT_STARTED, sectionId: 2 }), // 午後＝現在セクションより後ろ
     ]);
     selectRow(COMPLETED);

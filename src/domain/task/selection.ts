@@ -61,8 +61,10 @@ export function moveSelection(
 
 /**
  * 選択が実在するタスクを指しているかを保つ（削除・日付移動の後に使う）。
- * `TaskId` / `SectionId` はどちらも素の `number` で取り違えても型が捕まえないため、
- * 第2引数は**いま選ばれている行**、第3引数は**現在セクション**（現在地の導出に使う）
+ * `TaskId` / `SectionId` はどちらも素の `number` なので、取り違えても型は捕まえない。
+ *
+ * @param selectedId いま選ばれている行
+ * @param currentSectionId 現在セクション（選択が消えたときの現在地の導出に使う）
  */
 export function keepSelection(
   orderedTasks: readonly Task[],

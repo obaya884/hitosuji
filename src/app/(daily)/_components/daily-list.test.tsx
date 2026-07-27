@@ -129,7 +129,6 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
     it("現在セクションがなければ（表示日が今日でない等）どのセクションも強調しない（F-121）", () => {
       renderList({
         currentSectionId: null,
-        isToday: false,
         groups: [
           morning([task({ id: 1, name: "朝食" })]),
           forenoon([task({ id: 2, name: "設計書レビュー" })]),
@@ -287,7 +286,6 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
     it("現在セクションがなければ（表示日が今日でない等）「現在のセクションへ」を出さない（§4.3）", () => {
       renderList({
         currentSectionId: null,
-        isToday: false,
         editing: { taskId: 1, field: "section" },
         groups: [morning([task({ id: 1, name: "朝食", sectionId: 100 })])],
       });

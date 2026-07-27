@@ -140,7 +140,7 @@ export function DailyBoard({
   const currentSectionId = deriveCurrentSectionId(sections, formatClock(now), isToday);
 
   // 選択行は描画時に導出する（§5）。未選択や、削除・日付移動で選択が消えた場合は
-  // 「現在地」（実行中、なければ現在セクション → 未分類 → 表示順全体 の順の未実行）へ自動的に戻る
+  // 「現在地」（§5 の規則）へ自動的に戻る
   const selectedId = keepSelection(orderedTasks, rawSelectedId, currentSectionId);
 
   // 引数順は runSelectingCreated と揃えて action を先頭にする（読み違い防止）
