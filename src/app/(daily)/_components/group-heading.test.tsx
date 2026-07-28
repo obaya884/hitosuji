@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { atJst } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
-import { afternoon, morning, unclassifiedGroup } from "../_testing/factories";
+import { morning, unclassifiedGroup } from "../_testing/factories";
 import { headingOf } from "../_testing/table-helpers";
 import { GroupHeading, type GroupHeadingProps } from "./group-heading";
 
@@ -19,11 +19,9 @@ function renderHeading(overrides: Overrides) {
       <tbody>
         <GroupHeading
           group={overrides.group}
-          // 見出しの `now` はセクション終了（`sectionEndAt`）へ流れる。`APP_TIME_ZONE` 基準
-          // なので `atJst` 一本で組める（T-47。実打刻は見出しに出ない）
-          now={overrides.now ?? atJst("10:00")}
-          isToday={overrides.isToday ?? true}
-          dayStartMinutes={overrides.dayStartMinutes ?? 0}
+          // 残り時間はセクションをまたぐ積み上げなので見出しでは決まらない（§3.2 / F-110）。
+          // 既定は中立の「出さない」とし、依拠するテストが値を明示する
+          remainingMinutes={overrides.remainingMinutes ?? null}
           currentSectionId={overrides.currentSectionId ?? null}
         />
       </tbody>
@@ -87,21 +85,21 @@ describe("GroupHeading（画面定義書01 §3.2: セクション見出し行）
     expect(headingOf("朝").textContent).not.toContain("0/0");
   });
 
-  it("残り時間は（セクション終了 − 現在）− 未完了見積もり（F-110）", () => {
+  // 残り時間の値そのもの（積み上げ・日界・表示条件）は daily-list.test.tsx が見る（§3.2 / F-110）。
+  // ここで見るのは受け取った値の描き方だけ
+  it("受け取った残り時間を符号付きで出す（F-110）", () => {
     renderHeading({
-      // セクション終了時刻は論理日の暦日 0:00 起点で測る（起点は JST。T-47）
-      now: atJst("07:00"),
+      remainingMinutes: 90,
       group: morning([task({ id: 1, name: "朝食", estimateMinutes: 30 })]),
     });
 
-    // 07:00 → 09:00 の120分から未完了見積もり30分を引いて +1:30
     expect(headingOf("朝").textContent).toContain("残り");
     expect(within(headingOf("朝")).queryByText("+1:30")).not.toBeNull();
   });
 
   it("残り時間のマイナスは警告色で示す（FB-31/FB-32: 溢れが読めるように）", () => {
     renderHeading({
-      now: atJst("07:00"),
+      remainingMinutes: -60,
       group: morning([task({ id: 1, name: "朝食", estimateMinutes: 180 })]),
     });
 
@@ -112,7 +110,7 @@ describe("GroupHeading（画面定義書01 §3.2: セクション見出し行）
 
   it("プラスの残り時間は警告色にしない", () => {
     renderHeading({
-      now: atJst("07:00"),
+      remainingMinutes: 90,
       group: morning([task({ id: 1, name: "朝食", estimateMinutes: 30 })]),
     });
 
@@ -121,37 +119,13 @@ describe("GroupHeading（画面定義書01 §3.2: セクション見出し行）
     expect(remaining?.classList.contains("text-danger")).toBe(false);
   });
 
-  it("表示日が今日でなければ残り時間を出さない（現在時刻起点の値のため）", () => {
+  it("残り時間が渡されなければ出さない（時間合計は日付・時刻に依らず出す）", () => {
     renderHeading({
-      isToday: false,
-      now: atJst("07:00"),
+      remainingMinutes: null,
       group: morning([task({ id: 1, name: "朝食", estimateMinutes: 30 })]),
     });
 
     expect(headingOf("朝").textContent).not.toContain("残り");
-    // 時間合計は日付・時刻に依らず出す
     expect(headingOf("朝").textContent).toContain("合計");
-  });
-
-  it("現在時刻がセクション終了を過ぎた過去セクションでは残り時間を出さない", () => {
-    renderHeading({
-      now: atJst("10:00"),
-      group: morning([task({ id: 1, name: "朝食", estimateMinutes: 30 })]),
-    });
-
-    expect(headingOf("朝").textContent).not.toContain("残り");
-  });
-
-  it("日界（F-116）を跨ぐ枠でも残り時間を論理日の区切りで測る", () => {
-    renderHeading({
-      // 日界 06:00・深夜 02:00 は前の論理日の続き。午後（13:00–翌06:00）はまだ終わっていない
-      dayStartMinutes: 360,
-      now: atJst("02:00", "2026-07-27"),
-      group: afternoon([task({ id: 1, name: "夜更かし", estimateMinutes: 60 })]),
-    });
-
-    // 02:00 → 06:00 の240分から未完了見積もり60分を引いて +3:00
-    // （日界を 0 と取り違えると枠の終わりが翌々日の 06:00 になり +27:00 になる）
-    expect(within(headingOf("午後")).queryByText("+3:00")).not.toBeNull();
   });
 });

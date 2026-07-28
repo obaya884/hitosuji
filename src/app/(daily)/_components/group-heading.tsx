@@ -1,21 +1,16 @@
-import { APP_TIME_ZONE } from "@/domain/shared/time-zone";
 import { sectionTotalMinutes, type DailyGroup } from "@/domain/task/daily-list";
-import {
-  sectionCapacityMinutes,
-  sectionEndAt,
-  sectionRemainingMinutes,
-} from "@/domain/task/projection";
+import { sectionCapacityMinutes } from "@/domain/task/projection";
 import { formatDuration, formatEstimate } from "@/app/_lib/format";
 import { TaskProgress } from "./task-progress";
 
 export type GroupHeadingProps = Readonly<{
   group: DailyGroup;
-  /** 毎分更新される現在時刻（F-205 / F-120 / F-121） */
-  now: Date;
-  /** 表示日が今日か。セクション残り時間（§3.2）と予想開始時刻（§3.3）は今日のみ表示する */
-  isToday: boolean;
-  /** 日界（分）。セクション終了時刻を論理日の区切りで測る起点（F-116） */
-  dayStartMinutes: number;
+  /**
+   * セクションの残り時間（分。F-110 / §3.2）。セクションをまたいで積み上げるため
+   * 1グループでは決まらず、リスト側が全グループぶんまとめて求めて配る。
+   * 表示しない（表示日≠今日・枠が終わった・枠が定まらない）ときは null
+   */
+  remainingMinutes: number | null;
   /** 現在時刻を含むセクションの id（§3.2 / F-121）。未分類・表示日≠今日は null */
   currentSectionId: number | null;
 }>;
@@ -23,9 +18,7 @@ export type GroupHeadingProps = Readonly<{
 /** セクション見出し行（画面定義書01 §3.2）。0件のセクションは見出し行だけを置く（FB-26） */
 export function GroupHeading({
   group,
-  now,
-  isToday,
-  dayStartMinutes,
+  remainingMinutes: remaining,
   currentSectionId,
 }: GroupHeadingProps) {
   // 分子: 完了は実績・未完了は見積もり（§3.2）
@@ -35,17 +28,6 @@ export function GroupHeading({
     group.section === null || group.endTime === null
       ? null
       : sectionCapacityMinutes(group.section.startTime, group.endTime);
-
-  // 残り時間（F-110）: (終了時刻 − 現在時刻) − 未完了見積もり。
-  // 現在時刻依存のため、表示日=今日で、かつ now が終了時刻より前のときだけ表示する（§3.2）
-  const endAt =
-    group.section === null || group.endTime === null
-      ? null
-      : sectionEndAt(now, group.section.startTime, group.endTime, APP_TIME_ZONE, dayStartMinutes);
-  const remaining =
-    endAt !== null && isToday && now.getTime() < endAt.getTime()
-      ? sectionRemainingMinutes(endAt, group.tasks, now)
-      : null;
 
   // 現在セクションの強調（§3.2 / F-121）: 未分類・アーカイブ済みは currentSectionId と一致しない
   const isCurrentSection = group.section !== null && group.section.id === currentSectionId;

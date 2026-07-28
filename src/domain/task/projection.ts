@@ -1,8 +1,9 @@
 // 終了予定時刻と残時間（F-104）・予想開始時刻（F-120 / データモデル定義書 §4.3）
 // DBには保存しない導出値。現在時刻とタイムゾーンは引数で受け取る（domain は now も環境も持たない）
-import { offsetFromDayStart, startMinutes } from "../section/section";
+import { offsetFromDayStart, startMinutes, type SectionId } from "../section/section";
 import { todayLogicalDate } from "../shared/logical-date";
 import { fromZonedClock } from "../shared/time-zone";
+import type { DailyGroup } from "./daily-list";
 import { taskStatus } from "./status";
 import { elapsedMinutes, type Task, type TaskId } from "./task";
 
@@ -152,24 +153,69 @@ export function sectionEndAt(
   timeZone: string,
   dayStartMinutes = 0
 ): Date {
-  const base = logicalBaseMidnight(now, timeZone, dayStartMinutes);
-  const startOffset = offsetFromDayStart(startMinutes(startTime), dayStartMinutes);
-  const startAbs = base.getTime() + (dayStartMinutes + startOffset) * 60_000;
+  const startAbs = sectionStartAt(now, startTime, timeZone, dayStartMinutes).getTime();
   return new Date(startAbs + sectionCapacityMinutes(startTime, endTime) * 60_000);
 }
 
+/** セクション開始の絶対時刻。`sectionEndAt` の起点（日界からの巡回位置。F-116） */
+function sectionStartAt(
+  now: Date,
+  startTime: string,
+  timeZone: string,
+  dayStartMinutes: number
+): Date {
+  const base = logicalBaseMidnight(now, timeZone, dayStartMinutes);
+  const startOffset = offsetFromDayStart(startMinutes(startTime), dayStartMinutes);
+  return new Date(base.getTime() + (dayStartMinutes + startOffset) * 60_000);
+}
+
+/** セクションの枠の終了時刻と、そこまでの余裕（分）。マイナスは枠に収まらないこと */
+export type SectionSlack = Readonly<{ endAt: Date; remainingMinutes: number }>;
+
 /**
- * セクションの残り時間（分, F-110）= (セクション終了時刻 − now) − そのセクションの未完了見積もり。
- * 終了予定時刻（F-104）のセクション版で、マイナスはそのセクションに予定が収まらないこと（データモデル定義書 §4.3）。
- * 現在時刻依存のため、意味を持つ（表示日=今日・now < 終了時刻）のは呼び出し側で判定する（画面定義書01 §3.2）
+ * セクションごとの残り時間（分, F-110 / データモデル定義書 §4.3）。
+ * セクションを**表示順に前から積み**、`予想終了 = max(到達時刻, セクション開始) + 未完了見積もり` を
+ * 枠の終了時刻から引く。直前のセクションが溢れればその溢れが後続へ波及する。
+ *
+ * `max` を取る（積み上げがセクション開始より前に届いても作業はセクション開始まで始まらない）のが
+ * 終了予定時刻（F-104）・予想開始時刻（F-120）との違い——両者は「詰めてやったらいつ終わるか」を、
+ * F-110 は「この枠に収まるか」を答えるため。これがないと残りが枠の長さを超える（FB-80）。
+ *
+ * 未分類は積みの対象に含めない（枠を持たず、どの枠でやるか決まっていないため）。アーカイブ済み
+ * セクション（`endTime` が null）は枠が定まらないので戻り値に含めないが、到達時刻には積む。
+ * 表示可否（表示日=今日・now < 枠の終了）は `endAt` を見て呼び出し側が判定する（画面定義書01 §3.2）
  */
-export function sectionRemainingMinutes(
-  sectionEndAt: Date,
-  tasks: readonly Task[],
-  now: Date
-): number {
-  const untilEnd = Math.floor((sectionEndAt.getTime() - now.getTime()) / 60_000);
-  return untilEnd - remainingMinutes(tasks, now);
+export function sectionSlacks(
+  groups: readonly DailyGroup[],
+  now: Date,
+  timeZone: string,
+  dayStartMinutes = 0
+): Map<SectionId, SectionSlack> {
+  const slacks = new Map<SectionId, SectionSlack>();
+  let reachedAt = now.getTime();
+
+  for (const group of groups) {
+    if (group.section === null) continue; // 未分類は積まない
+
+    const startAt = sectionStartAt(now, group.section.startTime, timeZone, dayStartMinutes);
+    const worksFrom = Math.max(reachedAt, startAt.getTime());
+    reachedAt = worksFrom + remainingMinutes(group.tasks, now) * 60_000;
+
+    if (group.endTime === null) continue; // アーカイブ済み: 積むだけで枠は測れない
+    const endAt = sectionEndAt(
+      now,
+      group.section.startTime,
+      group.endTime,
+      timeZone,
+      dayStartMinutes
+    );
+    slacks.set(group.section.id, {
+      endAt,
+      remainingMinutes: Math.floor((endAt.getTime() - reachedAt) / 60_000),
+    });
+  }
+
+  return slacks;
 }
 
 /**

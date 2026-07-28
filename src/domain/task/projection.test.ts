@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import type { Section } from "../section/section";
 import { atJst } from "../shared/testing/clock";
 import { APP_TIME_ZONE } from "../shared/time-zone";
+import { groupTasksBySection } from "./daily-list";
 import {
   formatProjectedEnd,
   formatProjectedStart,
@@ -10,8 +12,9 @@ import {
   remainingMinutes,
   sectionCapacityMinutes,
   sectionEndAt,
-  sectionRemainingMinutes,
+  sectionSlacks,
 } from "./projection";
+import type { Task } from "./task";
 import { task } from "./testing/task";
 
 // 終了予定・セクション残り時間は運用タイムゾーン（`APP_TIME_ZONE`）の壁時計を基準に導出するため、
@@ -388,34 +391,118 @@ describe("sectionEndAt（F-110: セクション終了時刻の絶対時刻）", 
   });
 });
 
-describe("sectionRemainingMinutes（F-110: セクションの残り時間 / データモデル定義書 §4.3）", () => {
-  // セクション終了 12:00、現在 9:00（終了まで180分）
-  const end = atJst("12:00");
+describe("sectionSlacks（F-110: セクションの残り時間 / データモデル定義書 §4.3）", () => {
+  // 有効セクションは24時間を敷き詰める（§3.1）ので、最後の枠は次の日界まで伸びる:
+  // 朝 06:00–09:00（3h）/ 午前 09:00–13:00（4h）/ 午後 13:00–翌06:00（17h）
+  const MORNING = 1;
+  const FORENOON = 2;
+  const AFTERNOON = 3;
+  const SECTIONS: readonly Section[] = [
+    { id: MORNING, name: "朝", startTime: "06:00", isArchived: false },
+    { id: FORENOON, name: "午前", startTime: "09:00", isArchived: false },
+    { id: AFTERNOON, name: "午後", startTime: "13:00", isArchived: false },
+  ];
 
-  it("(終了まで − 未完了見積もり) を返す。余りはプラス", () => {
-    const tasks = [task({ id: 1, estimateMinutes: 30 }), task({ id: 2, estimateMinutes: 45 })];
-    // 180 − 75 = 105
-    expect(sectionRemainingMinutes(end, tasks, atJst("09:00"))).toBe(105);
+  /** 表示順のグループを実際の集約（§3.2）で組む——積み上げの順序はこの並びに乗るため */
+  function slacksOf(tasks: readonly Task[], now: Date, sections = SECTIONS) {
+    return sectionSlacks(groupTasksBySection(tasks, sections), now, APP_TIME_ZONE);
+  }
+
+  it("現在のセクションは 枠の終了 − 現在時刻 − 未完了見積もり", () => {
+    const slacks = slacksOf(
+      [task({ id: 1, sectionId: FORENOON, estimateMinutes: 30 })],
+      atJst("10:00")
+    );
+    // 10:00 から30分 → 10:30。13:00 まで150分
+    expect(slacks.get(FORENOON)?.remainingMinutes).toBe(150);
   });
 
-  it("未完了見積もりが終了までを超えると残りはマイナス（枠に収まらない）", () => {
-    const tasks = [task({ id: 1, estimateMinutes: 120 }), task({ id: 2, estimateMinutes: 120 })];
-    // 180 − 240 = -60
-    expect(sectionRemainingMinutes(end, tasks, atJst("09:00"))).toBe(-60);
+  it("まだ始まっていないセクションは枠の頭から測る（現在時刻に引きずられない。FB-80）", () => {
+    const slacks = slacksOf(
+      [task({ id: 1, sectionId: AFTERNOON, estimateMinutes: 60 })],
+      atJst("10:00")
+    );
+    // 13:00 から60分 → 14:00。翌06:00 まで16時間。
+    // 現在時刻を起点にすると (翌06:00 − 10:00) − 60分 = 19時間 と枠(17時間)を超える
+    expect(slacks.get(AFTERNOON)?.remainingMinutes).toBe(16 * 60);
   });
 
-  it("完了タスクは未完了見積もりに含めない", () => {
-    const tasks = [
-      task({ id: 1, estimateMinutes: 60, startedAt: atJst("08:00"), endedAt: atJst("08:40") }),
-      task({ id: 2, estimateMinutes: 45 }),
+  it("枠に収まらないと残りはマイナスになり、その溢れが後続のセクションへ波及する", () => {
+    const slacks = slacksOf(
+      [
+        task({ id: 1, sectionId: FORENOON, estimateMinutes: 240 }),
+        task({ id: 2, sectionId: AFTERNOON, estimateMinutes: 60 }),
+      ],
+      atJst("10:00")
+    );
+    // 午前: 10:00 から240分 → 14:00。13:00 を1時間超える
+    expect(slacks.get(FORENOON)?.remainingMinutes).toBe(-60);
+    // 午後: 溢れて 14:00 開始 → 15:00 終了。翌06:00 まで15時間（溢れなければ16時間）
+    expect(slacks.get(AFTERNOON)?.remainingMinutes).toBe(15 * 60);
+  });
+
+  it("未分類のタスクは積みの対象に含めない（枠を持たないため）", () => {
+    const slacks = slacksOf(
+      [
+        task({ id: 1, sectionId: null, estimateMinutes: 120 }),
+        task({ id: 2, sectionId: FORENOON, estimateMinutes: 30 }),
+      ],
+      atJst("10:00")
+    );
+    expect(slacks.get(FORENOON)?.remainingMinutes).toBe(150); // 未分類の120分に影響されない
+    expect(slacks.has(null as never)).toBe(false);
+  });
+
+  it("アーカイブ済みセクションは残りを返さないが、そこに残るタスクは積む", () => {
+    const ARCHIVED = 9;
+    const sections = [
+      ...SECTIONS,
+      { id: ARCHIVED, name: "旧朝活", startTime: "07:00", isArchived: true },
     ];
-    // 180 − 45 = 135
-    expect(sectionRemainingMinutes(end, tasks, atJst("09:00"))).toBe(135);
+    const slacks = slacksOf(
+      [
+        task({ id: 1, sectionId: ARCHIVED, estimateMinutes: 60 }),
+        task({ id: 2, sectionId: FORENOON, estimateMinutes: 30 }),
+      ],
+      atJst("10:00"),
+      sections
+    );
+    expect(slacks.has(ARCHIVED)).toBe(false); // 枠の終了が導出できない
+    // 旧朝活の60分を積んで 11:00 → 午前は 11:30 終了。13:00 まで90分
+    expect(slacks.get(FORENOON)?.remainingMinutes).toBe(90);
   });
 
-  it("実行中タスクは残り見積もり（見積もり − 経過）で算入する", () => {
-    const tasks = [task({ id: 1, estimateMinutes: 30, startedAt: atJst("08:50") })]; // 経過10分・残り20分
-    // 180 − 20 = 160
-    expect(sectionRemainingMinutes(end, tasks, atJst("09:00"))).toBe(160);
+  it("完了タスクは積まず、実行中は残り見積もり（見積もり − 経過）で積む", () => {
+    const slacks = slacksOf(
+      [
+        task({
+          id: 1,
+          sectionId: FORENOON,
+          estimateMinutes: 60,
+          startedAt: atJst("09:00"),
+          endedAt: atJst("09:40"),
+        }),
+        task({ id: 2, sectionId: FORENOON, estimateMinutes: 30, startedAt: atJst("09:50") }),
+      ],
+      atJst("10:00")
+    );
+    // 完了は0・実行中は残り20分 → 10:20。13:00 まで160分
+    expect(slacks.get(FORENOON)?.remainingMinutes).toBe(160);
+  });
+
+  it("枠の終了時刻も返す（表示するかの判定に呼び出し側が使う。画面定義書01 §3.2）", () => {
+    const slacks = slacksOf([], atJst("10:00"));
+    expect(slacks.get(FORENOON)?.endAt.getTime()).toBe(atJst("13:00").getTime());
+  });
+
+  it("日界（F-116）を跨ぐ枠でも論理日の区切りで測る", () => {
+    // 日界 06:00・深夜 02:00 は前の論理日の続き。午後（13:00–翌06:00）はまだ終わっていない
+    const groups = groupTasksBySection(
+      [task({ id: 1, sectionId: AFTERNOON, estimateMinutes: 60 })],
+      SECTIONS.map((s) => (s.id === MORNING ? { ...s, isDayStart: true } : s))
+    );
+    const slacks = sectionSlacks(groups, atJst("02:00"), APP_TIME_ZONE, 6 * 60);
+    // 枠はもう始まっているので 02:00 から60分 → 03:00。06:00 まで180分
+    expect(slacks.get(AFTERNOON)?.remainingMinutes).toBe(180);
   });
 });
