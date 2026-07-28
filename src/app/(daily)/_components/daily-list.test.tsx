@@ -1,10 +1,11 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
 import { rowOf } from "@/app/_testing/dom";
 import { atJst } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
 import {
+  afternoon,
   colorOf,
   forenoon,
   morning,
@@ -32,8 +33,8 @@ function listElement(overrides: Overrides, handlers: Handlers) {
       sections={overrides.sections ?? SECTIONS}
       selectedId={overrides.selectedId ?? null}
       editing={overrides.editing ?? null}
-      // `now` は実打刻の表示（`formatClock`）と予想開始・セクション終了
-      // （`projectedStartTimes` / `sectionEndAt`）の両方へ流れるが、どちらも
+      // `now` は実打刻の表示（`formatClock`）と予想開始・セクション残り
+      // （`projectedStartTimes` / `sectionSlacks`）の両方へ流れるが、どちらも
       // `APP_TIME_ZONE` 基準なので `atJst` 一本で組める（T-47）
       now={overrides.now ?? atJst("10:00")}
       isToday={overrides.isToday ?? true}
@@ -106,6 +107,88 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
 
     const headers = [...container.querySelectorAll("thead th")].map((th) => th.textContent);
     expect(headers).toEqual(["", "タスク", "プロジェクト", "モード", "見積", "実績", "実施時間", ""]);
+  });
+
+  /**
+   * 残り時間（F-110）はセクションをまたいで積み上げるため1つの見出しでは決まらず、リストが
+   * まとめて求めて配る。**値の意味づけ（積み上げ・max・未分類・完了/実行中）は
+   * `projection.test.ts` が持つ**ので、ここで見るのは配り分けと表示条件だけ。
+   * 枠は 朝 06:00–09:00 / 午前 09:00–13:00 / 午後 13:00–翌06:00（`_testing/factories`）
+   */
+  describe("セクション残り時間の配り分けと表示条件（§3.2 / F-110）", () => {
+    it("まだ始まっていないセクションは枠の頭から測る（現在時刻に引きずられない。FB-80）", () => {
+      renderList({
+        now: atJst("10:00"),
+        groups: [
+          forenoon(),
+          afternoon([task({ id: 1, name: "夜の作業", estimateMinutes: 60 })]),
+        ],
+      });
+
+      // 午後は 13:00–翌06:00 の枠17時間から60分を引いて +16:00。
+      // 旧式は (翌06:00 − 10:00) − 60分 = +19:00 と、枠より大きい値を出していた
+      expect(within(headingOf("午後")).queryByText("+16:00")).not.toBeNull();
+    });
+
+    it("セクションごとに別々の値を、それぞれの見出しへ配る（未分類には配らない）", () => {
+      renderList({
+        now: atJst("10:00"),
+        groups: [
+          unclassifiedGroup([task({ id: 1, name: "買い出しメモ", estimateMinutes: 120 })]),
+          // 午前の枠は 10:00 時点で残り3時間しかないのに4時間ぶん積んである（1時間溢れる）
+          forenoon([task({ id: 2, name: "設計書レビュー", estimateMinutes: 240 })]),
+          afternoon([task({ id: 3, name: "夜の作業", estimateMinutes: 60 })]),
+        ],
+      });
+
+      expect(within(headingOf("午前")).queryByText("-1:00")).not.toBeNull();
+      // 午後は 14:00 開始（午前の溢れ1時間ぶん遅れる）→ 翌06:00 まで16時間 − 60分 = +15:00
+      expect(within(headingOf("午後")).queryByText("+15:00")).not.toBeNull();
+      // 未分類は枠を持たないので残り時間の行き先にならない（120分も積まれていない）
+      expect(headingOf("未分類").textContent).not.toContain("残り");
+    });
+
+    it("表示日が今日でなければ出さない（現在時刻起点の値のため）", () => {
+      renderList({
+        isToday: false,
+        now: atJst("10:00"),
+        groups: [forenoon([task({ id: 1, name: "設計書レビュー", estimateMinutes: 30 })])],
+      });
+
+      expect(headingOf("午前").textContent).not.toContain("残り");
+      expect(headingOf("午前").textContent).toContain("合計");
+    });
+
+    it("現在時刻が枠の終了に達したら出さない（§3.2「終了時刻より前のときだけ」の境界）", () => {
+      renderList({
+        now: atJst("09:00"), // 朝（06:00–09:00）の終了ちょうど
+        groups: [morning([task({ id: 1, name: "朝食", estimateMinutes: 30 })])],
+      });
+
+      expect(headingOf("朝").textContent).not.toContain("残り");
+    });
+
+    it("現在時刻が枠の終了より前なら出す（同じ境界の内側）", () => {
+      renderList({
+        now: atJst("08:59"),
+        groups: [morning([task({ id: 1, name: "朝食", estimateMinutes: 30 })])],
+      });
+
+      expect(headingOf("朝").textContent).toContain("残り");
+    });
+
+    it("日界（F-116）を跨ぐ枠でも論理日の区切りで測る", () => {
+      renderList({
+        // 日界 06:00・深夜 02:00 は前の論理日の続き。午後（13:00–翌06:00）はまだ終わっていない
+        dayStartMinutes: 360,
+        now: atJst("02:00", "2026-07-27"),
+        groups: [afternoon([task({ id: 1, name: "夜更かし", estimateMinutes: 60 })])],
+      });
+
+      // 枠はもう始まっているので 02:00 → 06:00 の240分から60分を引いて +3:00
+      // （日界を 0 と取り違えると枠の終わりが翌々日の 06:00 になり +27:00 になる）
+      expect(within(headingOf("午後")).queryByText("+3:00")).not.toBeNull();
+    });
   });
 
   describe("現在セクションの強調（§3.2 / F-121）", () => {
