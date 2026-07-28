@@ -113,6 +113,7 @@ function params(
     pickerOpen: false,
     orderedTasks: TASKS,
     selectedId: RUNNING.id,
+    currentSectionId: null,
     hasPendingUndo: false,
     date: "2026-07-26",
     quickAddRef: { current: quickAdd },
@@ -151,6 +152,7 @@ type StatefulProps = Readonly<{
   initialSelectedId: number | null;
   initialShowHelp: boolean;
   orderedTasks: readonly Task[];
+  currentSectionId: number | null;
 }>;
 
 /**
@@ -164,6 +166,7 @@ function useShortcutsWithState(props: StatefulProps) {
   useDailyShortcuts(
     params(props.spies, props.quickAdd, {
       orderedTasks: props.orderedTasks,
+      currentSectionId: props.currentSectionId,
       selectedId,
       setSelectedId,
       setShowHelp,
@@ -177,10 +180,16 @@ function renderStateful(
     selectedId?: number | null;
     showHelp?: boolean;
     orderedTasks?: readonly Task[];
+    currentSectionId?: number | null;
   }> = {}
 ) {
   // 既定値は分割代入で与える（?? だと明示した null が既定値に化け、未選択を書けなくなる）
-  const { selectedId = RUNNING.id, showHelp = false, orderedTasks = TASKS } = initial;
+  const {
+    selectedId = RUNNING.id,
+    showHelp = false,
+    orderedTasks = TASKS,
+    currentSectionId = null,
+  } = initial;
   const { spies, quickAdd } = makeSpies();
   const view = renderHook(useShortcutsWithState, {
     initialProps: {
@@ -189,6 +198,7 @@ function renderStateful(
       initialSelectedId: selectedId,
       initialShowHelp: showHelp,
       orderedTasks,
+      currentSectionId,
     },
   });
   return { state: view.result, spies };
@@ -265,7 +275,7 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
       expect(state.current.selectedId).toBe(RUNNING.id);
     });
 
-    it("C は実行中がなければ最初の未実行タスクへジャンプする（初期選択と同じ規則）", () => {
+    it("C は実行中がなく現在セクションも定まらなければ表示順で最初の未実行へジャンプする（§5 規則4）", () => {
       const { state } = renderStateful({
         selectedId: LATER.id,
         orderedTasks: [COMPLETED, NEXT_UP, LATER],
@@ -274,6 +284,31 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
       pressKey("c");
 
       expect(state.current.selectedId).toBe(NEXT_UP.id);
+    });
+
+    it("C は現在セクションを現在地の探索へ渡す（未分類が先頭にあってもそちらへ飛ばない。§5 / FB-78）", () => {
+      const inCurrentSection = task({ id: 5, sectionId: 20 });
+      const { state } = renderStateful({
+        selectedId: LATER.id,
+        // NEXT_UP・LATER は未分類（リスト先頭のインボックス）
+        orderedTasks: [COMPLETED, NEXT_UP, LATER, inCurrentSection],
+        currentSectionId: 20,
+      });
+
+      pressKey("c");
+
+      expect(state.current.selectedId).toBe(inCurrentSection.id);
+    });
+
+    it("現在地が無ければ（全件完了）C は選択を変えない（§5: 選択行は常に1つ）", () => {
+      const { state } = renderStateful({
+        selectedId: COMPLETED.id,
+        orderedTasks: [COMPLETED],
+      });
+
+      pressKey("c");
+
+      expect(state.current.selectedId).toBe(COMPLETED.id);
     });
 
     it("未選択のまま J を押すと先頭行が選択される（§5: 選択行は常に1つ）", () => {

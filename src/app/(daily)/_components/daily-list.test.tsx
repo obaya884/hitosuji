@@ -38,6 +38,9 @@ function listElement(overrides: Overrides, handlers: Handlers) {
       now={overrides.now ?? atJst("10:00")}
       isToday={overrides.isToday ?? true}
       dayStartMinutes={overrides.dayStartMinutes ?? 0}
+      // 現在セクションを `sections` と現在時刻から導出するのは board の仕事（§4.3）で、リストは
+      // 受け取るだけ。既定は中立の「現在セクションなし」とし、依拠するテストが値を明示する
+      currentSectionId={overrides.currentSectionId ?? null}
       stickyHeight={overrides.stickyHeight ?? 0}
       {...handlers}
     />
@@ -106,9 +109,9 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
   });
 
   describe("現在セクションの強調（§3.2 / F-121）", () => {
-    it("現在時刻を含むセクションの見出しだけ地色を変える（F-121）", () => {
+    it("現在セクションの見出しだけ地色を変える（F-121）", () => {
       renderList({
-        now: atJst("10:00"),
+        currentSectionId: 200, // 午前（09:00–13:00）。時刻からの導出は board が担う
         groups: [
           unclassifiedGroup([task({ id: 1, name: "買い出しメモ" })]),
           morning([task({ id: 2, name: "朝食" })]),
@@ -116,7 +119,6 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
         ],
       });
 
-      // 10:00 は午前（09:00–13:00）
       expect(headingOf("午前").classList.contains("bg-band-now")).toBe(true);
       expect(headingOf("朝").classList.contains("bg-band-now")).toBe(false);
       expect(headingOf("朝").classList.contains("bg-band")).toBe(true);
@@ -124,10 +126,9 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
       expect(headingOf("未分類").classList.contains("bg-band-now")).toBe(false);
     });
 
-    it("表示日が今日でなければどのセクションも強調しない（F-121）", () => {
+    it("現在セクションがなければ（表示日が今日でない等）どのセクションも強調しない（F-121）", () => {
       renderList({
-        isToday: false,
-        now: atJst("10:00"),
+        currentSectionId: null,
         groups: [
           morning([task({ id: 1, name: "朝食" })]),
           forenoon([task({ id: 2, name: "設計書レビュー" })]),
@@ -265,13 +266,12 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
   describe("セクション選択の候補（O-5 / §4.3）", () => {
     it("候補は「現在のセクションへ」＋未分類＋有効セクション（時間帯付き）で、選ぶと割り当てる", () => {
       const { onAssign } = renderList({
-        now: atJst("10:00"),
+        currentSectionId: 200, // 午前（09:00–13:00）
         editing: { taskId: 1, field: "section" },
         groups: [morning([task({ id: 1, name: "朝食", sectionId: 100 })])],
       });
 
       expect(popoverLabels()).toEqual([
-        // 10:00 は午前（09:00–13:00）
         "現在のセクションへ（午前）",
         "未分類",
         "朝06:00–09:00",
@@ -283,9 +283,9 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
       expect(onAssign).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), "section", 300);
     });
 
-    it("表示日が今日でなければ「現在のセクションへ」を出さない（§4.3）", () => {
+    it("現在セクションがなければ（表示日が今日でない等）「現在のセクションへ」を出さない（§4.3）", () => {
       renderList({
-        isToday: false,
+        currentSectionId: null,
         editing: { taskId: 1, field: "section" },
         groups: [morning([task({ id: 1, name: "朝食", sectionId: 100 })])],
       });
