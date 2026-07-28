@@ -183,15 +183,16 @@ export type SectionSlack = Readonly<{ endAt: Date; slackMinutes: number }>;
 
 /**
  * セクションごとの残り時間（分, F-110 / データモデル定義書 §4.3）。
- * セクションを**表示順に前から積み**、`予想終了 = max(到達時刻, セクション開始) + 未完了見積もり` を
- * 枠の終了時刻から引く。直前のセクションが溢れればその溢れが後続へ波及する。
+ * **セクションごとに独立**して、自分の枠と自分に配置されたタスクだけで決まる:
+ * `枠の終了 − max(now, 枠の頭) − そのセクションの未完了見積もり`。
+ * 他のセクションのやり残しは持ち込まない（見出しの数字を単独で読めるようにするため。FB-81）。
  *
- * `max` を取る（積み上げがセクション開始より前に届いても作業はセクション開始まで始まらない）のが
+ * `max` を取る（まだ始まっていないセクションは now ではなく枠の頭から測る）のが
  * 終了予定時刻（F-104）・予想開始時刻（F-120）との違い——両者は「詰めてやったらいつ終わるか」を、
  * F-110 は「この枠に収まるか」を答えるため。これがないと残りが枠の長さを超える（FB-80）。
  *
- * 未分類は積みの対象に含めない（枠を持たず、どの枠でやるか決まっていないため）。アーカイブ済み
- * セクション（`endTime` が null）は枠が定まらないので戻り値に含めないが、到達時刻には積む。
+ * 枠が定まらないグループ（未分類・アーカイブ済みセクション）は戻り値に含めない。
+ * 各セクションが独立して決まるので**`groups` の順序には依存しない**（表示順で渡さなくてよい）。
  * 表示可否（表示日=今日・now < 枠の終了）は `endAt` を見て呼び出し側が判定する（画面定義書01 §3.2）
  */
 export function sectionSlacks(
@@ -201,22 +202,19 @@ export function sectionSlacks(
   dayStartMinutes = 0
 ): Map<SectionId, SectionSlack> {
   const slacks = new Map<SectionId, SectionSlack>();
-  let reachedAt = now.getTime();
 
   for (const group of groups) {
-    if (group.section === null) continue; // 未分類は積まない
+    if (group.section === null || group.endTime === null) continue; // 枠を持たない
 
     const startAt = sectionStartAt(now, group.section.startTime, timeZone, dayStartMinutes);
-    // 積み上げが枠の頭より前に届いても、そのセクションの作業は枠の頭までは始まらない
-    const worksFrom = Math.max(reachedAt, startAt.getTime());
-    const projectedEnd = worksFrom + remainingMinutes(group.tasks, now) * 60_000;
-    reachedAt = projectedEnd;
-
-    if (group.endTime === null) continue; // アーカイブ済み: 積むだけで枠は測れない
     const endAt = sectionEndFrom(startAt, group.section.startTime, group.endTime);
+    // 枠がまだ始まっていなければ枠の頭から、始まっていれば now から測る
+    const worksFrom = Math.max(now.getTime(), startAt.getTime());
+    const worksUntil = worksFrom + remainingMinutes(group.tasks, now) * 60_000;
+
     slacks.set(group.section.id, {
       endAt,
-      slackMinutes: Math.floor((endAt.getTime() - projectedEnd) / 60_000),
+      slackMinutes: Math.floor((endAt.getTime() - worksUntil) / 60_000), // 枠の終わり − 作業の終わり
     });
   }
 

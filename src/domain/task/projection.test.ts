@@ -403,7 +403,7 @@ describe("sectionSlacks（F-110: セクションの残り時間 / データモ�
     { id: AFTERNOON, name: "午後", startTime: "13:00", isArchived: false },
   ];
 
-  /** 表示順のグループを実際の集約（§3.2）で組む——積み上げの順序はこの並びに乗るため */
+  /** グループは実際の集約（§3.2）で組む——各セクションの `tasks` と `endTime` が要るため */
   function slacksOf(tasks: readonly Task[], now: Date, sections = SECTIONS) {
     return sectionSlacks(groupTasksBySection(tasks, sections), now, APP_TIME_ZONE);
   }
@@ -427,45 +427,103 @@ describe("sectionSlacks（F-110: セクションの残り時間 / データモ�
     expect(slacks.get(AFTERNOON)?.slackMinutes).toBe(16 * 60);
   });
 
-  it("枠に収まらないと残りはマイナスになり、その溢れが後続のセクションへ波及する", () => {
+  it("枠に収まらないと残りはマイナスになる", () => {
+    const slacks = slacksOf(
+      [task({ id: 1, sectionId: FORENOON, estimateMinutes: 240 })],
+      atJst("10:00")
+    );
+    // 10:00 から240分 → 14:00。13:00 を1時間超える
+    expect(slacks.get(FORENOON)?.slackMinutes).toBe(-60);
+  });
+
+  it("あるセクションが溢れても、他のセクションの残りは変わらない（FB-81）", () => {
+    const overflowing = [
+      task({ id: 1, sectionId: FORENOON, estimateMinutes: 240 }), // 午前は1時間溢れる
+      task({ id: 2, sectionId: AFTERNOON, estimateMinutes: 60 }),
+    ];
+    const alone = [task({ id: 2, sectionId: AFTERNOON, estimateMinutes: 60 })];
+
+    // 午前が本当に溢れている前提を固定する（ここが崩れると下の対比が黙って無力化する）
+    expect(slacksOf(overflowing, atJst("10:00")).get(FORENOON)?.slackMinutes).toBe(-60);
+    // 午後の値は、午前が溢れていてもいなくても同じ（13:00 から60分 → 翌06:00 まで16時間）
+    expect(slacksOf(overflowing, atJst("10:00")).get(AFTERNOON)?.slackMinutes).toBe(16 * 60);
+    expect(slacksOf(alone, atJst("10:00")).get(AFTERNOON)?.slackMinutes).toBe(16 * 60);
+  });
+
+  it("溢れは2つ先のセクションにも及ばない（FB-81）", () => {
     const slacks = slacksOf(
       [
-        task({ id: 1, sectionId: FORENOON, estimateMinutes: 240 }),
+        task({ id: 1, sectionId: MORNING, estimateMinutes: 600 }), // 朝が大きく溢れる
         task({ id: 2, sectionId: AFTERNOON, estimateMinutes: 60 }),
       ],
-      atJst("10:00")
+      atJst("07:00")
     );
-    // 午前: 10:00 から240分 → 14:00。13:00 を1時間超える
-    expect(slacks.get(FORENOON)?.slackMinutes).toBe(-60);
-    // 午後: 溢れて 14:00 開始 → 15:00 終了。翌06:00 まで15時間（溢れなければ16時間）
-    expect(slacks.get(AFTERNOON)?.slackMinutes).toBe(15 * 60);
+    // 午前（タスクなし）も午後も、朝の溢れに押されない
+    expect(slacks.get(FORENOON)?.slackMinutes).toBe(4 * 60);
+    expect(slacks.get(AFTERNOON)?.slackMinutes).toBe(16 * 60);
   });
 
-  it("未分類のタスクは積みの対象に含めない（枠を持たないため）", () => {
+  it("将来のセクションでも自分の枠を超えればマイナスになる", () => {
+    const slacks = slacksOf(
+      [task({ id: 1, sectionId: AFTERNOON, estimateMinutes: 18 * 60 })],
+      atJst("10:00")
+    );
+    // 13:00 から18時間 → 枠（17時間）を1時間超える
+    expect(slacks.get(AFTERNOON)?.slackMinutes).toBe(-60);
+  });
+
+  it("枠ちょうどに収まると 0、1分超えると -1（警告色の分かれ目。画面定義書01 §3.2）", () => {
+    const exact = slacksOf(
+      [task({ id: 1, sectionId: FORENOON, estimateMinutes: 180 })], // 10:00 → 13:00 ちょうど
+      atJst("10:00")
+    );
+    expect(exact.get(FORENOON)?.slackMinutes).toBe(0);
+
+    const over = slacksOf(
+      [task({ id: 1, sectionId: FORENOON, estimateMinutes: 181 })],
+      atJst("10:00")
+    );
+    expect(over.get(FORENOON)?.slackMinutes).toBe(-1);
+  });
+
+  it("将来のセクションが枠ちょうどでも 0（枠の頭から測るため）", () => {
+    const slacks = slacksOf(
+      [task({ id: 1, sectionId: AFTERNOON, estimateMinutes: 17 * 60 })],
+      atJst("10:00")
+    );
+    expect(slacks.get(AFTERNOON)?.slackMinutes).toBe(0);
+  });
+
+  it("秒を含む現在時刻でも分は切り捨てる（プラス側もマイナス側も）", () => {
+    // 本番の now は秒を持つ（`useNow` は new Date() をそのまま返す）
+    const withSeconds = new Date(atJst("10:00").getTime() + 20_000);
+
+    // 10:00:20 から30分 → 10:30:20。13:00 まで 149分40秒 → 149（round なら 150）
+    const plus = slacksOf([task({ id: 1, sectionId: FORENOON, estimateMinutes: 30 })], withSeconds);
+    expect(plus.get(FORENOON)?.slackMinutes).toBe(149);
+
+    // 10:00:20 から240分 → 14:00:20。13:00 まで -60分20秒 → -61（trunc なら -60）
+    const minus = slacksOf(
+      [task({ id: 1, sectionId: FORENOON, estimateMinutes: 240 })],
+      withSeconds
+    );
+    expect(minus.get(FORENOON)?.slackMinutes).toBe(-61);
+  });
+
+  it("他のセクションのタスクは残りに影響しない（未分類・過去のやり残しも同じ）", () => {
     const slacks = slacksOf(
       [
-        task({ id: 1, sectionId: null, estimateMinutes: 120 }),
-        task({ id: 2, sectionId: FORENOON, estimateMinutes: 30 }),
+        task({ id: 1, sectionId: null, estimateMinutes: 120 }), // 未分類
+        task({ id: 2, sectionId: MORNING, estimateMinutes: 60 }), // 朝のやり残し（09:00 に終了済み）
+        task({ id: 3, sectionId: FORENOON, estimateMinutes: 30 }),
       ],
       atJst("10:00")
     );
-    expect(slacks.get(FORENOON)?.slackMinutes).toBe(150); // 未分類の120分に影響されない
-    expect(slacks.size).toBe(3); // 未分類ぶんのエントリは増えない（枠を持たない）
+    expect(slacks.get(FORENOON)?.slackMinutes).toBe(150); // 自分の30分だけで決まる
+    expect(slacks.size).toBe(3); // 枠を持たない未分類のエントリは増えない
   });
 
-  it("現在時刻を過ぎたセクションに残る未完了タスクも積む（やり残しが後続を押す）", () => {
-    const slacks = slacksOf(
-      [
-        task({ id: 1, sectionId: MORNING, estimateMinutes: 60 }), // 朝は 09:00 に終わっている
-        task({ id: 2, sectionId: FORENOON, estimateMinutes: 30 }),
-      ],
-      atJst("10:00")
-    );
-    // 朝のやり残し60分 → 11:00、午前の30分 → 11:30。13:00 まで90分
-    expect(slacks.get(FORENOON)?.slackMinutes).toBe(90);
-  });
-
-  it("アーカイブ済みセクションは残りを返さないが、そこに残るタスクは積む", () => {
+  it("アーカイブ済みセクションは枠が定まらないので残りを返さない", () => {
     const ARCHIVED = 9;
     const sections = [
       ...SECTIONS,
@@ -479,12 +537,11 @@ describe("sectionSlacks（F-110: セクションの残り時間 / データモ�
       atJst("10:00"),
       sections
     );
-    expect(slacks.has(ARCHIVED)).toBe(false); // 枠の終了が導出できない
-    // 旧朝活の60分を積んで 11:00 → 午前は 11:30 終了。13:00 まで90分
-    expect(slacks.get(FORENOON)?.slackMinutes).toBe(90);
+    expect(slacks.has(ARCHIVED)).toBe(false);
+    expect(slacks.get(FORENOON)?.slackMinutes).toBe(150); // 旧朝活の60分にも影響されない
   });
 
-  it("完了タスクは積まず、実行中は残り見積もり（見積もり − 経過）で積む", () => {
+  it("完了タスクは数えず、実行中は残り見積もり（見積もり − 経過）で数える", () => {
     const slacks = slacksOf(
       [
         task({
@@ -513,7 +570,7 @@ describe("sectionSlacks（F-110: セクションの残り時間 / データモ�
     expect(slacks.get(AFTERNOON)?.slackMinutes).toBe(17 * 60);
   });
 
-  it("回転（F-116）で表示順と start_time 順がずれても、表示順に積む", () => {
+  it("回転（F-116）で表示順と start_time 順がずれても、枠は start_time 順の次セクション開始で決まる", () => {
     // 日界 09:00 → 表示順は 午前 → 午後 → 朝（朝の枠は翌 06:00–09:00 へ回る）
     const sections = SECTIONS.map((s) =>
       s.id === FORENOON ? { ...s, isDayStart: true } : s
@@ -531,7 +588,7 @@ describe("sectionSlacks（F-110: セクションの残り時間 / データモ�
     expect(slacks.get(FORENOON)?.slackMinutes).toBe(120);
     // 午後: 13:00 から60分 → 14:00。枠の終わりは回転に依らず次の開始＝翌06:00（§3.1）なので16時間
     expect(slacks.get(AFTERNOON)?.slackMinutes).toBe(16 * 60);
-    // 朝は回転で末尾へ回り、枠も翌 06:00–09:00 になる（積み上げの到達 14:00 より後なので枠まるごと）
+    // 朝は回転で末尾へ回り、枠も翌 06:00–09:00 になる（タスクが無いので枠まるごと）
     expect(slacks.get(MORNING)?.slackMinutes).toBe(3 * 60);
   });
 
