@@ -1119,6 +1119,17 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
     expect(isSelected(INBOX)).toBe(true);
   });
 
+  it("全件完了の日で C を押しても選択行は消えない（§5: 選択行は常に1つ）", () => {
+    renderBoard([
+      task({ id: 11, name: COMPLETED, sectionId: 1, startedAt: atJst("09:00"), endedAt: atJst("09:20") }),
+    ]);
+    selectRow(COMPLETED);
+
+    press("c");
+
+    expect(isSelected(COMPLETED)).toBe(true);
+  });
+
   it("初期選択も現在地の規則に従う（未選択のまま未分類へは行かない。§5 / FB-78）", () => {
     // `keepSelection` の未選択フォールバックが探索順を通ることを board 段で見る
     // （実行中を置かないので規則1 では決まらない）
@@ -1213,7 +1224,7 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
  * 受け取った値の描画は GroupHeading / SelectPopover のテストが見るので、ここで見るのは
  * **導出して配れているか**（配線を切っても他段のテストは緑のままになるため）
  */
-describe("DailyBoard の現在セクションの導出（§4.3 / F-121）", () => {
+describe("DailyBoard の現在セクションの導出（§3.2 F-121 の強調 / §4.3 の固定候補）", () => {
   it("現在時刻を含むセクションの見出しだけ強調する（F-121）", () => {
     renderBoard(); // NOW = 10:30 → 午前（09:00-13:00）
 

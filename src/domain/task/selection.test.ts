@@ -53,9 +53,9 @@ describe("currentNotStartedId（画面定義書01 §5 規則2〜4: 現在セク�
     expect(currentNotStartedId(tasks, CURRENT)).toBe(3);
   });
 
-  it("現在セクションより後ろのセクションに未実行があっても現在セクションを選ぶ（規則2）", () => {
+  it("前のセクションのやり残しより現在セクションを優先する（後ろのセクションも見ない。規則2）", () => {
     const tasks = [
-      task({ id: 1, sectionId: EARLIER, startedAt, endedAt }),
+      task({ id: 1, sectionId: EARLIER }), // やり残し（表示順では現在セクションより上）
       task({ id: 2, sectionId: CURRENT }),
       task({ id: 3, sectionId: LATER }),
     ];

@@ -118,9 +118,13 @@ export function useDailyShortcuts(params: DailyShortcutParams): void {
         case "k":
           setSelectedId((current) => moveSelection(orderedTasks, current, -1));
           return;
-        case "c": // 現在地へジャンプ（§5）
-          setSelectedId(currentTaskId(orderedTasks, currentSectionId));
+        case "c": {
+          // 現在地へジャンプ（§5）。現在地が無い（全件完了・0件）なら選択を変えない——
+          // null を代入すると選択行が消え、§5 の「選択行は常に1つ存在する」を破る
+          const current = currentTaskId(orderedTasks, currentSectionId);
+          if (current !== null) setSelectedId(current);
           return;
+        }
         case "Enter":
           // ボタンにフォーカスが残っている場合はブラウザがそのボタンを押すので、
           // ここで打刻すると二重に発火する（打刻ボタンを押した直後など。00_共通 §3）

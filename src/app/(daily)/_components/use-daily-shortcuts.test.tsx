@@ -300,6 +300,17 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
       expect(state.current.selectedId).toBe(inCurrentSection.id);
     });
 
+    it("現在地が無ければ（全件完了）C は選択を変えない（§5: 選択行は常に1つ）", () => {
+      const { state } = renderStateful({
+        selectedId: COMPLETED.id,
+        orderedTasks: [COMPLETED],
+      });
+
+      pressKey("c");
+
+      expect(state.current.selectedId).toBe(COMPLETED.id);
+    });
+
     it("未選択のまま J を押すと先頭行が選択される（§5: 選択行は常に1つ）", () => {
       const { state } = renderStateful({ selectedId: null });
 
