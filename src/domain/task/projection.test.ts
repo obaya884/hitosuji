@@ -414,7 +414,7 @@ describe("sectionSlacks（F-110: セクションの残り時間 / データモ�
       atJst("10:00")
     );
     // 10:00 から30分 → 10:30。13:00 まで150分
-    expect(slacks.get(FORENOON)?.remainingMinutes).toBe(150);
+    expect(slacks.get(FORENOON)?.slackMinutes).toBe(150);
   });
 
   it("まだ始まっていないセクションは枠の頭から測る（現在時刻に引きずられない。FB-80）", () => {
@@ -424,7 +424,7 @@ describe("sectionSlacks（F-110: セクションの残り時間 / データモ�
     );
     // 13:00 から60分 → 14:00。翌06:00 まで16時間。
     // 現在時刻を起点にすると (翌06:00 − 10:00) − 60分 = 19時間 と枠(17時間)を超える
-    expect(slacks.get(AFTERNOON)?.remainingMinutes).toBe(16 * 60);
+    expect(slacks.get(AFTERNOON)?.slackMinutes).toBe(16 * 60);
   });
 
   it("枠に収まらないと残りはマイナスになり、その溢れが後続のセクションへ波及する", () => {
@@ -436,9 +436,9 @@ describe("sectionSlacks（F-110: セクションの残り時間 / データモ�
       atJst("10:00")
     );
     // 午前: 10:00 から240分 → 14:00。13:00 を1時間超える
-    expect(slacks.get(FORENOON)?.remainingMinutes).toBe(-60);
+    expect(slacks.get(FORENOON)?.slackMinutes).toBe(-60);
     // 午後: 溢れて 14:00 開始 → 15:00 終了。翌06:00 まで15時間（溢れなければ16時間）
-    expect(slacks.get(AFTERNOON)?.remainingMinutes).toBe(15 * 60);
+    expect(slacks.get(AFTERNOON)?.slackMinutes).toBe(15 * 60);
   });
 
   it("未分類のタスクは積みの対象に含めない（枠を持たないため）", () => {
@@ -449,8 +449,20 @@ describe("sectionSlacks（F-110: セクションの残り時間 / データモ�
       ],
       atJst("10:00")
     );
-    expect(slacks.get(FORENOON)?.remainingMinutes).toBe(150); // 未分類の120分に影響されない
-    expect(slacks.has(null as never)).toBe(false);
+    expect(slacks.get(FORENOON)?.slackMinutes).toBe(150); // 未分類の120分に影響されない
+    expect(slacks.size).toBe(3); // 未分類ぶんのエントリは増えない（枠を持たない）
+  });
+
+  it("現在時刻を過ぎたセクションに残る未完了タスクも積む（やり残しが後続を押す）", () => {
+    const slacks = slacksOf(
+      [
+        task({ id: 1, sectionId: MORNING, estimateMinutes: 60 }), // 朝は 09:00 に終わっている
+        task({ id: 2, sectionId: FORENOON, estimateMinutes: 30 }),
+      ],
+      atJst("10:00")
+    );
+    // 朝のやり残し60分 → 11:00、午前の30分 → 11:30。13:00 まで90分
+    expect(slacks.get(FORENOON)?.slackMinutes).toBe(90);
   });
 
   it("アーカイブ済みセクションは残りを返さないが、そこに残るタスクは積む", () => {
@@ -469,7 +481,7 @@ describe("sectionSlacks（F-110: セクションの残り時間 / データモ�
     );
     expect(slacks.has(ARCHIVED)).toBe(false); // 枠の終了が導出できない
     // 旧朝活の60分を積んで 11:00 → 午前は 11:30 終了。13:00 まで90分
-    expect(slacks.get(FORENOON)?.remainingMinutes).toBe(90);
+    expect(slacks.get(FORENOON)?.slackMinutes).toBe(90);
   });
 
   it("完了タスクは積まず、実行中は残り見積もり（見積もり − 経過）で積む", () => {
@@ -487,12 +499,40 @@ describe("sectionSlacks（F-110: セクションの残り時間 / データモ�
       atJst("10:00")
     );
     // 完了は0・実行中は残り20分 → 10:20。13:00 まで160分
-    expect(slacks.get(FORENOON)?.remainingMinutes).toBe(160);
+    expect(slacks.get(FORENOON)?.slackMinutes).toBe(160);
   });
 
   it("枠の終了時刻も返す（表示するかの判定に呼び出し側が使う。画面定義書01 §3.2）", () => {
     const slacks = slacksOf([], atJst("10:00"));
     expect(slacks.get(FORENOON)?.endAt.getTime()).toBe(atJst("13:00").getTime());
+  });
+
+  it("タスクのない将来セクションの残りは枠の長さちょうど（枠を超えない。FB-80）", () => {
+    const slacks = slacksOf([], atJst("10:00"));
+    // 午後は 13:00–翌06:00 の17時間。旧式なら (翌06:00 − 10:00) = 20時間 になっていた
+    expect(slacks.get(AFTERNOON)?.slackMinutes).toBe(17 * 60);
+  });
+
+  it("回転（F-116）で表示順と start_time 順がずれても、表示順に積む", () => {
+    // 日界 09:00 → 表示順は 午前 → 午後 → 朝（朝の枠は翌 06:00–09:00 へ回る）
+    const sections = SECTIONS.map((s) =>
+      s.id === FORENOON ? { ...s, isDayStart: true } : s
+    );
+    const groups = groupTasksBySection(
+      [
+        task({ id: 1, sectionId: FORENOON, estimateMinutes: 60 }),
+        task({ id: 2, sectionId: AFTERNOON, estimateMinutes: 60 }),
+      ],
+      sections
+    );
+    const slacks = sectionSlacks(groups, atJst("10:00"), APP_TIME_ZONE, 9 * 60);
+
+    // 午前: 10:00 から60分 → 11:00。13:00 まで120分
+    expect(slacks.get(FORENOON)?.slackMinutes).toBe(120);
+    // 午後: 13:00 から60分 → 14:00。枠の終わりは回転に依らず次の開始＝翌06:00（§3.1）なので16時間
+    expect(slacks.get(AFTERNOON)?.slackMinutes).toBe(16 * 60);
+    // 朝は回転で末尾へ回り、枠も翌 06:00–09:00 になる（積み上げの到達 14:00 より後なので枠まるごと）
+    expect(slacks.get(MORNING)?.slackMinutes).toBe(3 * 60);
   });
 
   it("日界（F-116）を跨ぐ枠でも論理日の区切りで測る", () => {
@@ -503,6 +543,6 @@ describe("sectionSlacks（F-110: セクションの残り時間 / データモ�
     );
     const slacks = sectionSlacks(groups, atJst("02:00"), APP_TIME_ZONE, 6 * 60);
     // 枠はもう始まっているので 02:00 から60分 → 03:00。06:00 まで180分
-    expect(slacks.get(AFTERNOON)?.remainingMinutes).toBe(180);
+    expect(slacks.get(AFTERNOON)?.slackMinutes).toBe(180);
   });
 });

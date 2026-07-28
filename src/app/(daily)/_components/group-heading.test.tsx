@@ -38,10 +38,11 @@ describe("GroupHeading（画面定義書01 §3.2: セクション見出し行）
     expect(within(headingOf("朝")).queryByText("06:00–09:00")).not.toBeNull();
   });
 
-  it("未分類グループは名前だけで、時間帯・残り時間を出さない（枠を持たない）", () => {
+  // 未分類に残り時間が来ないこと自体はリスト側の責務（見出しは判定を持たない）なので
+  // daily-list.test.tsx が見る。ここでは時間帯を出さないことだけを確かめる
+  it("未分類グループは名前だけで、時間帯を出さない（枠を持たない）", () => {
     renderHeading({ group: unclassifiedGroup([task({ id: 1, name: "買い出しメモ" })]) });
 
-    expect(headingOf("未分類").textContent).not.toContain("残り");
     expect(headingOf("未分類").textContent).not.toContain("–");
   });
 
@@ -78,52 +79,45 @@ describe("GroupHeading（画面定義書01 §3.2: セクション見出し行）
   });
 
   it("0件のグループは見出しだけを置き、進捗・時間合計・残り時間を出さない（FB-25/FB-26）", () => {
-    renderHeading({ group: morning([]) });
+    // 空のセクションにも `sectionSlacks` は枠いっぱいの余裕を返すので、0件のガードが
+    // 効いていることを見るには値を渡したうえで「出ない」を確かめる必要がある
+    renderHeading({ remainingMinutes: 180, group: morning([]) });
 
     expect(within(headingOf("朝")).queryByText("06:00–09:00")).not.toBeNull();
     expect(headingOf("朝").textContent).not.toContain("合計");
     expect(headingOf("朝").textContent).not.toContain("0/0");
+    expect(headingOf("朝").textContent).not.toContain("残り");
   });
 
   // 残り時間の値そのもの（積み上げ・日界・表示条件）は daily-list.test.tsx が見る（§3.2 / F-110）。
-  // ここで見るのは受け取った値の描き方だけ
-  it("受け取った残り時間を符号付きで出す（F-110）", () => {
-    renderHeading({
-      remainingMinutes: 90,
-      group: morning([task({ id: 1, name: "朝食", estimateMinutes: 30 })]),
-    });
+  // ここで見るのは受け取った値の描き方だけなので、タスクの見積もりは結果に関与しない
+  it("プラスの残り時間は符号付きで出し、警告色にしない（F-110）", () => {
+    renderHeading({ remainingMinutes: 90, group: morning([task({ id: 1, name: "朝食" })]) });
 
     expect(headingOf("朝").textContent).toContain("残り");
-    expect(within(headingOf("朝")).queryByText("+1:30")).not.toBeNull();
+    const remaining = within(headingOf("朝")).queryByText("+1:30");
+    expect(remaining).not.toBeNull();
+    expect(remaining?.classList.contains("text-danger")).toBe(false);
   });
 
   it("残り時間のマイナスは警告色で示す（FB-31/FB-32: 溢れが読めるように）", () => {
-    renderHeading({
-      remainingMinutes: -60,
-      group: morning([task({ id: 1, name: "朝食", estimateMinutes: 180 })]),
-    });
+    renderHeading({ remainingMinutes: -60, group: morning([task({ id: 1, name: "朝食" })]) });
 
     const remaining = within(headingOf("朝")).queryByText("-1:00");
     expect(remaining).not.toBeNull();
     expect(remaining?.classList.contains("text-danger")).toBe(true);
   });
 
-  it("プラスの残り時間は警告色にしない", () => {
-    renderHeading({
-      remainingMinutes: 90,
-      group: morning([task({ id: 1, name: "朝食", estimateMinutes: 30 })]),
-    });
+  it("ちょうど枠に収まる（残り0分）はプラス表記で警告色にしない", () => {
+    renderHeading({ remainingMinutes: 0, group: morning([task({ id: 1, name: "朝食" })]) });
 
-    const remaining = within(headingOf("朝")).queryByText("+1:30");
+    const remaining = within(headingOf("朝")).queryByText("+0:00");
     expect(remaining).not.toBeNull();
     expect(remaining?.classList.contains("text-danger")).toBe(false);
   });
 
   it("残り時間が渡されなければ出さない（時間合計は日付・時刻に依らず出す）", () => {
-    renderHeading({
-      remainingMinutes: null,
-      group: morning([task({ id: 1, name: "朝食", estimateMinutes: 30 })]),
-    });
+    renderHeading({ remainingMinutes: null, group: morning([task({ id: 1, name: "朝食" })]) });
 
     expect(headingOf("朝").textContent).not.toContain("残り");
     expect(headingOf("朝").textContent).toContain("合計");

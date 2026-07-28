@@ -153,11 +153,11 @@ export function sectionEndAt(
   timeZone: string,
   dayStartMinutes = 0
 ): Date {
-  const startAbs = sectionStartAt(now, startTime, timeZone, dayStartMinutes).getTime();
-  return new Date(startAbs + sectionCapacityMinutes(startTime, endTime) * 60_000);
+  const startAt = sectionStartAt(now, startTime, timeZone, dayStartMinutes);
+  return sectionEndFrom(startAt, startTime, endTime);
 }
 
-/** セクション開始の絶対時刻。`sectionEndAt` の起点（日界からの巡回位置。F-116） */
+/** セクション開始の絶対時刻。枠の起点（日界からの巡回位置。F-116） */
 function sectionStartAt(
   now: Date,
   startTime: string,
@@ -169,8 +169,17 @@ function sectionStartAt(
   return new Date(base.getTime() + (dayStartMinutes + startOffset) * 60_000);
 }
 
-/** セクションの枠の終了時刻と、そこまでの余裕（分）。マイナスは枠に収まらないこと */
-export type SectionSlack = Readonly<{ endAt: Date; remainingMinutes: number }>;
+/** 開始の絶対時刻から枠の終了を作る（`sectionStartAt` を二度求めないための共有部） */
+function sectionEndFrom(startAt: Date, startTime: string, endTime: string): Date {
+  return new Date(startAt.getTime() + sectionCapacityMinutes(startTime, endTime) * 60_000);
+}
+
+/**
+ * セクションの枠の終了時刻と、そこまでの余裕（分）。マイナスは枠に収まらないこと。
+ * 語は `slack` で通す——同じファイルの `remainingMinutes`（F-104 の未完了見積もりの合計）と
+ * 紛れないため。表示語「残り」への変換は見出し（`GroupHeading`）の prop 名だけで行う
+ */
+export type SectionSlack = Readonly<{ endAt: Date; slackMinutes: number }>;
 
 /**
  * セクションごとの残り時間（分, F-110 / データモデル定義書 §4.3）。
@@ -198,20 +207,16 @@ export function sectionSlacks(
     if (group.section === null) continue; // 未分類は積まない
 
     const startAt = sectionStartAt(now, group.section.startTime, timeZone, dayStartMinutes);
+    // 積み上げが枠の頭より前に届いても、そのセクションの作業は枠の頭までは始まらない
     const worksFrom = Math.max(reachedAt, startAt.getTime());
-    reachedAt = worksFrom + remainingMinutes(group.tasks, now) * 60_000;
+    const projectedEnd = worksFrom + remainingMinutes(group.tasks, now) * 60_000;
+    reachedAt = projectedEnd;
 
     if (group.endTime === null) continue; // アーカイブ済み: 積むだけで枠は測れない
-    const endAt = sectionEndAt(
-      now,
-      group.section.startTime,
-      group.endTime,
-      timeZone,
-      dayStartMinutes
-    );
+    const endAt = sectionEndFrom(startAt, group.section.startTime, group.endTime);
     slacks.set(group.section.id, {
       endAt,
-      remainingMinutes: Math.floor((endAt.getTime() - reachedAt) / 60_000),
+      slackMinutes: Math.floor((endAt.getTime() - projectedEnd) / 60_000),
     });
   }
 

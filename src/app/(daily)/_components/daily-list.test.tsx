@@ -33,8 +33,8 @@ function listElement(overrides: Overrides, handlers: Handlers) {
       sections={overrides.sections ?? SECTIONS}
       selectedId={overrides.selectedId ?? null}
       editing={overrides.editing ?? null}
-      // `now` は実打刻の表示（`formatClock`）と予想開始・セクション終了
-      // （`projectedStartTimes` / `sectionEndAt`）の両方へ流れるが、どちらも
+      // `now` は実打刻の表示（`formatClock`）と予想開始・セクション残り
+      // （`projectedStartTimes` / `sectionSlacks`）の両方へ流れるが、どちらも
       // `APP_TIME_ZONE` 基準なので `atJst` 一本で組める（T-47）
       now={overrides.now ?? atJst("10:00")}
       isToday={overrides.isToday ?? true}
@@ -110,21 +110,12 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
   });
 
   /**
-   * 残り時間（F-110）はセクションをまたいで積み上げるため、1つの見出しでは決まらない。
-   * 値そのものはここで固定し、GroupHeading は受け取った値の描き方だけを見る。
+   * 残り時間（F-110）はセクションをまたいで積み上げるため1つの見出しでは決まらず、リストが
+   * まとめて求めて配る。**値の意味づけ（積み上げ・max・未分類・完了/実行中）は
+   * `projection.test.ts` が持つ**ので、ここで見るのは配り分けと表示条件だけ。
    * 枠は 朝 06:00–09:00 / 午前 09:00–13:00 / 午後 13:00–翌06:00（`_testing/factories`）
    */
-  describe("セクション残り時間の積み上げ（§3.2 / F-110 / データモデル定義書 §4.3）", () => {
-    it("現在のセクションは 枠の終了 − 現在時刻 − 未完了見積もり", () => {
-      renderList({
-        now: atJst("10:00"),
-        groups: [forenoon([task({ id: 1, name: "設計書レビュー", estimateMinutes: 30 })])],
-      });
-
-      // 10:00 → 13:00 の180分から30分を引いて +2:30
-      expect(within(headingOf("午前")).queryByText("+2:30")).not.toBeNull();
-    });
-
+  describe("セクション残り時間の配り分けと表示条件（§3.2 / F-110）", () => {
     it("まだ始まっていないセクションは枠の頭から測る（現在時刻に引きずられない。FB-80）", () => {
       renderList({
         now: atJst("10:00"),
@@ -139,32 +130,22 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
       expect(within(headingOf("午後")).queryByText("+16:00")).not.toBeNull();
     });
 
-    it("直前のセクションが溢れると後続のセクションの残りも縮む", () => {
+    it("セクションごとに別々の値を、それぞれの見出しへ配る（未分類には配らない）", () => {
       renderList({
         now: atJst("10:00"),
         groups: [
+          unclassifiedGroup([task({ id: 1, name: "買い出しメモ", estimateMinutes: 120 })]),
           // 午前の枠は 10:00 時点で残り3時間しかないのに4時間ぶん積んである（1時間溢れる）
-          forenoon([task({ id: 1, name: "設計書レビュー", estimateMinutes: 240 })]),
-          afternoon([task({ id: 2, name: "夜の作業", estimateMinutes: 60 })]),
+          forenoon([task({ id: 2, name: "設計書レビュー", estimateMinutes: 240 })]),
+          afternoon([task({ id: 3, name: "夜の作業", estimateMinutes: 60 })]),
         ],
       });
 
       expect(within(headingOf("午前")).queryByText("-1:00")).not.toBeNull();
       // 午後は 14:00 開始（午前の溢れ1時間ぶん遅れる）→ 翌06:00 まで16時間 − 60分 = +15:00
       expect(within(headingOf("午後")).queryByText("+15:00")).not.toBeNull();
-    });
-
-    it("未分類のタスクは積みの対象に含めない（枠を持たないため）", () => {
-      renderList({
-        now: atJst("10:00"),
-        groups: [
-          unclassifiedGroup([task({ id: 1, name: "買い出しメモ", estimateMinutes: 120 })]),
-          forenoon([task({ id: 2, name: "設計書レビュー", estimateMinutes: 30 })]),
-        ],
-      });
-
-      // 未分類の120分を積むと +0:30 になるが、含めないので +2:30 のまま
-      expect(within(headingOf("午前")).queryByText("+2:30")).not.toBeNull();
+      // 未分類は枠を持たないので残り時間の行き先にならない（120分も積まれていない）
+      expect(headingOf("未分類").textContent).not.toContain("残り");
     });
 
     it("表示日が今日でなければ出さない（現在時刻起点の値のため）", () => {
@@ -178,13 +159,22 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
       expect(headingOf("午前").textContent).toContain("合計");
     });
 
-    it("現在時刻が枠の終了を過ぎた過去セクションでは出さない", () => {
+    it("現在時刻が枠の終了に達したら出さない（§3.2「終了時刻より前のときだけ」の境界）", () => {
       renderList({
-        now: atJst("10:00"),
+        now: atJst("09:00"), // 朝（06:00–09:00）の終了ちょうど
         groups: [morning([task({ id: 1, name: "朝食", estimateMinutes: 30 })])],
       });
 
       expect(headingOf("朝").textContent).not.toContain("残り");
+    });
+
+    it("現在時刻が枠の終了より前なら出す（同じ境界の内側）", () => {
+      renderList({
+        now: atJst("08:59"),
+        groups: [morning([task({ id: 1, name: "朝食", estimateMinutes: 30 })])],
+      });
+
+      expect(headingOf("朝").textContent).toContain("残り");
     });
 
     it("日界（F-116）を跨ぐ枠でも論理日の区切りで測る", () => {

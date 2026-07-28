@@ -2,12 +2,7 @@
 
 import { APP_TIME_ZONE } from "@/domain/shared/time-zone";
 import type { DailyGroup } from "@/domain/task/daily-list";
-import {
-  formatProjectedStart,
-  projectedStartTimes,
-  sectionSlacks,
-  type SectionSlack,
-} from "@/domain/task/projection";
+import { formatProjectedStart, projectedStartTimes, sectionSlacks } from "@/domain/task/projection";
 import type { SectionId } from "@/domain/section/section";
 import type { TaskId } from "@/domain/task/task";
 import type { EditingCell } from "../_lib/editing";
@@ -17,10 +12,11 @@ import { TaskRow, type TaskRowProps } from "./task-row";
 
 /**
  * リストの props。**行・見出しへそのまま渡す項目は子の型から派生させる**（同じ内容を2度書くと
- * 片方だけ変わる事故になるため。T-53）。ここで宣言するのはリストにしかない3つだけ
+ * 片方だけ変わる事故になるため。T-53）。下の Readonly ブロックはリストにしかない項目
  */
 export type DailyListProps = Pick<
   TaskRowProps,
+  | "now"
   | "modes"
   | "projects"
   | "sections"
@@ -36,7 +32,6 @@ export type DailyListProps = Pick<
   | "onEndEdit"
   | "stickyHeight"
 > &
-  Pick<TaskRowProps, "now"> &
   // `currentSectionId` は現在地の探索（§5）と共用するため board が求めて配る
   Pick<GroupHeadingProps, "currentSectionId"> &
   Readonly<{
@@ -78,9 +73,7 @@ export function DailyList({
   const projectById = new Map(projects.map((p) => [p.id, p]));
 
   const projectedStarts = projectedStartLabels(groups, now, isToday, dayStartMinutes);
-  // セクション残り時間（F-110 / §3.2）。セクションをまたいで積み上げるので見出し1つでは
-  // 決まらず、ここで全グループぶんまとめて求める
-  const slacks = sectionSlacks(groups, now, APP_TIME_ZONE, dayStartMinutes);
+  const remainings = sectionRemainings(groups, now, isToday, dayStartMinutes);
   // セクション選択の候補（O-5 / §4.3）。先頭の固定項目が currentSectionId を要るため、
   // 行ではなくここで組んで渡す（モード・プロジェクトの候補は行側で組む）
   const sectionOptions = toSectionOptions(sections, currentSectionId);
@@ -120,7 +113,9 @@ export function DailyList({
           {/* 0件のセクションは見出し行だけを置く（§3.2 / FB-26） */}
           <GroupHeading
             group={group}
-            remainingMinutes={remainingOf(slacks, group, now, isToday)}
+            remainingMinutes={
+              group.section === null ? null : (remainings?.get(group.section.id) ?? null)
+            }
             currentSectionId={currentSectionId}
           />
           {group.tasks.map((task, index) => (
@@ -159,21 +154,24 @@ export function DailyList({
 }
 
 /**
- * 見出しに出すセクション残り時間（F-110 / §3.2）。現在時刻に依存する値なので、
- * **表示日が今日で、かつ現在時刻が枠の終了より前のとき**だけ出す。枠が定まらない
- * グループ（未分類・アーカイブ済みセクション）は `sectionSlacks` が返さないので null になる
+ * 見出しに出すセクション残り時間（F-110 / §3.2）を sectionId で引ける Map。値の意味と
+ * 積み上げの規則は `sectionSlacks`（データモデル定義書 §4.3）が持つ。ここで足すのは表示条件だけ——
+ * **表示日が今日で、かつ現在時刻が枠の終了より前**のものに絞る。今日でなければ null（見出しに出さない）
  */
-function remainingOf(
-  slacks: Map<SectionId, SectionSlack>,
-  group: DailyGroup,
+function sectionRemainings(
+  groups: readonly DailyGroup[],
   now: Date,
-  isToday: boolean
-): number | null {
-  if (!isToday || group.section === null) return null;
+  isToday: boolean,
+  dayStartMinutes: number
+): Map<SectionId, number> | null {
+  if (!isToday) return null;
 
-  const slack = slacks.get(group.section.id);
-  if (slack === undefined || now.getTime() >= slack.endAt.getTime()) return null;
-  return slack.remainingMinutes;
+  const slacks = sectionSlacks(groups, now, APP_TIME_ZONE, dayStartMinutes);
+  return new Map(
+    [...slacks]
+      .filter(([, slack]) => now.getTime() < slack.endAt.getTime())
+      .map(([id, slack]) => [id, slack.slackMinutes])
+  );
 }
 
 /**

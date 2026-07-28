@@ -6,9 +6,8 @@ import { TaskProgress } from "./task-progress";
 export type GroupHeadingProps = Readonly<{
   group: DailyGroup;
   /**
-   * セクションの残り時間（分。F-110 / §3.2）。セクションをまたいで積み上げるため
-   * 1グループでは決まらず、リスト側が全グループぶんまとめて求めて配る。
-   * 表示しない（表示日≠今日・枠が終わった・枠が定まらない）ときは null
+   * セクションの残り時間（分。F-110 / §3.2）。値と表示条件はリスト側が決めて配る
+   * （出所は `sectionSlacks`）。出さないときは null
    */
   remainingMinutes: number | null;
   /** 現在時刻を含むセクションの id（§3.2 / F-121）。未分類・表示日≠今日は null */
