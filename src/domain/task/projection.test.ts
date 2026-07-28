@@ -443,9 +443,71 @@ describe("sectionSlacks（F-110: セクションの残り時間 / データモ�
     ];
     const alone = [task({ id: 2, sectionId: AFTERNOON, estimateMinutes: 60 })];
 
+    // 午前が本当に溢れている前提を固定する（ここが崩れると下の対比が黙って無力化する）
+    expect(slacksOf(overflowing, atJst("10:00")).get(FORENOON)?.slackMinutes).toBe(-60);
     // 午後の値は、午前が溢れていてもいなくても同じ（13:00 から60分 → 翌06:00 まで16時間）
     expect(slacksOf(overflowing, atJst("10:00")).get(AFTERNOON)?.slackMinutes).toBe(16 * 60);
     expect(slacksOf(alone, atJst("10:00")).get(AFTERNOON)?.slackMinutes).toBe(16 * 60);
+  });
+
+  it("溢れは2つ先のセクションにも及ばない（FB-81）", () => {
+    const slacks = slacksOf(
+      [
+        task({ id: 1, sectionId: MORNING, estimateMinutes: 600 }), // 朝が大きく溢れる
+        task({ id: 2, sectionId: AFTERNOON, estimateMinutes: 60 }),
+      ],
+      atJst("07:00")
+    );
+    // 午前（タスクなし）も午後も、朝の溢れに押されない
+    expect(slacks.get(FORENOON)?.slackMinutes).toBe(4 * 60);
+    expect(slacks.get(AFTERNOON)?.slackMinutes).toBe(16 * 60);
+  });
+
+  it("将来のセクションでも自分の枠を超えればマイナスになる", () => {
+    const slacks = slacksOf(
+      [task({ id: 1, sectionId: AFTERNOON, estimateMinutes: 18 * 60 })],
+      atJst("10:00")
+    );
+    // 13:00 から18時間 → 枠（17時間）を1時間超える
+    expect(slacks.get(AFTERNOON)?.slackMinutes).toBe(-60);
+  });
+
+  it("枠ちょうどに収まると 0、1分超えると -1（警告色の分かれ目。画面定義書01 §3.2）", () => {
+    const exact = slacksOf(
+      [task({ id: 1, sectionId: FORENOON, estimateMinutes: 180 })], // 10:00 → 13:00 ちょうど
+      atJst("10:00")
+    );
+    expect(exact.get(FORENOON)?.slackMinutes).toBe(0);
+
+    const over = slacksOf(
+      [task({ id: 1, sectionId: FORENOON, estimateMinutes: 181 })],
+      atJst("10:00")
+    );
+    expect(over.get(FORENOON)?.slackMinutes).toBe(-1);
+  });
+
+  it("将来のセクションが枠ちょうどでも 0（枠の頭から測るため）", () => {
+    const slacks = slacksOf(
+      [task({ id: 1, sectionId: AFTERNOON, estimateMinutes: 17 * 60 })],
+      atJst("10:00")
+    );
+    expect(slacks.get(AFTERNOON)?.slackMinutes).toBe(0);
+  });
+
+  it("秒を含む現在時刻でも分は切り捨てる（プラス側もマイナス側も）", () => {
+    // 本番の now は秒を持つ（`useNow` は new Date() をそのまま返す）
+    const withSeconds = new Date(atJst("10:00").getTime() + 20_000);
+
+    // 10:00:20 から30分 → 10:30:20。13:00 まで 149分40秒 → 149（round なら 150）
+    const plus = slacksOf([task({ id: 1, sectionId: FORENOON, estimateMinutes: 30 })], withSeconds);
+    expect(plus.get(FORENOON)?.slackMinutes).toBe(149);
+
+    // 10:00:20 から240分 → 14:00:20。13:00 まで -60分20秒 → -61（trunc なら -60）
+    const minus = slacksOf(
+      [task({ id: 1, sectionId: FORENOON, estimateMinutes: 240 })],
+      withSeconds
+    );
+    expect(minus.get(FORENOON)?.slackMinutes).toBe(-61);
   });
 
   it("他のセクションのタスクは残りに影響しない（未分類・過去のやり残しも同じ）", () => {

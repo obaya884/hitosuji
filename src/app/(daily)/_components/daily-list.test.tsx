@@ -118,16 +118,13 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
   describe("セクション残り時間の配り分けと表示条件（§3.2 / F-110）", () => {
     it("まだ始まっていないセクションは枠の頭から測る（現在時刻に引きずられない。FB-80）", () => {
       renderList({
-        now: atJst("10:00"),
-        groups: [
-          forenoon(),
-          afternoon([task({ id: 1, name: "夜の作業", estimateMinutes: 60 })]),
-        ],
+        now: atJst("08:00"), // 午前（09:00–13:00）はまだ始まっていない
+        groups: [forenoon([task({ id: 1, name: "設計書レビュー", estimateMinutes: 60 })])],
       });
 
-      // 午後は 13:00–翌06:00 の枠17時間から60分を引いて +16:00。
-      // 旧式は (翌06:00 − 10:00) − 60分 = +19:00 と、枠より大きい値を出していた
-      expect(within(headingOf("午後")).queryByText("+16:00")).not.toBeNull();
+      // 09:00 から60分 → 10:00。13:00 まで +3:00。
+      // 現在時刻起点だと (13:00 − 08:00) − 60分 = +4:00 になる
+      expect(within(headingOf("午前")).queryByText("+3:00")).not.toBeNull();
     });
 
     it("セクションごとに別々の値を、それぞれの見出しへ配る（未分類には配らない）", () => {
