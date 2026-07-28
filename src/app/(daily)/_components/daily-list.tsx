@@ -154,8 +154,8 @@ export function DailyList({
 }
 
 /**
- * 見出しに出すセクション残り時間（F-110 / §3.2）を sectionId で引ける Map。値の意味と
- * 積み上げの規則は `sectionSlacks`（データモデル定義書 §4.3）が持つ。ここで足すのは表示条件だけ——
+ * 見出しに出すセクション残り時間（F-110 / §3.2）を sectionId で引ける Map。値と算出の規則は
+ * `sectionSlacks`（データモデル定義書 §4.3）が持つ。ここで足すのは表示条件だけ——
  * **表示日が今日で、かつ現在時刻が枠の終了より前**のものに絞る。今日でなければ null（見出しに出さない）
  */
 function sectionRemainings(

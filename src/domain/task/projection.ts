@@ -192,6 +192,7 @@ export type SectionSlack = Readonly<{ endAt: Date; slackMinutes: number }>;
  * F-110 は「この枠に収まるか」を答えるため。これがないと残りが枠の長さを超える（FB-80）。
  *
  * 枠が定まらないグループ（未分類・アーカイブ済みセクション）は戻り値に含めない。
+ * 各セクションが独立して決まるので**`groups` の順序には依存しない**（表示順で渡さなくてよい）。
  * 表示可否（表示日=今日・now < 枠の終了）は `endAt` を見て呼び出し側が判定する（画面定義書01 §3.2）
  */
 export function sectionSlacks(
@@ -209,11 +210,11 @@ export function sectionSlacks(
     const endAt = sectionEndFrom(startAt, group.section.startTime, group.endTime);
     // 枠がまだ始まっていなければ枠の頭から、始まっていれば now から測る
     const worksFrom = Math.max(now.getTime(), startAt.getTime());
-    const projectedEnd = worksFrom + remainingMinutes(group.tasks, now) * 60_000;
+    const worksUntil = worksFrom + remainingMinutes(group.tasks, now) * 60_000;
 
     slacks.set(group.section.id, {
       endAt,
-      slackMinutes: Math.floor((endAt.getTime() - projectedEnd) / 60_000),
+      slackMinutes: Math.floor((endAt.getTime() - worksUntil) / 60_000), // 枠の終わり − 作業の終わり
     });
   }
 

@@ -403,7 +403,7 @@ describe("sectionSlacks（F-110: セクションの残り時間 / データモ�
     { id: AFTERNOON, name: "午後", startTime: "13:00", isArchived: false },
   ];
 
-  /** 表示順のグループを実際の集約（§3.2）で組む——積み上げの順序はこの並びに乗るため */
+  /** グループは実際の集約（§3.2）で組む——各セクションの `tasks` と `endTime` が要るため */
   function slacksOf(tasks: readonly Task[], now: Date, sections = SECTIONS) {
     return sectionSlacks(groupTasksBySection(tasks, sections), now, APP_TIME_ZONE);
   }

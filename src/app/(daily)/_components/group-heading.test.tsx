@@ -19,8 +19,8 @@ function renderHeading(overrides: Overrides) {
       <tbody>
         <GroupHeading
           group={overrides.group}
-          // 残り時間はセクションをまたぐ積み上げなので見出しでは決まらない（§3.2 / F-110）。
-          // 既定は中立の「出さない」とし、依拠するテストが値を明示する
+          // 残り時間の値と表示条件はリスト側が決めて配る（見出しは `now` も表示日も持たない）。
+          // 既定は中立の「出さない」とし、依拠するテストが値を明示する（§3.2 / F-110）
           remainingMinutes={overrides.remainingMinutes ?? null}
           currentSectionId={overrides.currentSectionId ?? null}
         />
@@ -89,8 +89,8 @@ describe("GroupHeading（画面定義書01 §3.2: セクション見出し行）
     expect(headingOf("朝").textContent).not.toContain("残り");
   });
 
-  // 残り時間の値そのもの（積み上げ・日界・表示条件）は daily-list.test.tsx が見る（§3.2 / F-110）。
-  // ここで見るのは受け取った値の描き方だけなので、タスクの見積もりは結果に関与しない
+  // 値そのもの（max・独立・日界）は projection.test.ts、配り分けと表示条件は daily-list.test.tsx が
+  // 見る（§3.2 / F-110）。ここで見るのは受け取った値の描き方だけで、タスクの見積もりは結果に関与しない
   it("プラスの残り時間は符号付きで出し、警告色にしない（F-110）", () => {
     renderHeading({ remainingMinutes: 90, group: morning([task({ id: 1, name: "朝食" })]) });
 
