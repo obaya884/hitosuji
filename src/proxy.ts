@@ -25,13 +25,48 @@ function parseBasicCredentials(header: string | null): Credentials | null {
   return { user: decoded.slice(0, sep), password: decoded.slice(sep + 1) };
 }
 
-// Basic認証（N-03）。資格情報は環境変数で管理し、未設定時（ローカル開発）は認証なしで通す
+/**
+ * 認証を要求する環境か（N-03 ①②）。`production` / `preview` の**完全一致だけ**が対象で、
+ * それ以外（ローカル開発・未設定・未知の値）はすべて素通しに倒す。
+ * `NODE_ENV` ではなく `VERCEL_ENV` を見るのは、`npm run build` が手元でも `NODE_ENV=production`
+ * で走るため——ローカルのビルド検証で認証が有効化される事故を避ける。
+ */
+function requiresAuth(): boolean {
+  const env = process.env.VERCEL_ENV;
+  return env === "production" || env === "preview";
+}
+
+/**
+ * 認証すべき環境なのに資格情報が無いときの応答。利用者側では解決できないので 401 にはしない
+ * （401 は「資格情報を出せば解決しうる」の意味。N-03 ③）。応答本文には設定の状態を書かない。
+ */
+function respondMisconfigured(): NextResponse {
+  return new NextResponse("サーバの設定に問題があります", { status: 500 });
+}
+
+/** 認証を要求する応答。ブラウザに資格情報の入力を促す */
+function respondUnauthorized(): NextResponse {
+  return new NextResponse("認証が必要です", {
+    status: 401,
+    headers: { "WWW-Authenticate": 'Basic realm="hitosuji"' },
+  });
+}
+
+// Basic認証（N-03）。認証を要求するかはデプロイ環境で決まり、資格情報の設定状態では切り替わらない
 export default function proxy(req: NextRequest) {
+  if (!requiresAuth()) {
+    return NextResponse.next();
+  }
+
   const user = process.env.BASIC_AUTH_USER;
   const password = process.env.BASIC_AUTH_PASSWORD;
-
+  // 未設定・空文字のどちらも「照合先が無い」ことに変わりはなく、素通しさせない（N-03 ③）。
+  // 500 では原因が画面に出ないため、ログだけが唯一の手がかりになる（値そのものは書かない）
   if (!user || !password) {
-    return NextResponse.next();
+    console.error(
+      "[proxy] 認証を要求する環境で BASIC_AUTH_USER / BASIC_AUTH_PASSWORD が未設定または空です"
+    );
+    return respondMisconfigured();
   }
 
   const credentials = parseBasicCredentials(req.headers.get("authorization"));
@@ -39,10 +74,7 @@ export default function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
-  return new NextResponse("認証が必要です", {
-    status: 401,
-    headers: { "WWW-Authenticate": 'Basic realm="hitosuji"' },
-  });
+  return respondUnauthorized();
 }
 
 // 除外は先頭セグメントが「その名前ちょうど」か「その配下」のときだけ掛ける。`.` をエスケープせず
