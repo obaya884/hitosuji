@@ -85,7 +85,8 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
     expect(within(row).getByText("赤")).not.toBeNull();
   });
 
-  describe("プリセット色の選択（画面定義書03 §3.2 / 00_共通 §2.1）", () => {
+  // このピッカーに 00_共通 §2.1 のどの項目が及ぶかは画面定義書03 §3.2 が正（FB-59）
+  describe("プリセット色の選択（画面定義書03 §3.2）", () => {
     it("カラーバーを押すとプリセット13色（12色＋グレー）がその場に開く", () => {
       renderTable();
 
@@ -131,7 +132,22 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       }
     });
 
-    it("開くと現在値をハイライトする（00_共通 §2.1）", () => {
+    it("開くと現在値を輪郭で示す（画面定義書03 §3.2）", () => {
+      renderTable();
+
+      openColorPicker(rowOf("モードB"), "青");
+
+      // 輪郭は面色と違い role や aria では読めないので classList で見る
+      // （`select-popover.test.tsx` のハイライト判定と同じ流儀）
+      expect(screen.getByRole("button", { name: "色 青" }).classList.contains("outline-ink")).toBe(
+        true
+      );
+      expect(screen.getByRole("button", { name: "色 赤" }).classList.contains("outline-ink")).toBe(
+        false
+      );
+    });
+
+    it("現在値を読み上げにも出す（`aria-pressed`）", () => {
       renderTable();
 
       openColorPicker(rowOf("モードB"), "青");

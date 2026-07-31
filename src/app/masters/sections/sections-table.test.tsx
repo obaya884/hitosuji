@@ -106,6 +106,22 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
       expect(screen.getByLabelText("セクションBを1日の開始にする")).toHaveProperty("checked", false);
     });
 
+    // §3.1 は行内にラベル文字列を置かない代わりに、列見出しと一覧上部の説明文へ
+    // 「このラジオが何を選ぶものか」を負わせている（FB-62）。どちらも消えると意味が読めなくなる
+    it("ラジオの意味を列見出しと説明文で伝える", () => {
+      renderTable();
+
+      expect(screen.getByRole("columnheader", { name: "日界" })).not.toBeNull();
+      expect(screen.getByText(/先頭のラジオで「1日の開始（日界）」/)).not.toBeNull();
+    });
+
+    it("行内にはラベル文字列を置かない（示すのは選択状態だけ）", () => {
+      renderTable();
+
+      // `aria-label` は属性なので `queryByText` には掛からない（行内の文字列だけを見ている）
+      expect(within(rowOf("セクションA")).queryByText("1日の開始")).toBeNull();
+    });
+
     it("ラジオを切り替えると日界をその行へ移す", async () => {
       renderTable();
 
