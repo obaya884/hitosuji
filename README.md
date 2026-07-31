@@ -48,10 +48,10 @@ PR と main への push では GitHub Actions（`.github/workflows/ci.yml`）が
 3. 本番DBへスキーマ適用: `DATABASE_URL=<Neonの接続文字列> npm run db:migrate && DATABASE_URL=<同> npm run db:seed`
 4. [Vercel](https://vercel.com) でリポジトリをインポートし、環境変数を設定
    - `DATABASE_URL`（Neon の接続文字列）
-   - `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD`（Basic認証。必ず設定する）
+   - `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD`（Basic認証。**必ず値を設定する**——Vercel 上のデプロイは常に認証を要求するため、未設定・空文字のままだと全リクエストが 500 で止まる）
 5. 以後は main への push で自動デプロイ。スキーマ変更時はデプロイ前にマイグレーションを適用する（→「スキーマ更新（本番マイグレーション）」節）
 
-Vercel の GitHub 連携により、main 以外への push・PR には自動でプレビューデプロイが作られる（Dependabot の依存更新PR のビルド検証などに利用）。プレビューは本番DBに接続していない。
+Vercel の GitHub 連携により、main 以外への push・PR には自動でプレビューデプロイが作られる（Dependabot の依存更新PR のビルド検証などに利用）。プレビューは本番DBに接続しておらず、**認証も本番と同じく要求される**（資格情報を設定していないため実質は封鎖され、500 が返る）。
 
 ## スキーマ更新（本番マイグレーション）
 

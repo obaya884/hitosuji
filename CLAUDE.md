@@ -165,7 +165,7 @@ Next.js 16 (App Router) + TypeScript / Tailwind CSS 4 / Drizzle ORM + node-postg
 ## 環境変数（`.env.local` / Vercel）
 
 - `DATABASE_URL` — Postgres 接続文字列
-- `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` — 両方設定すると Basic認証が有効。未設定なら素通し（ローカル開発用）。**リポジトリにコミットしない**
+- `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` — Basic認証の資格情報。**認証を要求するかはデプロイ環境で決まり（`VERCEL_ENV` が `production` / `preview`）、この2つの設定状態では切り替わらない**——ローカル開発は値を置いても素通し、デプロイ環境で値が欠けていれば 500（判定の正は要件定義書 §6 N-03）。**リポジトリにコミットしない**
 
 **`.env.production` / `.env.production.local` は作らない。** `npm run build` は `NODE_ENV=production` で走るため Next.js がこれらを自動読み込みし、ローカルのビルドが本番DBを向く。本番向けの値を手元に置く場合は、Next.js の読み込み対象（`.env` / `.env.local` / `.env.development*` / `.env.production*` / `.env.test*`）を外した名前を使う（`.env.migrate` と同じ流儀）。`.gitignore` の `.env*` でどの名前も git からは外れる。worktree 用の `.env.worktree`（`wt:new` が生成し vitest だけが読む `TEST_DATABASE_URL` 1行）も同じ流儀。
 
@@ -178,7 +178,7 @@ BASIC_AUTH_USER='...'
 BASIC_AUTH_PASSWORD='...'
 ```
 
-`.env.local` には置かないこと（`proxy.ts` の条件が満たされ、ローカル開発でも Basic認証が有効になる）。値を変更したら Vercel 側は `vercel env rm` → `vercel env add` の後に**再デプロイが必要**（既存デプロイには新しい値が反映されない）。
+`.env.local` には置かないこと（ローカルでは認証が有効にならないので実益が無く、資格情報の写しを増やすだけになる）。値を変更したら Vercel 側は `vercel env rm` → `vercel env add` の後に**再デプロイが必要**（既存デプロイには新しい値が反映されない）。
 
 ## 本番マイグレーションの手順
 
