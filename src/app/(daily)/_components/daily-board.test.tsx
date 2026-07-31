@@ -426,6 +426,66 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
     expect(within(row(NOT_STARTED)).queryByText("0:30")).not.toBeNull();
   });
 
+  it("終了打刻をサーバが拒んだら、行の巻き戻しに合わせて選択も打刻した行へ戻す（F-211 / §5）", async () => {
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(finishTaskAction).mockReturnValue(gate.promise);
+    renderBoard();
+    selectRow(RUNNING);
+
+    fireEvent.click(within(row(RUNNING)).getByLabelText("終了"));
+    // 確定前は送り先（現在地）が選ばれている
+    expect(isSelected(NOT_STARTED)).toBe(true);
+
+    await gate.resolve({ ok: false, message: "保存に失敗しました" });
+
+    // 行の巻き戻し（実行中へ戻る）・トースト・選択の3つが揃って初めて条項どおり
+    expect(within(row(RUNNING)).queryByLabelText("終了")).not.toBeNull();
+    expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
+    expect(isSelected(RUNNING)).toBe(true);
+    expect(isSelected(NOT_STARTED)).toBe(false);
+  });
+
+  it("終了打刻の拒否は、打刻前に選んでいた別の行ではなく打刻した行へ戻す（F-211 / §5）", async () => {
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(finishTaskAction).mockReturnValue(gate.promise);
+    renderBoard();
+    // 送り先（NOT_STARTED）でも打刻対象（RUNNING）でもない第3の行を選んでおく
+    selectRow(COMPLETED);
+
+    fireEvent.click(within(row(RUNNING)).getByLabelText("終了"));
+    await gate.resolve({ ok: false, message: "保存に失敗しました" });
+
+    expect(isSelected(RUNNING)).toBe(true);
+    expect(isSelected(COMPLETED)).toBe(false);
+  });
+
+  it("`Enter` の終了打刻も拒否されたら選択を打刻した行へ戻す（F-211 / §5 / §6）", async () => {
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(finishTaskAction).mockReturnValue(gate.promise);
+    renderBoard();
+    selectRow(RUNNING);
+
+    await pressAndSettle("Enter");
+    expect(isSelected(NOT_STARTED)).toBe(true);
+
+    await gate.resolve({ ok: false, message: "保存に失敗しました" });
+
+    expect(isSelected(RUNNING)).toBe(true);
+  });
+
+  it("終了打刻の拒否でも、確定を待つ間に選び直した行は上書きしない（F-211 / §5）", async () => {
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(finishTaskAction).mockReturnValue(gate.promise);
+    renderBoard([task({ id: 10, name: INBOX }), ...defaultTasks()]);
+    selectRow(RUNNING);
+
+    fireEvent.click(within(row(RUNNING)).getByLabelText("終了"));
+    selectRow(INBOX); // 送られた選択を待っている間にユーザーが動かす
+    await gate.resolve({ ok: false, message: "保存に失敗しました" });
+
+    expect(isSelected(INBOX)).toBe(true);
+  });
+
   it("中断（O-4）は楽観的更新の対象外でサーバ確定まで実行中のまま", () => {
     const gate = hold<DailyActionResult>(OK);
     vi.mocked(suspendTaskAction).mockReturnValue(gate.promise);
@@ -536,6 +596,28 @@ describe("DailyBoard の打刻（F-201 / F-211 / §7: クライアントの現�
     fireEvent.click(within(row(RUNNING)).getByLabelText("終了"));
 
     expect(isSelected(RUNNING)).toBe(true);
+  });
+
+  it("終了打刻がサーバで確定したら選択は送り先に残る（F-211）", async () => {
+    const { applyServerState } = renderBoard();
+    selectRow(RUNNING);
+
+    await clickAndSettle(within(row(RUNNING)).getByLabelText("終了"));
+    // サーバ確定後の再取得（完了した打刻が乗った状態）まで流して確かめる
+    applyServerState([
+      task({ id: 11, name: NOT_STARTED, sectionId: 1, sortOrder: 1000 }),
+      task({
+        id: 12,
+        name: RUNNING,
+        sectionId: 1,
+        sortOrder: 2000,
+        startedAt: atJst("10:00"),
+        endedAt: NOW,
+      }),
+    ]);
+
+    expect(isSelected(NOT_STARTED)).toBe(true);
+    expect(isSelected(RUNNING)).toBe(false);
   });
 
   it("完了タスクの Enter は複製して開始（O-14 / F-208）で、打刻アクションは呼ばない", () => {

@@ -227,13 +227,32 @@ export function DailyBoard({
     } else if (status === "not_started") {
       run(() => startTaskAction(task.id, now), { type: "start", id: task.id, at: now });
     } else {
-      run(() => finishTaskAction(task.id, now), { type: "finish", id: task.id, at: now });
-      // 終了打刻で完了したら選択行を次の未実行タスクへ送る（F-211 / §5）。この時点の
-      // orderedTasks は楽観的更新の適用前で終了対象がまだ実行中として残るため、実行中を優先する
-      // currentTaskId だとその行を選び直してしまう。送り先がなければ据え置く（setSelectedId しない）
-      const next = currentNotStartedId(orderedTasks, currentSectionId);
-      if (next !== null) setSelectedId(next);
+      finish(task, now);
     }
+  }
+
+  /**
+   * 終了打刻（実行中→完了）。完了したら選択行を次の未実行タスクへ送る（F-211 / §5）。送り先を
+   * 決める `orderedTasks` は楽観的更新の適用前で終了対象がまだ実行中として残るため、実行中を優先する
+   * `currentTaskId` だとその行を選び直してしまう。送り先がなければ据え置く（`setSelectedId` しない）。
+   * サーバが拒んだら行の巻き戻しに合わせて選択も戻す（§5 / N-01。完了していない以上、選択だけ先へ送らない）
+   */
+  function finish(task: Task, now: Date) {
+    const next = currentNotStartedId(orderedTasks, currentSectionId);
+    if (next !== null) setSelectedId(next);
+
+    run(
+      async () => {
+        const result = await finishTaskAction(task.id, now);
+        // 戻す先は打刻した行（行が実行中へ巻き戻る先と揃える）。送った選択がそのままのときだけ戻し、
+        // 確定を待つ間にユーザーが選び直していたらその操作を優先する
+        if (!result.ok) {
+          setSelectedId((current) => (current === next ? task.id : current));
+        }
+        return result;
+      },
+      { type: "finish", id: task.id, at: now }
+    );
   }
 
   /**
