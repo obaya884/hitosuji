@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { hasClass, rgbOf } from "@/app/_testing/dom";
@@ -263,6 +263,81 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
       "先",
       "後",
     ]);
+  });
+
+  // F-118 / §3.3: ハイライトは塗りの⭐だけを出す（読み取り専用なので付け外しの入口を置かない）
+  // §3.3: ⭐はタスク名の**先頭**（理由は review-board.tsx 側のコメントが持つ）
+  it("⭐はタスク名の先頭に置く", () => {
+    renderBoard({
+      log: [
+        done({
+          id: 1,
+          name: "提案書",
+          startedAt: atJst("09:00"),
+          endedAt: atJst("09:52"),
+          highlighted: true,
+        }),
+      ],
+      totalMinutes: 52,
+    });
+
+    const nameCell = logRow().cells[LOG.name];
+    const star = within(nameCell).getByRole("img", { name: "ハイライト" });
+    const link = within(nameCell).getByRole("link");
+    // ⭐がリンク（タスク名）より前に現れる＝先頭にある
+    expect(star.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // 名前と1つのまとまりに見えるよう間隔を詰める（8→2px。経緯は log_04）
+    expect(hasClass(star, "mr-0.5")).toBe(true);
+  });
+
+  it("ハイライトされたタスクの行に⭐を出す", () => {
+    renderBoard({
+      log: [
+        done({
+          id: 1,
+          name: "提案書",
+          startedAt: atJst("09:00"),
+          endedAt: atJst("09:52"),
+          highlighted: true,
+        }),
+      ],
+      totalMinutes: 52,
+    });
+
+    const star = within(logRow().cells[LOG.name]).getByRole("img", { name: "ハイライト" });
+    // 塗りも色トークンもデイリー（§3.3）と同じにする——同じ印が画面ごとに違って見えないため
+    expect(star.querySelector("polygon")?.getAttribute("fill")).toBe("currentColor");
+    expect(hasClass(star, "text-highlight-mark")).toBe(true);
+    // 列は7つのまま（⭐で列を増やしていない）
+    expect(logRow().cells).toHaveLength(7);
+  });
+
+  it("ハイライトされていない行には⭐も場所の確保も出さない（S-01 と違い輪郭を出さない）", () => {
+    renderBoard({
+      log: [
+        done({ id: 1, name: "点検", startedAt: atJst("09:00"), endedAt: atJst("09:30") }),
+      ],
+      totalMinutes: 30,
+    });
+
+    expect(logRow().cells[LOG.name].querySelector("svg")).toBeNull();
+  });
+
+  it("⭐に付け外しの入口を置かない（読み取り専用。付け外しは S-01 の O-17）", () => {
+    renderBoard({
+      log: [
+        done({
+          id: 1,
+          name: "提案書",
+          startedAt: atJst("09:00"),
+          endedAt: atJst("09:52"),
+          highlighted: true,
+        }),
+      ],
+      totalMinutes: 52,
+    });
+
+    expect(logRow().cells[LOG.name].querySelector("button")).toBeNull();
   });
 
   // F-206 / §3.3: コメントは列にせず行の下に全文を出す（読み返しが目的なので切り詰めない）

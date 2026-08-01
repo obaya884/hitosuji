@@ -54,6 +54,29 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
     for (const row of renumber) patch(row.taskId, { sortOrder: row.sortOrder });
   };
 
+  /**
+   * NewTask を1行として追加する。**本物の INSERT が既定値で埋める列をここで埋める**——
+   * `highlighted` は省略時 false（データモデル定義書 §3.5 の DEFAULT false と契約を揃える）。
+   * 追加の経路（新規・再開タスク・複製）はすべてここを通す。**`restore` は通さない**——
+   * あちらは削除前の行をそのまま戻す契約で、`comment`・`routineId`・`postponedCount` を
+   * 既定値で潰してはいけない
+   */
+  const insertRow = (input: NewTask, startedAt: Date | null = null): Task => {
+    const created: Task = {
+      id: nextId++,
+      splitParentId: null,
+      ...input,
+      highlighted: input.highlighted ?? false,
+      startedAt,
+      endedAt: null,
+      comment: null,
+      routineId: null,
+      postponedCount: 0,
+    };
+    rows.push(created);
+    return created;
+  };
+
   return {
     rows,
     skips,
@@ -67,18 +90,7 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
 
     create: async (input: NewTask, renumber: Renumber) => {
       applyRenumber(renumber);
-      const created: Task = {
-        id: nextId++,
-        splitParentId: null,
-        ...input,
-        startedAt: null,
-        endedAt: null,
-        comment: null,
-        routineId: null,
-        postponedCount: 0,
-      };
-      rows.push(created);
-      return created;
+      return insertRow(input);
     },
 
     rename: async (id: TaskId, name: string) => patch(id, { name }),
@@ -88,21 +100,14 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
 
     updateComment: async (id: TaskId, comment: string | null) => patch(id, { comment }),
 
+    updateHighlight: async (id: TaskId, highlighted: boolean) => patch(id, { highlighted }),
+
     start: async (command: StartCommand) => {
       const { taskId, startedAt, interruption } = command;
       if (interruption !== null) {
         applyRenumber(interruption.renumber);
         patch(interruption.runningTaskId, { endedAt: interruption.endedAt });
-        rows.push({
-          id: nextId++,
-          splitParentId: null,
-          ...interruption.resumeTask,
-          startedAt: null,
-          endedAt: null,
-          comment: null,
-          routineId: null,
-          postponedCount: 0,
-        });
+        insertRow(interruption.resumeTask);
       }
       // 自動セクション移動（F-113 §4.2-a）は打刻と同じ操作の中で反映する
       applyRelocations(command.relocations);
@@ -138,44 +143,15 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
       const { newTask, startedAt, interruption } = command;
       if (interruption !== null) {
         patch(interruption.runningTaskId, { endedAt: interruption.endedAt });
-        rows.push({
-          id: nextId++,
-          splitParentId: null,
-          ...interruption.resumeTask,
-          startedAt: null,
-          endedAt: null,
-          comment: null,
-          routineId: null,
-          postponedCount: 0,
-        });
+        insertRow(interruption.resumeTask);
       }
-      const created: Task = {
-        id: nextId++,
-        splitParentId: null,
-        ...newTask,
-        startedAt,
-        endedAt: null,
-        comment: null,
-        routineId: null,
-        postponedCount: 0,
-      };
-      rows.push(created);
-      return created;
+      return insertRow(newTask, startedAt);
     },
 
     suspend: async (command: SuspendCommand) => {
       applyRenumber(command.renumber);
       patch(command.taskId, { endedAt: command.endedAt });
-      rows.push({
-        id: nextId++,
-        splitParentId: null,
-        ...command.resumeTask,
-        startedAt: null,
-        endedAt: null,
-        comment: null,
-        routineId: null,
-        postponedCount: 0,
-      });
+      insertRow(command.resumeTask);
     },
 
     delete: async (id: TaskId, skip: RoutineSkip | null) => {

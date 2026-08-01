@@ -4,7 +4,7 @@ import { useDismiss } from "@/app/_lib/use-dismiss";
 import { floatPanel } from "@/app/_lib/ui";
 
 // 画面定義書01 §6 の一覧と対応させる（変更時は仕様書を先に更新する）
-// mnemonic は同§6 本表の括弧書き（Add / Rename / Estimate / Begin / Finish / Now / Comment / Section / Yank / Undo）と一致させる。
+// mnemonic は同§6 本表の括弧書き（Add / Rename / Estimate / Begin / Finish / Now / Comment / Section / Highlight / Yank / Undo）と一致させる。
 // 表にない由来は創作しない（該当なしのキーは mnemonic を付けない）。
 const SHORTCUTS = [
   { keys: "J / K", description: "選択行の移動" },
@@ -27,6 +27,7 @@ const SHORTCUTS = [
     description: "コメントの編集（Shift+Enter で改行、Enter で確定）",
     mnemonic: "Comment",
   },
+  { keys: "H", description: "ハイライトの付け外し", mnemonic: "Highlight" },
   { keys: "Shift+J / Shift+K", description: "タスクの並び替え（下へ / 上へ）" },
   { keys: "Y", description: "選択タスクの複製", mnemonic: "Yank" },
   { keys: "D", description: "削除" },

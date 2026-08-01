@@ -18,6 +18,7 @@ export type Task = Readonly<{
   startedAt: Date | null;
   endedAt: Date | null;
   comment: string | null;
+  highlighted: boolean; // その日注力する印（F-118）。導出できないユーザーの宣言
   routineId: number | null;
   splitParentId: TaskId | null;
   postponedCount: number;

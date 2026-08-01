@@ -6,6 +6,7 @@ import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { modeAppearance } from "@/app/_lib/mode-appearance";
 import { inputBase } from "@/app/_lib/ui";
 import type { EditField } from "../_lib/editing";
+import { rowBackgroundClass } from "../_lib/row-background";
 
 export type CommentRowProps = Readonly<{
   task: Task;
@@ -47,7 +48,8 @@ export function CommentRow({
   return (
     <tr
       style={colorStyle}
-      className={`border-b border-line ${isSelected ? "bg-accent-weak" : ""}`}
+      // 地色はタスク行と同じ規則で決める（§3.3。2行で1件のタスクなので面色を割らない）
+      className={`border-b border-line ${rowBackgroundClass(task, isSelected)}`}
     >
       {/* 打刻ボタン列は空ける。折り返す幅はタスク名列に揃え（§3.3）、右側の列は空セルで埋めて
           選択行の面色がコメント行でも途切れないようにする */}

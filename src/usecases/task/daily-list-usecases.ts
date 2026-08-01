@@ -141,6 +141,20 @@ export async function updateTaskComment(
   return ok(id);
 }
 
+/**
+ * ハイライトの付け外し（F-118 / 画面定義書01 O-17）。
+ * 状態・日付を問わず付け外しでき、本数の上限も設けないため、検査は対象の存在だけでよい
+ */
+export async function setTaskHighlight(
+  repo: TaskRepository,
+  id: TaskId,
+  highlighted: boolean
+): Promise<Result<TaskId, TaskEditUsecaseError>> {
+  if ((await repo.findById(id)) === null) return err("task_not_found");
+  await repo.updateHighlight(id, highlighted);
+  return ok(id);
+}
+
 /** モードの割り当て（O-5 / F-401）。null で未設定に戻す */
 export async function setTaskMode(
   repo: TaskRepository,

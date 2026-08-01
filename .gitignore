@@ -58,3 +58,6 @@ next-env.d.ts
 
 # Playwright MCP の作業出力（ページスナップショット・コンソールログ。実データが写るためコミットしない）
 .playwright-mcp/
+
+# 設計ブレスト用モック（superpowers ブレストの一時ファイル）
+.superpowers/

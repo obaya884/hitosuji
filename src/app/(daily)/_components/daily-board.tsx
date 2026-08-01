@@ -46,6 +46,7 @@ import {
   restoreCompletionAction,
   restoreTaskAction,
   suspendTaskAction,
+  setTaskHighlightAction,
   setTaskModeAction,
   setTaskProjectAction,
   setTaskSectionAction,
@@ -259,6 +260,16 @@ export function DailyBoard({
     if (comment === task.comment) return;
 
     run(() => updateTaskCommentAction(task.id, raw), { type: "comment", id: task.id, comment });
+  }
+
+  /** ハイライトの付け外し（O-17 / F-118）。状態・日付を問わないトグル */
+  function toggleHighlight(task: Task) {
+    const highlighted = !task.highlighted;
+    run(() => setTaskHighlightAction(task.id, highlighted), {
+      type: "highlight",
+      id: task.id,
+      highlighted,
+    });
   }
 
   /**
@@ -490,6 +501,7 @@ export function DailyBoard({
     moveByStep,
     punch,
     operate,
+    toggleHighlight,
     unstart,
     uncomplete,
     undoPending,
@@ -587,6 +599,7 @@ export function DailyBoard({
         onRename={rename}
         onEstimate={setEstimate}
         onComment={setComment}
+        onToggleHighlight={toggleHighlight}
         onPunch={punch}
         onEditPunch={editPunch}
         sections={sections}

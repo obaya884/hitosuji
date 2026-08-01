@@ -74,6 +74,24 @@ describe("applyOptimisticAction の即時反映（N-01 / 00_共通 §4）", () =
     expect(find(cleared, 11)).toEqual({ ...NOT_STARTED, comment: null });
   });
 
+  it("highlight はハイライトだけを差し替える（O-17 / F-118）", () => {
+    const applied = apply({ type: "highlight", id: 11, highlighted: true });
+
+    expect(find(applied, 11)).toEqual({ ...NOT_STARTED, highlighted: true });
+  });
+
+  it("highlight に false を渡すとハイライトが外れる", () => {
+    const marked = apply({ type: "highlight", id: 11, highlighted: true });
+
+    const cleared = applyOptimisticAction(marked, {
+      type: "highlight",
+      id: 11,
+      highlighted: false,
+    });
+
+    expect(find(cleared, 11)).toEqual({ ...NOT_STARTED, highlighted: false });
+  });
+
   it("start は開始打刻を入れる（割り込みの終了・再開タスク生成はサーバ確定後 / O-2）", () => {
     const applied = apply({ type: "start", id: 11, at: atJst("10:00") });
 
@@ -172,6 +190,7 @@ describe("optimisticTask（サーバ確定前の仮タスク）", () => {
       startedAt: null,
       endedAt: null,
       comment: null,
+      highlighted: false,
       routineId: null,
       splitParentId: null,
       postponedCount: 0,

@@ -8,6 +8,7 @@ import { addDays, weekdayIndex } from "@/domain/shared/logical-date";
 import { estimateDiffMinutes, sharePercent, type ActualTotal } from "@/domain/task/review";
 import { actualMinutes, type Task } from "@/domain/task/task";
 import { DateNav } from "@/app/_components/date-nav";
+import { StarIcon } from "@/app/_components/icons";
 import { UnsetMark } from "@/app/_components/unset-mark";
 import { formatClock, formatDuration, formatEstimate } from "@/app/_lib/format";
 import { isGlobalShortcutEvent } from "@/app/_lib/keyboard";
@@ -163,10 +164,29 @@ function LogRow({
           {task.endedAt === null ? "--:--" : formatClock(task.endedAt)}
         </td>
         <td className="py-2">
-          {/* 修正は S-01 の過去日表示で行う（O-2 / §1）。モード色を消さないよう下線のみで示す */}
-          <Link href={`/?date=${date}`} className="hover:underline">
-            {task.name}
-          </Link>
+          {/* ⭐と名前は flex で縦中央に揃える（`align-middle` だと 16px のアイコンが文字に対して
+              わずかに浮く）。デイリー側の印はセクション併記の流し込みに乗るので事情が違う */}
+          <div className="flex items-center">
+            {/* ハイライト（F-118 / §3.3）は**タスク名の先頭**に置く——この画面の⭐は付け外しの
+                入口ではなく「その行が本丸だった」ことを示す見出しなので、行の頭にある方が
+                実績ログを上から読むときに拾いやすい。付いていない行には何も出さない（付け外しは S-01 の O-17）。
+                アイコン自体は aria-hidden なので、名前は外側の span が持つ */}
+            {task.highlighted && (
+              <span
+                role="img"
+                aria-label="ハイライト"
+                // 余白はデイリー（`ml-2`＝印どうしの間隔）より大きく詰めた `mr-0.5`——
+                // ここは⭐とタスク名が1つのまとまり（行の見出し）として読める距離にする
+                className="mr-0.5 shrink-0 text-highlight-mark"
+              >
+                <StarIcon filled className="h-4 w-4" />
+              </span>
+            )}
+            {/* 修正は S-01 の過去日表示で行う（O-2 / §1）。モード色を消さないよう下線のみで示す */}
+            <Link href={`/?date=${date}`} className="hover:underline">
+              {task.name}
+            </Link>
+          </div>
         </td>
         <td className="py-2 text-xs">{mode?.name ?? <UnsetMark />}</td>
         <td className="py-2 text-xs">{project?.name ?? <UnsetMark />}</td>

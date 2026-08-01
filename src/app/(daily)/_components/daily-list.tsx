@@ -28,6 +28,7 @@ export type DailyListProps = Pick<
   | "onEditPunch"
   | "onAssign"
   | "onOperate"
+  | "onToggleHighlight"
   | "onRoutinize"
   | "onSelect"
   | "onBeginEdit"
@@ -62,6 +63,7 @@ export function DailyList({
   sections,
   onAssign,
   onOperate,
+  onToggleHighlight,
   onRoutinize,
   selectedId,
   onSelect,
@@ -140,6 +142,7 @@ export function DailyList({
                   sectionOptions={sectionOptions}
                   onAssign={onAssign}
                   onOperate={onOperate}
+                  onToggleHighlight={onToggleHighlight}
                   onRoutinize={onRoutinize}
                   isSelected={isSelected}
                   onSelect={onSelect}

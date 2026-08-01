@@ -126,6 +126,7 @@ export const tasks = pgTable(
     startedAt: timestamp("started_at", { withTimezone: true }),
     endedAt: timestamp("ended_at", { withTimezone: true }),
     comment: text("comment"),
+    highlighted: boolean("highlighted").notNull().default(false), // その日注力する印（F-118）
     routineId: integer("routine_id").references(() => routines.id, {
       onDelete: "set null", // ルーチン削除は展開済みタスクに影響しない（F-303）
     }),

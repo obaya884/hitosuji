@@ -34,6 +34,8 @@ export type DailyShortcutParams = Readonly<{
   moveByStep: (step: 1 | -1) => void;
   punch: (task: Task) => void;
   operate: (task: Task, operation: "suspend" | "duplicate" | "postpone" | "delete") => void;
+  /** ハイライトのトグル（O-17 / F-118） */
+  toggleHighlight: (task: Task) => void;
   unstart: (task: Task) => void;
   uncomplete: (task: Task) => void;
   undoPending: () => void;
@@ -57,6 +59,7 @@ export function useDailyShortcuts(params: DailyShortcutParams): void {
     moveByStep,
     punch,
     operate,
+    toggleHighlight,
     unstart,
     uncomplete,
     undoPending,
@@ -139,6 +142,9 @@ export function useDailyShortcuts(params: DailyShortcutParams): void {
           return;
         case "d":
           if (selected !== null) operate(selected, "delete");
+          return;
+        case "h": // ハイライトのトグル（O-17 / F-118）。状態・日付を問わない
+          if (selected !== null) toggleHighlight(selected);
           return;
         case "u": {
           // 取り消しの保留（削除 O-8 / 完了の取り消し O-15）が Undoトースト表示中ならそれを最優先する。

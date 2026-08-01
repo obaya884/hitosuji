@@ -57,6 +57,7 @@ type Handlers = Pick<
   | "onEditPunch"
   | "onAssign"
   | "onOperate"
+  | "onToggleHighlight"
   | "onRoutinize"
   | "onSelect"
   | "onBeginEdit"
@@ -72,6 +73,7 @@ function renderList(overrides: Overrides) {
     onEditPunch: vi.fn(),
     onAssign: vi.fn(),
     onOperate: vi.fn(),
+    onToggleHighlight: vi.fn(),
     onRoutinize: vi.fn(),
     onSelect: vi.fn(),
     onBeginEdit: vi.fn(),
@@ -515,6 +517,19 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
 
       const commentRow = screen.getByText("パンが切れていた").closest("tr") as HTMLElement;
       expect(hasClass(commentRow, "bg-accent-weak")).toBe(true);
+    });
+
+    // 地色の規則はタスク行と共有する（§3.3 / `_lib/row-background.ts`）。コメント行が出るのは
+    // 選択行だけなので、ハイライト行でも実際に出る面色は選択の `accent-weak` になる
+    it("ハイライト行でもコメント行は選択の面色にし、ハイライトの地色は出さない（F-118 / §3.3）", () => {
+      renderList({
+        selectedId: 1,
+        groups: [morning([{ ...WITH_COMMENT, highlighted: true }])],
+      });
+
+      const commentRow = screen.getByText("パンが切れていた").closest("tr") as HTMLElement;
+      expect(hasClass(commentRow, "bg-accent-weak")).toBe(true);
+      expect(hasClass(commentRow, "bg-highlight")).toBe(false);
     });
 
     // 短いコメントでも2行分は開けておく（1行だと書き足す余地が見えない）

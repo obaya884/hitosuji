@@ -44,6 +44,7 @@ describe("DrizzleTaskRepository.listByDate（画面定義書01 §7: 表示日1�
       endedAt,
       // コメント（F-206）は改行を含みうるので、写像で潰れないことも一緒に見る
       comment: "・パンが切れていた\n・買い足す",
+      highlighted: true, // F-118
       postponedCount: 1,
     });
 
@@ -60,6 +61,7 @@ describe("DrizzleTaskRepository.listByDate（画面定義書01 §7: 表示日1�
         startedAt,
         endedAt,
         comment: "・パンが切れていた\n・買い足す",
+        highlighted: true,
         routineId: null,
         splitParentId: null,
         postponedCount: 1,
@@ -121,6 +123,9 @@ describe("start の割り込み（F-201: 終了・再開タスク生成・開始
           modeId: null,
           projectId: null,
           sortOrder: 3000,
+          // 再開タスクはハイライト（F-118）を引き継ぐ。INSERT は NewTask をそのまま流すので、
+          // 列まで届くことを実DBで押さえる
+          highlighted: true,
           splitParentId: running.id,
         },
         renumber: [],
@@ -132,7 +137,12 @@ describe("start の割り込み（F-201: 終了・再開タスク生成・開始
     expect(after.find((t) => t.id === running.id)?.endedAt).toEqual(endedAt);
     expect(after.find((t) => t.id === target.id)?.startedAt).toEqual(endedAt);
     expect(after.find((t) => t.splitParentId === running.id)).toEqual(
-      expect.objectContaining({ name: "メールチェック", estimateMinutes: 18, startedAt: null })
+      expect.objectContaining({
+        name: "メールチェック",
+        estimateMinutes: 18,
+        startedAt: null,
+        highlighted: true,
+      })
     );
   });
 
@@ -483,6 +493,23 @@ describe("updateComment（F-206 / O-16: コメントの保存と消去）", () =
   });
 });
 
+describe("updateHighlight（F-118 / O-17: ハイライトの付け外し）", () => {
+  // 既定値（DEFAULT false）と往復を実DBで見る。既定値はルーチン展開が常に OFF になる根拠でもある
+  it("既定は false で、付けて外せる", async () => {
+    const [target] = await db
+      .insert(tasks)
+      .values({ taskDate: "2026-07-19", name: "提案書", sortOrder: 1000 })
+      .returning();
+    expect((await repo.findById(target.id))?.highlighted).toBe(false);
+
+    await repo.updateHighlight(target.id, true);
+    expect((await repo.findById(target.id))?.highlighted).toBe(true);
+
+    await repo.updateHighlight(target.id, false);
+    expect((await repo.findById(target.id))?.highlighted).toBe(false);
+  });
+});
+
 // 偽物（`usecases/task/testing/in-memory-repository.ts`）が写している本物側の契約。
 // ユースケースの存在検査（00_共通 §4.1）は「1行も当たらない更新は失敗」を返す側の話で、
 // リポジトリはそこへ届く前に例外を出したり別の行を壊したりしない、を本物で確かめる
@@ -659,6 +686,7 @@ describe("create の振り直し（データモデル定義書 §3.5: 中間値�
       startedAt: null,
       endedAt: null,
       comment: null,
+      highlighted: false,
       routineId: null,
       splitParentId: null,
       postponedCount: 0,

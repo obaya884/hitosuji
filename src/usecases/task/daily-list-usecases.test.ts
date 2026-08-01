@@ -10,6 +10,7 @@ import {
   addTask,
   listDailyList,
   renameTask,
+  setTaskHighlight,
   setTaskMode,
   setTaskProject,
   updateTaskComment,
@@ -147,6 +148,46 @@ describe("updateTaskComment（F-206 / O-16: コメントの編集）", () => {
     const repo = inMemoryRepo([task({ id: 1 })]);
     await updateTaskComment(repo, 1, "・図表を差し替えた\n・次は雛形を用意する");
     expect(repo.rows[0].comment).toBe("・図表を差し替えた\n・次は雛形を用意する");
+  });
+});
+
+describe("setTaskHighlight（F-118 / O-17: ハイライトの付け外し）", () => {
+  it("ハイライトを付ける", async () => {
+    const repo = inMemoryRepo([task({ id: 1, highlighted: false })]);
+    expect((await setTaskHighlight(repo, 1, true)).ok).toBe(true);
+    expect(repo.rows[0].highlighted).toBe(true);
+  });
+
+  it("ハイライトを外す", async () => {
+    const repo = inMemoryRepo([task({ id: 1, highlighted: true })]);
+    expect((await setTaskHighlight(repo, 1, false)).ok).toBe(true);
+    expect(repo.rows[0].highlighted).toBe(false);
+  });
+
+  // 状態を問わない（§5.1 F-118）。完了しても外れないのと同じく、完了行にも付けられる
+  it("完了したタスクにも付けられる", async () => {
+    const completed = task({
+      id: 1,
+      startedAt: new Date("2026-07-26T09:00:00Z"),
+      endedAt: new Date("2026-07-26T09:30:00Z"),
+    });
+    const repo = inMemoryRepo([completed]);
+    expect((await setTaskHighlight(repo, 1, true)).ok).toBe(true);
+    expect(repo.rows[0].highlighted).toBe(true);
+  });
+
+  // 上限を設けない（§5.1 F-118）。何本目でも同じように付く
+  it("本数の上限がなく、複数のタスクに付けられる", async () => {
+    const repo = inMemoryRepo([task({ id: 1 }), task({ id: 2 }), task({ id: 3 })]);
+    for (const id of [1, 2, 3]) await setTaskHighlight(repo, id, true);
+    expect(repo.rows.map((r) => r.highlighted)).toEqual([true, true, true]);
+  });
+
+  it("同じ行の他の列には触れない", async () => {
+    const original = task({ id: 1, name: "提案書", comment: "メモ", modeId: 3 });
+    const repo = inMemoryRepo([original]);
+    await setTaskHighlight(repo, 1, true);
+    expect(repo.rows[0]).toEqual({ ...original, highlighted: true });
   });
 });
 
@@ -347,6 +388,13 @@ describe("存在しないタスクの編集（00_共通 §4.1 / 画面定義書0
     const survivor = task({ id: 1, comment: "元のまま" });
     const repo = inMemoryRepo([survivor]);
     expect(await updateTaskComment(repo, MISSING, "書き換え")).toEqual(notFound);
+    expect(repo.rows).toEqual([survivor]);
+  });
+
+  it("setTaskHighlight は失敗を返し、残っている行を書き換えない", async () => {
+    const survivor = task({ id: 1, highlighted: false });
+    const repo = inMemoryRepo([survivor]);
+    expect(await setTaskHighlight(repo, MISSING, true)).toEqual(notFound);
     expect(repo.rows).toEqual([survivor]);
   });
 

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import {
   addTask,
   renameTask,
+  setTaskHighlight,
   setTaskMode,
   setTaskProject,
   updateTaskComment,
@@ -97,6 +98,17 @@ export async function updateTaskCommentAction(
   rawComment: string
 ): Promise<DailyActionResult> {
   const result = await updateTaskComment(taskRepo, id, rawComment);
+  if (!result.ok) return { ok: false, message: TASK_EDIT_MESSAGES[result.error] };
+  revalidatePath("/");
+  return { ok: true };
+}
+
+/** ハイライトの付け外し（F-118 / O-17） */
+export async function setTaskHighlightAction(
+  id: number,
+  highlighted: boolean
+): Promise<DailyActionResult> {
+  const result = await setTaskHighlight(taskRepo, id, highlighted);
   if (!result.ok) return { ok: false, message: TASK_EDIT_MESSAGES[result.error] };
   revalidatePath("/");
   return { ok: true };

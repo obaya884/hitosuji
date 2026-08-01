@@ -7,13 +7,14 @@ import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
 import type { Section } from "@/domain/section/section";
 import { taskStatus } from "@/domain/task/status";
 import { actualMinutes, elapsedMinutes, type Task } from "@/domain/task/task";
-import { CheckIcon, CommentIcon, PlayIcon, StopIcon } from "@/app/_components/icons";
+import { CheckIcon, CommentIcon, PlayIcon, StarIcon, StopIcon } from "@/app/_components/icons";
 import { formatClock, formatDuration, formatEstimate } from "@/app/_lib/format";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { modeAppearance } from "@/app/_lib/mode-appearance";
 import { inputBase } from "@/app/_lib/ui";
 import { showsCommentRow, type EditField } from "../_lib/editing";
 import { toModeOptions, toProjectOptions } from "../_lib/master-options";
+import { rowBackgroundClass } from "../_lib/row-background";
 import { AssignCell } from "./assign-cell";
 import { RowMenu } from "./row-menu";
 import { RoutinizePopover } from "./routinize-popover";
@@ -40,6 +41,8 @@ export type TaskRowProps = Readonly<{
   sectionOptions: readonly PopoverOption[];
   onAssign: (task: Task, field: "mode" | "project" | "section", id: number | null) => void;
   onOperate: (task: Task, operation: "suspend" | "duplicate" | "postpone" | "delete") => void;
+  /** ハイライトの付け外し（O-17 / F-118） */
+  onToggleHighlight: (task: Task) => void;
   /** ルーチン化（O-12 / §4.1） */
   onRoutinize: (task: Task, choice: RoutineFromTaskChoice) => void;
   isSelected: boolean;
@@ -82,6 +85,7 @@ export function TaskRow({
   sectionOptions,
   onAssign,
   onOperate,
+  onToggleHighlight,
   onRoutinize,
   isSelected,
   onSelect,
@@ -134,9 +138,9 @@ export function TaskRow({
       style={{ ...colorStyle, scrollMarginTop: stickyHeight }}
       onClick={() => onSelect(task.id)}
       // コメント行を開くときは下線をそちらに譲る（2本の線でタスクとコメントが分断されないように）
-      className={`${showsCommentRow(task, isSelected, editing) ? "" : "border-b border-line"} ${
-        isSelected ? "bg-accent-weak" : ""
-      }`}
+      className={`${
+        showsCommentRow(task, isSelected, editing) ? "" : "border-b border-line"
+      } ${rowBackgroundClass(task, isSelected)}`}
     >
       <td className="py-2.5">
         {/* 開始 →（実行中なら）終了 のトグル（F-201）。押しやすさのため円形ボタンにする */}
@@ -172,7 +176,11 @@ export function TaskRow({
             className={`w-full ${inputBase}`}
           />
         ) : (
-          <button type="button" onClick={() => onBeginEdit(task, "name")} className="text-left hover:underline">
+          <button
+            type="button"
+            onClick={() => onBeginEdit(task, "name")}
+            className="text-left hover:underline"
+          >
             {task.name}
           </button>
         )}
@@ -212,6 +220,14 @@ export function TaskRow({
                 <CommentIcon className="h-4 w-4" />
               </button>
             )}
+            {/* ハイライトの⭐（F-118 / §3.3）。**出す条件は HighlightStar 側が持つ**
+                （ON の行と選択行にだけ出る） */}
+            <HighlightStar
+              task={task}
+              isSelected={isSelected}
+              onSelect={onSelect}
+              onToggleHighlight={onToggleHighlight}
+            />
           </>
         )}
       </td>
@@ -314,6 +330,11 @@ export function TaskRow({
         <RowMenu
           items={[
             {
+              // ハイライトの付け外し（O-17 / F-118）。⭐・`H` と同じトグル
+              label: task.highlighted ? "ハイライトを外す" : "ハイライト",
+              onSelect: () => onToggleHighlight(task),
+            },
+            {
               label: "ルーチン化",
               onSelect: () => onBeginEdit(task, "routinize"),
               // ルーチン由来のタスクからは作れない。項目は見せて非活性にする（§4.1 / FB-30）
@@ -356,5 +377,39 @@ export function TaskRow({
         )}
       </td>
     </tr>
+  );
+}
+
+/**
+ * ハイライトの⭐（F-118 / §3.3 / O-17）。コメント印の右に並べ、ON/OFF をトグルする。
+ * **クリックは打刻ボタンと同じく行の選択もその行へ移す**（押した行が操作対象になったことを示す）
+ */
+function HighlightStar({
+  task,
+  isSelected,
+  onSelect,
+  onToggleHighlight,
+}: Pick<TaskRowProps, "task" | "isSelected" | "onSelect" | "onToggleHighlight">) {
+  // OFF の輪郭は選択行にだけ出す（§3.3）。⭐は流し込みの末尾なので、
+  // 出し入れしても左の表記は動かない——場所を空けておく必要がない
+  if (!task.highlighted && !isSelected) return null;
+
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect(task.id);
+        onToggleHighlight(task);
+      }}
+      aria-label="ハイライト"
+      aria-pressed={task.highlighted}
+      // コメント印と同じ余白・同じ縦位置に並べる（印がひとまとまりに見えるように）
+      className={`ml-2 inline-flex align-middle ${
+        task.highlighted ? "text-highlight-mark" : "text-ink-faint"
+      }`}
+    >
+      <StarIcon filled={task.highlighted} className="h-4 w-4" />
+    </button>
   );
 }
