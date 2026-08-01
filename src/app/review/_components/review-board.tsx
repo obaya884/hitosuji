@@ -11,6 +11,7 @@ import { DateNav } from "@/app/_components/date-nav";
 import { UnsetMark } from "@/app/_components/unset-mark";
 import { formatClock, formatDuration, formatEstimate } from "@/app/_lib/format";
 import { isGlobalShortcutEvent } from "@/app/_lib/keyboard";
+import { modeAppearance } from "@/app/_lib/mode-appearance";
 
 /**
  * レビュー画面（S-04 / 画面定義書04）。読み取り専用のため更新操作を持たず、
@@ -143,15 +144,12 @@ function LogRow({
   const project = projects.find((p) => p.id === task.projectId);
   const actual = actualMinutes(task);
   const diff = estimateDiffMinutes(task);
-  // モード設定時は行の色を継承させ、未設定時のみ既定のグレーにする（S-01 と揃える）
-  const dimmed = mode === undefined ? "text-ink-muted" : "";
+  // モードから決まる見た目は S-01 と揃える（規則は `_lib/mode-appearance.ts`）
+  const { dimmedClass, colorStyle } = modeAppearance(mode);
 
   return (
     // モード色は行全体のテキスト色に反映する（§2。S-01 と揃える）
-    <tr
-      className={`border-b border-line ${dimmed}`}
-      style={mode === undefined ? {} : { color: mode.color }}
-    >
+    <tr className={`border-b border-line ${dimmedClass}`} style={colorStyle}>
       <td className="py-2 font-mono text-xs tabular-nums">
         {task.startedAt === null ? "--:--" : formatClock(task.startedAt)}-
         {task.endedAt === null ? "--:--" : formatClock(task.endedAt)}
