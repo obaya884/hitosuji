@@ -120,7 +120,7 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
     <span className="relative inline-flex items-center gap-2">
       <button
         type="button"
-        // 名前の保存中は色を変えられないようにする（§4「編集方式」）
+        // 名前の保存中は色を変えられないようにする（画面定義書00_共通 §2.3「保存中に始める操作」）
         disabled={isPending}
         onClick={() => setColorPickerId(mode.id)}
         aria-label={`色を変更（現在: ${modeColorName(mode.color)}）`}

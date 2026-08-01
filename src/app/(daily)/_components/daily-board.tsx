@@ -115,7 +115,7 @@ export function DailyBoard({
   // サーバ確定前の仮タスクIDの連番（`optimisticTask` の `seq`。契約はそちらの JSDoc）
   const optimisticTaskSeq = useRef(0);
   const [error, setError] = useState<string | null>(null);
-  /** 完了通知（ルーチン化 O-12 など。画面定義書01 §8） */
+  /** 完了通知（ルーチン化 O-12 など。画面定義書00_共通 §2.2） */
   const [notice, setNotice] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
@@ -446,7 +446,7 @@ export function DailyBoard({
     })(event);
   }
 
-  // Undo トーストの自動消去（O-8）は Toast コンポーネント側に一元化してある（画面定義書01 §8 / FB-15）
+  // Undo トーストの自動消去（O-8）は Toast コンポーネント側に一元化してある（画面定義書00_共通 §2.2「消え方」/ FB-15）
 
   // グローバルキーボードショートカット（§6）。配線はフックへ切り出し（挙動は不変・T-14）
   useDailyShortcuts({
@@ -527,7 +527,7 @@ export function DailyBoard({
 
       {showHelp && <ShortcutHelp onClose={() => setShowHelp(false)} />}
 
-      {/* トースト置き場（画面定義書01 §8）。Undo とエラーが同時に出ても重ならないよう1箇所にまとめる */}
+      {/* トースト置き場（画面定義書00_共通 §2.2「位置」）。Undo とエラーが同時に出ても重ならないよう1箇所にまとめる */}
       {(pendingUndo !== null || notice !== null || error !== null) && (
         <div className="fixed bottom-4 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-2">
           {/* 取り消しの Undo トースト（削除 O-8 / 完了の取り消し O-15）。

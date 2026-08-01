@@ -162,7 +162,7 @@ function LogRow({
       </td>
       <td className="py-2 text-xs">{mode?.name ?? <UnsetMark />}</td>
       <td className="py-2 text-xs">{project?.name ?? <UnsetMark />}</td>
-      {/* 見積もり未設定は薄色（画面定義書04 §3.3。S-01 と揃える） */}
+      {/* 見積もり未設定は薄色（画面定義書00_共通 §2.4「時間の値」。全画面で揃える） */}
       <td
         className={`py-2 pr-4 text-right font-mono tabular-nums ${
           task.estimateMinutes <= 0 ? "text-ink-faint" : ""
