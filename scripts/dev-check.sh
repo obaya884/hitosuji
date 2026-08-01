@@ -9,6 +9,9 @@
 # 毎回 TRUNCATE してフィクスチャを入れ直すので、確認は常に同じ状態から始まる。
 set -eu
 
+. "$(dirname "$0")/lib/db-test.sh"
+. "$(dirname "$0")/lib/port.sh"
+
 DB_NAME=hitosuji_check
 # 統合テストと同じインスタンスを使うが DB は別（hitosuji_test / hitosuji_test_* とは干渉しない）
 CHECK_DATABASE_URL="postgresql://hitosuji:hitosuji@localhost:5433/${DB_NAME}"
@@ -22,29 +25,11 @@ CHECK_DEV_PORT=3100
 # 先に決める。仕様16 §2）
 if lsof -ti:"$CHECK_DEV_PORT" >/dev/null 2>&1; then
   echo "確認用ポート :${CHECK_DEV_PORT} は既に使用中です（確認環境は機械全体で1本まで。先に起動した dev:check が残っていないか確認してください）" >&2
-  lsof -ti:"$CHECK_DEV_PORT" | while read -r pid; do
-    echo "  PID ${pid}: $(ps -o command= -p "$pid" 2>/dev/null | cut -c1-60)" >&2
-  done
+  print_port_holders "$CHECK_DEV_PORT" "  "
   exit 1
 fi
 
-docker compose up -d db-test
-i=0
-until docker compose exec -T db-test pg_isready -U hitosuji -q 2>/dev/null; do
-  i=$((i + 1))
-  if [ "$i" -ge 30 ]; then
-    echo "db-test の起動を待ちきれませんでした（docker compose logs db-test を確認してください）" >&2
-    exit 1
-  fi
-  sleep 1
-done
-
-# tmpfs なので docker compose down のたびに消える。無ければ作る
-if ! docker compose exec -T db-test psql -U hitosuji -d hitosuji_test -v ON_ERROR_STOP=1 -tAc \
-  "SELECT 1 FROM pg_database WHERE datname = '$DB_NAME'" | grep -q 1; then
-  docker compose exec -T db-test psql -U hitosuji -d hitosuji_test -v ON_ERROR_STOP=1 \
-    -c "CREATE DATABASE $DB_NAME"
-fi
+ensure_db_test_database "$DB_NAME"
 
 # DATABASE_URL はシェルから渡した値が .env.local より優先される（dotenv も Next.js も既存の
 # 環境変数を上書きしない）。確認用DB以外を向く事故が起きない形にしておく
