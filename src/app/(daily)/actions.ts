@@ -207,7 +207,8 @@ export async function setTaskModeAction(
   id: number,
   modeId: number | null
 ): Promise<DailyActionResult> {
-  await setTaskMode(taskRepo, id, modeId);
+  const result = await setTaskMode(taskRepo, id, modeId);
+  if (!result.ok) return { ok: false, message: TASK_EDIT_MESSAGES[result.error] };
   revalidatePath("/");
   return { ok: true };
 }
@@ -216,7 +217,8 @@ export async function setTaskProjectAction(
   id: number,
   projectId: number | null
 ): Promise<DailyActionResult> {
-  await setTaskProject(taskRepo, id, projectId);
+  const result = await setTaskProject(taskRepo, id, projectId);
+  if (!result.ok) return { ok: false, message: TASK_EDIT_MESSAGES[result.error] };
   revalidatePath("/");
   return { ok: true };
 }

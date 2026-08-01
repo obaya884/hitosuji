@@ -31,20 +31,27 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
 
   const indexOf = (id: TaskId) => rows.findIndex((r) => r.id === id);
 
+  /**
+   * 1行の書き換え。**対象が無ければ何もしない**——本物の `UPDATE ... WHERE id = ?` が0行で
+   * 静かに終わるのと契約を揃える（存在の検査はユースケース側の責務で、`findById` で行う。
+   * 画面定義書00_共通 §4.1）。揃えないと、存在しない id を渡したテストが偽物の側では
+   * `rows[-1]` に書いて静かに通り、**本物なら失敗する経路がテストでは緑になる**
+   */
+  const patch = (id: TaskId, changes: Partial<Task>) => {
+    const i = indexOf(id);
+    if (i !== -1) rows[i] = { ...rows[i], ...changes };
+  };
+
   /** section_id・sort_order のまとめ更新（自動セクション移動 F-113・打刻の取り消しの並べ直し） */
   const applyRelocations = (relocations: Relocations) => {
     for (const row of relocations) {
-      const i = indexOf(row.taskId);
-      rows[i] = { ...rows[i], sectionId: row.sectionId, sortOrder: row.sortOrder };
+      patch(row.taskId, { sectionId: row.sectionId, sortOrder: row.sortOrder });
     }
   };
 
   /** sort_order のまとめ更新（中間値が尽きたときの振り直し。データモデル定義書 §3.5） */
   const applyRenumber = (renumber: Renumber) => {
-    for (const row of renumber) {
-      const i = indexOf(row.taskId);
-      rows[i] = { ...rows[i], sortOrder: row.sortOrder };
-    }
+    for (const row of renumber) patch(row.taskId, { sortOrder: row.sortOrder });
   };
 
   return {
@@ -74,27 +81,18 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
       return created;
     },
 
-    rename: async (id: TaskId, name: string) => {
-      const i = indexOf(id);
-      rows[i] = { ...rows[i], name };
-    },
+    rename: async (id: TaskId, name: string) => patch(id, { name }),
 
-    updateEstimate: async (id: TaskId, estimateMinutes: number) => {
-      const i = indexOf(id);
-      rows[i] = { ...rows[i], estimateMinutes };
-    },
+    updateEstimate: async (id: TaskId, estimateMinutes: number) =>
+      patch(id, { estimateMinutes }),
 
-    updateComment: async (id: TaskId, comment: string | null) => {
-      const i = indexOf(id);
-      rows[i] = { ...rows[i], comment };
-    },
+    updateComment: async (id: TaskId, comment: string | null) => patch(id, { comment }),
 
     start: async (command: StartCommand) => {
       const { taskId, startedAt, interruption } = command;
       if (interruption !== null) {
         applyRenumber(interruption.renumber);
-        const running = indexOf(interruption.runningTaskId);
-        rows[running] = { ...rows[running], endedAt: interruption.endedAt };
+        patch(interruption.runningTaskId, { endedAt: interruption.endedAt });
         rows.push({
           id: nextId++,
           splitParentId: null,
@@ -108,8 +106,7 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
       }
       // 自動セクション移動（F-113 §4.2-a）は打刻と同じ操作の中で反映する
       applyRelocations(command.relocations);
-      const i = indexOf(taskId);
-      rows[i] = { ...rows[i], startedAt };
+      patch(taskId, { startedAt });
     },
 
     updatePunch: async (
@@ -117,28 +114,22 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
       punch: Readonly<{ startedAt: Date; endedAt: Date | null }>,
       relocations: Relocations
     ) => {
-      const i = indexOf(id);
-      rows[i] = { ...rows[i], ...punch };
+      patch(id, punch);
       // 開始時刻の修正に伴うセクション移動（§4.2-c）・完了の取り消しの復帰（§4.7）
       applyRelocations(relocations);
     },
 
-    finish: async (id: TaskId, endedAt: Date) => {
-      const i = indexOf(id);
-      rows[i] = { ...rows[i], endedAt };
-    },
+    finish: async (id: TaskId, endedAt: Date) => patch(id, { endedAt }),
 
     // 開始打刻の取り消し（F-210）。started_at を null に戻し、並べ直しがあれば反映する
     undoStart: async (id: TaskId, relocations: Relocations) => {
-      const i = indexOf(id);
-      rows[i] = { ...rows[i], startedAt: null };
+      patch(id, { startedAt: null });
       applyRelocations(relocations);
     },
 
     // 完了の取り消し（F-212）。started_at・ended_at をともに null に戻す
     undoComplete: async (id: TaskId, relocations: Relocations) => {
-      const i = indexOf(id);
-      rows[i] = { ...rows[i], startedAt: null, endedAt: null };
+      patch(id, { startedAt: null, endedAt: null });
       applyRelocations(relocations);
     },
 
@@ -146,8 +137,7 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
     duplicateAndStart: async (command: DuplicateAndStartCommand) => {
       const { newTask, startedAt, interruption } = command;
       if (interruption !== null) {
-        const running = indexOf(interruption.runningTaskId);
-        rows[running] = { ...rows[running], endedAt: interruption.endedAt };
+        patch(interruption.runningTaskId, { endedAt: interruption.endedAt });
         rows.push({
           id: nextId++,
           splitParentId: null,
@@ -175,8 +165,7 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
 
     suspend: async (command: SuspendCommand) => {
       applyRenumber(command.renumber);
-      const i = indexOf(command.taskId);
-      rows[i] = { ...rows[i], endedAt: command.endedAt };
+      patch(command.taskId, { endedAt: command.endedAt });
       rows.push({
         id: nextId++,
         splitParentId: null,
@@ -190,7 +179,9 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
     },
 
     delete: async (id: TaskId, skip: RoutineSkip | null) => {
-      rows.splice(indexOf(id), 1);
+      // 対象が無ければ何も消さない（`splice(-1, 1)` は末尾の行を消してしまう）
+      const i = indexOf(id);
+      if (i !== -1) rows.splice(i, 1);
       if (skip !== null && !skips.some((s) => sameSkip(s, skip))) skips.push(skip);
     },
 
@@ -205,27 +196,24 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
     },
 
     postpone: async (id: TaskId, input) => {
-      const i = indexOf(id);
-      rows[i] = {
-        ...rows[i],
+      // 加算があるので現在値が要る（他と違い patch だけでは書けない）
+      const target = rows.find((r) => r.id === id);
+      if (target === undefined) return;
+      patch(id, {
         taskDate: input.taskDate,
         sortOrder: input.sortOrder,
-        postponedCount: rows[i].postponedCount + 1,
-      };
+        postponedCount: target.postponedCount + 1,
+      });
     },
 
     updateClassification: async (
       id: TaskId,
       classification: Readonly<{ modeId?: number | null; projectId?: number | null }>
-    ) => {
-      const i = indexOf(id);
-      rows[i] = { ...rows[i], ...classification };
-    },
+    ) => patch(id, classification),
 
     move: async (command: MoveCommand) => {
       applyRenumber(command.renumber);
-      const i = indexOf(command.taskId);
-      rows[i] = { ...rows[i], sectionId: command.sectionId, sortOrder: command.sortOrder };
+      patch(command.taskId, { sectionId: command.sectionId, sortOrder: command.sortOrder });
     },
 
     relocate: async (relocations: Relocations) => {

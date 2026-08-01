@@ -616,14 +616,14 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
     it("アーカイブの失敗（別タブで対象が消えた等）はメッセージで知らせる", async () => {
       vi.mocked(setModeArchivedAction).mockResolvedValue({
         ok: false,
-        message: "対象が見つかりません（画面を再読み込みしてください）",
+        message: "対象が見つかりません（すでに削除されている可能性があります）",
       });
       renderTable();
 
       fireEvent.click(within(rowOf("モードA")).getByRole("button", { name: "アーカイブ" }));
 
       await waitFor(() => {
-        expect(screen.getByText("対象が見つかりません（画面を再読み込みしてください）")).not.toBeNull();
+        expect(screen.getByText("対象が見つかりません（すでに削除されている可能性があります）")).not.toBeNull();
       });
     });
 

@@ -322,3 +322,57 @@ describe("listDailyList のマスタ一覧（F-401 / F-402 / 画面定義書01 �
     expect(view.modes.map((m) => m.name)).toEqual(["あんず", "いちご"]);
   });
 });
+
+// 他の画面・端末で削除されたタスクを編集した場合。5つの内訳は画面定義書01 §8 の行が定める
+describe("存在しないタスクの編集（00_共通 §4.1 / 画面定義書01 §8: 1行も当たらない更新を成功として返さない）", () => {
+  /** 唯一の行（id: 1）とは別の id。削除済みのタスクを触った状況を表す */
+  const MISSING = 2;
+  const notFound = { ok: false, error: "task_not_found" };
+
+  it("renameTask は失敗を返し、残っている行を書き換えない", async () => {
+    const survivor = task({ id: 1, name: "残る" });
+    const repo = inMemoryRepo([survivor]);
+    expect(await renameTask(repo, MISSING, "新名")).toEqual(notFound);
+    expect(repo.rows).toEqual([survivor]);
+  });
+
+  it("updateTaskEstimate は失敗を返し、残っている行を書き換えない", async () => {
+    const survivor = task({ id: 1, estimateMinutes: 30 });
+    const repo = inMemoryRepo([survivor]);
+    expect(await updateTaskEstimate(repo, MISSING, "45")).toEqual(notFound);
+    expect(repo.rows).toEqual([survivor]);
+  });
+
+  it("updateTaskComment は失敗を返し、残っている行を書き換えない", async () => {
+    const survivor = task({ id: 1, comment: "元のまま" });
+    const repo = inMemoryRepo([survivor]);
+    expect(await updateTaskComment(repo, MISSING, "書き換え")).toEqual(notFound);
+    expect(repo.rows).toEqual([survivor]);
+  });
+
+  it("setTaskMode は失敗を返し、残っている行を書き換えない", async () => {
+    const survivor = task({ id: 1, modeId: 3 });
+    const repo = inMemoryRepo([survivor]);
+    expect(await setTaskMode(repo, MISSING, 7)).toEqual(notFound);
+    expect(repo.rows).toEqual([survivor]);
+  });
+
+  it("setTaskProject は失敗を返し、残っている行を書き換えない", async () => {
+    const survivor = task({ id: 1, projectId: 3 });
+    const repo = inMemoryRepo([survivor]);
+    expect(await setTaskProject(repo, MISSING, 8)).toEqual(notFound);
+    expect(repo.rows).toEqual([survivor]);
+  });
+
+  // 入力検証を持つのは名前と見積もりだけ（コメント・モード・プロジェクトは検証がないので対象外）
+  it("入力が無効なら検証エラーを優先して返す", async () => {
+    const survivor = task({ id: 1 });
+    const repo = inMemoryRepo([survivor]);
+    expect(await renameTask(repo, MISSING, "  ")).toEqual({ ok: false, error: "name_required" });
+    expect(await updateTaskEstimate(repo, MISSING, "-1")).toEqual({
+      ok: false,
+      error: "invalid_estimate",
+    });
+    expect(repo.rows).toEqual([survivor]);
+  });
+});

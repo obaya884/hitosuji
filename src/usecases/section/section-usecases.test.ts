@@ -168,6 +168,8 @@ describe("setDayStartSection（F-116: 日界セクションの切り替え）", 
     expect(repo.rows.filter((s) => s.isDayStart)).toHaveLength(1);
   });
 
+  // 対象は**存在する**ので 00_共通 §4.1（1行も当たらない更新＝不在）の対象外。
+  // アーカイブ済み一覧に日界のラジオを置かない（画面定義書03 §3.1）ため UI からは到達しない
   it("アーカイブ済みセクションは日界にしない（何も変えない）", async () => {
     const archived: Section = { id: 3, name: "旧", startTime: "12:00", isArchived: true };
     const dayStart: Section = { ...morning, isDayStart: true };
@@ -178,11 +180,11 @@ describe("setDayStartSection（F-116: 日界セクションの切り替え）", 
     expect(repo.rows.find((s) => s.id === morning.id)?.isDayStart).toBe(true);
   });
 
-  it("存在しない id は no-op で ok を返す（日界は変わらない）", async () => {
+  it("存在しない id は失敗を返す（日界は変わらない）", async () => {
     const dayStart: Section = { ...morning, isDayStart: true };
     const repo = inMemoryRepo([dayStart, forenoon]);
 
-    expect((await setDayStartSection(repo, 999)).ok).toBe(true);
+    expect(await setDayStartSection(repo, 999)).toEqual({ ok: false, error: "not_found" });
     expect(repo.rows.find((s) => s.id === morning.id)?.isDayStart).toBe(true);
     expect(repo.rows.filter((s) => s.isDayStart)).toHaveLength(1);
   });
@@ -204,5 +206,52 @@ describe("restoreSection", () => {
       error: "duplicate_start_time",
     });
     expect(repo.rows[1].isArchived).toBe(true);
+  });
+});
+
+// 他の画面・端末で削除されたセクションを触った場合（モード・プロジェクトと同じ規則）
+describe("存在しないセクションへの更新（00_共通 §4.1: 1行も当たらない更新を成功として返さない）", () => {
+  /** morning・forenoon（id: 1・2）とは別の id。削除済みのセクションを触った状況を表す */
+  const MISSING = 3;
+  const notFound = { ok: false, error: "not_found" };
+
+  it("updateSection は失敗を返し、残っている行を書き換えない", async () => {
+    const repo = inMemoryRepo([morning, forenoon]);
+    expect(await updateSection(repo, MISSING, { name: "夕方", startTime: "17:00" })).toEqual(
+      notFound
+    );
+    expect(repo.rows).toEqual([morning, forenoon]);
+  });
+
+  it("archiveSection は失敗を返し、残っている行を書き換えない", async () => {
+    const repo = inMemoryRepo([morning, forenoon]);
+    expect(await archiveSection(repo, MISSING)).toEqual(notFound);
+    expect(repo.rows).toEqual([morning, forenoon]);
+  });
+
+  it("restoreSection は失敗を返し、残っている行を書き換えない", async () => {
+    const repo = inMemoryRepo([morning, forenoon]);
+    expect(await restoreSection(repo, MISSING)).toEqual(notFound);
+    expect(repo.rows).toEqual([morning, forenoon]);
+  });
+
+  it("setDayStartSection は失敗を返し、残っている行を書き換えない", async () => {
+    const repo = inMemoryRepo([morning, forenoon]);
+    expect(await setDayStartSection(repo, MISSING)).toEqual(notFound);
+    expect(repo.rows).toEqual([morning, forenoon]);
+  });
+
+  it("deleteSection は失敗を返し、残っている行を消さない", async () => {
+    const repo = inMemoryRepo([morning, forenoon]);
+    expect(await deleteSection(repo, MISSING)).toEqual(notFound);
+    expect(repo.rows).toEqual([morning, forenoon]);
+  });
+
+  it("入力が無効なら検証エラーを優先して返す", async () => {
+    const repo = inMemoryRepo([morning, forenoon]);
+    expect(await updateSection(repo, MISSING, { name: "", startTime: "17:00" })).toEqual({
+      ok: false,
+      error: "name_required",
+    });
   });
 });

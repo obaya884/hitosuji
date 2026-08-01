@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import type { TaskEditError } from "@/domain/task/edit";
 import type { PunchEditError } from "@/domain/task/punch-edit";
 import type {
   CreateRoutineFromTaskError,
   RoutineUsecaseError,
 } from "@/usecases/routine/routine-usecases";
+import type { TaskEditUsecaseError } from "@/usecases/task/daily-list-usecases";
 import type { TaskOperationError } from "@/usecases/task/operations";
 import type { PunchUsecaseError } from "@/usecases/task/punch-usecases";
 import type { ReorderUsecaseError } from "@/usecases/task/reorder-usecases";
@@ -19,12 +19,14 @@ import {
   REORDER_MESSAGES,
   ROUTINE_MESSAGES,
   routineFromTaskErrorMessage,
+  SAVE_FAILED,
   TASK_EDIT_MESSAGES,
 } from "./error-messages";
 
-const EXPECTED_TASK_EDIT: Record<TaskEditError, string> = {
+const EXPECTED_TASK_EDIT: Record<TaskEditUsecaseError, string> = {
   name_required: "タスク名を入力してください",
   invalid_estimate: "見積もりは分（0以上の整数）で入力してください",
+  task_not_found: "タスクが見つかりませんでした",
 };
 
 const EXPECTED_PUNCH: Record<PunchUsecaseError, string> = {
@@ -118,7 +120,7 @@ const EXPECTED_MASTER: Record<MasterError, string> = {
   day_start_section:
     "日界セクションはアーカイブできません（先に別のセクションを日界に指定してください）",
   invalid_color: "色はプリセットから選択してください",
-  not_found: "対象が見つかりません（画面を再読み込みしてください）",
+  not_found: "対象が見つかりません（すでに削除されている可能性があります）",
   not_archived: "削除できるのはアーカイブ済みのものだけです",
   has_references: "参照しているデータがあるため削除できません",
 };
@@ -193,9 +195,15 @@ describe("同じコードは経路が違っても同じ文言を出す（FB-72: 
     }
   });
 
-  it("task_not_found は打刻・並び替え・ルーチン化で同じ", () => {
+  it("task_not_found は打刻・並び替え・編集・ルーチン化で同じ", () => {
     expect(REORDER_MESSAGES.task_not_found).toBe(PUNCH_MESSAGES.task_not_found);
+    expect(TASK_EDIT_MESSAGES.task_not_found).toBe(PUNCH_MESSAGES.task_not_found);
     expect(routineFromTaskErrorMessage("task_not_found")).toBe(PUNCH_MESSAGES.task_not_found);
+  });
+
+  // エラーコードを持たない唯一の文言（00_共通 §4.1）。`callAction` が拒否に対して付ける
+  it("結果が届かなかったときの文言は「保存に失敗しました」", () => {
+    expect(SAVE_FAILED).toBe("保存に失敗しました");
   });
 
   /**

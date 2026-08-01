@@ -18,21 +18,21 @@ function inMemoryRepo(
       rows.push(created);
       return created;
     },
+    // 対象が無ければ何もしない（本物の `WHERE id = ?` が0行で終わるのと同じ契約）。
+    // 揃えないと `rows[-1]` への書き込み・`splice(-1, 1)` による末尾行の巻き添えが静かに起こる
     update: async (id: ModeId, input: ModeInput) => {
       const i = rows.findIndex((r) => r.id === id);
-      rows[i] = { ...rows[i], ...input };
+      if (i !== -1) rows[i] = { ...rows[i], ...input };
     },
     setArchived: async (id: ModeId, isArchived: boolean) => {
       const i = rows.findIndex((r) => r.id === id);
-      rows[i] = { ...rows[i], isArchived };
+      if (i !== -1) rows[i] = { ...rows[i], isArchived };
     },
     referenceCounts: async (ids: readonly ModeId[]) =>
       Object.fromEntries(ids.filter((id) => id in counts).map((id) => [id, counts[id]])),
     remove: async (id: ModeId) => {
-      rows.splice(
-        rows.findIndex((r) => r.id === id),
-        1
-      );
+      const i = rows.findIndex((r) => r.id === id);
+      if (i !== -1) rows.splice(i, 1);
     },
   };
 }
@@ -80,6 +80,14 @@ describe("createMode / updateMode", () => {
     expect(repo.rows).toHaveLength(0);
   });
 
+  it("名前と色を更新する", async () => {
+    const green = MODE_COLOR_PRESETS[4].value;
+    const repo = inMemoryRepo([{ id: 1, name: "仕事", color: blue, isArchived: false }]);
+
+    expect((await updateMode(repo, 1, { name: "しごと", color: green })).ok).toBe(true);
+    expect(repo.rows).toEqual([{ id: 1, name: "しごと", color: green, isArchived: false }]);
+  });
+
   it("名前が空なら更新しない", async () => {
     const repo = inMemoryRepo([{ id: 1, name: "仕事", color: blue, isArchived: false }]);
     expect(await updateMode(repo, 1, { name: "", color: blue })).toEqual({
@@ -119,5 +127,34 @@ describe("deleteMode（画面定義書03 §4.1: 物理削除）", () => {
     const repo = inMemoryRepo([{ id: 1, name: "仕事", color: blue, isArchived: false }]);
     expect(await deleteMode(repo, 1)).toEqual({ ok: false, error: "not_archived" });
     expect(repo.rows).toHaveLength(1);
+  });
+});
+
+// 他の画面・端末で削除されたモードを触った場合（プロジェクト・セクションと同じ規則）
+describe("存在しないモードへの更新（00_共通 §4.1: 1行も当たらない更新を成功として返さない）", () => {
+  /** 唯一の行（id: 1）とは別の id。削除済みのモードを触った状況を表す */
+  const MISSING = 2;
+  const notFound = { ok: false, error: "not_found" };
+
+  it("updateMode は失敗を返し、残っている行を書き換えない", async () => {
+    const survivor: Mode = { id: 1, name: "仕事", color: blue, isArchived: false };
+    const repo = inMemoryRepo([survivor]);
+    expect(await updateMode(repo, MISSING, { name: "新名", color: blue })).toEqual(notFound);
+    expect(repo.rows).toEqual([survivor]);
+  });
+
+  it("setModeArchived は失敗を返し、残っている行を書き換えない", async () => {
+    const survivor: Mode = { id: 1, name: "仕事", color: blue, isArchived: false };
+    const repo = inMemoryRepo([survivor]);
+    expect(await setModeArchived(repo, MISSING, true)).toEqual(notFound);
+    expect(repo.rows).toEqual([survivor]);
+  });
+
+  it("入力が無効なら検証エラーを優先して返す", async () => {
+    const repo = inMemoryRepo([{ id: 1, name: "仕事", color: blue, isArchived: false }]);
+    expect(await updateMode(repo, MISSING, { name: "", color: blue })).toEqual({
+      ok: false,
+      error: "name_required",
+    });
   });
 });
