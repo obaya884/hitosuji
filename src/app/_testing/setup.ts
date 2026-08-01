@@ -3,7 +3,7 @@ import { afterEach, vi } from "vitest";
 
 import { pathname, router, UNSET_PATHNAME } from "./next-navigation";
 
-// `next/navigation` は段の前提として差し替える（§8。理由と使い方は ./next-navigation.ts）
+// `next/navigation` は段の前提として差し替える（テスト戦略定義書 §2。理由と使い方は ./next-navigation.ts）
 vi.mock("next/navigation", () => ({
   useRouter: () => router,
   usePathname: () => pathname.value,

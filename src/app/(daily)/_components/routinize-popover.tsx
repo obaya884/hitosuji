@@ -52,7 +52,7 @@ function defaultStartTime(task: Task, sections: readonly Section[], now: Date): 
  * ここで聞くのは繰り返し種別と開始想定時刻だけにする（N-05）
  */
 export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Props) {
-  // 画面下部の行では上向きに開く（§7「ポップオーバーの表示位置」）
+  // 画面下部の行では上向きに開く（00_共通 §2.1「表示位置」）
   const { ref, positionClass } = useFlipUp<HTMLDivElement>();
   const [choice, setChoice] = useState<RoutineFromTaskChoice>(() =>
     defaultChoiceFromTask(task, defaultStartTime(task, sections, now))

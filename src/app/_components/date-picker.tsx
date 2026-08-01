@@ -35,7 +35,7 @@ type Props = Readonly<{
  * カーソル（focused）を単一の真実とし、表示月はその日が属する月に追従する。
  */
 export function DatePicker({ date, today, onSelect, onClose }: Props) {
-  // 画面下部の行では上向きに開く（§7 / FB-21。選択ポップオーバーと同じ）
+  // 画面下部の行では上向きに開く（00_共通 §2.1「表示位置」/ FB-21。選択ポップオーバーと同じ）
   const { ref, positionClass } = useFlipUp<HTMLDivElement>();
   // キーボードカーソル。開いたときは表示日に置く（§3.1）
   const [focused, setFocused] = useState<LogicalDate>(date);
