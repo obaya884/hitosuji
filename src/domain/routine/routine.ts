@@ -51,6 +51,9 @@ export const WEEKDAY_BITS = [
   { bit: 6, label: "日" },
 ] as const;
 
+/** 全曜日（月〜日）のビットマスク。WEEKDAY_BITS の7ビットがすべて立った状態 */
+export const ALL_WEEKDAYS = 0b1111111;
+
 /** 日曜=0 の曜日インデックスを、月曜=0 のビット位置へ変換する */
 export function weekdayBitOf(weekdayIndex: number): number {
   return (weekdayIndex + 6) % 7;

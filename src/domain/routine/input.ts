@@ -3,7 +3,7 @@ import { isValidLogicalDate, type LogicalDate } from "../shared/logical-date";
 import { validateName } from "../shared/master-name";
 import { err, ok, type Result } from "../shared/result";
 import { isValidStartTime, normalizeStartTime } from "../section/section";
-import type { RecurrenceType, RoutineError } from "./routine";
+import { ALL_WEEKDAYS, type RecurrenceType, type RoutineError } from "./routine";
 
 /** フォームからの入力（未検証の生値） */
 export type RoutineInput = Readonly<{
@@ -39,7 +39,8 @@ export type ValidRoutineInput = Readonly<{
 
 /**
  * 繰り返し種別ごとに必要な項目を検証する（画面定義書02 §4）。
- * 種別に関係しない項目は null に落として保存する（週次を月次に変えた際の残骸を防ぐ）
+ * 種別に関係しない項目は null に落として保存する（週次を月次に変えた際の残骸を防ぐ）。
+ * 週次で全曜日かつ週間隔1の入力は「毎日」へ正規化する（データモデル定義書 §3.4）
  */
 export function validateRoutineInput(
   input: RoutineInput
@@ -71,24 +72,34 @@ export function validateRoutineInput(
     scheduledStartTime,
     modeId: input.modeId,
     projectId: input.projectId,
-    recurrenceType: input.recurrenceType,
     ...recurrence.value,
     startDate: input.startDate,
     endDate,
   });
 }
 
+/** 保存する繰り返しの値。正規化で種別自体が変わりうるため recurrenceType も含む */
 type RecurrenceFields = Readonly<{
+  recurrenceType: RecurrenceType;
   weekdays: number | null;
   weekInterval: number | null;
   monthDay: number | null;
   intervalDays: number | null;
 }>;
 
+/** 毎日の保存値（週次・月次・n日ごとの項目はすべて null。データモデル定義書 §3.4） */
+const DAILY_RECURRENCE: RecurrenceFields = {
+  recurrenceType: "daily",
+  weekdays: null,
+  weekInterval: null,
+  monthDay: null,
+  intervalDays: null,
+};
+
 function validateRecurrence(input: RoutineInput): Result<RecurrenceFields, RoutineError> {
   switch (input.recurrenceType) {
     case "daily":
-      return ok({ weekdays: null, weekInterval: null, monthDay: null, intervalDays: null });
+      return ok(DAILY_RECURRENCE);
 
     case "weekly": {
       // 曜日は1つ以上必須（画面定義書02 §4）
@@ -102,7 +113,14 @@ function validateRecurrence(input: RoutineInput): Result<RecurrenceFields, Routi
       ) {
         return err("invalid_week_interval");
       }
+      // 全曜日かつ毎週は「毎日」と同義なので daily へ寄せる（データモデル定義書 §3.4）。
+      // 週間隔2以上は「n週おきに、その週だけ7日連続」で daily では表せないため寄せない
+      // （週間隔はここまでで 1〜53 の整数に絞られており、NULL はこの分岐に来ない）
+      if (input.weekdays === ALL_WEEKDAYS && input.weekInterval === 1) {
+        return ok(DAILY_RECURRENCE);
+      }
       return ok({
+        recurrenceType: "weekly",
         weekdays: input.weekdays,
         weekInterval: input.weekInterval,
         monthDay: null,
@@ -120,6 +138,7 @@ function validateRecurrence(input: RoutineInput): Result<RecurrenceFields, Routi
         return err("invalid_month_day");
       }
       return ok({
+        recurrenceType: "monthly",
         weekdays: null,
         weekInterval: null,
         monthDay: input.monthDay,
@@ -135,6 +154,7 @@ function validateRecurrence(input: RoutineInput): Result<RecurrenceFields, Routi
         return err("invalid_interval_days");
       }
       return ok({
+        recurrenceType: "interval",
         weekdays: null,
         weekInterval: null,
         monthDay: null,
