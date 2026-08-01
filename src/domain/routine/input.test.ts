@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { validateRoutineInput, type RoutineInput } from "./input";
+import { ALL_WEEKDAYS } from "./routine";
 
 function input(over: Partial<RoutineInput> = {}): RoutineInput {
   return {
@@ -148,5 +149,49 @@ describe("validateRoutineInput — 繰り返し種別ごとの必須項目（§4
     expect(
       r.ok && [r.value.weekdays, r.value.weekInterval, r.value.monthDay, r.value.intervalDays]
     ).toEqual([0b0000001, 2, null, null]);
+  });
+});
+
+describe("validateRoutineInput — 週次の正規化（データモデル定義書 §3.4）", () => {
+  // 月次・間隔の値も混ぜて渡し、正規化後にそれらが落ちることまで見る
+  const weekly = (weekdays: number, weekInterval: number | null) =>
+    validateRoutineInput(
+      input({ recurrenceType: "weekly", weekdays, weekInterval, monthDay: 25, intervalDays: 3 })
+    );
+
+  const savedRecurrence = (r: ReturnType<typeof validateRoutineInput>) =>
+    r.ok && [
+      r.value.recurrenceType,
+      r.value.weekdays,
+      r.value.weekInterval,
+      r.value.monthDay,
+      r.value.intervalDays,
+    ];
+
+  it("全曜日かつ週間隔1は「毎日」として保存し、種別に関係しない項目をすべて null に落とす", () => {
+    expect(savedRecurrence(weekly(ALL_WEEKDAYS, 1))).toEqual(["daily", null, null, null, null]);
+  });
+
+  it("全曜日でも週間隔2以上は正規化しない（n週おきの7日連続は毎日で表せない）", () => {
+    expect(savedRecurrence(weekly(ALL_WEEKDAYS, 2))).toEqual([
+      "weekly",
+      ALL_WEEKDAYS,
+      2,
+      null,
+      null,
+    ]);
+  });
+
+  it("週間隔が未入力なら全曜日でも正規化に届かず、週間隔のエラーになる", () => {
+    expect(weekly(ALL_WEEKDAYS, null)).toEqual({ ok: false, error: "invalid_week_interval" });
+  });
+
+  it("6曜日は正規化しない（日曜だけ外す／月曜だけ外す）", () => {
+    expect(savedRecurrence(weekly(0b0111111, 1))).toEqual(["weekly", 0b0111111, 1, null, null]);
+    expect(savedRecurrence(weekly(0b1111110, 1))).toEqual(["weekly", 0b1111110, 1, null, null]);
+  });
+
+  it("7ビットの外に立ったビットを含む値は正規化しない（全曜日ちょうどのみが対象）", () => {
+    expect(savedRecurrence(weekly(0b11111111, 1))).toEqual(["weekly", 0b11111111, 1, null, null]);
   });
 });

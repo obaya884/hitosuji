@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
 import type { RoutineInput } from "@/domain/routine/input";
+import { ALL_WEEKDAYS } from "@/domain/routine/routine";
 import { routine } from "@/domain/routine/testing/routine";
 import { task } from "@/domain/task/testing/task";
 import { inMemoryTaskRepository } from "@/usecases/task/testing/in-memory-repository";
@@ -108,6 +109,25 @@ describe("createRoutineFromTask（F-305 / 画面定義書01 §4.1）", () => {
     expect(result).toEqual({ ok: false, error: "weekdays_required" });
     expect(routines.rows).toHaveLength(0);
   });
+
+  it("週次で全曜日かつ週間隔1を選ぶと「毎日」として保存する（データモデル定義書 §3.4）", async () => {
+    const tasks = inMemoryTaskRepository([task({ id: 1, estimateMinutes: 30 })]);
+    const routines = inMemoryRoutineRepository();
+
+    const result = await createRoutineFromTask({ routines, tasks }, 1, {
+      ...choice,
+      recurrenceType: "weekly",
+      weekdays: ALL_WEEKDAYS,
+      weekInterval: 1,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(routines.rows[0]).toMatchObject({
+      recurrenceType: "daily",
+      weekdays: null,
+      weekInterval: null,
+    });
+  });
 });
 
 describe("listRoutines（画面定義書02 §3: 開始想定時刻の昇順・同時刻は名前の自然順）", () => {
@@ -156,6 +176,25 @@ describe("updateRoutine（画面定義書02 O-2: 編集は未展開の日から�
 
     expect(result).toEqual({ ok: false, error: "weekdays_required" });
     expect(routines.rows[0].name).toBe("朝食"); // 更新されていない
+  });
+
+  it("週次の全曜日かつ週間隔1へ更新すると「毎日」として保存する（データモデル定義書 §3.4）", async () => {
+    const routines = inMemoryRoutineRepository([
+      routine({ id: 1, recurrenceType: "weekly", weekdays: 0b0010101, weekInterval: 1 }),
+    ]);
+
+    const result = await updateRoutine(
+      routines,
+      1,
+      input({ recurrenceType: "weekly", weekdays: ALL_WEEKDAYS, weekInterval: 1 })
+    );
+
+    expect(result).toEqual({ ok: true, value: 1 });
+    expect(routines.rows[0]).toMatchObject({
+      recurrenceType: "daily",
+      weekdays: null,
+      weekInterval: null,
+    });
   });
 });
 

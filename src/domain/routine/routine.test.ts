@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  ALL_WEEKDAYS,
   describeRecurrence,
   hasWeekday,
   toggleWeekday,
@@ -69,6 +70,16 @@ describe("describeRecurrence（画面定義書02 §3: 繰り返しルールの�
     expect(describeRecurrence(withSaturday)).toBe("週次(月・火・水・木・金・土)");
   });
 
+  it("週間隔2以上の全曜日は列挙する（正規化の対象外。画面定義書02 §3）", () => {
+    const biweekly = routine({
+      id: 1,
+      recurrenceType: "weekly",
+      weekdays: ALL_WEEKDAYS,
+      weekInterval: 2,
+    });
+    expect(describeRecurrence(biweekly)).toBe("隔週(月・火・水・木・金・土・日)");
+  });
+
   it("プリセット適用後に個別の曜日を足すと要約は列挙へ戻る（画面定義書02 §4: 押したあとの微調整）", () => {
     const adjusted = toggleWeekday(0b0011111, 5); // 平日に土を足す
     const r = routine({ id: 1, recurrenceType: "weekly", weekdays: adjusted });
@@ -124,8 +135,7 @@ describe("hasWeekday（データモデル定義書 §4.1: weekly 展開の曜日
   });
 
   it("全曜日マスクは index 0〜6 すべてで true（全曜日の該当を担保）", () => {
-    const all = 0b1111111;
-    expect([0, 1, 2, 3, 4, 5, 6].map((i) => hasWeekday(all, i))).toEqual([
+    expect([0, 1, 2, 3, 4, 5, 6].map((i) => hasWeekday(ALL_WEEKDAYS, i))).toEqual([
       true, // 日
       true, // 月
       true, // 火
@@ -205,7 +215,7 @@ describe("weekdayPresetLabel（画面定義書02 §3: プリセットとちょ�
     expect(weekdayPresetLabel(0b1100001)).toBeNull(); // 土日＋月
     expect(weekdayPresetLabel(0b0001111)).toBeNull(); // 月〜木（平日の一部）
     expect(weekdayPresetLabel(0b0100000)).toBeNull(); // 土のみ
-    expect(weekdayPresetLabel(0b1111111)).toBeNull(); // 全曜日
+    expect(weekdayPresetLabel(ALL_WEEKDAYS)).toBeNull(); // 全曜日
     expect(weekdayPresetLabel(0)).toBeNull(); // 未選択
   });
 });
