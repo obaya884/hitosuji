@@ -462,11 +462,11 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       expect(fireEvent.mouseDown(screen.getByRole("button", { name: "保存" }))).toBe(false);
     });
 
+    // 応答を自分で解くのは、抑止が解けたことを見るため——即解決のモックだと抑止が掛かった
+    // 瞬間を観測できず、「解けた」と「そもそも抑止されなかった」を区別できない
     it("追加の失敗はメッセージで知らせ、新規行を残す（00_共通 §2.3「失敗時」）", async () => {
-      vi.mocked(createModeAction).mockResolvedValue({
-        ok: false,
-        message: "色はプリセットから選択してください",
-      });
+      const pending = deferredAction();
+      vi.mocked(createModeAction).mockReturnValue(pending.promise);
       renderTable();
       fireEvent.click(screen.getByRole("button", { name: "新規追加" }));
       fireEvent.change(screen.getByPlaceholderText("モード名"), { target: { value: "新モード" } });
@@ -474,8 +474,16 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       fireEvent.click(screen.getByRole("button", { name: "保存" }));
 
       await waitFor(() => {
-        expect(screen.getByText("色はプリセットから選択してください")).not.toBeNull();
+        expect(screen.getByRole("button", { name: "保存" })).toHaveProperty("disabled", true);
       });
+
+      // act の中で解けばキューを流し切るので、以降は同期に見てよい（生の click のまま
+      // 待たずに読むと、メッセージだけ先に届いた瞬間を拾って落ちることがある）
+      await act(async () => {
+        pending.resolve({ ok: false, message: "色はプリセットから選択してください" });
+      });
+
+      expect(screen.getByText("色はプリセットから選択してください")).not.toBeNull();
       expect(screen.getByPlaceholderText("モード名")).not.toBeNull();
       // 抑止が解けたままにならない＝入力し直して保存できる（§2.3「失敗時」）
       expect(screen.getByRole("button", { name: "保存" })).toHaveProperty("disabled", false);

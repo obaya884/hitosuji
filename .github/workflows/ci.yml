@@ -49,6 +49,10 @@ jobs:
     env:
       # 統合テストの接続先。マイグレーションは vitest の globalSetup が自動適用する。
       TEST_DATABASE_URL: postgresql://hitosuji:hitosuji@localhost:5433/hitosuji_test
+      # ジョブ全体の基準は本番の Node 実行環境（Vercel）と同じ UTC（T-62）。ubuntu ランナーの
+      # 既定も UTC だが、既定に頼ると将来変わったときに黙って条件が動く。JST 側は下の
+      # 2本目のテスト実行が受け持つ
+      TZ: UTC
 
     steps:
       - uses: actions/checkout@v7
@@ -71,6 +75,12 @@ jobs:
       # npm test と同じテストを走らせつつカバレッジも採る（T-38）。
       # --no-file-parallelism による直列化で数秒増えるだけなので、CI では常に計測側を回す
       - run: npm run test:coverage
+      # 本番はブラウザ側が JST で走るので、そちらの実行タイムゾーンでも通す（テスト戦略定義書
+      # §9 / T-62）。実行範囲は上と同じ全段——TZ だけを変えた2本目で、段では分けない
+      - name: 実行タイムゾーンが JST でもテストを回す
+        env:
+          TZ: Asia/Tokyo
+        run: npm test
 
       # 以降はカバレッジの可視化（FB-49 / T-38）。テストが落ちた場合はここへ来ない
       - name: カバレッジ表を生成する
