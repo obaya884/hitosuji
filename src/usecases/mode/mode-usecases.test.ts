@@ -96,6 +96,22 @@ describe("createMode / updateMode", () => {
     });
     expect(repo.rows[0].name).toBe("仕事");
   });
+
+  // 検証は作成と更新で同じ1本（`validateModeInput`）を通る
+  it("更新経路でも名前を trim する", async () => {
+    const repo = inMemoryRepo([{ id: 1, name: "仕事", color: blue, isArchived: false }]);
+    expect((await updateMode(repo, 1, { name: " しごと ", color: blue })).ok).toBe(true);
+    expect(repo.rows[0].name).toBe("しごと");
+  });
+
+  it("更新経路でもプリセット外の色は弾き、行を書き換えない", async () => {
+    const repo = inMemoryRepo([{ id: 1, name: "仕事", color: blue, isArchived: false }]);
+    expect(await updateMode(repo, 1, { name: "仕事", color: "#000000" })).toEqual({
+      ok: false,
+      error: "invalid_color",
+    });
+    expect(repo.rows[0].color).toBe(blue);
+  });
 });
 
 describe("setModeArchived", () => {

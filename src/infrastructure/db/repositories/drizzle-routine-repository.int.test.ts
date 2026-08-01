@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import type { ValidRoutineInput } from "@/domain/routine/input";
-import { routines, tasks } from "@/infrastructure/db/schema";
+import { routineSkips, routines, tasks } from "@/infrastructure/db/schema";
 import { createTestDb, truncateAll } from "@/infrastructure/db/testing/test-db";
 import { createRoutineRepository } from "./drizzle-routine-repository";
 import { createTaskRepository } from "./drizzle-task-repository";
@@ -86,6 +86,13 @@ describe("DrizzleRoutineRepository", () => {
       30,
       false,
     ]);
+  });
+
+  // ルーチンの更新・削除の存在検査（00_共通 §4.1）はこの null を「対象が無い」と読む
+  it("存在しない id は例外でなく null を返す", async () => {
+    const created = await repo.create(input());
+
+    expect(await repo.findById(created.id + 1)).toBeNull();
   });
 
   it("削除しても展開済みタスクは routine_id を NULL にして残る（画面定義書02 O-4）", async () => {
@@ -188,5 +195,32 @@ describe("expand（F-301: 冪等INSERT）", () => {
 
   it("空の展開では何もしない", async () => {
     expect(await repo.expand([])).toBe(0);
+  });
+});
+
+// 展開の抑止はこの読み出しが返す id 集合に全面的に依存する（スキップ済みを展開対象から外す）。
+// 書き側（削除でスキップを記録する経路）は task リポジトリのテストが持つ
+describe("listSkippedOn（F-301 / データモデル定義書 §3.6: スキップの読み出し）", () => {
+  it("指定日のスキップだけを routine_id の配列で返す", async () => {
+    const first = await repo.create(input({ name: "朝食" }));
+    const second = await repo.create(input({ name: "散歩" }));
+    await db.insert(routineSkips).values([
+      // 別の日の記録を先に入れて、スキップ行の id とルーチンの id をずらす
+      // （揃っていると、返す列を routine_skips.id と取り違えても値が一致してしまう）
+      { routineId: first.id, taskDate: "2026-07-20" },
+      { routineId: first.id, taskDate: "2026-07-19" },
+      { routineId: second.id, taskDate: "2026-07-19" },
+    ]);
+
+    const skipped = await repo.listSkippedOn("2026-07-19");
+    expect(skipped).toHaveLength(2);
+    expect(skipped).toEqual(expect.arrayContaining([first.id, second.id]));
+  });
+
+  it("他日のスキップだけがある日は空配列を返す", async () => {
+    const created = await repo.create(input());
+    await db.insert(routineSkips).values({ routineId: created.id, taskDate: "2026-07-20" });
+
+    expect(await repo.listSkippedOn("2026-07-19")).toEqual([]);
   });
 });
