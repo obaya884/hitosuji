@@ -24,6 +24,7 @@ import {
   renameTaskAction,
   restoreCompletionAction,
   restoreTaskAction,
+  setTaskHighlightAction,
   setTaskModeAction,
   setTaskProjectAction,
   setTaskSectionAction,
@@ -58,6 +59,7 @@ vi.mock("../actions", () => ({
   renameTaskAction: vi.fn(),
   restoreCompletionAction: vi.fn(),
   restoreTaskAction: vi.fn(),
+  setTaskHighlightAction: vi.fn(),
   setTaskModeAction: vi.fn(),
   setTaskProjectAction: vi.fn(),
   setTaskSectionAction: vi.fn(),
@@ -252,6 +254,11 @@ function selectRow(name: string) {
   fireEvent.click(row(name));
 }
 
+/** ハイライトの⭐（O-17）。ON/OFF は `aria-pressed` が持つ */
+function starOf(name: string): HTMLElement {
+  return within(row(name)).getByRole("button", { name: "ハイライト" });
+}
+
 /** グローバルショートカット（§6）。フックが window で購読しているので body へ送る */
 function press(key: string, init: KeyboardEventInit = {}) {
   fireEvent.keyDown(document.body, { key, ...init });
@@ -336,6 +343,7 @@ beforeEach(() => {
   vi.mocked(renameTaskAction).mockResolvedValue(OK);
   vi.mocked(restoreCompletionAction).mockResolvedValue(OK);
   vi.mocked(restoreTaskAction).mockResolvedValue(OK);
+  vi.mocked(setTaskHighlightAction).mockResolvedValue(OK);
   vi.mocked(setTaskModeAction).mockResolvedValue(OK);
   vi.mocked(setTaskProjectAction).mockResolvedValue(OK);
   vi.mocked(setTaskSectionAction).mockResolvedValue(OK);
@@ -493,6 +501,72 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
     expect(screen.queryByText("元データ探しに手間取った")).toBeNull();
     expect(within(row(NOT_STARTED)).queryByLabelText("コメントを編集")).toBeNull();
     expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
+  });
+
+  it("ハイライトは確定前に反映し、失敗すると元へ戻す（F-118 / O-17 / N-01）", async () => {
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(setTaskHighlightAction).mockReturnValue(gate.promise);
+    renderBoard();
+    selectRow(NOT_STARTED);
+
+    press("h");
+    expect(starOf(NOT_STARTED).getAttribute("aria-pressed")).toBe("true");
+
+    await gate.resolve({ ok: false, message: "保存に失敗しました" });
+
+    expect(starOf(NOT_STARTED).getAttribute("aria-pressed")).toBe("false");
+    expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
+  });
+
+  it("ハイライト済みの行では OFF を送る（トグルの反転。O-17）", () => {
+    renderBoard([task({ id: 11, name: NOT_STARTED, sectionId: 1, highlighted: true })]);
+    selectRow(NOT_STARTED);
+
+    press("h");
+
+    expect(vi.mocked(setTaskHighlightAction)).toHaveBeenCalledWith(11, false);
+    expect(starOf(NOT_STARTED).getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("⭐のクリックでも同じくトグルする（O-17）", () => {
+    renderBoard([task({ id: 11, name: NOT_STARTED, sectionId: 1, highlighted: false })]);
+    // 未ハイライト行の⭐は選択行にだけ出る（§3.3）ので、既定選択に頼らず自分で選ぶ
+    selectRow(NOT_STARTED);
+
+    fireEvent.click(starOf(NOT_STARTED));
+
+    expect(vi.mocked(setTaskHighlightAction)).toHaveBeenCalledWith(11, true);
+  });
+
+  // O-17: 状態も日付も問わない。終了予定（F-104）等の「今日だけ」の規律は、
+  // 現在時刻から導出する値の話であって、保存された宣言であるハイライトには及ばない（要件 §5.1）
+  it("今日以外を表示中でもハイライトを付け外しできる（表示日を問わない）", () => {
+    renderBoard([task({ id: 11, name: NOT_STARTED, sectionId: 1, taskDate: "2026-07-20" })], {
+      date: "2026-07-20",
+      today: TEST_DATE,
+      isToday: false,
+    });
+    selectRow(NOT_STARTED);
+
+    press("h");
+
+    expect(vi.mocked(setTaskHighlightAction)).toHaveBeenCalledWith(11, true);
+  });
+
+  // O-17: ハイライトは `U`（取り消し）の対象にしない——同じ操作でそのまま戻せるため、
+  // 削除・完了の取り消しと保留1スロットを奪い合わせない（O-13）
+  it("ハイライトされた実行中タスクの `U` は開始打刻の取り消しで、ハイライトには触れない", async () => {
+    renderBoard([
+      task({ id: 11, name: RUNNING, sectionId: 1, startedAt: atJst("09:00"), highlighted: true }),
+    ]);
+    selectRow(RUNNING);
+
+    await pressAndSettle("u");
+
+    // 実行中タスクを選択中の `U` は開始打刻の取り消し（O-13）
+    expect(vi.mocked(undoStartAction)).toHaveBeenCalledOnce();
+    expect(vi.mocked(setTaskHighlightAction)).not.toHaveBeenCalled();
+    expect(starOf(RUNNING).getAttribute("aria-pressed")).toBe("true");
   });
 
   it("空で確定するとコメントを消す（印も全文も消える。O-16）", async () => {

@@ -21,12 +21,20 @@ describe("duplicateDraft（F-111: 名前・見積もり満額・モード・プ�
     expect(duplicateDraft(original).estimateMinutes).toBe(30);
   });
 
-  it("routine_id・split_parent_id・コメントは引き継がない", () => {
-    const original = task({ id: 1, routineId: 9, splitParentId: 8, comment: "メモ" });
+  // ハイライト（F-118）を引き継がないのは、複製が「同じ仕事の続き」ではなく別の実施だから
+  it("routine_id・split_parent_id・コメント・ハイライトは引き継がない", () => {
+    const original = task({
+      id: 1,
+      routineId: 9,
+      splitParentId: 8,
+      comment: "メモ",
+      highlighted: true,
+    });
     const draft = duplicateDraft(original);
     expect(draft).not.toHaveProperty("routineId");
     expect(draft).not.toHaveProperty("splitParentId");
     expect(draft).not.toHaveProperty("comment");
+    expect(draft).not.toHaveProperty("highlighted");
   });
 });
 

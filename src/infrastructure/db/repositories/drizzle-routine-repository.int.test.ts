@@ -132,6 +132,8 @@ describe("expand（F-301: 冪等INSERT）", () => {
     const all = await taskRepo.listByDate("2026-07-19");
     expect(all).toHaveLength(1);
     expect(all[0].sortOrder).toBe(1000); // 既存行は上書きされない
+    // 展開されたタスクは常に未ハイライト（F-118。展開の入力に highlighted が無く DEFAULT false）
+    expect(all[0].highlighted).toBe(false);
   });
 
   it("日付が違えば同じルーチンでも展開される", async () => {

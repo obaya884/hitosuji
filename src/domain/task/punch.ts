@@ -24,12 +24,14 @@ export type ResumeTaskDraft = Readonly<{
   estimateMinutes: number;
   modeId: number | null;
   projectId: number | null;
+  highlighted: boolean;
   splitParentId: TaskId;
 }>;
 
 /**
  * 中断・割り込みで生成する再開タスクの内容を作る。
- * name/mode/project は元タスクと同値、split_parent_id で元タスクへ紐づける（F-204）
+ * name/mode/project/highlighted は元タスクと同値、split_parent_id で元タスクへ紐づける
+ * （F-204 / データモデル定義書 §4.2。ハイライトを引き継ぐ規則は F-118）
  */
 export function resumeTaskDraft(original: Task, endedAt: Date): ResumeTaskDraft {
   const actual = actualMinutes({ ...original, endedAt }) ?? 0;
@@ -38,6 +40,7 @@ export function resumeTaskDraft(original: Task, endedAt: Date): ResumeTaskDraft 
     estimateMinutes: resumeEstimateMinutes(original, actual),
     modeId: original.modeId,
     projectId: original.projectId,
+    highlighted: original.highlighted,
     splitParentId: original.id,
   };
 }

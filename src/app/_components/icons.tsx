@@ -122,3 +122,21 @@ export function CommentIcon(props: IconProps) {
     </Svg>
   );
 }
+
+/**
+ * ハイライトの印（F-118 / 画面定義書01 §3.3）。ON は塗りつぶし、OFF は輪郭だけ。
+ * コメント印と同じく枠いっぱいに描く（本文の文字と並ぶため）
+ */
+export function StarIcon({ filled, ...props }: IconProps & Readonly<{ filled: boolean }>) {
+  return (
+    <Svg {...props}>
+      <polygon
+        points="7,1.2 8.8,4.8 12.8,5.4 9.9,8.25 10.6,12.25 7,10.35 3.4,12.25 4.1,8.25 1.2,5.4 5.2,4.8"
+        fill={filled ? "currentColor" : "none"}
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}

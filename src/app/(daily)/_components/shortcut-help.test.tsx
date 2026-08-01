@@ -13,12 +13,12 @@ function rows(container: HTMLElement) {
 
 // 画面定義書01 §6 の本表が正。ここは「表の内容がそのまま一覧に出るか」と閉じ方を見る
 describe("ShortcutHelp（画面定義書01 §6: ショートカット一覧を `?` で表示し Esc で閉じる）", () => {
-  it("§6 の全キー（18行）を1行ずつ並べる", () => {
+  it("§6 の全キー（20行）を1行ずつ並べる", () => {
     const { container } = render(<ShortcutHelp onClose={vi.fn()} />);
 
     const listed = rows(container);
     // 行数を固定して、キーの追加・削除が仕様表と一緒に更新されることを担保する
-    expect(listed).toHaveLength(19);
+    expect(listed).toHaveLength(20);
     expect(listed.map((r) => r.keys)).toEqual([
       "J / K",
       "N",
@@ -32,6 +32,7 @@ describe("ShortcutHelp（画面定義書01 §6: ショートカット一覧を `
       "P",
       "S",
       "C",
+      "H",
       "Shift+J / Shift+K",
       "Y",
       "D",

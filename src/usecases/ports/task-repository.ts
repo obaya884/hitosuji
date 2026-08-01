@@ -18,6 +18,8 @@ export type NewTask = Readonly<{
   modeId: number | null;
   projectId: number | null;
   sortOrder: number;
+  /** ハイライト（F-118）。再開タスクだけが元タスクの値を引き継ぐ（省略時は false） */
+  highlighted?: boolean;
   /** 中断・割り込みで生成された再開タスクの元タスク（F-204） */
   splitParentId?: TaskId | null;
 }>;
@@ -100,6 +102,8 @@ export type TaskRepository = Readonly<{
   updateEstimate(id: TaskId, estimateMinutes: number): Promise<void>;
   /** コメントの更新（F-206）。null で未設定に戻す */
   updateComment(id: TaskId, comment: string | null): Promise<void>;
+  /** ハイライトの更新（F-118 / 画面定義書01 O-17） */
+  updateHighlight(id: TaskId, highlighted: boolean): Promise<void>;
   start(command: StartCommand): Promise<void>;
   /**
    * 打刻の修正（F-203）。開始時刻の修正に伴う移動（F-113 §4.2-c）があれば同一トランザクションで反映する。

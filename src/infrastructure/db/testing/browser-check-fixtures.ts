@@ -167,6 +167,29 @@ export async function loadBrowserCheckFixtures(
       comment:
         "確認用の長いコメント。折り返しの幅と行の伸び方を測るために、1行では収まらない長さにしてある。\n2行目は改行のあとに続く。改行がそのまま保たれ、横スクロールが出ないことを見る。",
     }),
+    // ハイライト（F-118 / §3.3）。未実行は地色が出て、完了は地色を出さず⭐だけ残る——
+    // 2件揃えないと「完了行で地色が消える」を差として測れない
+    task({
+      id: 7,
+      taskDate,
+      name: "ハイライトされた未実行タスク",
+      estimateMinutes: 90,
+      sectionId: sectionIdOf("午後"),
+      modeId: work,
+      projectId: projectRows[0].id,
+      highlighted: true,
+    }),
+    task({
+      id: 8,
+      taskDate,
+      name: "ハイライトされた完了タスク",
+      estimateMinutes: 45,
+      sectionId: sectionIdOf("朝"),
+      modeId: work,
+      startedAt: minutesBefore(now, 200),
+      endedAt: minutesBefore(now, 150),
+      highlighted: true,
+    }),
   ];
 
   // 画面下部まで届かせるための行。末尾のセクション（夜）にも入れて下端の幾何を測れるようにする。

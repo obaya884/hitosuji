@@ -43,8 +43,20 @@ describe("resumeTaskDraft（F-204: 同名・同属性の再開タスクを生成
       estimateMinutes: 18,
       modeId: 2,
       projectId: 3,
+      highlighted: false,
       splitParentId: 7,
     });
+  });
+
+  // F-118: 再開タスクは「同じ仕事の続き」なのでハイライトを引き継ぐ（データモデル定義書 §4.2）
+  it("ハイライトを引き継ぐ", () => {
+    const original = task({ id: 7, highlighted: true, startedAt });
+    expect(resumeTaskDraft(original, new Date("2026-07-26T08:10:00Z")).highlighted).toBe(true);
+  });
+
+  it("ハイライトされていない元タスクからは引き継がない", () => {
+    const original = task({ id: 7, highlighted: false, startedAt });
+    expect(resumeTaskDraft(original, new Date("2026-07-26T08:10:00Z")).highlighted).toBe(false);
   });
 
   it("ルーチン由来でも routine_id は引き継がない（展開の冪等制約に抵触するため）", () => {

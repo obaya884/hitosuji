@@ -11,6 +11,8 @@
   --color-band: #f0eee7; /* 紙面を一段沈めた帯（セクション見出し） */
   --color-band-now: #ead9d0; /* 現在セクションの見出し帯（band を暖色側へ一段濃くした粘土寄り） */
   --color-track: rgb(28 30 38 / 0.06); /* プログレスバーの未実施部分（地色に依らず一定量だけ沈める半透明） */
+  --color-highlight: #f7efd8; /* ハイライト行の地色（淡黄。選択・警告・現在セクションのどれとも色相で離す。F-118） */
+  --color-highlight-mark: #c99a2e; /* ハイライトの⭐の塗り（山吹） */
   --color-surface: #ffffff; /* ポップオーバー・モーダル・トースト等の浮遊面 */
   --color-scrim: rgb(28 30 38 / 0.35); /* モーダル背後 */
   --color-white: #ffffff; /* 塗りボタン上の文字 */

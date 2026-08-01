@@ -40,6 +40,7 @@ const ALL_SHORTCUT_KEYS: readonly (readonly [key: string, init: KeyboardEventIni
   ["s", {}],
   ["y", {}],
   ["d", {}],
+  ["h", {}],
   ["u", {}],
   ["t", {}],
   ["g", {}],
@@ -92,6 +93,7 @@ function makeSpies() {
       moveByStep: vi.fn(),
       punch: vi.fn(),
       operate: vi.fn(),
+      toggleHighlight: vi.fn(),
       unstart: vi.fn(),
       uncomplete: vi.fn(),
       undoPending: vi.fn(),
@@ -127,6 +129,7 @@ function params(
     moveByStep: spies.moveByStep,
     punch: spies.punch,
     operate: spies.operate,
+    toggleHighlight: spies.toggleHighlight,
     unstart: spies.unstart,
     uncomplete: spies.uncomplete,
     undoPending: spies.undoPending,
@@ -332,6 +335,44 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
       // expectNothingCalled が見るのは残り（打刻・行操作・日付移動・編集）。
       // 選択が動いていないことは上の据え置き assert が担う
       expectNothingCalled(spies);
+    });
+  });
+
+  describe("ハイライト（§6 H / O-17 / F-118）", () => {
+    it("H は選択タスクをトグルへ渡す", () => {
+      const { spies } = renderShortcuts({ selectedId: RUNNING.id });
+
+      pressKey("h");
+
+      expect(spies.toggleHighlight).toHaveBeenCalledOnce();
+      expect(spies.toggleHighlight).toHaveBeenCalledWith(RUNNING);
+    });
+
+    // 状態を問わない（O-17）。完了タスクでも同じくトグルへ渡す
+    it("完了タスクの選択中も同じくトグルへ渡す", () => {
+      const { spies } = renderShortcuts({ selectedId: COMPLETED.id });
+
+      pressKey("h");
+
+      expect(spies.toggleHighlight).toHaveBeenCalledWith(COMPLETED);
+    });
+
+    it("選択行が無ければ何もしない", () => {
+      const { spies } = renderShortcuts({ selectedId: null });
+
+      pressKey("h");
+
+      expect(spies.toggleHighlight).not.toHaveBeenCalled();
+    });
+
+    // Shift+H は前日移動（§6）。単独 H と取り違えない
+    it("Shift+H はハイライトではなく前日移動になる", () => {
+      const { spies } = renderShortcuts({ selectedId: RUNNING.id });
+
+      pressKey("H", { shiftKey: true });
+
+      expect(spies.toggleHighlight).not.toHaveBeenCalled();
+      expect(spies.push).toHaveBeenCalledOnce();
     });
   });
 
@@ -657,8 +698,9 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
     it("一覧に無いキーは何もしない（先送り O-7・ルーチン化 O-12 にキーを割り当てない）", () => {
       const { spies } = renderShortcuts();
 
-      // o(先送り)・v(ルーチン)・h/l(Shift なしの日付移動)・Space（00_共通 §3 で使わない）
-      for (const key of ["o", "v", "h", "l", "x", "z", " ", "Tab", "Escape"]) pressKey(key);
+      // o(先送り)・v(ルーチン)・l(Shift なしの日付移動)・Space（00_共通 §3 で使わない）。
+      // `h` は F-118 でハイライトのトグルに割り当てたのでここには入らない
+      for (const key of ["o", "v", "l", "x", "z", " ", "Tab", "Escape"]) pressKey(key);
 
       expectNothingCalled(spies);
     });

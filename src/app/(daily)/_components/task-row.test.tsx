@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { rowOf } from "@/app/_testing/dom";
+import { hasClass, rowOf } from "@/app/_testing/dom";
 import { atJst } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
 import { colorOf, modeOf, MODES, PROJECTS, SECTIONS } from "../_testing/factories";
@@ -11,8 +11,6 @@ import { TaskRow, type TaskRowProps } from "./task-row";
 /**
  * props は `TaskRowProps` から派生させる（同じ形を手で写さない）。**`task` だけ必須**——
  * どのテストも自分が描く行に依拠するので既定値を持たせない（テスト戦略定義書 §4）。
- * **`isSelected: true` を使うテストを足すときは `scrollIntoView` の詰め物が必要**
- * （jsdom に無い。選択の追従は daily-list.test.tsx が詰め物ごと持っている）
  */
 type Overrides = Partial<Omit<TaskRowProps, "task">> & Pick<TaskRowProps, "task">;
 
@@ -24,6 +22,7 @@ function renderRow(overrides: Overrides) {
     onEditPunch: vi.fn(),
     onAssign: vi.fn(),
     onOperate: vi.fn(),
+    onToggleHighlight: vi.fn(),
     onRoutinize: vi.fn(),
     onSelect: vi.fn(),
     onBeginEdit: vi.fn(),
@@ -57,6 +56,14 @@ function renderRow(overrides: Overrides) {
   );
   return { ...result, ...handlers };
 }
+
+// jsdom はレイアウトを持たず `scrollIntoView` が未実装。選択行を描くテスト（`isSelected: true`）が
+// 追従の副作用で落ちないよう詰めておく（追従そのものの検証は daily-list.test.tsx が持つ）。
+// `vi.fn()` にするのは、将来ここで追従を見たくなったときに黙って飲み込まれないため。
+// この直代入だけは `restoreAllMocks` で戻らない（jsdom に元の実装が無く、無害）
+beforeEach(() => {
+  Element.prototype.scrollIntoView = vi.fn();
+});
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -237,6 +244,144 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
       renderRow({ stickyHeight: 96, task: task({ id: 1, name: "朝食" }) });
 
       expect(rowOf("朝食").style.scrollMarginTop).toBe("96px");
+    });
+  });
+
+  describe("ハイライト（F-118 / §3.3 / O-17）", () => {
+    /** ⭐は**タスク名セルの中（コメント印の右）**に置く（§3.3）ので、セルの内側から取る */
+    const starOf = (name: string) =>
+      within(cellsOf(rowOf(name)).name).getByRole("button", { name: "ハイライト" });
+    /** 塗り（ON）か輪郭（OFF）か。`StarIcon` の `filled` がそのまま `fill` に出る */
+    const starFill = (name: string) => starOf(name).querySelector("polygon")?.getAttribute("fill");
+
+    it("ハイライト行は地色を変え、⭐を塗りつぶす", () => {
+      renderRow({ task: task({ id: 1, name: "提案書", highlighted: true }) });
+
+      expect(hasClass(rowOf("提案書"), "bg-highlight")).toBe(true);
+      expect(starFill("提案書")).toBe("currentColor");
+      expect(hasClass(starOf("提案書"), "text-highlight-mark")).toBe(true);
+    });
+
+    it("ハイライトされていない行は地色を変えない", () => {
+      renderRow({ task: task({ id: 1, name: "提案書", highlighted: false }) });
+
+      expect(hasClass(rowOf("提案書"), "bg-highlight")).toBe(false);
+    });
+
+    it("選択行の未ハイライトの⭐は輪郭で、色も弱める", () => {
+      renderRow({ task: task({ id: 1, name: "提案書", highlighted: false }), isSelected: true });
+
+      expect(starFill("提案書")).toBe("none");
+      expect(hasClass(starOf("提案書"), "text-ink-faint")).toBe(true);
+    });
+
+    // 地色を落とすのは①選択中②完了だけ（§3.3）。実行中は落とさない
+    it("実行中のハイライト行は地色を出す", () => {
+      renderRow({
+        task: task({ id: 1, name: "提案書", highlighted: true, startedAt: atJst("09:00") }),
+      });
+
+      expect(hasClass(rowOf("提案書"), "bg-highlight")).toBe(true);
+    });
+
+    // 選択中は地色を選択（`bg-accent-weak`）に譲り、⭐が印を担う（§3.3）
+    it("選択中のハイライト行はハイライトの地色を出さない（⭐は塗ったまま）", () => {
+      renderRow({ task: task({ id: 1, name: "提案書", highlighted: true }), isSelected: true });
+
+      expect(hasClass(rowOf("提案書"), "bg-highlight")).toBe(false);
+      expect(starFill("提案書")).toBe("currentColor");
+    });
+
+    // 完了した行は地色を出さず⭐だけ残す（§3.3。済んだものから視線を集める力を引く）
+    it("完了したハイライト行は地色を出さず、⭐は塗りつぶしのまま", () => {
+      renderRow({
+        task: task({
+          id: 1,
+          name: "提案書",
+          highlighted: true,
+          startedAt: atJst("09:00"),
+          endedAt: atJst("09:30"),
+        }),
+      });
+
+      expect(hasClass(rowOf("提案書"), "bg-highlight")).toBe(false);
+      expect(starFill("提案書")).toBe("currentColor");
+    });
+
+    // OFF の輪郭は選択行にだけ出す。ホバーでは出さず、場所も空けない（§3.3）
+    it("未ハイライトかつ未選択の行には⭐を出さない", () => {
+      renderRow({ task: task({ id: 1, name: "提案書", highlighted: false }) });
+
+      expect(
+        within(cellsOf(rowOf("提案書")).name).queryByRole("button", { name: "ハイライト" })
+      ).toBeNull();
+    });
+
+    it("ハイライト行の⭐は未選択でも出す", () => {
+      renderRow({ task: task({ id: 1, name: "提案書", highlighted: true }) });
+
+      expect(starFill("提案書")).toBe("currentColor");
+    });
+
+    // §3.3 の並び順は `タスク名 → セクション併記 → コメント印 → ⭐`。
+    // セクション併記はボタンなので、名前セルのボタン列だけで全順序が押さえられる
+    it("⭐はセクション併記・コメント印の後ろ（＝コメント印の右）に並べる", () => {
+      renderRow({
+        task: task({ id: 1, name: "提案書", highlighted: true, comment: "メモ", sectionId: 100 }),
+      });
+
+      const marks = within(cellsOf(rowOf("提案書")).name).getAllByRole("button");
+      expect(marks.map((m) => m.getAttribute("aria-label") ?? m.textContent)).toEqual([
+        "提案書",
+        "朝",
+        "コメントを編集",
+        "ハイライト",
+      ]);
+    });
+
+    // 名前の編集中はセクション併記・コメント印とともに隠す（入力欄に場所を譲る。§3.3）
+    it("タスク名の編集中は⭐も隠す", () => {
+      renderRow({
+        task: task({ id: 1, name: "提案書", highlighted: true }),
+        editing: "name",
+      });
+
+      expect(screen.queryByRole("button", { name: "ハイライト" })).toBeNull();
+    });
+
+    it("⭐のクリックでトグルし、行の選択もその行へ移す", () => {
+      const { onToggleHighlight, onSelect } = renderRow({
+        task: task({ id: 7, name: "提案書", highlighted: true }),
+      });
+
+      fireEvent.click(starOf("提案書"));
+
+      expect(onToggleHighlight).toHaveBeenCalledWith(expect.objectContaining({ id: 7 }));
+      // 行の onClick へ伝播させない（選択を二重に走らせない）
+      expect(onSelect).toHaveBeenCalledOnce();
+      expect(onSelect).toHaveBeenCalledWith(7);
+    });
+
+    it("行メニューの ON の行では「ハイライトを外す」と出してトグルする", () => {
+      const { onToggleHighlight } = renderRow({
+        task: task({ id: 7, name: "提案書", highlighted: true }),
+      });
+
+      fireEvent.click(within(cellsOf(rowOf("提案書")).menu).getByLabelText("行メニュー"));
+      fireEvent.click(screen.getByText("ハイライトを外す"));
+
+      expect(onToggleHighlight).toHaveBeenCalledWith(expect.objectContaining({ id: 7 }));
+    });
+
+    it("行メニューの OFF の行では「ハイライト」と出してトグルする", () => {
+      const { onToggleHighlight } = renderRow({
+        task: task({ id: 7, name: "提案書", highlighted: false }),
+      });
+
+      fireEvent.click(within(cellsOf(rowOf("提案書")).menu).getByLabelText("行メニュー"));
+      fireEvent.click(screen.getByText("ハイライト"));
+
+      expect(onToggleHighlight).toHaveBeenCalledWith(expect.objectContaining({ id: 7 }));
     });
   });
 

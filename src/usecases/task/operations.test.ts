@@ -40,6 +40,27 @@ describe("suspendTask（F-204: 中断）", () => {
     );
   });
 
+  // F-118: 再開タスクは「同じ仕事の続き」なのでハイライトを引き継ぐ（データモデル定義書 §4.2）
+  it("ハイライトされたタスクを中断すると、再開タスクもハイライトされる", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, estimateMinutes: 30, startedAt, sortOrder: 1000, highlighted: true }),
+    ]);
+
+    expect((await suspendTask(repo, { taskId: 1, now })).ok).toBe(true);
+
+    expect(repo.rows[1].highlighted).toBe(true);
+  });
+
+  it("ハイライトされていないタスクの再開タスクはハイライトされない", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, estimateMinutes: 30, startedAt, sortOrder: 1000, highlighted: false }),
+    ]);
+
+    expect((await suspendTask(repo, { taskId: 1, now })).ok).toBe(true);
+
+    expect(repo.rows[1].highlighted).toBe(false);
+  });
+
   it("再開タスクの位置は同一セクション内だけで決まる（他セクションの行は挟まない）", async () => {
     const repo = inMemoryTaskRepository([
       task({ id: 1, sectionId: 3, sortOrder: 5000, startedAt }),
@@ -189,6 +210,13 @@ describe("duplicateTask（F-111: 複製）", () => {
     expect(result.ok && result.value.routineId).toBeNull();
   });
 
+  // F-118: 複製は「もう一回」＝別の実施なのでハイライトを引き継がない（データモデル定義書 §4.6）
+  it("ハイライトされたタスクを複製しても、複製はハイライトされない", async () => {
+    const repo = inMemoryTaskRepository([task({ id: 1, highlighted: true })]);
+    const result = await duplicateTask(repos(repo), { taskId: 1 });
+    expect(result.ok && result.value.highlighted).toBe(false);
+  });
+
   it("中間値が尽きたら振り直しを伴って挿入する（操作は失敗しない）", async () => {
     const repo = inMemoryTaskRepository([
       task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }),
@@ -334,6 +362,15 @@ describe("duplicateAndStartTask（F-208: 複製して開始）", () => {
     expect(result.ok && result.value.routineId).toBeNull();
   });
 
+  // F-118: 複製して開始も「もう一回」なのでハイライトを引き継がない（データモデル定義書 §4.6）
+  it("ハイライトされた完了タスクを複製して開始しても、複製はハイライトされない", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000, highlighted: true }),
+    ]);
+    const result = await duplicateAndStartTask(repos(repo), { taskId: 1, ...input });
+    expect(result.ok && result.value.highlighted).toBe(false);
+  });
+
   it("完了タスク以外は複製して開始できない", async () => {
     const notStarted = inMemoryTaskRepository([task({ id: 1 })]);
     expect(await duplicateAndStartTask(repos(notStarted), { taskId: 1, ...input })).toEqual({
@@ -378,6 +415,14 @@ describe("postponeTask（F-107: 先送り）", () => {
     expect(repo.rows[0]).toEqual(
       expect.objectContaining({ taskDate: "2026-07-27", postponedCount: 2 })
     );
+  });
+
+  // F-118: 先送りは同じ行の task_date を付け替えるだけなので、ハイライトも一緒に移る
+  it("ハイライトは翌日へ持ち越される", async () => {
+    const repo = inMemoryTaskRepository([task({ id: 1, highlighted: true })]);
+
+    expect((await postponeTask(repo, { taskId: 1 })).ok).toBe(true);
+    expect(repo.rows[0].highlighted).toBe(true);
   });
 
   it("移動先の同セクション末尾へ置く", async () => {
