@@ -10,8 +10,10 @@ import { actualMinutes, elapsedMinutes, type Task } from "@/domain/task/task";
 import { CheckIcon, PlayIcon, StopIcon } from "@/app/_components/icons";
 import { formatClock, formatDuration, formatEstimate } from "@/app/_lib/format";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
+import { modeAppearance } from "@/app/_lib/mode-appearance";
 import { inputBase } from "@/app/_lib/ui";
 import type { EditField } from "../_lib/editing";
+import { toModeOptions, toProjectOptions } from "../_lib/master-options";
 import { AssignCell } from "./assign-cell";
 import { RowMenu } from "./row-menu";
 import { RoutinizePopover } from "./routinize-popover";
@@ -58,24 +60,6 @@ const STATUS_ICON = {
   running: <StopIcon className="h-3 w-3" />,
   completed: <CheckIcon className="h-3 w-3" />,
 } as const;
-
-/** ポップオーバーの選択肢。アーカイブ済みマスタは選択肢に出さない（画面定義書03 §4） */
-function toOptions(
-  items: readonly Readonly<{ id: number; name: string; isArchived: boolean; color?: string }>[],
-  noneLabel: string,
-  withColor = false
-): PopoverOption[] {
-  return [
-    { id: null, label: noneLabel },
-    ...items
-      .filter((item) => !item.isArchived)
-      .map((item) => ({
-        id: item.id,
-        label: item.name,
-        ...(withColor ? { color: item.color } : {}),
-      })),
-  ];
-}
 
 /** 見積もり超過は警告色（F-202）。見積もり未設定（0分）は超過判定しない */
 function isOverEstimate(minutes: number, task: Task): boolean {
@@ -138,17 +122,16 @@ export function TaskRow({
     if (isSelected) rowRef.current?.scrollIntoView({ block: "nearest" });
   }, [isSelected, sectionId, index]);
 
-  // モード設定時は行の色を継承させ、未設定時のみ既定のグレーにする
-  const isDimmed = mode === undefined;
+  // モードから決まる見た目（規則は `_lib/mode-appearance.ts`）。
   // `AssignCell` は boolean を受け取って自分でクラスを決めるので、文字列が要るのは他のセルだけ
-  const dimmedClass = isDimmed ? "text-ink-muted" : "";
+  const { isDimmed, dimmedClass, colorStyle } = modeAppearance(mode);
 
   return (
     <tr
       ref={rowRef}
       // モード色は行全体のテキスト色に反映する（F-401 / 画面定義書01 §2）。
       // scrollMarginTop は、上方向へ追従したとき行が固定領域（§2）の裏に隠れないための余白
-      style={{ ...(mode === undefined ? {} : { color: mode.color }), scrollMarginTop: stickyHeight }}
+      style={{ ...colorStyle, scrollMarginTop: stickyHeight }}
       onClick={() => onSelect(task.id)}
       className={`border-b border-line ${isSelected ? "bg-accent-weak" : ""}`}
     >
@@ -216,7 +199,7 @@ export function TaskRow({
       <AssignCell
         label="プロジェクト"
         name={project?.name}
-        options={toOptions(projects, "プロジェクトなし")}
+        options={toProjectOptions(projects)}
         selectedId={task.projectId}
         isDimmed={isDimmed}
         isEditing={editing === "project"}
@@ -227,7 +210,7 @@ export function TaskRow({
       <AssignCell
         label="モード"
         name={mode?.name}
-        options={toOptions(modes, "モードなし", true)}
+        options={toModeOptions(modes)}
         selectedId={task.modeId}
         isDimmed={isDimmed}
         isEditing={editing === "mode"}

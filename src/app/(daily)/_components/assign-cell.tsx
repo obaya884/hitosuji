@@ -1,6 +1,7 @@
 "use client";
 
 import { UnsetMark } from "@/app/_components/unset-mark";
+import { toDimmedClass } from "@/app/_lib/mode-appearance";
 import { SelectPopover, type PopoverOption } from "./select-popover";
 
 export type AssignCellProps = Readonly<{
@@ -10,7 +11,7 @@ export type AssignCellProps = Readonly<{
   name?: string;
   options: readonly PopoverOption[];
   selectedId: number | null;
-  /** true で既定のグレー（`text-ink-muted`）にする。false なら行の色を継承する（判定は行側が持つ） */
+  /** true で副次情報の色（`_lib/mode-appearance.ts`）にする。false なら行の色を継承する（判定は行側が持つ） */
   isDimmed: boolean;
   isEditing: boolean;
   onOpen: () => void;
@@ -35,7 +36,7 @@ export function AssignCell({
   onClose,
 }: AssignCellProps) {
   return (
-    <td className={`relative py-2.5 text-sm ${isDimmed ? "text-ink-muted" : ""}`}>
+    <td className={`relative py-2.5 text-sm ${toDimmedClass(isDimmed)}`}>
       <button
         type="button"
         onClick={onOpen}
