@@ -18,7 +18,7 @@ export type RowMenuItem = Readonly<{
 export function RowMenu({ items }: Readonly<{ items: readonly RowMenuItem[] }>) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  // 画面下部の行では上向きに開く（§7「ポップオーバーの表示位置」）
+  // 画面下部の行では上向きに開く（00_共通 §2.1「表示位置」）
   const { ref: panelRef, positionClass } = useFlipUp<HTMLDivElement>(open);
 
   // 外側クリック＋Esc で閉じる。常時マウントのため open のときだけ購読する

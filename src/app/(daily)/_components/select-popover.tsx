@@ -36,7 +36,7 @@ type Props = Readonly<{
  * Esc で取消）と外側クリックで操作する（F-112）。開いたときは現在値をハイライトする
  */
 export function SelectPopover({ options, selectedId, onSelect, onClose }: Props) {
-  // 画面下部の行では上向きに開く（§7「ポップオーバーの表示位置」）
+  // 画面下部の行では上向きに開く（00_共通 §2.1「表示位置」）
   const { ref, positionClass } = useFlipUp<HTMLDivElement>();
   // 開いたときは現在値をハイライト（見つからなければ先頭）。F-112。
   // 先頭の固定項目（§4.3）は初期ハイライトにしないので、現在値の探索・フォールバックとも対象外にする

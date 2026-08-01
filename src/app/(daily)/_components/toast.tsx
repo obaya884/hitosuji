@@ -4,7 +4,7 @@ import { useEffect } from "react";
 
 export type ToastVariant = "undo" | "info" | "error";
 
-// 表示時間はトーストの種類で決める（画面定義書01 §8: Undo付き・完了通知5秒 / エラー8秒）。
+// 表示時間はトーストの種類で決める（画面定義書00_共通 §2.2: Undo付き・完了通知5秒 / エラー8秒）。
 // 自動消去のタイマーはこのコンポーネントに一元化する（呼び出し側では持たない）
 const AUTO_DISMISS_MS: Readonly<Record<ToastVariant, number>> = {
   undo: 5000,
@@ -57,7 +57,7 @@ export function Toast({
           {actionLabel}
         </button>
       )}
-      {/* 閉じるボタン（×）。すべてのトーストは手動でも消せる（画面定義書01 §8） */}
+      {/* 閉じるボタン（×）。すべてのトーストは手動でも消せる（画面定義書00_共通 §2.2「消え方」） */}
       <button
         type="button"
         onClick={onClose}

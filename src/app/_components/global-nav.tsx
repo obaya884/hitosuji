@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-// 全画面共通のグローバルナビ（要件定義書 §4）。
+// 全画面共通のグローバルナビ（画面定義書00_共通 §1）。
 // 左サイドの Navigation Rail。アイコンは使わずラベルのみ（N-05。2026-07-20 / FB-08）
 const NAV_ITEMS = [
   { href: "/", label: "デイリー" },
@@ -20,7 +20,7 @@ export function GlobalNav() {
   const pathname = usePathname();
 
   return (
-    // スクロールしても常に見えるよう固定する（要件定義書 §4）。
+    // スクロールしても常に見えるよう固定する（画面定義書00_共通 §1「レールの固定」）。
     // flex 子は既定で伸びきり sticky が効かないため self-start ＋ 画面高で止める
     <nav className="sticky top-0 h-screen w-52 shrink-0 self-start overflow-y-auto border-r border-line px-5 py-6">
       {/* ロゴ＝ホーム。今日のデイリー（日付なしのルート）へ戻る（FB-45） */}

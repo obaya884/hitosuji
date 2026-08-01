@@ -61,8 +61,9 @@ function tagNameOf(target: EventTarget | null): string | undefined {
 }
 
 /**
- * インライン編集の Enter 保存 / Escape 取消のハンドラを作る。
- * IME変換中のキーは操作として扱わない（画面定義書01 §6）。日本語入力の変換確定 Enter が
+ * インライン編集の Enter 保存 / Escape 取消のハンドラを作る（画面定義書00_共通 §2.3。
+ * デイリーだけでなくマスタ管理でも使う）。
+ * IME変換中のキーは操作として扱わない（同 §3）。日本語入力の変換確定 Enter が
  * そのまま保存として発火するのを防ぐ。keyCode 229 は isComposing 未対応環境向けの保険。
  */
 export function inlineEditKeyHandler(
