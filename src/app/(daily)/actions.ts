@@ -6,6 +6,7 @@ import {
   renameTask,
   setTaskMode,
   setTaskProject,
+  updateTaskComment,
   updateTaskEstimate,
 } from "@/usecases/task/daily-list-usecases";
 import {
@@ -85,6 +86,17 @@ export async function updateTaskEstimateAction(
   rawMinutes: string
 ): Promise<DailyActionResult> {
   const result = await updateTaskEstimate(taskRepo, id, rawMinutes);
+  if (!result.ok) return { ok: false, message: TASK_EDIT_MESSAGES[result.error] };
+  revalidatePath("/");
+  return { ok: true };
+}
+
+/** コメントの編集（F-206 / O-16） */
+export async function updateTaskCommentAction(
+  id: number,
+  rawComment: string
+): Promise<DailyActionResult> {
+  const result = await updateTaskComment(taskRepo, id, rawComment);
   if (!result.ok) return { ok: false, message: TASK_EDIT_MESSAGES[result.error] };
   revalidatePath("/");
   return { ok: true };

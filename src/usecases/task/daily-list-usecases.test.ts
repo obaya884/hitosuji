@@ -12,6 +12,7 @@ import {
   renameTask,
   setTaskMode,
   setTaskProject,
+  updateTaskComment,
   updateTaskEstimate,
 } from "./daily-list-usecases";
 
@@ -126,6 +127,26 @@ describe("updateTaskEstimate（F-103: 見積もりのインライン編集）", 
       error: "invalid_estimate",
     });
     expect(repo.rows[0].estimateMinutes).toBe(30);
+  });
+});
+
+describe("updateTaskComment（F-206 / O-16: コメントの編集）", () => {
+  it("前後の空白を除いて保存する", async () => {
+    const repo = inMemoryRepo([task({ id: 1 })]);
+    expect((await updateTaskComment(repo, 1, " 元データ探しに手間取った ")).ok).toBe(true);
+    expect(repo.rows[0].comment).toBe("元データ探しに手間取った");
+  });
+
+  it("空・空白のみで確定するとコメントを消す（NULL へ戻す）", async () => {
+    const repo = inMemoryRepo([task({ id: 1, comment: "書いてあった" })]);
+    expect((await updateTaskComment(repo, 1, "   ")).ok).toBe(true);
+    expect(repo.rows[0].comment).toBeNull();
+  });
+
+  it("改行を含む複数行をそのまま保存する", async () => {
+    const repo = inMemoryRepo([task({ id: 1 })]);
+    await updateTaskComment(repo, 1, "・図表を差し替えた\n・次は雛形を用意する");
+    expect(repo.rows[0].comment).toBe("・図表を差し替えた\n・次は雛形を用意する");
   });
 });
 

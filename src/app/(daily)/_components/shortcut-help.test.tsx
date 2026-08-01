@@ -18,10 +18,10 @@ describe("ShortcutHelp（画面定義書01 §6: ショートカット一覧を `
 
     const listed = rows(container);
     // 行数を固定して、キーの追加・削除が仕様表と一緒に更新されることを担保する
-    expect(listed).toHaveLength(18);
+    expect(listed).toHaveLength(19);
     expect(listed.map((r) => r.keys)).toEqual([
       "J / K",
-      "C",
+      "N",
       "Enter",
       "I",
       "A",
@@ -31,6 +31,7 @@ describe("ShortcutHelp（画面定義書01 §6: ショートカット一覧を `
       "M",
       "P",
       "S",
+      "C",
       "Shift+J / Shift+K",
       "Y",
       "D",
@@ -47,7 +48,8 @@ describe("ShortcutHelp（画面定義書01 §6: ショートカット一覧を `
     const { container } = render(<ShortcutHelp onClose={vi.fn()} />);
 
     const byKey = new Map(rows(container).map((r) => [r.keys, r.description]));
-    expect(byKey.get("C")).toContain("（Current）");
+    expect(byKey.get("N")).toContain("（Now）");
+    expect(byKey.get("C")).toContain("（Comment）");
     expect(byKey.get("A")).toContain("（Add）");
     expect(byKey.get("B / F")).toContain("（Begin / Finish）");
     expect(byKey.get("U")).toContain("（Undo）");

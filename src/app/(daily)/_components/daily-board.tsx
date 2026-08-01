@@ -25,7 +25,7 @@ import { stepMoveDestination } from "@/domain/task/reorder";
 import { currentNotStartedId, keepSelection } from "@/domain/task/selection";
 import { taskStatus } from "@/domain/task/status";
 import { editEndedAt, editStartedAt } from "@/domain/task/punch-edit";
-import { validateEstimateMinutes, validateTaskName } from "@/domain/task/edit";
+import { normalizeComment, validateEstimateMinutes, validateTaskName } from "@/domain/task/edit";
 import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
 import type { Task } from "@/domain/task/task";
 import { PlusIcon } from "@/app/_components/icons";
@@ -52,6 +52,7 @@ import {
   startTaskAction,
   undoCompleteAction,
   undoStartAction,
+  updateTaskCommentAction,
   updateTaskEstimateAction,
   updateTaskPunchAction,
   type CreatingActionResult,
@@ -223,6 +224,14 @@ export function DailyBoard({
       () => updateTaskEstimateAction(task.id, raw),
       { type: "estimate", id: task.id, minutes: validated.value }
     );
+  }
+
+  /** コメントの編集（O-16 / F-206）。空で確定すればコメントを消す（長さの検証はない） */
+  function setComment(task: Task, raw: string) {
+    const comment = normalizeComment(raw);
+    if (comment === task.comment) return;
+
+    run(() => updateTaskCommentAction(task.id, raw), { type: "comment", id: task.id, comment });
   }
 
   /**
@@ -562,6 +571,7 @@ export function DailyBoard({
         projects={projects}
         onRename={rename}
         onEstimate={setEstimate}
+        onComment={setComment}
         onPunch={punch}
         onEditPunch={editPunch}
         sections={sections}

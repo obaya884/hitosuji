@@ -98,6 +98,8 @@ export type TaskRepository = Readonly<{
   create(input: NewTask, renumber: Renumber): Promise<Task>;
   rename(id: TaskId, name: string): Promise<void>;
   updateEstimate(id: TaskId, estimateMinutes: number): Promise<void>;
+  /** コメントの更新（F-206）。null で未設定に戻す */
+  updateComment(id: TaskId, comment: string | null): Promise<void>;
   start(command: StartCommand): Promise<void>;
   /**
    * 打刻の修正（F-203）。開始時刻の修正に伴う移動（F-113 §4.2-c）があれば同一トランザクションで反映する。

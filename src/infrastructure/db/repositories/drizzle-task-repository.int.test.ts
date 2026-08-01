@@ -42,6 +42,8 @@ describe("DrizzleTaskRepository.listByDate（画面定義書01 §7: 表示日1�
       sortOrder: 2000,
       startedAt,
       endedAt,
+      // コメント（F-206）は改行を含みうるので、写像で潰れないことも一緒に見る
+      comment: "・パンが切れていた\n・買い足す",
       postponedCount: 1,
     });
 
@@ -57,7 +59,7 @@ describe("DrizzleTaskRepository.listByDate（画面定義書01 §7: 表示日1�
         sortOrder: 2000,
         startedAt,
         endedAt,
-        comment: null,
+        comment: "・パンが切れていた\n・買い足す",
         routineId: null,
         splitParentId: null,
         postponedCount: 1,
@@ -460,6 +462,24 @@ describe("postpone（F-107: 先送り）", () => {
     expect((await repo.listByDate("2026-07-20"))[0]).toEqual(
       expect.objectContaining({ taskDate: "2026-07-20", sortOrder: 3000, postponedCount: 2 })
     );
+  });
+});
+
+describe("updateComment（F-206 / O-16: コメントの保存と消去）", () => {
+  // 長さ無制限（F-206）を実際に制限しうるのは列型（`text`）なので、純関数だけでなく実DBで往復させる。
+  // NULL への書き戻しも同じ経路で確かめる（`comment` は消せることが仕様の一部）
+  it("長文・改行を保ったまま往復し、null で消せる", async () => {
+    const comment = `${"あ".repeat(5000)}\n2行目`;
+    const [target] = await db
+      .insert(tasks)
+      .values({ taskDate: "2026-07-19", name: "資料作成", sortOrder: 1000 })
+      .returning();
+
+    await repo.updateComment(target.id, comment);
+    expect((await repo.findById(target.id))?.comment).toBe(comment);
+
+    await repo.updateComment(target.id, null);
+    expect((await repo.findById(target.id))?.comment).toBeNull();
   });
 });
 

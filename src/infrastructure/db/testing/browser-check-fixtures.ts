@@ -117,6 +117,10 @@ export async function loadBrowserCheckFixtures(
       modeId: life,
       startedAt: minutesBefore(now, 120),
       endedAt: minutesBefore(now, 87),
+      // 実績ログ（画面定義書04 §3.3）に出るのは打刻済みのタスクだけなので、
+      // レビュー画面のコメント表示を確かめるにはここにコメントが要る
+      comment:
+        "確認用のコメント（完了済み）。レビューの実績ログで折り返しを見るために、1行では収まらない長さにしてある。\n2行目は改行のあとに続く。",
     }),
     task({
       id: 2,
@@ -151,6 +155,17 @@ export async function loadBrowserCheckFixtures(
       modeId: rest,
       projectId: projectRows[1].id,
       comment: "確認用のコメント",
+    }),
+    // 折り返しと行の伸び（F-206 / §3.3: 長さの制限を設けず改行も含む）を測るための長文
+    task({
+      id: 6,
+      taskDate,
+      name: "長いコメント付きのタスク",
+      estimateMinutes: 40,
+      sectionId: sectionIdOf("午後"),
+      modeId: work,
+      comment:
+        "確認用の長いコメント。折り返しの幅と行の伸び方を測るために、1行では収まらない長さにしてある。\n2行目は改行のあとに続く。改行がそのまま保たれ、横スクロールが出ないことを見る。",
     }),
   ];
 

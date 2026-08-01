@@ -22,3 +22,13 @@ export function validateEstimateMinutes(raw: string): Result<number, TaskEditErr
   if (!Number.isSafeInteger(minutes)) return err("invalid_estimate");
   return ok(minutes);
 }
+
+/**
+ * コメントの正規化（F-206 / 画面定義書01 O-16 / データモデル定義書 §3.5）。
+ * **長さの制限は設けず、途中の改行もそのまま残す**。前後の空白だけ落とし、
+ * 空・空白のみは未設定（null）として扱う——確定で消せる操作なので失敗しない
+ */
+export function normalizeComment(raw: string): string | null {
+  const comment = raw.trim();
+  return comment === "" ? null : comment;
+}

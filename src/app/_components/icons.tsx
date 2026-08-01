@@ -103,3 +103,22 @@ export function PlusIcon(props: IconProps) {
     </Svg>
   );
 }
+
+/**
+ * コメントのある行に出す印（F-206 / 画面定義書01 §3.3）。吹き出し。
+ * 他のアイコンより枠いっぱいに描く——本文の文字とほぼ同じ大きさで並ぶため、
+ * 余白が多いと隣の文字に対して沈んで見える
+ */
+export function CommentIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path
+        d="M1.5 2 H12.5 V9.5 H6.5 L3.5 12.5 V9.5 H1.5 Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}

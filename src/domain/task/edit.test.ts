@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateEstimateMinutes, validateTaskName } from "./edit";
+import { normalizeComment, validateEstimateMinutes, validateTaskName } from "./edit";
 
 describe("validateTaskName（画面定義書01 §8: 空のタスク名は確定不可）", () => {
   it("前後の空白を除去して返す", () => {
@@ -37,5 +37,30 @@ describe("validateEstimateMinutes（画面定義書01 §3.3/§8: 分整数入力
       ok: false,
       error: "invalid_estimate",
     });
+  });
+});
+
+describe("normalizeComment（画面定義書01 O-16: 長さ無制限・改行可・空は未設定へ）", () => {
+  it("前後の空白を除去して返す", () => {
+    expect(normalizeComment(" 元データの場所を探すのに手間取った ")).toBe(
+      "元データの場所を探すのに手間取った"
+    );
+  });
+
+  it("空・空白のみは null（コメントを消す）", () => {
+    expect(normalizeComment("")).toBeNull();
+    expect(normalizeComment("　")).toBeNull();
+    expect(normalizeComment("\n\n")).toBeNull();
+  });
+
+  it("途中の改行は残す（Shift+Enter で書いた複数行をそのまま保つ）", () => {
+    expect(normalizeComment("・図表を差し替えた\n・次は雛形を用意する")).toBe(
+      "・図表を差し替えた\n・次は雛形を用意する"
+    );
+  });
+
+  it("長さで切り詰めない（上限を設けない）", () => {
+    const long = "あ".repeat(5000);
+    expect(normalizeComment(long)).toBe(long);
   });
 });

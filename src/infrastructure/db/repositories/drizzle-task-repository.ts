@@ -109,6 +109,10 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
         .where(eq(tasks.id, id));
     },
 
+    async updateComment(id: TaskId, comment: string | null) {
+      await db.update(tasks).set({ comment, updatedAt: new Date() }).where(eq(tasks.id, id));
+    },
+
     async findById(id: TaskId) {
       const [row] = await db.select().from(tasks).where(eq(tasks.id, id));
       return row === undefined ? null : toDomain(row);
