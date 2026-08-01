@@ -10,7 +10,6 @@ import type { TaskOperationError } from "@/usecases/task/operations";
 import type { PunchUsecaseError } from "@/usecases/task/punch-usecases";
 import type { ReorderUsecaseError } from "@/usecases/task/reorder-usecases";
 import {
-  DUPLICATE_AND_START_MESSAGES,
   MASTER_MESSAGES,
   type MasterError,
   OPERATION_MESSAGES,
@@ -21,6 +20,9 @@ import {
   routineFromTaskErrorMessage,
   SAVE_FAILED,
   TASK_EDIT_MESSAGES,
+  type TaskActionKind,
+  TASK_ACTION_KINDS,
+  taskActionErrorMessage,
 } from "./error-messages";
 
 const EXPECTED_TASK_EDIT: Record<TaskEditUsecaseError, string> = {
@@ -62,6 +64,64 @@ const EXPECTED_DUPLICATE_AND_START: Record<TaskOperationError, string> = {
   ...EXPECTED_OPERATION,
   not_completed: "複製して開始できるのは完了タスクだけです",
 };
+
+/** 打刻系のアクション（ユースケースが `PunchUsecaseError` を返す）。名前は `(daily)/actions.ts` と 1:1 */
+const PUNCH_ACTION_KINDS = [
+  "start",
+  "undoStart",
+  "finish",
+  "undoComplete",
+  "restoreCompletion",
+  "updatePunch",
+] as const;
+
+/** 操作系のアクション（ユースケースが `TaskOperationError` を返す） */
+const OPERATION_ACTION_KINDS = [
+  "suspend",
+  "duplicate",
+  "postpone",
+  "delete",
+  "restore",
+  "duplicateAndStart",
+] as const;
+
+/**
+ * 操作種別ごとに引かれるべき辞書（T-76）。打刻系と操作系は共有コードの文言が一致する（T-74）ので、
+ * この表が実際に見分けるのは**専用辞書へ迷い込んでいないか**——`not_completed` がそこだけ違う
+ */
+const EXPECTED_PUNCH_ACTION_DICTS: Record<
+  (typeof PUNCH_ACTION_KINDS)[number],
+  Record<PunchUsecaseError, string>
+> = {
+  start: EXPECTED_PUNCH,
+  undoStart: EXPECTED_PUNCH,
+  finish: EXPECTED_PUNCH,
+  undoComplete: EXPECTED_PUNCH,
+  restoreCompletion: EXPECTED_PUNCH,
+  updatePunch: EXPECTED_PUNCH,
+};
+
+const EXPECTED_OPERATION_ACTION_DICTS: Record<
+  (typeof OPERATION_ACTION_KINDS)[number],
+  Record<TaskOperationError, string>
+> = {
+  suspend: EXPECTED_OPERATION,
+  duplicate: EXPECTED_OPERATION,
+  postpone: EXPECTED_OPERATION,
+  delete: EXPECTED_OPERATION,
+  restore: EXPECTED_OPERATION,
+  duplicateAndStart: EXPECTED_DUPLICATE_AND_START,
+};
+
+/** 上の2つで全種別を覆うことを型で押さえる（種別が増えたらどちらかに足さないと型エラー） */
+const EXPECTED_ACTION_DICTS: Record<TaskActionKind, Readonly<Record<string, string>>> = {
+  ...EXPECTED_PUNCH_ACTION_DICTS,
+  ...EXPECTED_OPERATION_ACTION_DICTS,
+};
+
+/** 集合の型のまま渡すための恒等関数（変数に入れるとコード1つへ絞られ、種別の一致判定に掛からない） */
+const asPunchError = (code: PunchUsecaseError): PunchUsecaseError => code;
+const asOperationError = (code: TaskOperationError): TaskOperationError => code;
 
 /** ルーチン管理の入力検証（画面定義書02 §4） */
 const EXPECTED_ROUTINE: Record<RoutineUsecaseError, string> = {
@@ -146,9 +206,7 @@ describe("エラー文言辞書（T-49: クライアントとサーバが同じ�
     expect(OPERATION_MESSAGES).toEqual(EXPECTED_OPERATION);
   });
 
-  it("複製して開始（F-208）の対応表が期待どおり", () => {
-    expect(DUPLICATE_AND_START_MESSAGES).toEqual(EXPECTED_DUPLICATE_AND_START);
-  });
+  // 複製して開始（F-208）の辞書は非公開なので、対応表は下の「操作種別 → 辞書」の describe が固定する
 
   it("ルーチン入力の検証（画面定義書02 §4）の対応表が期待どおり（コードの過不足も含めて固定する）", () => {
     expect(ROUTINE_MESSAGES).toEqual(EXPECTED_ROUTINE);
@@ -235,9 +293,64 @@ describe("同じコードは経路が違っても同じ文言を出す（FB-72: 
    */
   it("複製して開始専用の辞書が共有辞書と違うのは not_completed の1件だけ（T-74）", () => {
     const differing = (Object.keys(OPERATION_MESSAGES) as TaskOperationError[]).filter(
-      (code) => DUPLICATE_AND_START_MESSAGES[code] !== OPERATION_MESSAGES[code]
+      (code) => taskActionErrorMessage("duplicateAndStart", code) !== OPERATION_MESSAGES[code]
     );
 
     expect(differing).toEqual(["not_completed"]);
+  });
+});
+
+/**
+ * T-74 が残した最後の穴（T-76）。辞書の選択を `taskActionErrorMessage` へ寄せたので、
+ * 行き先の誤りはここと `npm run typecheck` の2つで捕まえる
+ */
+describe("操作種別 → 辞書の対応表（T-76: 打刻系が複製して開始専用の文言を出さない）", () => {
+  it("打刻系の各種別が期待どおりの辞書を引く", () => {
+    const codes = Object.keys(EXPECTED_PUNCH) as PunchUsecaseError[];
+
+    expect(codes.length).toBeGreaterThan(0); // 走査が空振りしていないこと
+    for (const kind of PUNCH_ACTION_KINDS) {
+      for (const code of codes) {
+        expect(taskActionErrorMessage(kind, code)).toBe(EXPECTED_PUNCH_ACTION_DICTS[kind][code]);
+      }
+    }
+  });
+
+  it("操作系の各種別が期待どおりの辞書を引く（複製して開始だけ not_completed が違う）", () => {
+    const codes = Object.keys(EXPECTED_OPERATION) as TaskOperationError[];
+
+    expect(codes.length).toBeGreaterThan(0);
+    for (const kind of OPERATION_ACTION_KINDS) {
+      for (const code of codes) {
+        expect(taskActionErrorMessage(kind, code)).toBe(
+          EXPECTED_OPERATION_ACTION_DICTS[kind][code]
+        );
+      }
+    }
+  });
+
+  it("上の2本で実装の全種別を走査している（表に種別が増えると落ちる）", () => {
+    // 突き合わせ先は実装の種別一覧。期待値どうしの照合にすると構築上つねに一致して空振りする
+    expect([...PUNCH_ACTION_KINDS, ...OPERATION_ACTION_KINDS].sort()).toEqual(
+      [...TASK_ACTION_KINDS].sort()
+    );
+    expect(Object.keys(EXPECTED_ACTION_DICTS).sort()).toEqual([...TASK_ACTION_KINDS].sort());
+  });
+
+  /**
+   * 型の網そのものを固定する。`@ts-expect-error` は**型エラーが出ないと逆に落ちる**ので、
+   * 引数の型を緩める変更（`error` を `TaskOperationError` にする等）はここで `npm run typecheck`
+   * が捕まえる（テストファイルの型を見るのは typecheck だけ。テスト戦略定義書 §9）
+   */
+  it("失敗コードの集合と一致しない種別は渡せない（T-76 の本題）", () => {
+    // @ts-expect-error 打刻の失敗で複製して開始の辞書は引けない（T-74 で観測した取り違えそのもの）
+    taskActionErrorMessage("duplicateAndStart", asPunchError("not_completed"));
+    // @ts-expect-error 操作の失敗で打刻の辞書は引けない（not_postponable の行き先が無い）
+    taskActionErrorMessage("start", asOperationError("not_completed"));
+
+    // 一致する組み合わせは通る（上の2本が「何も通らない」ことによる空振りでないこと）
+    expect(taskActionErrorMessage("undoComplete", asPunchError("not_completed"))).toBe(
+      EXPECTED_PUNCH.not_completed
+    );
   });
 });
