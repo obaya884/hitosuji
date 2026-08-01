@@ -78,6 +78,13 @@ describe("estimateDiffMinutes（画面定義書04 §3.3: 差異＝実績−見�
     expect(estimateDiffMinutes(under)).toBe(-30);
   });
 
+  // ぴったりは 0 であって「差異なし（null）」ではない。表記を符号なしの `0:00` に分ける
+  // 根拠がここなので、値の側で固定しておく（表記は review-board.test.tsx）
+  it("実績が見積ぴったりなら 0 を返す（null にしない）", () => {
+    const t = task({ id: 1, estimateMinutes: 30, startedAt: atJst("08:00"), endedAt: atJst("08:30") });
+    expect(estimateDiffMinutes(t)).toBe(0);
+  });
+
   it("見積もり未設定なら差異を出さない", () => {
     const t = task({ id: 1, estimateMinutes: 0, startedAt: atJst("08:00"), endedAt: atJst("08:30") });
     expect(estimateDiffMinutes(t)).toBeNull();

@@ -190,6 +190,21 @@ describe("withTaskAppended（N-01: 楽観的更新で追加を即反映）", () 
     withTaskAppended(groups, task({ id: 9 }));
     expect(groups[0].tasks).toHaveLength(1);
   });
+
+  // `groupTasksBySection` は未分類グループを必ず先頭に作るので、画面からこの分岐へは届かない。
+  // ただし純関数として受け取りうる形なので、受け皿を作る側の契約を固定しておく
+  it("未分類グループが無い列には、受け皿を先頭に作って足す", () => {
+    const sectioned = groupTasksBySection([task({ id: 1, sectionId: morning.id })], [morning]).filter(
+      (g) => g.section !== null
+    );
+    const added = task({ id: 9 });
+
+    const appended = withTaskAppended(sectioned, added);
+
+    // 渡したタスクを加工せずそのまま入れる（受け皿は時間帯を持たないので endTime も null）
+    expect(appended[0]).toEqual({ section: null, endTime: null, tasks: [added] });
+    expect(appended.slice(1)).toEqual(sectioned); // 既存のセクションはそのまま後ろに残る
+  });
 });
 
 describe("withTaskMoved（N-01: 並び替えを即反映）", () => {

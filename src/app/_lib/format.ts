@@ -11,6 +11,16 @@ export function formatDuration(minutes: number): string {
 }
 
 /**
+ * 基準からの差を符号付きで表す。**差が無い（0）ときは符号を付けない**——符号は差の向きを
+ * 示す記号なので、離れていない値に付けると「短く済んだ」「余裕がある」と読み違える。
+ * 規則の本体は画面定義書04 §3.3（レビューの差異）にあり、01 §3.2（セクション残り時間）がこれを引く
+ */
+export function formatSignedDuration(minutes: number): string {
+  const sign = minutes > 0 ? "+" : minutes < 0 ? "-" : "";
+  return `${sign}${formatDuration(Math.abs(minutes))}`;
+}
+
+/**
  * 見積もりの表示。未設定（0分）は `--:--`（終了予定時刻の計算に含まれないことを示す）。
  * 実績には使わない（1分未満の実績は 0:00 と表示する。画面定義書01 §3.3）
  */

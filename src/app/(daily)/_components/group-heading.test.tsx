@@ -108,10 +108,11 @@ describe("GroupHeading（画面定義書01 §3.2: セクション見出し行）
     expect(remaining?.classList.contains("text-danger")).toBe(true);
   });
 
-  it("ちょうど枠に収まる（残り0分）はプラス表記で警告色にしない", () => {
+  // 符号は差の向きを示す記号なので、離れていない行には付けない（§3.2。04 §3.3 の差異と同じ規則）
+  it("ちょうど枠に収まる（残り0分）は符号なしで、警告色にもしない", () => {
     renderHeading({ remainingMinutes: 0, group: morning([task({ id: 1, name: "朝食" })]) });
 
-    const remaining = within(headingOf("朝")).queryByText("+0:00");
+    const remaining = within(headingOf("朝")).queryByText("0:00");
     expect(remaining).not.toBeNull();
     expect(remaining?.classList.contains("text-danger")).toBe(false);
   });
