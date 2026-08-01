@@ -1,7 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
+import {
+  useEffect,
+  useMemo,
+  useOptimistic,
+  useRef,
+  useState,
+  useTransition,
+  type KeyboardEvent,
+} from "react";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import {
@@ -104,6 +112,8 @@ export function DailyBoard({
   const [pendingUndo, setPendingUndo] = useState<PendingUndo | null>(null);
   // トーストを毎回作り直して表示時間をリセットするための連番（同じタスクへ連続で操作しても効くように）
   const pendingUndoSeq = useRef(0);
+  // サーバ確定前の仮タスクIDの連番（`optimisticTask` の `seq`。契約はそちらの JSDoc）
+  const optimisticTaskSeq = useRef(0);
   const [error, setError] = useState<string | null>(null);
   /** 完了通知（ルーチン化 O-12 など。画面定義書01 §8） */
   const [notice, setNotice] = useState<string | null>(null);
@@ -186,7 +196,7 @@ export function DailyBoard({
     // 追加行は楽観的に即表示し、確定後に追加したタスクを選択する（§3.4 / FB-29）
     runSelectingCreated(() => addTaskAction({ date, name: trimmed }), {
       type: "append",
-      task: optimisticTask(date, trimmed),
+      task: optimisticTask(date, trimmed, ++optimisticTaskSeq.current),
     });
   }
 
@@ -423,14 +433,18 @@ export function DailyBoard({
     });
   }
 
-  const onKeyDown = inlineEditKeyHandler({
-    // 追加できたときだけ欄からフォーカスを外し、追加行の操作へ移る（§3.4 / FB-29）
-    onEnter: (input) => {
-      if (name.trim() !== "") input.blur();
-      add();
-    },
-    onEscape: (input) => input.blur(), // Esc でフォーカスを外しリスト操作へ戻る
-  });
+  // 組み立てはイベント時に行う（描画中に呼ぶと、`add` が読む仮タスクIDの連番＝ref を
+  // 描画中に触りうる形になる。react-hooks/refs）
+  function onQuickAddKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    inlineEditKeyHandler({
+      // 追加できたときだけ欄からフォーカスを外し、追加行の操作へ移る（§3.4 / FB-29）
+      onEnter: (input) => {
+        if (name.trim() !== "") input.blur();
+        add();
+      },
+      onEscape: (input) => input.blur(), // Esc でフォーカスを外しリスト操作へ戻る
+    })(event);
+  }
 
   // Undo トーストの自動消去（O-8）は Toast コンポーネント側に一元化してある（画面定義書01 §8 / FB-15）
 
@@ -504,7 +518,7 @@ export function DailyBoard({
             ref={quickAddRef}
             value={name}
             onChange={(e) => setName(e.target.value)}
-            onKeyDown={onKeyDown}
+            onKeyDown={onQuickAddKeyDown}
             placeholder="タスク名を入力して Enter で追加"
             className={`w-full text-sm ${inputBase}`}
           />

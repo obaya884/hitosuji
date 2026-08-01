@@ -80,17 +80,16 @@ export function applyOptimisticAction(
 }
 
 /**
- * 楽観的更新で先に表示する仮タスク。負のIDでサーバ確定前だと分かるようにする。
- * ID は同一セッション内で衝突しなければよく、時刻の符号反転で足りる
- * （サーバの採番は必ず正のため、負であることがそのまま「未確定」の印になる）
+ * 楽観的更新で先に表示する仮タスク。IDは符号を反転して負にする——サーバの採番は必ず正なので、
+ * こうしておけば確定済みの行とぶつからない。
+ *
+ * `seq` は**そのボードが生きている間ずっと重複しない正の整数**（0 は `-0` になって負にならない）。
+ * 時刻由来（`-Date.now()`）だと同一ミリ秒内に2件追加したときIDが衝突し、片方への更新・削除が
+ * 他方を巻き添えにするため、呼び出し側が単調増加カウンタで採る（T-63）
  */
-export function optimisticTask(
-  date: LogicalDate,
-  name: string,
-  now: number = Date.now()
-): Task {
+export function optimisticTask(date: LogicalDate, name: string, seq: number): Task {
   return {
-    id: -now,
+    id: -seq,
     taskDate: date,
     name,
     estimateMinutes: 0,

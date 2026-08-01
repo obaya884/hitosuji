@@ -875,6 +875,19 @@ describe("DailyBoard のクイック追加（§3.4 / F-102）", () => {
     expect(rowNames()).toEqual([NOT_STARTED, RUNNING, COMPLETED]);
   });
 
+  // 追加欄のキー処理は `inlineEditKeyHandler` を通す（00_共通 §3: IME変換中は操作として扱わない）。
+  // これが無いと、生のキー判定へ書き換えても他の追加テストは全部緑のまま通る
+  it("IME変換中の Enter は追加しない（00_共通 §3）", () => {
+    renderBoard();
+
+    fireEvent.change(quickAddInput(), { target: { value: "買い物" } });
+    fireEvent.keyDown(quickAddInput(), { key: "Enter", isComposing: true });
+
+    expect(vi.mocked(addTaskAction)).not.toHaveBeenCalled();
+    expect(rowNames()).toEqual([NOT_STARTED, RUNNING, COMPLETED]);
+    expect(quickAddInput()).toHaveProperty("value", "買い物"); // 確定前なので欄も消えない
+  });
+
   it("Esc は欄のフォーカスを外してリスト操作へ戻す（§3.4）", () => {
     renderBoard();
 
@@ -899,6 +912,63 @@ describe("DailyBoard のクイック追加（§3.4 / F-102）", () => {
     applyServerState([...defaultTasks(), task({ id: 21, name: "買い物" })]);
 
     expect(isSelected("買い物")).toBe(true);
+  });
+
+  // 仮タスクのIDは連番で採る（T-63）。時刻由来（`-Date.now()`）だと同一ミリ秒内の連続追加で
+  // 衝突し、片方への操作が他方を巻き添えにする。以下2件はその衝突が起きないことを見る
+  // （時計を固定している＝同一ミリ秒なので、時刻由来に戻すとどちらも落ちる）
+  it("確定前に2件続けて追加しても、両方が別の行として残る（T-63）", () => {
+    const gate = hold<CreatingActionResult>(CREATED);
+    vi.mocked(addTaskAction).mockReturnValue(gate.promise);
+    renderBoard();
+
+    fireEvent.change(quickAddInput(), { target: { value: "買い物" } });
+    fireEvent.keyDown(quickAddInput(), { key: "Enter" });
+    fireEvent.change(quickAddInput(), { target: { value: "洗濯" } });
+    fireEvent.keyDown(quickAddInput(), { key: "Enter" });
+
+    expect(rowNames()).toEqual(["買い物", "洗濯", NOT_STARTED, RUNNING, COMPLETED]);
+    // 選択（§5）は行のIDで決まるので、片方だけが選ばれることがIDの別々さの現れになる
+    selectRow("洗濯");
+    expect(isSelected("洗濯")).toBe(true);
+    expect(isSelected("買い物")).toBe(false);
+  });
+
+  it("確定前の仮の行を1件だけ編集しても、もう1件は巻き添えにならない（T-63）", () => {
+    const addGate = hold<CreatingActionResult>(CREATED);
+    vi.mocked(addTaskAction).mockReturnValue(addGate.promise);
+    const renameGate = hold<DailyActionResult>(OK);
+    vi.mocked(renameTaskAction).mockReturnValue(renameGate.promise);
+    renderBoard();
+
+    fireEvent.change(quickAddInput(), { target: { value: "買い物" } });
+    fireEvent.keyDown(quickAddInput(), { key: "Enter" });
+    fireEvent.change(quickAddInput(), { target: { value: "洗濯" } });
+    fireEvent.keyDown(quickAddInput(), { key: "Enter" });
+
+    selectRow("洗濯");
+    press("r");
+    commit(screen.getByDisplayValue("洗濯"), "洗濯物");
+
+    expect(rowNames()).toEqual(["買い物", "洗濯物", NOT_STARTED, RUNNING, COMPLETED]);
+  });
+
+  it("確定前の仮の行を1件だけ削除しても、もう1件は消えない（T-63 / O-8）", () => {
+    const addGate = hold<CreatingActionResult>(CREATED);
+    vi.mocked(addTaskAction).mockReturnValue(addGate.promise);
+    const deleteGate = hold<DeleteResult>(DELETE_OK);
+    vi.mocked(deleteTaskAction).mockReturnValue(deleteGate.promise);
+    renderBoard();
+
+    fireEvent.change(quickAddInput(), { target: { value: "買い物" } });
+    fireEvent.keyDown(quickAddInput(), { key: "Enter" });
+    fireEvent.change(quickAddInput(), { target: { value: "洗濯" } });
+    fireEvent.keyDown(quickAddInput(), { key: "Enter" });
+
+    selectRow("洗濯");
+    press("d");
+
+    expect(rowNames()).toEqual(["買い物", NOT_STARTED, RUNNING, COMPLETED]);
   });
 
   it("追加の失敗は仮の行を取り消してエラートーストを出す", async () => {

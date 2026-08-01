@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Section } from "../section/section";
 import { atJst } from "../shared/testing/clock";
 import { APP_TIME_ZONE } from "../shared/time-zone";
-import { groupTasksBySection } from "./daily-list";
+import { groupTasksBySection, type DailyGroup } from "./daily-list";
 import {
   formatProjectedEnd,
   formatProjectedStart,
@@ -11,7 +11,6 @@ import {
   projectedStartTimes,
   remainingMinutes,
   sectionCapacityMinutes,
-  sectionEndAt,
   sectionSlacks,
 } from "./projection";
 import type { Task } from "./task";
@@ -342,51 +341,76 @@ describe("sectionCapacityMinutes（F-110: セクション枠の長さ）", () =>
   });
 });
 
-describe("sectionEndAt（F-110: セクション終了時刻の絶対時刻）", () => {
+describe("sectionSlacks の endAt（F-110: セクション枠の終了時刻を絶対時刻で測る / F-116）", () => {
+  const SECTION_ID = 1;
+
+  /**
+   * 枠の終了時刻（`SectionSlack.endAt`）だけを取り出す。`groupTasksBySection` は通さず
+   * `DailyGroup` を1件手で組む——ここで測るのは (start_time, 終了時刻) の対から絶対時刻を
+   * 導く部分で、終了時刻を隣のセクションから決める規則（`sectionRanges`）は別の関心
+   * （`section.test.ts` が持つ）。`endAt` は tasks に依らないので空で固定する
+   */
+  function endAtOf(
+    now: Date,
+    startTime: string,
+    endTime: string,
+    timeZone: string,
+    dayStartMinutes = 0
+  ): Date {
+    const group: DailyGroup = {
+      section: { id: SECTION_ID, name: "枠", startTime, isArchived: false },
+      endTime,
+      tasks: [],
+    };
+    const slack = sectionSlacks([group], now, timeZone, dayStartMinutes).get(SECTION_ID);
+    if (slack === undefined) throw new Error("枠を持つグループなのに残り時間が返らない");
+    return slack.endAt;
+  }
+
   it("基準時刻と同じ暦日の壁時計として終了時刻を返す", () => {
     // 基準 2026-07-26 09:00、終了 12:00 → 同日 12:00
-    expect(sectionEndAt(atJst("09:00"), "09:00", "12:00", APP_TIME_ZONE).getTime()).toBe(
+    expect(endAtOf(atJst("09:00"), "09:00", "12:00", APP_TIME_ZONE).getTime()).toBe(
       atJst("12:00").getTime()
     );
   });
 
   it("日をまたぐ枠（終了 ≤ 開始）は翌日へずらす", () => {
     // 夜 18:00–00:00 は基準日翌日の 0:00
-    const end = sectionEndAt(atJst("20:00"), "18:00", "00:00", APP_TIME_ZONE);
+    const end = endAtOf(atJst("20:00"), "18:00", "00:00", APP_TIME_ZONE);
     expect(end.getTime()).toBe(atJst("00:00", "2026-07-27").getTime());
   });
 
   it("開始=終了（1件で先頭へ折り返す枠）は翌日の同時刻", () => {
-    const end = sectionEndAt(atJst("08:00"), "06:00", "06:00", APP_TIME_ZONE);
+    const end = endAtOf(atJst("08:00"), "06:00", "06:00", APP_TIME_ZONE);
     expect(end.getTime()).toBe(atJst("06:00", "2026-07-27").getTime());
   });
 
   it("枠の起点は運用タイムゾーンの暦日（実行環境のローカル時刻に依らない）", () => {
     // JST 07-26 09:00 = 00:00Z。09:00–12:00 の終わりは JST 12:00 = 03:00Z
-    const end = sectionEndAt(new Date("2026-07-26T00:00:00Z"), "09:00", "12:00", APP_TIME_ZONE);
+    const end = endAtOf(new Date("2026-07-26T00:00:00Z"), "09:00", "12:00", APP_TIME_ZONE);
     expect(end.toISOString()).toBe("2026-07-26T03:00:00.000Z");
   });
 
   it("枠の起点の暦日は引数のタイムゾーンで決まる（定数を直接見ていない）", () => {
     // 同じ瞬間を UTC で読むと暦日 07-26 の 00:00 起点なので、09:00–12:00 の終わりは 12:00Z
-    const end = sectionEndAt(new Date("2026-07-26T00:00:00Z"), "09:00", "12:00", "UTC");
+    const end = endAtOf(new Date("2026-07-26T00:00:00Z"), "09:00", "12:00", "UTC");
     expect(end.toISOString()).toBe("2026-07-26T12:00:00.000Z");
   });
 
   it("日界 06:00 のとき、回転で末尾に来る深夜(00:00–06:00)は翌暦日に敷かれる（F-116）", () => {
     // now 07-26 20:00、日界 06:00。深夜は論理日の末尾＝翌 00:00–06:00
-    const end = sectionEndAt(atJst("20:00"), "00:00", "06:00", APP_TIME_ZONE, 6 * 60);
+    const end = endAtOf(atJst("20:00"), "00:00", "06:00", APP_TIME_ZONE, 6 * 60);
     expect(end.getTime()).toBe(atJst("06:00", "2026-07-27").getTime());
   });
 
   it("日界 06:00 の日界セクション（朝 06:00–09:00）は当日 09:00 で終わる（F-116）", () => {
-    const end = sectionEndAt(atJst("20:00"), "06:00", "09:00", APP_TIME_ZONE, 6 * 60);
+    const end = endAtOf(atJst("20:00"), "06:00", "09:00", APP_TIME_ZONE, 6 * 60);
     expect(end.getTime()).toBe(atJst("09:00").getTime());
   });
 
   it("日界より前（深夜帯）の now では、深夜枠は翌暦日ではなく直近の日界で閉じる（F-116）", () => {
     // now 07-26 02:00・日界 06:00 → 論理日は 07-25。深夜(00:00–06:00)の終わりは当日(07-26) 06:00
-    const end = sectionEndAt(atJst("02:00"), "00:00", "06:00", APP_TIME_ZONE, 6 * 60);
+    const end = endAtOf(atJst("02:00"), "00:00", "06:00", APP_TIME_ZONE, 6 * 60);
     expect(end.getTime()).toBe(atJst("06:00").getTime());
   });
 });
@@ -559,6 +583,8 @@ describe("sectionSlacks（F-110: セクションの残り時間 / データモ�
     expect(slacks.get(FORENOON)?.slackMinutes).toBe(160);
   });
 
+  // 枠の終了時刻そのものの導出（日跨ぎ・タイムゾーン・日界）は上の describe が測る。
+  // ここは実集約（`groupTasksBySection`）を通しても `endAt` が露出することだけを見る
   it("枠の終了時刻も返す（表示するかの判定に呼び出し側が使う。画面定義書01 §3.2）", () => {
     const slacks = slacksOf([], atJst("10:00"));
     expect(slacks.get(FORENOON)?.endAt.getTime()).toBe(atJst("13:00").getTime());
