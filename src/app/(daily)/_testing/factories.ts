@@ -3,9 +3,12 @@
 // Task そのものと打刻時刻は全層共通の `@/domain/task/testing/task` と
 // `@/domain/shared/testing/clock` が持つ（T-43）。ここが扱うのは表示単位（グループ）と、
 // デイリー画面でしか意味を持たないマスタの並びだけ（表の DOM 読み取りは `table-helpers.ts`）。
+// セクションの時間帯は `SECTIONS` の `startTime` だけが持ち、枠の終了時刻は `sectionRanges` で
+// そこから導く（T-82）。**`sectionRanges` から枠を導く実装（`groupTasksBySection`・`toSectionOptions`）の
+// 出力と突き合わせる期待値には、ここの枠を使わずリテラルを書く**（同じ導出なので枠の検証が自明になる）。
 import { MODE_COLOR_PRESETS, type Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
-import type { Section } from "@/domain/section/section";
+import { sectionRanges, type Section } from "@/domain/section/section";
 import type { DailyGroup } from "@/domain/task/daily-list";
 import type { Task } from "@/domain/task/task";
 import { rgbOf } from "@/app/_testing/dom";
@@ -18,7 +21,11 @@ export function unclassifiedGroup(tasks: readonly Task[] = []): DailyGroup {
   return { section: null, endTime: null, tasks };
 }
 
-/** セクションのグループ。`endTime` は次セクション開始からの導出値（domain の `sectionRanges` と同じ） */
+/**
+ * セクションのグループ。枠の終了時刻は呼び出し側が渡す。
+ * `SECTIONS` の3つを組むときは枠が導出される `morning` / `forenoon` / `afternoon` を使い、
+ * ここへ直に渡すのは**フィクスチャ外のセクションや任意の時間帯**を置きたいときだけにする
+ */
 export function sectionGroup(
   section: Section,
   endTime: string,
@@ -56,17 +63,27 @@ export function colorOf(name: string): string {
   return rgbOf(modeOf(name).color);
 }
 
-/** 朝（06:00–09:00）のグループ */
+/** 有効セクションの枠（アーカイブ済みは `sectionRanges` が落とす） */
+const SECTION_RANGES = sectionRanges(SECTIONS);
+
+/** セクションを名前で引き、導出した枠でグループにする（名前で引く理由は `modeOf` と同じ） */
+function derivedSectionGroup(name: string, tasks: readonly Task[]): DailyGroup {
+  const range = SECTION_RANGES.find((r) => r.section.name === name);
+  if (range === undefined) throw new Error(`有効セクション「${name}」がフィクスチャにありません`);
+  return sectionGroup(range.section, range.endTime, tasks);
+}
+
+/** 朝のグループ */
 export function morning(tasks: readonly Task[] = []): DailyGroup {
-  return sectionGroup(SECTIONS[0], "09:00", tasks);
+  return derivedSectionGroup("朝", tasks);
 }
 
-/** 午前（09:00–13:00）のグループ */
+/** 午前のグループ */
 export function forenoon(tasks: readonly Task[] = []): DailyGroup {
-  return sectionGroup(SECTIONS[1], "13:00", tasks);
+  return derivedSectionGroup("午前", tasks);
 }
 
-/** 午後（13:00–翌06:00）のグループ。日界をまたぐ枠 */
+/** 午後のグループ。末尾のセクションなので日界をまたぐ枠になる */
 export function afternoon(tasks: readonly Task[] = []): DailyGroup {
-  return sectionGroup(SECTIONS[2], "06:00", tasks);
+  return derivedSectionGroup("午後", tasks);
 }
