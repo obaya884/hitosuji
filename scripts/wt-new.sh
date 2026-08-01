@@ -18,6 +18,8 @@
 # 本体と共有する。起動はオーナーが自分のターミナルで行う（§3.2）。
 set -eu
 
+. "$(dirname "$0")/lib/db-test.sh"
+
 name=""
 base=""
 allow_unpushed=0
@@ -59,7 +61,7 @@ if [ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]; then
 fi
 
 wt_dir="../hitosuji-wt/$name"
-db_name="hitosuji_test_$(printf '%s' "$name" | tr '-' '_')"
+db_name="$(worktree_test_db_name "$name")"
 
 # 起点の未 push 検査（T-46）。ローカルが origin より進んだまま worktree を作ると、その
 # コミットが全ブランチの起点に入り、PR の差分（GitHub は origin と比較する）に写り込む。
@@ -121,21 +123,7 @@ if [ "$dev_port" -ge 3100 ]; then
 fi
 
 # 重い処理（worktree 作成・npm ci）より先にテストDBを用意し、失敗を早く安く倒す
-docker compose up -d db-test
-i=0
-until docker compose exec -T db-test pg_isready -U hitosuji -q 2>/dev/null; do
-  i=$((i + 1))
-  if [ "$i" -ge 30 ]; then
-    echo "db-test の起動を待ちきれませんでした（docker compose logs db-test を確認してください）" >&2
-    exit 1
-  fi
-  sleep 1
-done
-if ! docker compose exec -T db-test psql -U hitosuji -d hitosuji_test -v ON_ERROR_STOP=1 -tAc \
-  "SELECT 1 FROM pg_database WHERE datname = '$db_name'" | grep -q 1; then
-  docker compose exec -T db-test psql -U hitosuji -d hitosuji_test -v ON_ERROR_STOP=1 \
-    -c "CREATE DATABASE $db_name"
-fi
+ensure_db_test_database "$db_name"
 
 git worktree add "$wt_dir" -b "$name" "$base"
 

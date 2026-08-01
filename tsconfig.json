@@ -39,6 +39,9 @@
     ".next-check/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    // 上の include の .next-check/* は npm run dev:check のたび Next.js が書き戻すので消せない。
+    // exclude が include より優先されるため、生成途中の型ファイルを読む事故はここで止める（T-91）
+    ".next-check"
   ]
 }

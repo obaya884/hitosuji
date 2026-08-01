@@ -8,6 +8,8 @@
 # 未コミットの変更が残っている場合は中断する（--force は設けない。防護は git の安全装置に寄せる）。
 set -eu
 
+. "$(dirname "$0")/lib/db-test.sh"
+
 name="${1:-}"
 
 if [ -z "$name" ] || ! printf '%s' "$name" | grep -Eq '^[a-z0-9-]{1,49}$'; then
@@ -23,7 +25,7 @@ if [ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]; then
 fi
 
 wt_dir="../hitosuji-wt/$name"
-db_name="hitosuji_test_$(printf '%s' "$name" | tr '-' '_')"
+db_name="$(worktree_test_db_name "$name")"
 
 if [ ! -d "$wt_dir" ]; then
   echo "$wt_dir がありません" >&2

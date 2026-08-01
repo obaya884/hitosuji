@@ -9,6 +9,8 @@
 # .env.worktree に書くだけでは効かない。このラッパで先に読んで -p に渡す。
 set -eu
 
+. "$(dirname "$0")/lib/port.sh"
+
 # シェルから渡された DEV_PORT が常に優先（.env.worktree はワークツリー既定値）
 if [ -z "${DEV_PORT:-}" ] && [ -f .env.worktree ]; then
   DEV_PORT="$(sed -n 's/^DEV_PORT=\([0-9]\{1,\}\)$/\1/p' .env.worktree)"
@@ -20,9 +22,7 @@ if [ -n "${DEV_PORT:-}" ]; then
   if lsof -ti:"$DEV_PORT" >/dev/null 2>&1; then
     echo "警告: 割り当てポート :${DEV_PORT} は既に使用中です。next は別のポートで起動します" >&2
     echo "  :${DEV_PORT} を掴んでいるのは次のプロセスです（本体の dev サーバが流れてきていないか確認してください）" >&2
-    lsof -ti:"$DEV_PORT" | while read -r pid; do
-      echo "    PID ${pid}: $(ps -o command= -p "$pid" 2>/dev/null | cut -c1-60)" >&2
-    done
+    print_port_holders "$DEV_PORT" "    "
   fi
   exec npx next dev -p "$DEV_PORT"
 fi
