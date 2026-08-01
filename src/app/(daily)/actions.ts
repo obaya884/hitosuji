@@ -36,12 +36,10 @@ import type { ActionResult } from "@/app/_lib/action-result";
 import { formatClock } from "@/app/_lib/format";
 import { resolveToday } from "@/usecases/section/resolve-today";
 import {
-  DUPLICATE_AND_START_MESSAGES,
-  OPERATION_MESSAGES,
-  PUNCH_MESSAGES,
   REORDER_MESSAGES,
   routineFromTaskErrorMessage,
   TASK_EDIT_MESSAGES,
+  taskActionErrorMessage,
 } from "@/app/_lib/error-messages";
 import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
 import { createRoutineRepository } from "@/infrastructure/db/repositories/drizzle-routine-repository";
@@ -120,7 +118,7 @@ export async function startTaskAction(id: number, now: Date): Promise<DailyActio
   const today = await resolveToday(sectionRepo, now);
   const nowClock = formatClock(now);
   const result = await startTask(punchDeps, { taskId: id, now, nowClock, today });
-  if (!result.ok) return { ok: false, message: PUNCH_MESSAGES[result.error] };
+  if (!result.ok) return { ok: false, message: taskActionErrorMessage("start", result.error) };
   // 開始したタスクより前に残っている未実行タスクを繰り下げる（F-113 §4.2-b）
   await applyCarryOverAfterPunch(punchDeps, { date: today, today, nowClock });
   revalidatePath("/");
@@ -134,7 +132,7 @@ export async function undoStartAction(id: number, now: Date): Promise<DailyActio
     nowClock: formatClock(now),
     today: await resolveToday(sectionRepo, now),
   });
-  if (!result.ok) return { ok: false, message: PUNCH_MESSAGES[result.error] };
+  if (!result.ok) return { ok: false, message: taskActionErrorMessage("undoStart", result.error) };
   revalidatePath("/");
   return { ok: true };
 }
@@ -154,7 +152,9 @@ export async function undoCompleteAction(
     nowClock: formatClock(now),
     today: await resolveToday(sectionRepo, now),
   });
-  if (!result.ok) return { ok: false, message: PUNCH_MESSAGES[result.error] };
+  if (!result.ok) {
+    return { ok: false, message: taskActionErrorMessage("undoComplete", result.error) };
+  }
   revalidatePath("/");
   return { ok: true, snapshot: result.value };
 }
@@ -164,14 +164,16 @@ export async function restoreCompletionAction(
   snapshot: CompletionSnapshot
 ): Promise<DailyActionResult> {
   const result = await restoreCompletion(taskRepo, snapshot);
-  if (!result.ok) return { ok: false, message: PUNCH_MESSAGES[result.error] };
+  if (!result.ok) {
+    return { ok: false, message: taskActionErrorMessage("restoreCompletion", result.error) };
+  }
   revalidatePath("/");
   return { ok: true };
 }
 
 export async function finishTaskAction(id: number, now: Date): Promise<DailyActionResult> {
   const result = await finishTask(taskRepo, { taskId: id, now });
-  if (!result.ok) return { ok: false, message: PUNCH_MESSAGES[result.error] };
+  if (!result.ok) return { ok: false, message: taskActionErrorMessage("finish", result.error) };
   const today = await resolveToday(sectionRepo, now);
   await applyCarryOverAfterPunch(punchDeps, { date: today, today, nowClock: formatClock(now) });
   revalidatePath("/");
@@ -196,7 +198,9 @@ export async function updateTaskPunchAction(
     // 「今日」の判定は他の打刻アクションと同じくクライアントの現在時刻＋日界（F-116）から導く
     today: await resolveToday(sectionRepo, now),
   });
-  if (!result.ok) return { ok: false, message: PUNCH_MESSAGES[result.error] };
+  if (!result.ok) {
+    return { ok: false, message: taskActionErrorMessage("updatePunch", result.error) };
+  }
   revalidatePath("/");
   return { ok: true };
 }
@@ -247,7 +251,7 @@ export async function setTaskSectionAction(
 /** 中断（F-204） */
 export async function suspendTaskAction(id: number, now: Date): Promise<DailyActionResult> {
   const result = await suspendTask(taskRepo, { taskId: id, now });
-  if (!result.ok) return { ok: false, message: OPERATION_MESSAGES[result.error] };
+  if (!result.ok) return { ok: false, message: taskActionErrorMessage("suspend", result.error) };
   revalidatePath("/");
   return { ok: true };
 }
@@ -255,7 +259,7 @@ export async function suspendTaskAction(id: number, now: Date): Promise<DailyAct
 /** 複製（F-111）。複製後に選択行を移すため、作られたタスクのIDを返す（O-11） */
 export async function duplicateTaskAction(id: number): Promise<CreatingActionResult> {
   const result = await duplicateTask({ tasks: taskRepo, sections: sectionRepo }, { taskId: id });
-  if (!result.ok) return { ok: false, message: OPERATION_MESSAGES[result.error] };
+  if (!result.ok) return { ok: false, message: taskActionErrorMessage("duplicate", result.error) };
   revalidatePath("/");
   return { ok: true, createdId: result.value.id };
 }
@@ -274,7 +278,9 @@ export async function duplicateAndStartTaskAction(
     { tasks: taskRepo, sections: sectionRepo },
     { taskId: id, now, nowClock, today }
   );
-  if (!result.ok) return { ok: false, message: DUPLICATE_AND_START_MESSAGES[result.error] };
+  if (!result.ok) {
+    return { ok: false, message: taskActionErrorMessage("duplicateAndStart", result.error) };
+  }
   // 開始により前に残った未実行タスクを現在位置の直後へ繰り下げる（F-113 §4.2-b）
   await applyCarryOverAfterPunch(punchDeps, { date: today, today, nowClock });
   revalidatePath("/");
@@ -303,7 +309,7 @@ export async function createRoutineFromTaskAction(
 /** 先送り（F-107） */
 export async function postponeTaskAction(id: number): Promise<DailyActionResult> {
   const result = await postponeTask(taskRepo, { taskId: id });
-  if (!result.ok) return { ok: false, message: OPERATION_MESSAGES[result.error] };
+  if (!result.ok) return { ok: false, message: taskActionErrorMessage("postpone", result.error) };
   revalidatePath("/");
   return { ok: true };
 }
@@ -313,7 +319,7 @@ export async function deleteTaskAction(
   id: number
 ): Promise<Readonly<{ ok: true; deleted: Task } | { ok: false; message: string }>> {
   const result = await deleteTask(taskRepo, { taskId: id });
-  if (!result.ok) return { ok: false, message: OPERATION_MESSAGES[result.error] };
+  if (!result.ok) return { ok: false, message: taskActionErrorMessage("delete", result.error) };
   revalidatePath("/");
   return { ok: true, deleted: result.value };
 }
@@ -321,7 +327,7 @@ export async function deleteTaskAction(
 /** 削除の取り消し（O-8） */
 export async function restoreTaskAction(deleted: Task): Promise<DailyActionResult> {
   const result = await restoreTask(taskRepo, deleted);
-  if (!result.ok) return { ok: false, message: OPERATION_MESSAGES[result.error] };
+  if (!result.ok) return { ok: false, message: taskActionErrorMessage("restore", result.error) };
   revalidatePath("/");
   return { ok: true };
 }

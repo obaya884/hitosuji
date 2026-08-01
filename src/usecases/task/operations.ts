@@ -113,7 +113,7 @@ export async function duplicateAndStartTask(
   const target = await repos.tasks.findById(input.taskId);
   if (target === null) return err("task_not_found");
   // TaskOperationError を返す操作でこのコードを返すのはここだけ（打刻の完了取り消しも同じコードを
-  // 返し、そちらは PUNCH_MESSAGES）。文言は DUPLICATE_AND_START_MESSAGES が持つ（T-74）
+  // 返すが文言は別）。文言は taskActionErrorMessage("duplicateAndStart", …) が持つ（T-74 / T-76）
   if (taskStatus(target) !== "completed") return err("not_completed");
 
   const [sameDay, sections] = await Promise.all([

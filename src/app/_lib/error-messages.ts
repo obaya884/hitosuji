@@ -43,7 +43,10 @@ export const TASK_EDIT_MESSAGES: Record<TaskEditUsecaseError, string> = {
   task_not_found: TASK_NOT_FOUND,
 };
 
-/** 打刻とその取り消し（F-201 / F-210 / F-212 / F-203） */
+/**
+ * 打刻とその取り消し（F-201 / F-210 / F-212 / F-203）。
+ * **アクションからは直接引かず `taskActionErrorMessage` を通す**（直接の import は下の表とテストだけ）
+ */
 export const PUNCH_MESSAGES: Record<PunchUsecaseError, string> = {
   task_not_found: TASK_NOT_FOUND,
   already_started: "このタスクはすでに開始済みです",
@@ -70,7 +73,8 @@ export const REORDER_MESSAGES: Record<ReorderUsecaseError, string> = {
  * `TaskOperationError ⊇ PunchUsecaseError` なので `PUNCH_MESSAGES` を広げた形になるが、
  * **共有するコードの文言は打刻と完全に一致させる**——一致していれば辞書を取り違えても表示は変わらず、
  * 型でも捕まらない取り違えが誤りでなくなる（T-74）。「複製して開始」だけが違う文言を出すため、
- * その差は下の専用辞書へ隔離した。一致は `error-messages.test.ts` の不変条件テストが守る
+ * その差は下の専用辞書へ隔離した。一致は `error-messages.test.ts` の不変条件テストが守る。
+ * **アクションからは直接引かず `taskActionErrorMessage` を通す**（`PUNCH_MESSAGES` と同じ）
  */
 export const OPERATION_MESSAGES: Record<TaskOperationError, string> = {
   ...PUNCH_MESSAGES,
@@ -79,18 +83,76 @@ export const OPERATION_MESSAGES: Record<TaskOperationError, string> = {
 
 /**
  * 複製して開始（F-208）専用。`not_completed`（複製元が完了でない）に「もう一回」の文脈を添えるため、
- * ここだけ `OPERATION_MESSAGES` と文言が違う。**`TaskOperationError` を返す操作でこのコードへ
- * 到達するのは `duplicateAndStartTask` だけ**（打刻の完了取り消しも同じコードを返すが、そちらは
- * `PUNCH_MESSAGES` を引く）なので、差をこの辞書に閉じ込めれば共有辞書側は一致を保てる（T-74）。
+ * **ここだけ `OPERATION_MESSAGES` と文言が違う**。差をこの辞書に閉じ込めることで、共有辞書どうしは
+ * 取り違えても表示が変わらない状態を保てる（T-74）。
  *
- * **`duplicateAndStartTaskAction` 以外から引かないこと**。`TaskOperationError ⊇ PunchUsecaseError`
- * なので打刻系のコードを引いても型は通り、そのとき打刻の失敗に「複製して開始…」が出る
- * （T-74 で消したかった症状そのもの）。この1本だけは型でもテストでも守れないため名前で示す
+ * **エクスポートしない**——外から届かなくして、行き着く道を下の表の1行だけにする（T-76）。
+ * 非公開でテストから走査できないぶん、余計なキーが増えていないことは上の `Record<…>` 注釈が見る
  */
-export const DUPLICATE_AND_START_MESSAGES: Record<TaskOperationError, string> = {
+const DUPLICATE_AND_START_MESSAGES: Record<TaskOperationError, string> = {
   ...OPERATION_MESSAGES,
   not_completed: "複製して開始できるのは完了タスクだけです",
 };
+
+/**
+ * 打刻・タスク操作の各アクションが引く辞書の表（T-76）。**キーは `(daily)/actions.ts` の
+ * アクションと 1:1**（`start` = `startTaskAction`）で、辞書の選択はここ1か所に集める。
+ *
+ * 打刻系と操作系のまたぎは下の `TaskActionKindFor` が型で弾くが、**同じ族の中の取り違え**
+ * （`suspend` が `duplicateAndStart` を指す等）は失敗コードの型が同じなので見分けられない。
+ * この表の行き先は `error-messages.test.ts` の走査が見ており、族内の誤りはそちらで落ちる
+ */
+const TASK_ACTION_MESSAGE_DICTS = {
+  start: PUNCH_MESSAGES,
+  undoStart: PUNCH_MESSAGES,
+  finish: PUNCH_MESSAGES,
+  undoComplete: PUNCH_MESSAGES,
+  restoreCompletion: PUNCH_MESSAGES,
+  updatePunch: PUNCH_MESSAGES,
+  suspend: OPERATION_MESSAGES,
+  duplicate: OPERATION_MESSAGES,
+  postpone: OPERATION_MESSAGES,
+  delete: OPERATION_MESSAGES,
+  restore: OPERATION_MESSAGES,
+  duplicateAndStart: DUPLICATE_AND_START_MESSAGES,
+} as const;
+
+type TaskActionMessageDicts = typeof TASK_ACTION_MESSAGE_DICTS;
+
+/** 表のキー＝打刻・タスク操作のアクション種別 */
+export type TaskActionKind = keyof TaskActionMessageDicts;
+
+/** 種別の一覧（テストが走査に使う。辞書そのものは非公開のまま） */
+export const TASK_ACTION_KINDS = Object.keys(
+  TASK_ACTION_MESSAGE_DICTS
+) as readonly TaskActionKind[];
+
+/** `A` と `B` が同じ集合か。包含だと通ってしまうので双方向で見る（T-76） */
+type SameSet<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+
+/**
+ * 失敗コードの集合 `E` を渡してよい種別。**辞書のキー集合が `E` と一致するものだけ**を許す。
+ * 打刻の失敗（`PunchUsecaseError`）で `duplicateAndStart` を指すと、辞書のキー（`TaskOperationError`）
+ * のほうが広いので弾かれる——包含のせいで単なる `keyof` では通ってしまう、その向きを閉じるための一致
+ */
+type TaskActionKindFor<E extends TaskOperationError> = {
+  [K in TaskActionKind]: SameSet<keyof TaskActionMessageDicts[K], E> extends true ? K : never;
+}[TaskActionKind];
+
+/**
+ * 操作種別と失敗コードから表示文言を引く。**ユースケースが返す失敗コードの型をそのまま渡すこと**
+ * （`result.error`）。手前の分岐でコードを絞ってしまうと一致判定に掛からず、`kind` 側に
+ * 「型 never に代入できない」と出る——そのときは集合の型で受け直した値を渡す
+ * （`error-messages.test.ts` の `asPunchError()` と同じ手）
+ */
+export function taskActionErrorMessage<E extends TaskOperationError>(
+  // `TaskActionKind` との交差は添字を通すためだけのもの（絞り込みは右側の一致判定が行う）
+  kind: TaskActionKind & TaskActionKindFor<E>,
+  error: E
+): string {
+  const messages: Readonly<Record<string, string>> = TASK_ACTION_MESSAGE_DICTS[kind];
+  return messages[error];
+}
 
 /**
  * ルーチン入力の検証エラー。ルーチン管理（画面定義書02 §4）とデイリーのルーチン化
