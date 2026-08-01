@@ -1,6 +1,6 @@
 import { sectionTotalMinutes, type DailyGroup } from "@/domain/task/daily-list";
 import { sectionCapacityMinutes } from "@/domain/task/projection";
-import { formatDuration, formatEstimate } from "@/app/_lib/format";
+import { formatDuration, formatEstimate, formatSignedDuration } from "@/app/_lib/format";
 import { TaskProgress } from "./task-progress";
 
 export type GroupHeadingProps = Readonly<{
@@ -57,13 +57,12 @@ export function GroupHeading({
                 合計 <span className="font-mono">{formatEstimate(total)}</span>
                 {capacity !== null && <span className="font-mono">/{formatDuration(capacity)}</span>}
               </span>
-              {/* 残り時間（F-110 / FB-34）: 溢れていると `-`（FB-31）で警告色（FB-32） */}
+              {/* 残り時間（F-110 / FB-34）: 溢れていると警告色（FB-31 / FB-32） */}
               {remaining !== null && (
                 <span className="text-xs text-ink-muted tabular-nums">
                   残り{" "}
                   <span className={`font-mono ${remaining < 0 ? "text-danger" : ""}`}>
-                    {remaining < 0 ? "-" : "+"}
-                    {formatDuration(Math.abs(remaining))}
+                    {formatSignedDuration(remaining)}
                   </span>
                 </span>
               )}

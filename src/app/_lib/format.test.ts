@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { formatClock, formatDuration, formatEstimate, formatLogicalDate } from "./format";
+import {
+  formatClock,
+  formatDuration,
+  formatEstimate,
+  formatLogicalDate,
+  formatSignedDuration,
+} from "./format";
 
 describe("formatEstimate（画面定義書01 §3.3: 見積もり未設定は --:--）", () => {
   it("未設定（0分）は --:-- で表す", () => {
@@ -21,6 +27,17 @@ describe("formatDuration（画面定義書01 §3.3: 1分未満の実績は 0:00�
   it("分を H:MM へ整形する", () => {
     expect(formatDuration(18)).toBe("0:18");
     expect(formatDuration(125)).toBe("2:05");
+  });
+});
+
+describe("formatSignedDuration（画面定義書04 §3.3 / 01 §3.2: 差の向きを符号で示す。0 は符号なし）", () => {
+  it("正は `+`・負は `-` を付ける", () => {
+    expect(formatSignedDuration(10)).toBe("+0:10");
+    expect(formatSignedDuration(-90)).toBe("-1:30");
+  });
+
+  it("差が無い（0）ときは符号を付けない", () => {
+    expect(formatSignedDuration(0)).toBe("0:00");
   });
 });
 

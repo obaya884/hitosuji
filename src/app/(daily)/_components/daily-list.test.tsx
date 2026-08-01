@@ -277,6 +277,23 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
       expect(cellsOf(rowOf("メール")).time.textContent).toBe("08:05–");
     });
 
+    // 同じグループの中でも表示順に積む。ここが崩れると**行の並びは正しいまま値だけ入れ替わる**ので、
+    // 1グループ1件で組んだ下のテスト（またぎの順序）では捕まらない
+    it("同じセクションの中でも表示順に積み上げる", () => {
+      renderList({
+        now: atJst("10:00"),
+        groups: [
+          morning([
+            task({ id: 1, name: "資料作成", estimateMinutes: 30 }),
+            task({ id: 2, name: "レビュー依頼", estimateMinutes: 15 }),
+          ]),
+        ],
+      });
+
+      expect(cellsOf(rowOf("資料作成")).time.textContent).toBe("10:00–");
+      expect(cellsOf(rowOf("レビュー依頼")).time.textContent).toBe("10:30–");
+    });
+
     it("セクションをまたいで積み上げ、日界（F-116）を起点に折り返して表す", () => {
       renderList({
         // 日界 06:00・深夜 02:00 は前の論理日の続き（暦日 0:00 起点なら 02:00 と出てしまう）

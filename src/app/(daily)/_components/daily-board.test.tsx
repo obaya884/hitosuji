@@ -74,9 +74,44 @@ vi.mock("../actions", () => ({
 
 /** jsdom に無い API を局所的に補う（幾何の判定そのものは段3＝ブラウザテスト送り） */
 class ResizeObserverStub {
-  observe(): void {}
+  /**
+   * 直近に生成されたインスタンス（`beforeEach` で毎回 null に戻す）。テストから寸法の変化を
+   * 起こすために持つ。**画面で ResizeObserver を使うのは固定領域の計測1か所だけ**なので
+   * 「直近の1つ」で足りる——2つ目の利用者が入ったら掴む相手を選べるようにする必要がある
+   */
+  static latest: ResizeObserverStub | null = null;
+
+  private readonly callback: ResizeObserverCallback;
+  private target: Element | null = null;
+
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback;
+    ResizeObserverStub.latest = this;
+  }
+
+  observe(target: Element): void {
+    this.target = target;
+  }
   unobserve(): void {}
   disconnect(): void {}
+
+  /**
+   * 観測対象に高さを与えてコールバックを1回発火する。**jsdom はレイアウトを計算せず
+   * `offsetHeight` が常に 0** なので値は差し込む——ここで見るのは実測の正しさ（段3送り）ではなく、
+   * 測った値が行まで配線されているか。**実装は要素から測る**ので entry は空で渡す
+   * （`entry.contentRect` から読む形へ変えるなら、ここも渡すように直す必要がある）
+   */
+  resizeTo(height: number): void {
+    if (this.target === null) throw new Error("observe されていません");
+    Object.defineProperty(this.target, "offsetHeight", { value: height, configurable: true });
+    this.callback([], this);
+  }
+}
+
+/** 固定領域を観測している ResizeObserver。無ければ計測そのものが配線されていない */
+function stickyObserver(): ResizeObserverStub {
+  if (ResizeObserverStub.latest === null) throw new Error("ResizeObserver が生成されていません");
+  return ResizeObserverStub.latest;
 }
 
 
@@ -328,6 +363,7 @@ function commentInput(): HTMLElement {
 }
 
 beforeEach(() => {
+  ResizeObserverStub.latest = null;
   vi.stubGlobal("ResizeObserver", ResizeObserverStub);
   // 選択行のスクロール追従（§5）は jsdom では測れない（幾何は段3送り）。呼び出し自体は通す
   Element.prototype.scrollIntoView = () => {};
@@ -1877,5 +1913,26 @@ describe("DailyBoard の通知と行メニュー（画面定義書01 §8 / O-7 /
 
     expect(vi.mocked(postponeTaskAction)).toHaveBeenCalledWith(11);
     expect(rowNames()).toEqual([NOT_STARTED, RUNNING, COMPLETED]);
+  });
+});
+
+// 実測（board）と `scroll-margin` への写像（task-row）は各段で見ているが、その中間——
+// 測った値が行まで届くか——がどの段にも無かった（T-61）
+describe("DailyBoard の固定領域の高さ（§2 / §5: 追従した行が固定領域の裏に隠れないようにする）", () => {
+  /** 行ごとの写像は task-row.test.tsx が持つので、ここで見るのは「全行に同じ値が届いたか」 */
+  const scrollMargins = () => new Set(taskRows().map((tr) => tr.style.scrollMarginTop));
+
+  it("実測した高さを全行の scroll-margin へ配り、変化のたびに追う", () => {
+    renderBoard();
+    expect(scrollMargins()).toEqual(new Set(["0px"])); // 実測が届く前は 0
+
+    act(() => stickyObserver().resizeTo(96));
+
+    expect(scrollMargins()).toEqual(new Set(["96px"]));
+
+    // ResizeObserver を使う意味は「変わり続けても追う」こと。初回だけ measure する実装では通らない
+    act(() => stickyObserver().resizeTo(120));
+
+    expect(scrollMargins()).toEqual(new Set(["120px"]));
   });
 });

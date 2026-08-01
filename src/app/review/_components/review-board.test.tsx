@@ -171,6 +171,20 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
     expect(hasClass(diff, "text-danger")).toBe(true);
   });
 
+  // 警告色が付くかどうかの境界そのもの。表記と色の両方を見る（§3.3）
+  it("実績が見積ぴったりなら差異は符号なしの `0:00` で、警告色も付かない", () => {
+    renderBoard({
+      log: [
+        done({ id: 1, estimateMinutes: 30, startedAt: atJst("06:30"), endedAt: atJst("07:00") }),
+      ],
+      totalMinutes: 30,
+    });
+
+    const diff = logRow().cells[LOG.diff];
+    expect(diff.textContent).toBe("0:00");
+    expect(hasClass(diff, "text-danger")).toBe(false);
+  });
+
   it("実行中の行は終了時刻を `--:--` にし、実績と差異を空にする（実績が確定していない）", () => {
     renderBoard({ log: [task({ id: 1, estimateMinutes: 20, startedAt: atJst("09:00") })] });
 

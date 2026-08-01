@@ -10,7 +10,12 @@ import { actualMinutes, type Task } from "@/domain/task/task";
 import { DateNav } from "@/app/_components/date-nav";
 import { StarIcon } from "@/app/_components/icons";
 import { UnsetMark } from "@/app/_components/unset-mark";
-import { formatClock, formatDuration, formatEstimate } from "@/app/_lib/format";
+import {
+  formatClock,
+  formatDuration,
+  formatEstimate,
+  formatSignedDuration,
+} from "@/app/_lib/format";
 import { isGlobalShortcutEvent } from "@/app/_lib/keyboard";
 import { modeAppearance } from "@/app/_lib/mode-appearance";
 
@@ -146,6 +151,8 @@ function LogRow({
   const project = projects.find((p) => p.id === task.projectId);
   const actual = actualMinutes(task);
   const diff = estimateDiffMinutes(task);
+  // 警告色の境界（§3.3「超過は警告色」）。表記の符号と同じ 0 で分ける
+  const isOver = diff !== null && diff > 0;
   // モードから決まる見た目は S-01 と揃える（規則は `_lib/mode-appearance.ts`）
   const { dimmedClass, colorStyle } = modeAppearance(mode);
   // コメント行を出すか（§3.3）。下線をどちらの行が持つかも同じ条件で決まる
@@ -201,8 +208,8 @@ function LogRow({
         <td className="py-2 pr-4 text-right font-mono tabular-nums">
           {actual === null ? "--:--" : formatDuration(actual)}
         </td>
-        <td className={`py-2 text-right font-mono tabular-nums ${diff !== null && diff > 0 ? "text-danger" : ""}`}>
-          {diff === null ? "" : `${diff > 0 ? "+" : "-"}${formatDuration(Math.abs(diff))}`}
+        <td className={`py-2 text-right font-mono tabular-nums ${isOver ? "text-danger" : ""}`}>
+          {diff === null ? "" : formatSignedDuration(diff)}
         </td>
       </tr>
       {/* コメント（F-206 / §3.3）。列にせず行の下に全文を出す（読み返しが目的なので切り詰めない） */}
