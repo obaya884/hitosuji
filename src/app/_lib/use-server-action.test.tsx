@@ -1,8 +1,9 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ActionResult } from "./action-result";
 import { deferredAction } from "@/app/_testing/actions";
+import { router } from "@/app/_testing/next-navigation";
 import { useServerAction } from "./use-server-action";
 
 const ok = (): ActionResult => ({ ok: true });
@@ -10,7 +11,12 @@ const failure = (message: string): ActionResult => ({ ok: false, message });
 
 // マスタ管理・routines は N-01（楽観的更新）の対象外で、保存の完了を待って反映する
 // （画面定義書02 §1・03 §1。両画面とも同文で規定）
-// action が reject（例外）したときの経路は未実装（run は catch していない）。FB-64 で扱うためここでは対象外
+// spy（console.error）を戻す。`setup.ts` の `clearAllMocks` は呼び出し記録しか消さないため、
+// ここで戻さないと以降のテストでも本物のログが黙る
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe("useServerAction（画面定義書02 §1・03 §1: 保存の完了を待つ。楽観的更新はしない）", () => {
   it("成功なら onSuccess を呼び、エラーは出さない", async () => {
     const onSuccess = vi.fn();
@@ -107,7 +113,9 @@ describe("useServerAction（画面定義書02 §1・03 §1: 保存の完了を�
     const { result } = renderHook(() => useServerAction());
 
     await act(async () => {
-      result.current.run(async () => failure("対象が見つかりません（画面を再読み込みしてください）"));
+      result.current.run(async () =>
+        failure("対象が見つかりません（すでに削除されている可能性があります）")
+      );
     });
 
     expect(result.current.isPending).toBe(false);
@@ -123,6 +131,67 @@ describe("useServerAction（画面定義書02 §1・03 §1: 保存の完了を�
       result.current.setError(null);
     });
 
+    expect(result.current.error).toBeNull();
+  });
+});
+
+// `router` は段の前提として偽物（`_testing/next-navigation.ts`）なので、ここで観測できるのは
+// **取り直しを要求したところまで**。取り直した結果が画面に出るかは実機での確認に委ねる
+describe("useServerAction の失敗の扱い（00_共通 §4.1）", () => {
+  it("サーバが失敗を返したら表示中のデータを取り直す", async () => {
+    const { result } = renderHook(() => useServerAction());
+
+    await act(async () => {
+      result.current.run(async () => failure("タスクが見つかりませんでした"));
+    });
+
+    expect(result.current.error).toBe("タスクが見つかりませんでした");
+    expect(router.refresh).toHaveBeenCalledOnce();
+  });
+
+  it("成功なら取り直さない（サーバ側の revalidate で反映される）", async () => {
+    const onSuccess = vi.fn();
+    const { result } = renderHook(() => useServerAction());
+
+    await act(async () => {
+      result.current.run(async () => ok(), onSuccess);
+    });
+
+    expect(onSuccess).toHaveBeenCalledOnce(); // 操作自体は走っている
+    expect(router.refresh).not.toHaveBeenCalled();
+  });
+
+  it("拒否（通信断・タイムアウト）も素通りさせず「保存に失敗しました」を出す（FB-64）", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {}); // callAction が出す原因ログを抑える
+    const { result } = renderHook(() => useServerAction());
+
+    await act(async () => {
+      result.current.run(async () => {
+        throw new Error("Failed to fetch");
+      });
+    });
+
+    expect(result.current.error).toBe("保存に失敗しました");
+    expect(result.current.isPending).toBe(false); // 画面が固まらない
+    // 届かなかった以上、取り直しに行っても また失敗するだけなので行かない
+    expect(router.refresh).not.toHaveBeenCalled();
+  });
+
+  it("拒否のあとも次の操作を実行できる（run が壊れない）", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const onSuccess = vi.fn();
+    const { result } = renderHook(() => useServerAction());
+
+    await act(async () => {
+      result.current.run(async () => {
+        throw new Error("Failed to fetch");
+      });
+    });
+    await act(async () => {
+      result.current.run(async () => ok(), onSuccess);
+    });
+
+    expect(onSuccess).toHaveBeenCalledOnce();
     expect(result.current.error).toBeNull();
   });
 });

@@ -7,7 +7,19 @@ import {
   type MasterDeletionError,
 } from "@/domain/shared/master-deletion";
 import { sortByName } from "@/domain/shared/name-order";
-import { ok, type Result } from "@/domain/shared/result";
+import { err, ok, type Result } from "@/domain/shared/result";
+
+/**
+ * 更新・アーカイブ切替で起こりうる失敗。入力検証（`ModeError`）に加えて、
+ * **対象がすでに存在しない**場合を含む（画面定義書00_共通 §4.1）。
+ * `not_found` は物理削除の `MasterDeletionError` と同じコードで、文言も1つ（`MASTER_MESSAGES`）
+ */
+export type ModeUsecaseError = ModeError | "not_found";
+
+/** 対象の存在確認。Port は findById を持たないので一覧から引く（削除時の再チェックと同じ形） */
+async function findMode(repo: ModeRepository, id: ModeId): Promise<Mode | null> {
+  return (await repo.listAll()).find((m) => m.id === id) ?? null;
+}
 
 export type ModeListView = Readonly<{
   active: readonly Mode[];
@@ -42,9 +54,10 @@ export async function updateMode(
   repo: ModeRepository,
   id: ModeId,
   input: Readonly<{ name: string; color: string }>
-): Promise<Result<ModeId, ModeError>> {
+): Promise<Result<ModeId, ModeUsecaseError>> {
   const validated = validateModeInput(input);
   if (!validated.ok) return validated;
+  if ((await findMode(repo, id)) === null) return err("not_found");
   await repo.update(id, validated.value);
   return ok(id);
 }
@@ -53,7 +66,8 @@ export async function setModeArchived(
   repo: ModeRepository,
   id: ModeId,
   isArchived: boolean
-): Promise<Result<ModeId, ModeError>> {
+): Promise<Result<ModeId, ModeUsecaseError>> {
+  if ((await findMode(repo, id)) === null) return err("not_found");
   await repo.setArchived(id, isArchived);
   return ok(id);
 }
@@ -66,7 +80,7 @@ export async function deleteMode(
   repo: ModeRepository,
   id: ModeId
 ): Promise<Result<ModeId, MasterDeletionError>> {
-  const target = (await repo.listAll()).find((m) => m.id === id) ?? null;
+  const target = await findMode(repo, id);
   const counts = await repo.referenceCounts([id]);
 
   const deletable = canDeleteMaster(target, counts[id] ?? 0);

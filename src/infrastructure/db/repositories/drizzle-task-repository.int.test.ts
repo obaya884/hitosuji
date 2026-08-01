@@ -483,6 +483,44 @@ describe("updateComment（F-206 / O-16: コメントの保存と消去）", () =
   });
 });
 
+// 偽物（`usecases/task/testing/in-memory-repository.ts`）が写している本物側の契約。
+// ユースケースの存在検査（00_共通 §4.1）は「1行も当たらない更新は失敗」を返す側の話で、
+// リポジトリはそこへ届く前に例外を出したり別の行を壊したりしない、を本物で確かめる
+describe("存在しない id への更新・削除（0行で静かに終わる）", () => {
+  /** 2行入れるのは、巻き添え（末尾行の削除・隣の行への書き込み）を差として観測するため */
+  async function twoRows() {
+    return await db
+      .insert(tasks)
+      .values([
+        { taskDate: "2026-07-19", name: "先頭", sortOrder: 1000, estimateMinutes: 15 },
+        { taskDate: "2026-07-19", name: "末尾", sortOrder: 2000, comment: "元のまま" },
+      ])
+      .returning();
+  }
+
+  it("削除は1行も消さない", async () => {
+    const rows = await twoRows();
+    const before = await repo.listByDate("2026-07-19");
+
+    await repo.delete(Math.max(...rows.map((r) => r.id)) + 1, null);
+
+    expect(await repo.listByDate("2026-07-19")).toEqual(before);
+  });
+
+  it("更新は例外にならず、残っている行も変わらない", async () => {
+    const rows = await twoRows();
+    const missing = Math.max(...rows.map((r) => r.id)) + 1;
+    const before = await repo.listByDate("2026-07-19");
+
+    await repo.rename(missing, "新名");
+    await repo.updateEstimate(missing, 45);
+    await repo.updateComment(missing, "書き換え");
+    await repo.updateClassification(missing, { modeId: null });
+
+    expect(await repo.listByDate("2026-07-19")).toEqual(before);
+  });
+});
+
 describe("delete / restore（O-8: 削除と取り消し）", () => {
   it("削除したタスクを打刻ごと復元できる", async () => {
     const startedAt = new Date("2026-07-19T08:00:00Z");

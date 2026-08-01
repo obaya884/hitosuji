@@ -14,7 +14,22 @@ import {
   deletableMasterIds,
   type MasterDeletionError,
 } from "@/domain/shared/master-deletion";
-import { ok, type Result } from "@/domain/shared/result";
+import { err, ok, type Result } from "@/domain/shared/result";
+
+/**
+ * 更新・アーカイブ・復元・日界切替で起こりうる失敗。入力検証や配置の制約（`SectionError`）に加えて、
+ * **対象がすでに存在しない**場合を含む（画面定義書00_共通 §4.1）。
+ * `not_found` は物理削除の `MasterDeletionError` と同じコードで、文言も1つ（`MASTER_MESSAGES`）
+ */
+export type SectionUsecaseError = SectionError | "not_found";
+
+/**
+ * 対象の存在確認。**repo ではなく取得済みの一覧から引く**——この画面のユースケースは
+ * 検証（重複・最低1件）のために `listAll()` の結果をすでに持っており、二度読む理由がない
+ */
+function findSection(all: readonly Section[], id: SectionId): Section | null {
+  return all.find((s) => s.id === id) ?? null;
+}
 
 export type SectionListView = Readonly<{
   ranges: readonly SectionRange[];
@@ -49,9 +64,11 @@ export async function updateSection(
   repo: SectionRepository,
   id: SectionId,
   input: Readonly<{ name: string; startTime: string }>
-): Promise<Result<SectionId, SectionError>> {
-  const validated = validateSectionInput(input, await repo.listAll(), id);
+): Promise<Result<SectionId, SectionUsecaseError>> {
+  const all = await repo.listAll();
+  const validated = validateSectionInput(input, all, id);
   if (!validated.ok) return validated;
+  if (findSection(all, id) === null) return err("not_found");
   await repo.update(id, validated.value);
   return ok(id);
 }
@@ -59,8 +76,12 @@ export async function updateSection(
 export async function archiveSection(
   repo: SectionRepository,
   id: SectionId
-): Promise<Result<SectionId, SectionError>> {
-  const allowed = canArchive(await repo.listAll(), id);
+): Promise<Result<SectionId, SectionUsecaseError>> {
+  const all = await repo.listAll();
+  // 存在検査は canArchive より先。逆にすると、消えた対象に対して canArchive が
+  // 「有効セクションが残るか」だけを見て last_active_section を返し、見当違いの文言が出る
+  if (findSection(all, id) === null) return err("not_found");
+  const allowed = canArchive(all, id);
   if (!allowed.ok) return allowed;
   await repo.setArchived(id, true);
   return ok(id);
@@ -73,9 +94,12 @@ export async function archiveSection(
 export async function setDayStartSection(
   repo: SectionRepository,
   id: SectionId
-): Promise<Result<SectionId, SectionError>> {
-  const target = (await repo.listAll()).find((s) => s.id === id);
-  if (target === undefined || target.isArchived) return ok(id);
+): Promise<Result<SectionId, SectionUsecaseError>> {
+  const target = findSection(await repo.listAll(), id);
+  if (target === null) return err("not_found");
+  // アーカイブ済みは日界にできない（画面定義書03 §3.1: アーカイブ済み一覧にラジオを置かない）。
+  // **対象自体は在る**ので不在の失敗ではなく、UI から到達しない経路として何もせず成功を返す
+  if (target.isArchived) return ok(id);
   await repo.setDayStart(id);
   return ok(id);
 }
@@ -84,10 +108,10 @@ export async function setDayStartSection(
 export async function restoreSection(
   repo: SectionRepository,
   id: SectionId
-): Promise<Result<SectionId, SectionError>> {
+): Promise<Result<SectionId, SectionUsecaseError>> {
   const all = await repo.listAll();
-  const target = all.find((s) => s.id === id);
-  if (target === undefined) return ok(id);
+  const target = findSection(all, id);
+  if (target === null) return err("not_found");
 
   const validated = validateSectionInput(
     { name: target.name, startTime: target.startTime },
@@ -109,7 +133,7 @@ export async function deleteSection(
   repo: SectionRepository,
   id: SectionId
 ): Promise<Result<SectionId, MasterDeletionError>> {
-  const target = (await repo.listAll()).find((s) => s.id === id) ?? null;
+  const target = findSection(await repo.listAll(), id);
   const counts = await repo.referenceCounts([id]);
 
   const deletable = canDeleteMaster(target, counts[id] ?? 0);

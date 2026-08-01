@@ -406,6 +406,49 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
     expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
   });
 
+  it("通信できずに終わった打刻も素通りさせず、トーストを出して巻き戻す（00_共通 §4.1 / FB-64）", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {}); // callAction が出す原因ログを抑える
+    vi.mocked(startTaskAction).mockRejectedValue(new Error("Failed to fetch"));
+    renderBoard();
+
+    await act(async () => {
+      fireEvent.click(within(row(NOT_STARTED)).getByLabelText("開始"));
+    });
+
+    expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
+    expect(within(row(NOT_STARTED)).queryByLabelText("開始")).not.toBeNull();
+    // 届かなかった以上、取り直しに行っても また失敗するだけなので行かない（§4.1）
+    expect(router.refresh).not.toHaveBeenCalled();
+  });
+
+  // `router` は偽物なので観測できるのは**取り直しを要求したところまで**。
+  // 取り直した結果として消えた行が画面から消えるかは実機での確認に委ねる
+  it("サーバが失敗を返したら表示中のデータを取り直す（00_共通 §4.1 / FB-70）", async () => {
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(startTaskAction).mockReturnValue(gate.promise);
+    renderBoard();
+
+    fireEvent.click(within(row(NOT_STARTED)).getByLabelText("開始"));
+    await gate.resolve({ ok: false, message: "タスクが見つかりませんでした" });
+
+    // 消えた行が画面に残り、触るたび同じ失敗を繰り返す状態にしない（§4.1）
+    expect(screen.queryByText("タスクが見つかりませんでした")).not.toBeNull();
+    expect(router.refresh).toHaveBeenCalledOnce();
+  });
+
+  it("成功したときは取り直さない（サーバ側の revalidate で反映される）", async () => {
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(startTaskAction).mockReturnValue(gate.promise);
+    renderBoard();
+
+    fireEvent.click(within(row(NOT_STARTED)).getByLabelText("開始"));
+    await gate.resolve(OK);
+
+    expect(vi.mocked(startTaskAction)).toHaveBeenCalledOnce(); // 操作自体は走っている
+    expect(screen.queryByText("保存に失敗しました")).toBeNull();
+    expect(router.refresh).not.toHaveBeenCalled();
+  });
+
   it("エラートーストは × で閉じられる（00_共通 §2.2）", async () => {
     const gate = hold<DailyActionResult>(OK);
     vi.mocked(startTaskAction).mockReturnValue(gate.promise);
@@ -483,6 +526,23 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
     expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
     expect(isSelected(RUNNING)).toBe(true);
     expect(isSelected(NOT_STARTED)).toBe(false);
+  });
+
+  // 選択の戻しは `run` の onFailure（callAction の外側）にある。内側に置くと通信断のときだけ
+  // 走らず、行だけ巻き戻って選択が送り先に残る（00_共通 §4.1 / FB-64）
+  it("通信できずに終わった終了打刻でも選択を打刻した行へ戻す（F-211 / §5 / 00_共通 §4.1）", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(finishTaskAction).mockRejectedValue(new Error("Failed to fetch"));
+    renderBoard();
+    selectRow(RUNNING);
+
+    await act(async () => {
+      fireEvent.click(within(row(RUNNING)).getByLabelText("終了"));
+    });
+
+    expect(within(row(RUNNING)).queryByLabelText("終了")).not.toBeNull();
+    expect(isSelected(RUNNING)).toBe(true);
+    expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
   });
 
   it("終了打刻の拒否は、打刻前に選んでいた別の行ではなく打刻した行へ戻す（F-211 / §5）", async () => {
@@ -765,6 +825,33 @@ describe("DailyBoard の削除と取り消し（O-8 / F-115）", () => {
     expect(screen.queryByText("取り消す")).toBeNull();
   });
 
+  // Undo の保留は成功時だけ置く（`callAction` の内側）。拒否でも置いてしまうと、
+  // 実際には消えていない行の「取り消す」が押せる（00_共通 §4.1 / FB-64）
+  it("削除が通信できずに終わったら行を戻し、Undo も出さない（00_共通 §4.1）", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(deleteTaskAction).mockRejectedValue(new Error("Failed to fetch"));
+    renderBoard();
+    selectRow(NOT_STARTED);
+
+    await pressAndSettle("d");
+
+    expect(rowNames()).toEqual([NOT_STARTED, RUNNING, COMPLETED]);
+    expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
+    expect(screen.queryByText("取り消す")).toBeNull();
+  });
+
+  it("削除の取り消しが通信できずに終わってもエラートーストを出す（00_共通 §4.1）", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(restoreTaskAction).mockRejectedValue(new Error("Failed to fetch"));
+    renderBoard();
+    selectRow(NOT_STARTED);
+    await pressAndSettle("d");
+
+    await clickAndSettle(screen.getByText("取り消す"));
+
+    expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
+  });
+
   it("打刻済みタスクの削除は確認を挟み、キャンセルすると削除しない（O-8）", () => {
     // スタブではなく spy にする（afterEach の restoreAllMocks で本物へ戻り、
     // 後続のテストに「常に false を返す confirm」が residue として残らない）
@@ -875,6 +962,19 @@ describe("DailyBoard の U の切り分け（O-13: 保留 → 実行中 → 完�
     expect(vi.mocked(restoreTaskAction)).not.toHaveBeenCalled();
   });
 
+  it("完了の取り消しが通信できずに終わったら打刻を戻し、Undo も出さない（00_共通 §4.1）", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(undoCompleteAction).mockRejectedValue(new Error("Failed to fetch"));
+    renderBoard();
+    selectRow(COMPLETED);
+
+    await pressAndSettle("u");
+
+    expect(within(row(COMPLETED)).queryByText(formatClock(atJst("09:00")))).not.toBeNull();
+    expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
+    expect(screen.queryByText("取り消す")).toBeNull();
+  });
+
   it("取り消しの保留は削除と完了の取り消しで共通の1スロット（後から来た削除が置き換える）", async () => {
     renderBoard();
     selectRow(COMPLETED);
@@ -903,6 +1003,22 @@ describe("DailyBoard のクイック追加（§3.4 / F-102）", () => {
     // 未分類（リスト先頭）の末尾に確定前から出る
     expect(rowNames()).toEqual(["買い物", NOT_STARTED, RUNNING, COMPLETED]);
     expect(input).toHaveProperty("value", "");
+  });
+
+  // 生成系（runSelectingCreated）の拒否経路。楽観的に出した行が残ると、存在しないタスクが
+  // 画面に居座る（00_共通 §4.1 / FB-64）
+  it("追加が通信できずに終わったら楽観的に出した行を消す（00_共通 §4.1）", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(addTaskAction).mockRejectedValue(new Error("Failed to fetch"));
+    renderBoard();
+
+    fireEvent.change(quickAddInput(), { target: { value: "買い物" } });
+    await act(async () => {
+      fireEvent.keyDown(quickAddInput(), { key: "Enter" });
+    });
+
+    expect(rowNames()).toEqual([NOT_STARTED, RUNNING, COMPLETED]);
+    expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
   });
 
   it("空のままの Enter は何もしない（§8）", () => {
@@ -1621,6 +1737,18 @@ describe("DailyBoard の通知と行メニュー（画面定義書01 §8 / O-7 /
     await clickAndSettle(screen.getByRole("button", { name: "作成" }));
 
     expect(screen.queryByText("見積もりを入力してからルーチン化してください")).not.toBeNull();
+    expect(screen.queryByText(/ルーチン化しました/)).toBeNull();
+  });
+
+  it("ルーチン化が通信できずに終わったら完了通知を出さない（00_共通 §4.1）", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(createRoutineFromTaskAction).mockRejectedValue(new Error("Failed to fetch"));
+    renderBoard();
+
+    chooseRowMenu(NOT_STARTED, "ルーチン化");
+    await clickAndSettle(screen.getByRole("button", { name: "作成" }));
+
+    expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
     expect(screen.queryByText(/ルーチン化しました/)).toBeNull();
   });
 

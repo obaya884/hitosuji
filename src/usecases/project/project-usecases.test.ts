@@ -24,21 +24,21 @@ function inMemoryRepo(
       rows.push(created);
       return created;
     },
+    // 対象が無ければ何もしない（本物の `WHERE id = ?` が0行で終わるのと同じ契約）。
+    // 揃えないと `rows[-1]` への書き込み・`splice(-1, 1)` による末尾行の巻き添えが静かに起こる
     update: async (id: ProjectId, input: ProjectInput) => {
       const i = rows.findIndex((r) => r.id === id);
-      rows[i] = { ...rows[i], ...input };
+      if (i !== -1) rows[i] = { ...rows[i], ...input };
     },
     setArchived: async (id: ProjectId, isArchived: boolean) => {
       const i = rows.findIndex((r) => r.id === id);
-      rows[i] = { ...rows[i], isArchived };
+      if (i !== -1) rows[i] = { ...rows[i], isArchived };
     },
     referenceCounts: async (ids: readonly ProjectId[]) =>
       Object.fromEntries(ids.filter((id) => id in counts).map((id) => [id, counts[id]])),
     remove: async (id: ProjectId) => {
-      rows.splice(
-        rows.findIndex((r) => r.id === id),
-        1
-      );
+      const i = rows.findIndex((r) => r.id === id);
+      if (i !== -1) rows.splice(i, 1);
     },
   };
 }
@@ -103,6 +103,13 @@ describe("createProject / updateProject", () => {
     expect(repo.rows).toHaveLength(0);
   });
 
+  it("名前を更新する", async () => {
+    const repo = inMemoryRepo([{ id: 1, name: "引越し", isArchived: false }]);
+
+    expect((await updateProject(repo, 1, { name: " 引っ越し " })).ok).toBe(true);
+    expect(repo.rows).toEqual([{ id: 1, name: "引っ越し", isArchived: false }]);
+  });
+
   it("名前が空なら更新しない", async () => {
     const repo = inMemoryRepo([{ id: 1, name: "引越し", isArchived: false }]);
     expect(await updateProject(repo, 1, { name: "" })).toEqual({
@@ -120,5 +127,34 @@ describe("setProjectArchived", () => {
     expect(repo.rows[0].isArchived).toBe(true);
     await setProjectArchived(repo, 1, false);
     expect(repo.rows[0].isArchived).toBe(false);
+  });
+});
+
+// 他の画面・端末で削除されたプロジェクトを触った場合（モード・セクションと同じ規則）
+describe("存在しないプロジェクトへの更新（00_共通 §4.1: 1行も当たらない更新を成功として返さない）", () => {
+  /** 唯一の行（id: 1）とは別の id。削除済みのプロジェクトを触った状況を表す */
+  const MISSING = 2;
+  const notFound = { ok: false, error: "not_found" };
+
+  it("updateProject は失敗を返し、残っている行を書き換えない", async () => {
+    const survivor: Project = { id: 1, name: "引越し", isArchived: false };
+    const repo = inMemoryRepo([survivor]);
+    expect(await updateProject(repo, MISSING, { name: "新名" })).toEqual(notFound);
+    expect(repo.rows).toEqual([survivor]);
+  });
+
+  it("setProjectArchived は失敗を返し、残っている行を書き換えない", async () => {
+    const survivor: Project = { id: 1, name: "引越し", isArchived: false };
+    const repo = inMemoryRepo([survivor]);
+    expect(await setProjectArchived(repo, MISSING, true)).toEqual(notFound);
+    expect(repo.rows).toEqual([survivor]);
+  });
+
+  it("入力が無効なら検証エラーを優先して返す", async () => {
+    const repo = inMemoryRepo([{ id: 1, name: "引越し", isArchived: false }]);
+    expect(await updateProject(repo, MISSING, { name: "" })).toEqual({
+      ok: false,
+      error: "name_required",
+    });
   });
 });

@@ -447,14 +447,14 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
     it("復元の失敗（別タブで対象が消えた等）はメッセージで知らせる", async () => {
       vi.mocked(setProjectArchivedAction).mockResolvedValue({
         ok: false,
-        message: "対象が見つかりません（画面を再読み込みしてください）",
+        message: "対象が見つかりません（すでに削除されている可能性があります）",
       });
       renderTable({ archived: [project(9, "旧プロジェクト", true)] });
 
       fireEvent.click(within(rowOf("旧プロジェクト")).getByRole("button", { name: "復元" }));
 
       await waitFor(() => {
-        expect(screen.getByText("対象が見つかりません（画面を再読み込みしてください）")).not.toBeNull();
+        expect(screen.getByText("対象が見つかりません（すでに削除されている可能性があります）")).not.toBeNull();
       });
     });
 

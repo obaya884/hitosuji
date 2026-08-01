@@ -4,22 +4,28 @@
 // 流用するため、境界を引くと1つの文言を追うのに複数ファイルを行き来することになる（T-75）。
 // ルーチン化を除く各辞書は `Record<エラーコード, string>` で閉じているので、コードを足すと型エラーで
 // 気づける（ルーチン化だけ `Partial` にしている理由は当該辞書の doc を参照）
-import type { ModeError } from "@/domain/mode/mode";
-import type { ProjectError } from "@/domain/project/project";
-import type { SectionError } from "@/domain/section/section";
 import type { MasterDeletionError } from "@/domain/shared/master-deletion";
-import type { TaskEditError } from "@/domain/task/edit";
 import type { PunchEditError } from "@/domain/task/punch-edit";
+import type { ModeUsecaseError } from "@/usecases/mode/mode-usecases";
+import type { ProjectUsecaseError } from "@/usecases/project/project-usecases";
 import type {
   CreateRoutineFromTaskError,
   RoutineUsecaseError,
 } from "@/usecases/routine/routine-usecases";
+import type { SectionUsecaseError } from "@/usecases/section/section-usecases";
+import type { TaskEditUsecaseError } from "@/usecases/task/daily-list-usecases";
 import type { TaskOperationError } from "@/usecases/task/operations";
 import type { PunchUsecaseError } from "@/usecases/task/punch-usecases";
 import type { ReorderUsecaseError } from "@/usecases/task/reorder-usecases";
 
-/** 打刻・並び替え・ルーチン化のいずれでも同じ失敗なので文言も1つ */
+/** 打刻・並び替え・編集・ルーチン化のいずれでも同じ失敗なので文言も1つ */
 const TASK_NOT_FOUND = "タスクが見つかりませんでした";
+
+/**
+ * 結果が届かなかったとき（通信断・タイムアウト・サーバ側の異常終了）の文言。
+ * エラーコードを持たない唯一の失敗なので辞書ではなく単独の定数（画面定義書00_共通 §4.1）
+ */
+export const SAVE_FAILED = "保存に失敗しました";
 
 /**
  * 終了 < 開始。クライアントの打刻修正（`PunchEditError`）とサーバの打刻（`PunchError`）の
@@ -27,10 +33,14 @@ const TASK_NOT_FOUND = "タスクが見つかりませんでした";
  */
 const ENDED_BEFORE_STARTED = "終了時刻は開始時刻より後にしてください";
 
-/** タスク名・見積もりのインライン編集（画面定義書01 §3.3・§8） */
-export const TASK_EDIT_MESSAGES: Record<TaskEditError, string> = {
+/**
+ * タスク名・見積もり・コメント・モード・プロジェクトの編集（画面定義書01 §3.3・O-5・O-16・§8）。
+ * クライアントは入力検証の2コードだけを引き、サーバは対象の不在も引く
+ */
+export const TASK_EDIT_MESSAGES: Record<TaskEditUsecaseError, string> = {
   name_required: "タスク名を入力してください",
   invalid_estimate: "見積もりは分（0以上の整数）で入力してください",
+  task_not_found: TASK_NOT_FOUND,
 };
 
 /** 打刻とその取り消し（F-201 / F-210 / F-212 / F-203） */
@@ -102,7 +112,13 @@ export const ROUTINE_MESSAGES: Record<RoutineUsecaseError, string> = {
 };
 
 /** マスタ管理3種（セクション・モード・プロジェクト）の失敗を1つの型で扱う（表示は `failure()` 経由） */
-export type MasterError = SectionError | ModeError | ProjectError | MasterDeletionError;
+// ユースケース側の型（`SectionError | "not_found"` 等）を並べる——ドメインのエラー型だけを並べると、
+// ユースケースが新しいコードを足しても下の `Record` が型エラーにならず、辞書の穴に気づけない
+export type MasterError =
+  | SectionUsecaseError
+  | ModeUsecaseError
+  | ProjectUsecaseError
+  | MasterDeletionError;
 
 /**
  * マスタ管理の入力検証・アーカイブ・物理削除（画面定義書03 §3.1 / §3.2 / §4.1）。
@@ -124,7 +140,8 @@ export const MASTER_MESSAGES: Record<MasterError, string> = {
   last_active_section: "有効なセクションは最低1件必要です",
   day_start_section: "日界セクションはアーカイブできません（先に別のセクションを日界に指定してください）",
   invalid_color: "色はプリセットから選択してください",
-  not_found: "対象が見つかりません（画面を再読み込みしてください）",
+  // 取り直しは §4.1 に従って実装が自動で行うので、文言では手順を指示せず理由だけを伝える
+  not_found: "対象が見つかりません（すでに削除されている可能性があります）",
   not_archived: "削除できるのはアーカイブ済みのものだけです",
   // 参照元はマスタごとに違う（画面定義書03 §4.1）ので、種類を挙げずに言い切る
   has_references: "参照しているデータがあるため削除できません",

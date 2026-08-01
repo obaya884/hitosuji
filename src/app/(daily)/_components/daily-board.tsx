@@ -58,6 +58,7 @@ import {
   type CreatingActionResult,
   type DailyActionResult,
 } from "../actions";
+import { callAction, isUnreachable, type ActionFailure } from "@/app/_lib/action-result";
 import { PUNCH_EDIT_MESSAGES, TASK_EDIT_MESSAGES } from "@/app/_lib/error-messages";
 import type { EditingCell } from "../_lib/editing";
 import {
@@ -154,13 +155,39 @@ export function DailyBoard({
   // 「現在地」（§5 の規則）へ自動的に戻る
   const selectedId = keepSelection(orderedTasks, rawSelectedId, currentSectionId);
 
-  // 引数順は runSelectingCreated と揃えて action を先頭にする（読み違い防止）
-  function run(action: () => Promise<DailyActionResult>, optimistic: OptimisticAction) {
+  /**
+   * 失敗したときの表示と後始末（画面定義書00_共通 §4.1）。メッセージを出したうえで、
+   * **サーバが失敗を返したときだけ**表示中のデータを取り直す（判断の理由は `isUnreachable`）
+   */
+  function handleFailure(failure: ActionFailure) {
+    setError(failure.message);
+    if (!isUnreachable(failure)) router.refresh();
+  }
+
+  /**
+   * 引数順は runSelectingCreated と揃えて action を先頭にする（読み違い防止）。
+   * `optimistic` は即時反映するものがあるときだけ渡す（中断・先送り・ルーチン化は確定を待つ）。
+   *
+   * **成功時の追加処理は action の内側で結果を見て行い、失敗時の処理は `onFailure` で外へ出す**。
+   * 非対称なのは安全のため——action が拒否されると内側の残りは実行されず（`callAction` が外で捕まえる）、
+   * 失敗時の巻き戻しを内側に書くと通信断のときだけ巻き戻らない＝ FB-64 と同じ症状になる。
+   * 成功時の処理は生成 id やスナップショットが要るので内側でよい（削除 O-8・完了の取り消し O-15）——
+   * ただし**そこで投げると「保存に失敗しました」として報告される**（サーバは成功しているのに）ので、
+   * 投げうる処理は置かない
+   */
+  function run(
+    action: () => Promise<DailyActionResult>,
+    optimistic?: OptimisticAction,
+    onFailure?: () => void
+  ) {
     setError(null);
     startTransition(async () => {
-      dispatchOptimistic(optimistic);
-      const result = await action();
-      if (!result.ok) setError(result.message);
+      if (optimistic !== undefined) dispatchOptimistic(optimistic);
+      const result = await callAction(action);
+      if (!result.ok) {
+        onFailure?.();
+        handleFailure(result);
+      }
     });
   }
 
@@ -176,9 +203,9 @@ export function DailyBoard({
     setError(null);
     startTransition(async () => {
       if (optimistic !== undefined) dispatchOptimistic(optimistic);
-      const result = await action();
+      const result = await callAction(action);
       if (result.ok) setSelectedId(result.createdId);
-      else setError(result.message);
+      else handleFailure(result);
     });
   }
 
@@ -261,16 +288,11 @@ export function DailyBoard({
     if (next !== null) setSelectedId(next);
 
     run(
-      async () => {
-        const result = await finishTaskAction(task.id, now);
-        // 戻す先は打刻した行（行が実行中へ巻き戻る先と揃える）。送った選択がそのままのときだけ戻し、
-        // 確定を待つ間にユーザーが選び直していたらその操作を優先する
-        if (!result.ok) {
-          setSelectedId((current) => (current === next ? task.id : current));
-        }
-        return result;
-      },
-      { type: "finish", id: task.id, at: now }
+      () => finishTaskAction(task.id, now),
+      { type: "finish", id: task.id, at: now },
+      // 戻す先は打刻した行（行が実行中へ巻き戻る先と揃える）。送った選択がそのままのときだけ戻し、
+      // 確定を待つ間にユーザーが選び直していたらその操作を優先する
+      () => setSelectedId((current) => (current === next ? task.id : current))
     );
   }
 
@@ -376,15 +398,12 @@ export function DailyBoard({
       return;
     }
 
-    // 中断・先送りは楽観更新せずサーバ確定を待つ
-    setError(null);
-    startTransition(async () => {
-      const result =
-        operation === "suspend"
-          ? await suspendTaskAction(task.id, new Date())
-          : await postponeTaskAction(task.id);
-      if (!result.ok) setError(result.message);
-    });
+    // 中断・先送りは楽観更新せずサーバ確定を待つ（＝ optimistic を渡さない）
+    run(() =>
+      operation === "suspend"
+        ? suspendTaskAction(task.id, new Date())
+        : postponeTaskAction(task.id)
+    );
   }
 
   /**
@@ -392,11 +411,10 @@ export function DailyBoard({
    * サーバ確定を待って完了トーストを出す
    */
   function routinize(task: Task, choice: RoutineFromTaskChoice) {
-    setError(null);
-    startTransition(async () => {
+    run(async () => {
       const result = await createRoutineFromTaskAction(task.id, choice);
       if (result.ok) setNotice(`「${task.name}」をルーチン化しました（明日から展開）`);
-      else setError(result.message);
+      return result;
     });
   }
 
@@ -408,14 +426,11 @@ export function DailyBoard({
     if (pendingUndo === null) return;
     const undoing = pendingUndo;
     setPendingUndo(null);
-    setError(null);
-    startTransition(async () => {
-      const result =
-        undoing.type === "delete"
-          ? await restoreTaskAction(undoing.task)
-          : await restoreCompletionAction(undoing.snapshot);
-      if (!result.ok) setError(result.message);
-    });
+    run(() =>
+      undoing.type === "delete"
+        ? restoreTaskAction(undoing.task)
+        : restoreCompletionAction(undoing.snapshot)
+    );
   }
 
   /**

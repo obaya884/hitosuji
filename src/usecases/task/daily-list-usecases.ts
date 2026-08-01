@@ -19,6 +19,14 @@ import {
 } from "@/domain/task/edit";
 import type { Task, TaskId } from "@/domain/task/task";
 
+/**
+ * タスクの編集（O-5 / O-16 / §3.3）で起こりうる失敗。入力の検証（`TaskEditError`）に加えて、
+ * **対象がすでに存在しない**場合を含む——他の画面・端末で削除されたタスクへの更新は、
+ * 1行も当たらないまま成功として返さない（画面定義書00_共通 §4.1）。
+ * 打刻（`PunchUsecaseError`）・並び替え（`ReorderUsecaseError`）と同じ形で揃えてある
+ */
+export type TaskEditUsecaseError = TaskEditError | "task_not_found";
+
 export type DailyListDeps = Readonly<{
   tasks: TaskRepository;
   sections: SectionRepository;
@@ -98,9 +106,10 @@ export async function renameTask(
   repo: TaskRepository,
   id: TaskId,
   name: string
-): Promise<Result<TaskId, TaskEditError>> {
+): Promise<Result<TaskId, TaskEditUsecaseError>> {
   const validated = validateTaskName(name);
   if (!validated.ok) return validated;
+  if ((await repo.findById(id)) === null) return err("task_not_found");
   await repo.rename(id, validated.value);
   return ok(id);
 }
@@ -110,9 +119,10 @@ export async function updateTaskEstimate(
   repo: TaskRepository,
   id: TaskId,
   rawMinutes: string
-): Promise<Result<TaskId, TaskEditError>> {
+): Promise<Result<TaskId, TaskEditUsecaseError>> {
   const validated = validateEstimateMinutes(rawMinutes);
   if (!validated.ok) return validated;
+  if ((await repo.findById(id)) === null) return err("task_not_found");
   await repo.updateEstimate(id, validated.value);
   return ok(id);
 }
@@ -125,7 +135,8 @@ export async function updateTaskComment(
   repo: TaskRepository,
   id: TaskId,
   rawComment: string
-): Promise<Result<TaskId, TaskEditError>> {
+): Promise<Result<TaskId, TaskEditUsecaseError>> {
+  if ((await repo.findById(id)) === null) return err("task_not_found");
   await repo.updateComment(id, normalizeComment(rawComment));
   return ok(id);
 }
@@ -135,7 +146,8 @@ export async function setTaskMode(
   repo: TaskRepository,
   id: TaskId,
   modeId: number | null
-): Promise<Result<TaskId, TaskEditError>> {
+): Promise<Result<TaskId, TaskEditUsecaseError>> {
+  if ((await repo.findById(id)) === null) return err("task_not_found");
   await repo.updateClassification(id, { modeId });
   return ok(id);
 }
@@ -145,7 +157,8 @@ export async function setTaskProject(
   repo: TaskRepository,
   id: TaskId,
   projectId: number | null
-): Promise<Result<TaskId, TaskEditError>> {
+): Promise<Result<TaskId, TaskEditUsecaseError>> {
+  if ((await repo.findById(id)) === null) return err("task_not_found");
   await repo.updateClassification(id, { projectId });
   return ok(id);
 }

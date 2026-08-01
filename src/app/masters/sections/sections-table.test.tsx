@@ -135,14 +135,14 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
     it("日界切替の失敗はメッセージで知らせる（別タブで対象が消えた等）", async () => {
       vi.mocked(setDayStartSectionAction).mockResolvedValue({
         ok: false,
-        message: "対象が見つかりません（画面を再読み込みしてください）",
+        message: "対象が見つかりません（すでに削除されている可能性があります）",
       });
       renderTable();
 
       fireEvent.click(screen.getByLabelText("セクションBを1日の開始にする"));
 
       await waitFor(() => {
-        expect(screen.getByText("対象が見つかりません（画面を再読み込みしてください）")).not.toBeNull();
+        expect(screen.getByText("対象が見つかりません（すでに削除されている可能性があります）")).not.toBeNull();
       });
     });
 
