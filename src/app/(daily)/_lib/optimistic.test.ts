@@ -145,8 +145,8 @@ describe("applyOptimisticAction の即時反映（N-01 / 00_共通 §4）", () =
 describe("optimisticTask（サーバ確定前の仮タスク）", () => {
   it("負のIDで未確定と分かるようにし、未分類の末尾（画面定義書01 §3.4）へ置く形で作る", () => {
     // 全項目を固定する。既定値の入れ忘れは仮の行と確定後の行の差になって表に出るため
-    expect(optimisticTask(TEST_DATE, "買い物", 1000)).toEqual({
-      id: -1000,
+    expect(optimisticTask(TEST_DATE, "買い物", 7)).toEqual({
+      id: -7,
       taskDate: TEST_DATE,
       name: "買い物",
       estimateMinutes: 0,
@@ -164,6 +164,6 @@ describe("optimisticTask（サーバ確定前の仮タスク）", () => {
   });
 
   it("名前はそのまま持つ（トリムは呼び出し側＝クイック追加欄の責務）", () => {
-    expect(optimisticTask(TEST_DATE, "  ", 1000).name).toBe("  ");
+    expect(optimisticTask(TEST_DATE, "  ", 1).name).toBe("  ");
   });
 });

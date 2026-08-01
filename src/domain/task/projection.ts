@@ -140,24 +140,10 @@ export function isOverMidnight(
 }
 
 /**
- * セクション終了時刻を絶対時刻（Date）で返す。論理日の区切り（日界 F-116）を基準に、
- * セクション開始の絶対時刻（日界からの巡回位置）へ枠の長さ（sectionCapacityMinutes）を足す。
- * これにより日界を跨ぐ枠（回転で末尾に来る深夜など）も同じ論理日の中で正しく測れる。
+ * セクション開始の絶対時刻。枠の起点（日界からの巡回位置。F-116）を論理日の区切りから測るので、
+ * 日界を跨ぐ枠（回転で末尾に来る深夜など）も同じ論理日の中で正しく置ける。
  * 既定（dayStartMinutes = 0）では now の暦日で解釈する従来挙動に一致する。
- * セクション残り時間は表示日=今日のときだけ出す（画面定義書01 §3.2）ため、now の暦日 = 表示日となる。
  */
-export function sectionEndAt(
-  now: Date,
-  startTime: string,
-  endTime: string,
-  timeZone: string,
-  dayStartMinutes = 0
-): Date {
-  const startAt = sectionStartAt(now, startTime, timeZone, dayStartMinutes);
-  return sectionEndFrom(startAt, startTime, endTime);
-}
-
-/** セクション開始の絶対時刻。枠の起点（日界からの巡回位置。F-116） */
 function sectionStartAt(
   now: Date,
   startTime: string,
@@ -169,7 +155,7 @@ function sectionStartAt(
   return new Date(base.getTime() + (dayStartMinutes + startOffset) * 60_000);
 }
 
-/** 開始の絶対時刻から枠の終了を作る（`sectionStartAt` を二度求めないための共有部） */
+/** 開始の絶対時刻に枠の長さ（`sectionCapacityMinutes`）を足して枠の終了を作る */
 function sectionEndFrom(startAt: Date, startTime: string, endTime: string): Date {
   return new Date(startAt.getTime() + sectionCapacityMinutes(startTime, endTime) * 60_000);
 }
@@ -192,6 +178,7 @@ export type SectionSlack = Readonly<{ endAt: Date; slackMinutes: number }>;
  * F-110 は「この枠に収まるか」を答えるため。これがないと残りが枠の長さを超える（FB-80）。
  *
  * 枠が定まらないグループ（未分類・アーカイブ済みセクション）は戻り値に含めない。
+ * この値は表示日=今日のときだけ出す（画面定義書01 §3.2）ため、now の暦日 = 表示日となる。
  * 各セクションが独立して決まるので**`groups` の順序には依存しない**（表示順で渡さなくてよい）。
  * 表示可否（表示日=今日・now < 枠の終了）は `endAt` を見て呼び出し側が判定する（画面定義書01 §3.2）
  */
