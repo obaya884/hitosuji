@@ -4,6 +4,10 @@
 // 流用するため、境界を引くと1つの文言を追うのに複数ファイルを行き来することになる（T-75）。
 // ルーチン化を除く各辞書は `Record<エラーコード, string>` で閉じているので、コードを足すと型エラーで
 // 気づける（ルーチン化だけ `Partial` にしている理由は当該辞書の doc を参照）
+import type { ModeError } from "@/domain/mode/mode";
+import type { ProjectError } from "@/domain/project/project";
+import type { SectionError } from "@/domain/section/section";
+import type { MasterDeletionError } from "@/domain/shared/master-deletion";
 import type { TaskEditError } from "@/domain/task/edit";
 import type { PunchEditError } from "@/domain/task/punch-edit";
 import type {
@@ -82,7 +86,7 @@ export const DUPLICATE_AND_START_MESSAGES: Record<TaskOperationError, string> = 
  * ルーチン入力の検証エラー。ルーチン管理（画面定義書02 §4）とデイリーのルーチン化
  * （画面定義書01 §4.1）が同じコードを表示する（FB-72 ②）
  */
-export const ROUTINE_ERROR_MESSAGES: Record<RoutineUsecaseError, string> = {
+export const ROUTINE_MESSAGES: Record<RoutineUsecaseError, string> = {
   name_required: "名前を入力してください",
   name_too_long: "名前は50文字以内で入力してください",
   invalid_estimate: "見積もりは1分以上の整数で入力してください",
@@ -97,10 +101,39 @@ export const ROUTINE_ERROR_MESSAGES: Record<RoutineUsecaseError, string> = {
   routine_not_found: "ルーチンが見つかりませんでした",
 };
 
+/** マスタ管理3種（セクション・モード・プロジェクト）の失敗を1つの型で扱う（表示は `failure()` 経由） */
+export type MasterError = SectionError | ModeError | ProjectError | MasterDeletionError;
+
+/**
+ * マスタ管理の入力検証・アーカイブ・物理削除（画面定義書03 §3.1 / §3.2 / §4.1）。
+ *
+ * `ROUTINE_MESSAGES` と `name_required` / `name_too_long` の文言が一致するのは偶然ではなく、
+ * どちらも `domain/shared/master-name.ts` の `NameError`（マスタ共通の名前検証）に由来する。
+ * それでも**2つの辞書は畳まない**（T-78）——検証規則が同じでも、**どう言うかは画面ごとの裁量**に置く:
+ * - 同名の `invalid_start_time` をマスタは「開始時刻」・ルーチンは「開始想定時刻」と**意図的に
+ *   違う文言**で出しており、キーで統合すると表示が変わる（＝2辞書は連動しない）
+ * - `MasterError` と `RoutineUsecaseError` に包含関係が無いので、辞書を取り違えると**型が弾く**。
+ *   共有 const（`TASK_NOT_FOUND` 等）を置いた T-74 の動機＝「包含関係のせいで型が捕まえられない
+ *   取り違えを、文言の一致で無害化する」はここには働かない
+ */
+export const MASTER_MESSAGES: Record<MasterError, string> = {
+  name_required: "名前を入力してください",
+  name_too_long: "名前は50文字以内で入力してください",
+  invalid_start_time: "開始時刻を HH:MM 形式で入力してください",
+  duplicate_start_time: "同じ開始時刻の有効なセクションがあります",
+  last_active_section: "有効なセクションは最低1件必要です",
+  day_start_section: "日界セクションはアーカイブできません（先に別のセクションを日界に指定してください）",
+  invalid_color: "色はプリセットから選択してください",
+  not_found: "対象が見つかりません（画面を再読み込みしてください）",
+  not_archived: "削除できるのはアーカイブ済みのものだけです",
+  // 参照元はマスタごとに違う（画面定義書03 §4.1）ので、種類を挙げずに言い切る
+  has_references: "参照しているデータがあるため削除できません",
+};
+
 /**
  * ルーチン化の失敗（F-305 / 画面定義書01 §4.1）。ユースケースの `CreateRoutineFromTaskError` は
  * ここに無いコードも型上は許容し、それらは既定文言へ落ちる（内訳は `error-messages.test.ts` の
- * 対応表が正）。文言自体は `ROUTINE_ERROR_MESSAGES` にあるが、**ルーチン化経路でその文言を
+ * 対応表が正）。文言自体は `ROUTINE_MESSAGES` にあるが、**ルーチン化経路でその文言を
  * 流用してよいか**は表示が変わる＝挙動変更の判断（オーナー判断）が要るため、埋めずに `Partial`
  * で不足を型に残す。対応方針は FB-71 で追跡する（`name_too_long` はタスク名が50文字を超えると
  * 実際に到達する。タスク名は文字数無制限だがルーチン名は50文字までのため）
@@ -110,11 +143,11 @@ const ROUTINE_FROM_TASK_MESSAGES: Partial<Record<CreateRoutineFromTaskError, str
   estimate_required: "見積もりを入力してからルーチン化してください",
   routine_derived_task: "ルーチン由来のタスクはルーチン化できません（ルーチン画面で編集してください）",
   // ルーチン入力の検証エラーはルーチン管理画面と同じ文言を出す（FB-72 ②）
-  weekdays_required: ROUTINE_ERROR_MESSAGES.weekdays_required,
-  invalid_week_interval: ROUTINE_ERROR_MESSAGES.invalid_week_interval,
-  invalid_start_time: ROUTINE_ERROR_MESSAGES.invalid_start_time,
-  invalid_interval_days: ROUTINE_ERROR_MESSAGES.invalid_interval_days,
-  invalid_month_day: ROUTINE_ERROR_MESSAGES.invalid_month_day,
+  weekdays_required: ROUTINE_MESSAGES.weekdays_required,
+  invalid_week_interval: ROUTINE_MESSAGES.invalid_week_interval,
+  invalid_start_time: ROUTINE_MESSAGES.invalid_start_time,
+  invalid_interval_days: ROUTINE_MESSAGES.invalid_interval_days,
+  invalid_month_day: ROUTINE_MESSAGES.invalid_month_day,
 };
 
 /** 上の辞書に無いコードの既定文言（理由を告げられない代わりに失敗自体は伝える） */
@@ -123,3 +156,4 @@ const ROUTINE_FROM_TASK_FALLBACK = "ルーチン化に失敗しました";
 export function routineFromTaskErrorMessage(error: CreateRoutineFromTaskError): string {
   return ROUTINE_FROM_TASK_MESSAGES[error] ?? ROUTINE_FROM_TASK_FALLBACK;
 }
+

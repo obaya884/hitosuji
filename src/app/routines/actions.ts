@@ -10,7 +10,7 @@ import {
 import type { RoutineInput } from "@/domain/routine/input";
 import { createRoutineRepository } from "@/infrastructure/db/repositories/drizzle-routine-repository";
 import type { ActionResult } from "@/app/_lib/action-result";
-import { ROUTINE_ERROR_MESSAGES } from "@/app/_lib/error-messages";
+import { ROUTINE_MESSAGES } from "@/app/_lib/error-messages";
 
 // 合成ルート: リポジトリ実装をユースケースへ注入する（アーキテクチャ定義書 §3）
 const repo = createRoutineRepository();
@@ -20,7 +20,7 @@ export type RoutineActionResult = ActionResult;
 
 export async function createRoutineAction(input: RoutineInput): Promise<RoutineActionResult> {
   const result = await createRoutine(repo, input);
-  if (!result.ok) return { ok: false, message: ROUTINE_ERROR_MESSAGES[result.error] };
+  if (!result.ok) return { ok: false, message: ROUTINE_MESSAGES[result.error] };
   revalidatePath(PATH);
   return { ok: true };
 }
@@ -30,7 +30,7 @@ export async function updateRoutineAction(
   input: RoutineInput
 ): Promise<RoutineActionResult> {
   const result = await updateRoutine(repo, id, input);
-  if (!result.ok) return { ok: false, message: ROUTINE_ERROR_MESSAGES[result.error] };
+  if (!result.ok) return { ok: false, message: ROUTINE_MESSAGES[result.error] };
   revalidatePath(PATH);
   return { ok: true };
 }
@@ -40,14 +40,14 @@ export async function setRoutineActiveAction(
   isActive: boolean
 ): Promise<RoutineActionResult> {
   const result = await setRoutineActive(repo, id, isActive);
-  if (!result.ok) return { ok: false, message: ROUTINE_ERROR_MESSAGES[result.error] };
+  if (!result.ok) return { ok: false, message: ROUTINE_MESSAGES[result.error] };
   revalidatePath(PATH);
   return { ok: true };
 }
 
 export async function deleteRoutineAction(id: number): Promise<RoutineActionResult> {
   const result = await deleteRoutine(repo, id);
-  if (!result.ok) return { ok: false, message: ROUTINE_ERROR_MESSAGES[result.error] };
+  if (!result.ok) return { ok: false, message: ROUTINE_MESSAGES[result.error] };
   revalidatePath(PATH);
   return { ok: true };
 }
