@@ -129,6 +129,7 @@ function ExecutionLog({
   );
 }
 
+/** 実績ログの1タスク。コメント（F-206）を持つタスクは行が2つになる（§3.3） */
 function LogRow({
   task,
   date,
@@ -146,37 +147,54 @@ function LogRow({
   const diff = estimateDiffMinutes(task);
   // モードから決まる見た目は S-01 と揃える（規則は `_lib/mode-appearance.ts`）
   const { dimmedClass, colorStyle } = modeAppearance(mode);
+  // コメント行を出すか（§3.3）。下線をどちらの行が持つかも同じ条件で決まる
+  const hasComment = task.comment !== null;
 
   return (
-    // モード色は行全体のテキスト色に反映する（§2。S-01 と揃える）
-    <tr className={`border-b border-line ${dimmedClass}`} style={colorStyle}>
-      <td className="py-2 font-mono text-xs tabular-nums">
-        {task.startedAt === null ? "--:--" : formatClock(task.startedAt)}-
-        {task.endedAt === null ? "--:--" : formatClock(task.endedAt)}
-      </td>
-      <td className="py-2">
-        {/* 修正は S-01 の過去日表示で行う（O-2 / §1）。モード色を消さないよう下線のみで示す */}
-        <Link href={`/?date=${date}`} className="hover:underline">
-          {task.name}
-        </Link>
-      </td>
-      <td className="py-2 text-xs">{mode?.name ?? <UnsetMark />}</td>
-      <td className="py-2 text-xs">{project?.name ?? <UnsetMark />}</td>
-      {/* 見積もり未設定は薄色（画面定義書00_共通 §2.4「時間の値」。全画面で揃える） */}
-      <td
-        className={`py-2 pr-4 text-right font-mono tabular-nums ${
-          task.estimateMinutes <= 0 ? "text-ink-faint" : ""
-        }`}
+    <>
+      {/* モード色は行全体のテキスト色に反映する（§2。S-01 と揃える）。
+          コメントを開く行は下線をコメント行へ譲る（§3.3） */}
+      <tr
+        className={`${hasComment ? "" : "border-b border-line"} ${dimmedClass}`}
+        style={colorStyle}
       >
-        {formatEstimate(task.estimateMinutes)}
-      </td>
-      <td className="py-2 pr-4 text-right font-mono tabular-nums">
-        {actual === null ? "--:--" : formatDuration(actual)}
-      </td>
-      <td className={`py-2 text-right font-mono tabular-nums ${diff !== null && diff > 0 ? "text-danger" : ""}`}>
-        {diff === null ? "" : `${diff > 0 ? "+" : "-"}${formatDuration(Math.abs(diff))}`}
-      </td>
-    </tr>
+        <td className="py-2 font-mono text-xs tabular-nums">
+          {task.startedAt === null ? "--:--" : formatClock(task.startedAt)}-
+          {task.endedAt === null ? "--:--" : formatClock(task.endedAt)}
+        </td>
+        <td className="py-2">
+          {/* 修正は S-01 の過去日表示で行う（O-2 / §1）。モード色を消さないよう下線のみで示す */}
+          <Link href={`/?date=${date}`} className="hover:underline">
+            {task.name}
+          </Link>
+        </td>
+        <td className="py-2 text-xs">{mode?.name ?? <UnsetMark />}</td>
+        <td className="py-2 text-xs">{project?.name ?? <UnsetMark />}</td>
+        {/* 見積もり未設定は薄色（画面定義書00_共通 §2.4「時間の値」。全画面で揃える） */}
+        <td
+          className={`py-2 pr-4 text-right font-mono tabular-nums ${
+            task.estimateMinutes <= 0 ? "text-ink-faint" : ""
+          }`}
+        >
+          {formatEstimate(task.estimateMinutes)}
+        </td>
+        <td className="py-2 pr-4 text-right font-mono tabular-nums">
+          {actual === null ? "--:--" : formatDuration(actual)}
+        </td>
+        <td className={`py-2 text-right font-mono tabular-nums ${diff !== null && diff > 0 ? "text-danger" : ""}`}>
+          {diff === null ? "" : `${diff > 0 ? "+" : "-"}${formatDuration(Math.abs(diff))}`}
+        </td>
+      </tr>
+      {/* コメント（F-206 / §3.3）。列にせず行の下に全文を出す（読み返しが目的なので切り詰めない） */}
+      {hasComment && (
+        <tr className={`border-b border-line ${dimmedClass}`} style={colorStyle}>
+          {/* 折り返す幅はタスク名列に揃える（§3.3。S-01 と同じ）。右側は空セルで埋める */}
+          <td />
+          <td className="pb-2 text-xs whitespace-pre-wrap opacity-80">{task.comment}</td>
+          <td colSpan={5} />
+        </tr>
+      )}
+    </>
   );
 }
 

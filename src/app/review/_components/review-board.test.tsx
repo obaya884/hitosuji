@@ -264,6 +264,83 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
       "後",
     ]);
   });
+
+  // F-206 / §3.3: コメントは列にせず行の下に全文を出す（読み返しが目的なので切り詰めない）
+  it("コメントは「そのタスクの直下」に出す（列は増やさない）", () => {
+    // 2件のうち先頭だけにコメントを付ける——末尾へまとめて出す実装と区別するため
+    renderBoard({
+      log: [
+        done({
+          id: 1,
+          name: "資料作成",
+          startedAt: atJst("09:00"),
+          endedAt: atJst("09:52"),
+          comment: "図表の差し替えに時間がかかった",
+        }),
+        done({ id: 2, name: "メール返信", startedAt: atJst("10:00"), endedAt: atJst("10:14") }),
+      ],
+      totalMinutes: 66,
+    });
+
+    // 列は7つのまま（コメント列を足していない）
+    expect(logRow().cells).toHaveLength(7);
+    expect(logRow(1).textContent).toContain("図表の差し替えに時間がかかった");
+    // 3行目は次のタスク（コメントが末尾へ寄っていない）
+    expect(logRow(2).cells[LOG.name].textContent).toBe("メール返信");
+  });
+
+  it("コメントは読み取り専用で出す（編集の入口を置かない。§3.3）", () => {
+    renderBoard({
+      log: [
+        done({
+          id: 1,
+          name: "資料作成",
+          startedAt: atJst("09:00"),
+          endedAt: atJst("09:52"),
+          comment: "図表の差し替えに時間がかかった",
+        }),
+      ],
+      totalMinutes: 52,
+    });
+
+    const commentRow = logRow(1);
+    expect(commentRow.querySelector("textarea")).toBeNull();
+    expect(commentRow.querySelector("button")).toBeNull();
+  });
+
+  it("コメントのない行は行を増やさない", () => {
+    renderBoard({
+      log: [done({ id: 1, name: "点検", startedAt: atJst("09:00"), endedAt: atJst("09:30") })],
+      totalMinutes: 30,
+    });
+
+    expect(bodyRows(sectionOf("実績ログ"))).toHaveLength(1);
+  });
+
+  it("コメントの改行を保って表示する（書いたとおりに読み返せる）", () => {
+    renderBoard({
+      log: [
+        done({
+          id: 1,
+          name: "資料作成",
+          startedAt: atJst("09:00"),
+          endedAt: atJst("09:52"),
+          comment: "・図表を差し替えた\n・次は雛形を用意する",
+        }),
+      ],
+      totalMinutes: 52,
+    });
+
+    expect(hasClass(logRow(1).cells[LOG.name], "whitespace-pre-wrap")).toBe(true);
+    // 折り返す幅はタスク名列に揃える（S-01 と同じ規則。行いっぱいには広げない）
+    expect(logRow(1).cells[LOG.name].colSpan).toBe(1);
+    // 右側は空セルで埋めて表の列数と揃える（下線が途中で切れない）
+    const spanned = [...logRow(1).cells].reduce((n, c) => n + c.colSpan, 0);
+    expect(spanned).toBe(sectionOf("実績ログ").querySelectorAll("thead th").length);
+    // 下線はコメント行が持ち、タスク行は譲る（2本の線で分断しない）
+    expect(hasClass(logRow(), "border-b")).toBe(false);
+    expect(hasClass(logRow(1), "border-b")).toBe(true);
+  });
 });
 
 describe("ReviewBoard（画面定義書04 §3.4: 先送り。F-502）", () => {

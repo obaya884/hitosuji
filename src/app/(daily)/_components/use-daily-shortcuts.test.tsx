@@ -25,6 +25,7 @@ const TASKS: readonly Task[] = [COMPLETED, RUNNING, NEXT_UP, LATER];
 const ALL_SHORTCUT_KEYS: readonly (readonly [key: string, init: KeyboardEventInit])[] = [
   ["j", {}],
   ["k", {}],
+  ["n", {}],
   ["c", {}],
   ["Enter", {}],
   ["i", {}],
@@ -49,7 +50,7 @@ const ALL_SHORTCUT_KEYS: readonly (readonly [key: string, init: KeyboardEventIni
   ["?", { shiftKey: true }],
 ];
 
-/** 編集を開くキーと開く欄（§6 R / F2 / E / B / F / M / P / S） */
+/** 編集を開くキーと開く欄（§6 R / F2 / E / B / F / M / P / S / C） */
 const EDIT_KEYS: readonly (readonly [key: string, field: EditField])[] = [
   ["r", "name"],
   ["F2", "name"],
@@ -59,6 +60,7 @@ const EDIT_KEYS: readonly (readonly [key: string, field: EditField])[] = [
   ["m", "mode"],
   ["p", "project"],
   ["s", "section"],
+  ["c", "comment"],
 ];
 
 /** 打刻の有無を見ない編集キー（B / F 以外）。ガードが打刻2フィールドに閉じていることの検証に使う */
@@ -250,7 +252,7 @@ function expectNothingCalled(spies: Spies) {
 }
 
 describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボードショートカット）", () => {
-  describe("選択行の移動（§6 J / K / C・§5 行選択モデル）", () => {
+  describe("選択行の移動（§6 J / K / N・§5 行選択モデル）", () => {
     it("J は選択行を1つ下へ動かす", () => {
       const { state } = renderStateful({ selectedId: RUNNING.id });
 
@@ -267,26 +269,26 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
       expect(state.current.selectedId).toBe(RUNNING.id);
     });
 
-    it("C は現在地（実行中タスク）へジャンプする", () => {
+    it("N は現在地（実行中タスク）へジャンプする", () => {
       const { state } = renderStateful({ selectedId: LATER.id });
 
-      pressKey("c");
+      pressKey("n");
 
       expect(state.current.selectedId).toBe(RUNNING.id);
     });
 
-    it("C は実行中がなく現在セクションも定まらなければ表示順で最初の未実行へジャンプする（§5 規則4）", () => {
+    it("N は実行中がなく現在セクションも定まらなければ表示順で最初の未実行へジャンプする（§5 規則4）", () => {
       const { state } = renderStateful({
         selectedId: LATER.id,
         orderedTasks: [COMPLETED, NEXT_UP, LATER],
       });
 
-      pressKey("c");
+      pressKey("n");
 
       expect(state.current.selectedId).toBe(NEXT_UP.id);
     });
 
-    it("C は現在セクションを現在地の探索へ渡す（未分類が先頭にあってもそちらへ飛ばない。§5 / FB-78）", () => {
+    it("N は現在セクションを現在地の探索へ渡す（未分類が先頭にあってもそちらへ飛ばない。§5 / FB-78）", () => {
       const inCurrentSection = task({ id: 5, sectionId: 20 });
       const { state } = renderStateful({
         selectedId: LATER.id,
@@ -295,18 +297,18 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
         currentSectionId: 20,
       });
 
-      pressKey("c");
+      pressKey("n");
 
       expect(state.current.selectedId).toBe(inCurrentSection.id);
     });
 
-    it("現在地が無ければ（全件完了）C は選択を変えない（§5: 選択行は常に1つ）", () => {
+    it("現在地が無ければ（全件完了）N は選択を変えない（§5: 選択行は常に1つ）", () => {
       const { state } = renderStateful({
         selectedId: COMPLETED.id,
         orderedTasks: [COMPLETED],
       });
 
-      pressKey("c");
+      pressKey("n");
 
       expect(state.current.selectedId).toBe(COMPLETED.id);
     });
@@ -655,13 +657,13 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
     it("一覧に無いキーは何もしない（先送り O-7・ルーチン化 O-12 にキーを割り当てない）", () => {
       const { spies } = renderShortcuts();
 
-      // o(先送り)・n(ルーチン)・h/l(Shift なしの日付移動)・Space（00_共通 §3 で使わない）
-      for (const key of ["o", "n", "h", "l", "x", "z", " ", "Tab", "Escape"]) pressKey(key);
+      // o(先送り)・v(ルーチン)・h/l(Shift なしの日付移動)・Space（00_共通 §3 で使わない）
+      for (const key of ["o", "v", "h", "l", "x", "z", " ", "Tab", "Escape"]) pressKey(key);
 
       expectNothingCalled(spies);
     });
 
-    it("Shift に割り当てのないキー（予約中の Shift+C 等）は何もしない", () => {
+    it("Shift に割り当てのないキー（Shift+C 等）は何もしない", () => {
       const { spies } = renderShortcuts();
 
       for (const key of ["C", "D", "Y", "A", "T", "G"]) pressKey(key, { shiftKey: true });

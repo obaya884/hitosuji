@@ -84,6 +84,11 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
       rows[i] = { ...rows[i], estimateMinutes };
     },
 
+    updateComment: async (id: TaskId, comment: string | null) => {
+      const i = indexOf(id);
+      rows[i] = { ...rows[i], comment };
+    },
+
     start: async (command: StartCommand) => {
       const { taskId, startedAt, interruption } = command;
       if (interruption !== null) {

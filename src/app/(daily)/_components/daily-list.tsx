@@ -1,12 +1,14 @@
 "use client";
 
+import { Fragment } from "react";
 import { APP_TIME_ZONE } from "@/domain/shared/time-zone";
 import type { DailyGroup } from "@/domain/task/daily-list";
 import { formatProjectedStart, projectedStartTimes, sectionSlacks } from "@/domain/task/projection";
 import type { SectionId } from "@/domain/section/section";
 import type { TaskId } from "@/domain/task/task";
-import type { EditingCell } from "../_lib/editing";
+import { showsCommentRow, type EditingCell } from "../_lib/editing";
 import { toSectionOptions } from "../_lib/section-options";
+import { CommentRow, type CommentRowProps } from "./comment-row";
 import { GroupHeading, type GroupHeadingProps } from "./group-heading";
 import { TaskRow, type TaskRowProps } from "./task-row";
 
@@ -32,6 +34,8 @@ export type DailyListProps = Pick<
   | "onEndEdit"
   | "stickyHeight"
 > &
+  // コメント行（O-16）はタスク行の下に並べるので、その入口もリストが受け取る
+  Pick<CommentRowProps, "onComment"> &
   // `currentSectionId` は現在地の探索（§5）と共用するため board が求めて配る
   Pick<GroupHeadingProps, "currentSectionId"> &
   Readonly<{
@@ -52,6 +56,7 @@ export function DailyList({
   projects,
   onRename,
   onEstimate,
+  onComment,
   onPunch,
   onEditPunch,
   sections,
@@ -118,35 +123,52 @@ export function DailyList({
             }
             currentSectionId={currentSectionId}
           />
-          {group.tasks.map((task, index) => (
-            <TaskRow
-              key={task.id}
-              task={task}
-              index={index}
-              sectionId={group.section?.id ?? null}
-              modes={modes}
-              projects={projects}
-              sections={sections}
-              sectionOptions={sectionOptions}
-              onAssign={onAssign}
-              onOperate={onOperate}
-              onRoutinize={onRoutinize}
-              isSelected={task.id === selectedId}
-              onSelect={onSelect}
-              editing={editing?.taskId === task.id ? editing.field : null}
-              onBeginEdit={onBeginEdit}
-              onEndEdit={onEndEdit}
-              mode={task.modeId === null ? undefined : modeById.get(task.modeId)}
-              project={task.projectId === null ? undefined : projectById.get(task.projectId)}
-              onRename={onRename}
-              onEstimate={onEstimate}
-              onPunch={onPunch}
-              onEditPunch={onEditPunch}
-              now={now}
-              projectedStart={projectedStarts?.get(task.id) ?? null}
-              stickyHeight={stickyHeight}
-            />
-          ))}
+          {group.tasks.map((task, index) => {
+            const isSelected = task.id === selectedId;
+            const editingField = editing?.taskId === task.id ? editing.field : null;
+            const mode = task.modeId === null ? undefined : modeById.get(task.modeId);
+            return (
+              // コメント（O-16）はタスク行の下に続く独立した行なので、1タスクで2行になりうる
+              <Fragment key={task.id}>
+                <TaskRow
+                  task={task}
+                  index={index}
+                  sectionId={group.section?.id ?? null}
+                  modes={modes}
+                  projects={projects}
+                  sections={sections}
+                  sectionOptions={sectionOptions}
+                  onAssign={onAssign}
+                  onOperate={onOperate}
+                  onRoutinize={onRoutinize}
+                  isSelected={isSelected}
+                  onSelect={onSelect}
+                  editing={editingField}
+                  onBeginEdit={onBeginEdit}
+                  onEndEdit={onEndEdit}
+                  mode={mode}
+                  project={task.projectId === null ? undefined : projectById.get(task.projectId)}
+                  onRename={onRename}
+                  onEstimate={onEstimate}
+                  onPunch={onPunch}
+                  onEditPunch={onEditPunch}
+                  now={now}
+                  projectedStart={projectedStarts?.get(task.id) ?? null}
+                  stickyHeight={stickyHeight}
+                />
+                {showsCommentRow(task, isSelected, editingField) && (
+                  <CommentRow
+                    task={task}
+                    mode={mode}
+                    isSelected={isSelected}
+                    editing={editingField}
+                    onComment={onComment}
+                    onEndEdit={onEndEdit}
+                  />
+                )}
+              </Fragment>
+            );
+          })}
         </tbody>
       ))}
     </table>

@@ -6,7 +6,7 @@ import type { Task, TaskId } from "./task";
 
 /**
  * 「現在地」（§5）: 実行中タスク（規則1）、なければ `currentNotStartedId`（規則2〜4）。
- * 初期選択と C キーのジャンプ先の両方に使う（同じ規則）
+ * 初期選択と N キーのジャンプ先の両方に使う（同じ規則）
  */
 export function currentTaskId(
   orderedTasks: readonly Task[],

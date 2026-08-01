@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
-import { rowOf } from "@/app/_testing/dom";
+import { hasClass, rowOf } from "@/app/_testing/dom";
 import { atJst } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
 import {
@@ -52,6 +52,7 @@ type Handlers = Pick<
   DailyListProps,
   | "onRename"
   | "onEstimate"
+  | "onComment"
   | "onPunch"
   | "onEditPunch"
   | "onAssign"
@@ -66,6 +67,7 @@ function renderList(overrides: Overrides) {
   const handlers = {
     onRename: vi.fn(),
     onEstimate: vi.fn(),
+    onComment: vi.fn(),
     onPunch: vi.fn(),
     onEditPunch: vi.fn(),
     onAssign: vi.fn(),
@@ -396,6 +398,172 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
       // 開いているのは1つだけ（行を取り違えていない）
       const popover = (document.querySelector("[data-option-index]") as HTMLElement).closest("td");
       expect(popover).toBe(cellsOf(rowOf("メール")).mode);
+    });
+  });
+
+  describe("コメント（F-206 / §3.3 / O-16）", () => {
+    const WITH_COMMENT = task({ id: 1, name: "朝食", comment: "パンが切れていた" });
+    const WITHOUT_COMMENT = task({ id: 2, name: "メール" });
+
+    it("コメントのある行にだけ印を出す（無い行には出さない）", () => {
+      renderList({ groups: [morning([WITH_COMMENT, WITHOUT_COMMENT])] });
+
+      expect(within(rowOf("朝食")).queryByLabelText("コメントを編集")).not.toBeNull();
+      expect(within(rowOf("メール")).queryByLabelText("コメントを編集")).toBeNull();
+    });
+
+    it("印を押すとコメント編集を要求する（マウスからの入口）", () => {
+      const { onBeginEdit } = renderList({ groups: [morning([WITH_COMMENT])] });
+
+      fireEvent.click(within(rowOf("朝食")).getByLabelText("コメントを編集"));
+
+      expect(onBeginEdit).toHaveBeenCalledWith(WITH_COMMENT, "comment");
+    });
+
+    it("選択行でだけ全文を行の下に出す（未選択なら印だけ）", () => {
+      const { rerenderWith } = renderList({ groups: [morning([WITH_COMMENT])] });
+
+      expect(screen.queryByText("パンが切れていた")).toBeNull();
+
+      rerenderWith({ selectedId: 1, groups: [morning([WITH_COMMENT])] });
+
+      expect(screen.queryByText("パンが切れていた")).not.toBeNull();
+    });
+
+    it("コメントを持たない行は選択しても行が増えない（§3.3: 未設定行に印も欄も出さない）", () => {
+      renderList({ selectedId: 2, groups: [morning([WITH_COMMENT, WITHOUT_COMMENT])] });
+
+      // 見出し1 ＋ タスク2行だけ（コメント行は増えていない）
+      expect(document.querySelectorAll("tbody tr")).toHaveLength(3);
+    });
+
+    it("編集中は選択していなくても入力欄を開き、確定でコメントを渡す（O-16）", () => {
+      const { onComment } = renderList({
+        editing: { taskId: 1, field: "comment" },
+        groups: [morning([WITH_COMMENT])],
+      });
+
+      const textarea = screen.getByRole("textbox");
+      expect(textarea).toHaveProperty("value", "パンが切れていた");
+
+      fireEvent.change(textarea, { target: { value: "買い足す" } });
+      fireEvent.keyDown(textarea, { key: "Enter" });
+
+      expect(onComment).toHaveBeenCalledWith(WITH_COMMENT, "買い足す");
+    });
+
+    it("Shift+Enter は確定せず改行として通す（§6）", () => {
+      const { onComment, onEndEdit } = renderList({
+        editing: { taskId: 1, field: "comment" },
+        groups: [morning([WITH_COMMENT])],
+      });
+
+      fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter", shiftKey: true });
+
+      expect(onComment).not.toHaveBeenCalled();
+      expect(onEndEdit).not.toHaveBeenCalled();
+    });
+
+    it("Esc は確定せず編集を閉じる（00_共通 §2.3）", () => {
+      const { onComment, onEndEdit } = renderList({
+        editing: { taskId: 1, field: "comment" },
+        groups: [morning([WITH_COMMENT])],
+      });
+
+      fireEvent.keyDown(screen.getByRole("textbox"), { key: "Escape" });
+
+      expect(onComment).not.toHaveBeenCalled();
+      expect(onEndEdit).toHaveBeenCalled();
+    });
+
+    it("フォーカスが外れたら確定する（00_共通 §2.3。他のインライン編集と同じ）", () => {
+      const { onComment, onEndEdit } = renderList({
+        editing: { taskId: 1, field: "comment" },
+        groups: [morning([WITH_COMMENT])],
+      });
+
+      const textarea = screen.getByRole("textbox");
+      fireEvent.change(textarea, { target: { value: "買い足す" } });
+      fireEvent.blur(textarea);
+
+      expect(onComment).toHaveBeenCalledWith(WITH_COMMENT, "買い足す");
+      expect(onEndEdit).toHaveBeenCalled();
+    });
+
+    // 行いっぱいに広げると、コメントが伸びるたび右側の列（プロジェクト・モード・時間）の
+    // 見え方が変わる。折り返し幅はタスク名列に揃える（§3.3）
+    it("折り返す幅はタスク名列に揃える（プロジェクト列の手前で折り返す）", () => {
+      renderList({ selectedId: 1, groups: [morning([WITH_COMMENT])] });
+
+      const commentCell = screen.getByText("パンが切れていた").closest("td") as HTMLTableCellElement;
+      const cells = [...(commentCell.closest("tr") as HTMLElement).querySelectorAll("td")];
+      // 打刻ボタン列の次＝タスク名列の位置に、1列分だけの幅で置く
+      expect(cells.indexOf(commentCell)).toBe(1);
+      expect(commentCell.colSpan).toBe(1);
+    });
+
+    it("右側は空セルで埋めて表の列数と揃える（面色・下線が途中で切れない）", () => {
+      renderList({ selectedId: 1, groups: [morning([WITH_COMMENT])] });
+
+      const commentRow = screen.getByText("パンが切れていた").closest("tr") as HTMLElement;
+      const spanned = [...commentRow.querySelectorAll("td")].reduce((n, c) => n + c.colSpan, 0);
+      expect(spanned).toBe(document.querySelectorAll("thead th").length);
+    });
+
+    it("選択行のコメント行にも面色を乗せる（行が2段でも1行に見える）", () => {
+      renderList({ selectedId: 1, groups: [morning([WITH_COMMENT])] });
+
+      const commentRow = screen.getByText("パンが切れていた").closest("tr") as HTMLElement;
+      expect(hasClass(commentRow, "bg-accent-weak")).toBe(true);
+    });
+
+    // 短いコメントでも2行分は開けておく（1行だと書き足す余地が見えない）
+    it.each([
+      ["コメント無しで開く", null, 2],
+      ["1行のコメント", "1行だけ", 2],
+      ["3行のコメント", "1行目\n2行目\n3行目", 3],
+    ])("入力欄の初期の高さは %s なら %s 行", (_label, comment, rows) => {
+      renderList({
+        editing: { taskId: 1, field: "comment" },
+        groups: [morning([task({ id: 1, name: "朝食", comment })])],
+      });
+
+      expect(screen.getByRole("textbox")).toHaveProperty("rows", rows);
+    });
+
+    it("全文は折り返して出す（改行を保つ。§3.3）", () => {
+      renderList({
+        selectedId: 1,
+        groups: [morning([task({ id: 1, name: "朝食", comment: "・パンが切れていた\n・買い足す" })])],
+      });
+
+      const commentCell = screen.getByText(/パンが切れていた/);
+      expect(hasClass(commentCell, "whitespace-pre-wrap")).toBe(true);
+    });
+
+    it("コメント行にもモード色を乗せる（補助表記としてセクション併記と同じ扱い。§3.3）", () => {
+      renderList({
+        selectedId: 1,
+        groups: [morning([task({ id: 1, name: "朝食", modeId: 1, comment: "パンが切れていた" })])],
+      });
+
+      const commentRow = screen.getByText("パンが切れていた").closest("tr") as HTMLElement;
+      expect(commentRow.style.color).toBe(colorOf("仕事"));
+    });
+
+    it("コメント行を開く行は下線をコメント行へ譲る（2本の線で分断しない）", () => {
+      renderList({ selectedId: 1, groups: [morning([WITH_COMMENT])] });
+
+      const taskRow = rowOf("朝食");
+      const commentRow = screen.getByText("パンが切れていた").closest("tr") as HTMLElement;
+      expect(hasClass(taskRow, "border-b")).toBe(false);
+      expect(hasClass(commentRow, "border-b")).toBe(true);
+    });
+
+    it("コメントを開かない行は下線を自分で持つ", () => {
+      renderList({ groups: [morning([WITHOUT_COMMENT])] });
+
+      expect(hasClass(rowOf("メール"), "border-b")).toBe(true);
     });
   });
 });

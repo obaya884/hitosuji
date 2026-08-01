@@ -541,6 +541,28 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
       const nameCell = screen.getByRole("textbox").closest("td") as HTMLElement;
       expect(within(nameCell).queryByText("朝")).toBeNull();
     });
+
+    // 隠す対象はセクション併記とコメント印の2つ（§3.3）。片方だけ残ると入力欄の右に印が浮く
+    it("タスク名を編集中はコメントの印も隠す（§3.3 / F-206）", () => {
+      renderRow({
+        editing: "name",
+        task: task({ id: 1, name: "朝食", sectionId: 100, comment: "パンが切れていた" }),
+      });
+
+      expect(screen.queryByLabelText("コメントを編集")).toBeNull();
+    });
+
+    it("コメントの印はセクション併記の右に置く（§3.3 の並び）", () => {
+      renderRow({
+        task: task({ id: 1, name: "朝食", sectionId: 100, comment: "パンが切れていた" }),
+      });
+
+      const nameCell = cellsOf(rowOf("朝食")).name;
+      const section = within(nameCell).getByText("朝");
+      const mark = within(nameCell).getByLabelText("コメントを編集");
+      // DOM 順で「セクション併記 → 印」（Node.DOCUMENT_POSITION_FOLLOWING = 4）
+      expect(section.compareDocumentPosition(mark) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
   });
 
   describe("モード・プロジェクトの選択（O-5）", () => {

@@ -66,16 +66,23 @@ function tagNameOf(target: EventTarget | null): string | undefined {
  * IME変換中のキーは操作として扱わない（同 §3）。日本語入力の変換確定 Enter が
  * そのまま保存として発火するのを防ぐ。keyCode 229 は isComposing 未対応環境向けの保険。
  */
-export function inlineEditKeyHandler(
+export function inlineEditKeyHandler<E extends HTMLInputElement | HTMLTextAreaElement>(
   handlers: Readonly<{
     /** 入力欄自身を受け取る（値の読み取り・フォーカス操作に使い、ref を持たずに済む） */
-    onEnter: (input: HTMLInputElement) => void;
-    onEscape: (input: HTMLInputElement) => void;
+    onEnter: (input: E) => void;
+    onEscape: (input: E) => void;
+    /**
+     * 複数行入力（コメント O-16）で `Shift+Enter` を改行として素通しする。
+     * 1行の入力欄では改行の概念がないため既定は false（`Shift+Enter` も確定）
+     */
+    multiline?: boolean;
   }>
 ) {
-  return (e: KeyboardEvent<HTMLInputElement>) => {
+  return (e: KeyboardEvent<E>) => {
     if (e.nativeEvent.isComposing || e.keyCode === 229) return;
-    if (e.key === "Enter") handlers.onEnter(e.currentTarget);
+    if (e.key === "Enter" && !(handlers.multiline && e.shiftKey)) {
+      handlers.onEnter(e.currentTarget);
+    }
     if (e.key === "Escape") handlers.onEscape(e.currentTarget);
   };
 }

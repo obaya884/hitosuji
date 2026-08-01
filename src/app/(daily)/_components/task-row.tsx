@@ -7,12 +7,12 @@ import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
 import type { Section } from "@/domain/section/section";
 import { taskStatus } from "@/domain/task/status";
 import { actualMinutes, elapsedMinutes, type Task } from "@/domain/task/task";
-import { CheckIcon, PlayIcon, StopIcon } from "@/app/_components/icons";
+import { CheckIcon, CommentIcon, PlayIcon, StopIcon } from "@/app/_components/icons";
 import { formatClock, formatDuration, formatEstimate } from "@/app/_lib/format";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { modeAppearance } from "@/app/_lib/mode-appearance";
 import { inputBase } from "@/app/_lib/ui";
-import type { EditField } from "../_lib/editing";
+import { showsCommentRow, type EditField } from "../_lib/editing";
 import { toModeOptions, toProjectOptions } from "../_lib/master-options";
 import { AssignCell } from "./assign-cell";
 import { RowMenu } from "./row-menu";
@@ -133,7 +133,10 @@ export function TaskRow({
       // scrollMarginTop は、上方向へ追従したとき行が固定領域（§2）の裏に隠れないための余白
       style={{ ...colorStyle, scrollMarginTop: stickyHeight }}
       onClick={() => onSelect(task.id)}
-      className={`border-b border-line ${isSelected ? "bg-accent-weak" : ""}`}
+      // コメント行を開くときは下線をそちらに譲る（2本の線でタスクとコメントが分断されないように）
+      className={`${showsCommentRow(task, isSelected, editing) ? "" : "border-b border-line"} ${
+        isSelected ? "bg-accent-weak" : ""
+      }`}
     >
       <td className="py-2.5">
         {/* 開始 →（実行中なら）終了 のトグル（F-201）。押しやすさのため円形ボタンにする */}
@@ -173,27 +176,43 @@ export function TaskRow({
             {task.name}
           </button>
         )}
-        {/* セクションの併記はタスク名セルに残す。補助表記は本文より1段階だけ小さくする
+        {/* 名前の編集中は併記を隠して入力欄だけにする。補助表記は本文より1段階だけ小さくする
             （画面定義書01 §2: 相対関係を維持する） */}
         {editing !== "name" && (
-          <span className="relative ml-2 inline-block text-sm">
-            {/* セクション選択ポップオーバー（O-5） */}
-            <button
-              type="button"
-              onClick={() => onBeginEdit(task, "section")}
-              className={`hover:underline ${dimmedClass} opacity-80`}
-            >
-              {sections.find((s) => s.id === task.sectionId)?.name ?? "未分類"}
-            </button>
-            {editing === "section" && (
-              <SelectPopover
-                options={sectionOptions}
-                selectedId={task.sectionId}
-                onSelect={(id) => onAssign(task, "section", id)}
-                onClose={onEndEdit}
-              />
+          <>
+            {/* セクションの併記はタスク名セルに残す */}
+            <span className="relative ml-2 inline-block text-sm">
+              {/* セクション選択ポップオーバー（O-5） */}
+              <button
+                type="button"
+                onClick={() => onBeginEdit(task, "section")}
+                className={`hover:underline ${dimmedClass} opacity-80`}
+              >
+                {sections.find((s) => s.id === task.sectionId)?.name ?? "未分類"}
+              </button>
+              {editing === "section" && (
+                <SelectPopover
+                  options={sectionOptions}
+                  selectedId={task.sectionId}
+                  onSelect={(id) => onAssign(task, "section", id)}
+                  onClose={onEndEdit}
+                />
+              )}
+            </span>
+            {/* コメントのある行にだけ印を出す（F-206 / §3.3）。全文は選択行で下に開く（O-16）。
+                印は隣の文字（セクション併記）と縦中央で揃える——`inline-flex` にすると行内で
+                ベースラインに引っ張られないので、`align-middle` と組で位置が決まる */}
+            {task.comment !== null && (
+              <button
+                type="button"
+                onClick={() => onBeginEdit(task, "comment")}
+                aria-label="コメントを編集"
+                className={`ml-2 inline-flex align-middle ${dimmedClass} opacity-80`}
+              >
+                <CommentIcon className="h-4 w-4" />
+              </button>
             )}
-          </span>
+          </>
         )}
       </td>
       <AssignCell

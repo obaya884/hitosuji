@@ -19,7 +19,7 @@ export type DailyShortcutParams = Readonly<{
   orderedTasks: readonly Task[];
   /** 表示時に導出された選択行 ID（keepSelection 後の値） */
   selectedId: number | null;
-  /** 現在時刻を含むセクション（§4.3）。`C` の現在地探索（§5）に渡す。今日でなければ null */
+  /** 現在時刻を含むセクション（§4.3）。`N` の現在地探索（§5）に渡す。今日でなければ null */
   currentSectionId: number | null;
   /** 取り消しの保留（Undoトースト表示中）があるか。`U` の切り分けで最優先する（O-13） */
   hasPendingUndo: boolean;
@@ -118,7 +118,7 @@ export function useDailyShortcuts(params: DailyShortcutParams): void {
         case "k":
           setSelectedId((current) => moveSelection(orderedTasks, current, -1));
           return;
-        case "c": {
+        case "n": {
           // 現在地へジャンプ（§5）。現在地が無い（全件完了・0件）なら選択を変えない——
           // null を代入すると選択行が消え、§5 の「選択行は常に1つ存在する」を破る
           const current = currentTaskId(orderedTasks, currentSectionId);
@@ -186,6 +186,9 @@ export function useDailyShortcuts(params: DailyShortcutParams): void {
           return;
         case "s":
           requestEdit("section");
+          return;
+        case "c":
+          requestEdit("comment"); // コメント編集（O-16 / F-206）
           return;
         default:
           return;

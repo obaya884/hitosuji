@@ -59,6 +59,21 @@ describe("applyOptimisticAction の即時反映（N-01 / 00_共通 §4）", () =
     expect(find(applied, 11)).toEqual({ ...NOT_STARTED, estimateMinutes: 45 });
   });
 
+  it("comment はコメントだけを差し替える（O-16 / F-206）", () => {
+    const applied = apply({ type: "comment", id: 11, comment: "元データ探しに手間取った" });
+
+    expect(find(applied, 11)).toEqual({ ...NOT_STARTED, comment: "元データ探しに手間取った" });
+  });
+
+  it("comment に null を渡すとコメントが消える（空で確定＝未設定へ戻す）", () => {
+    // 既定のタスクはコメントを持たないので、一度書いてから消す（消えたことを実際に見るため）
+    const written = apply({ type: "comment", id: 11, comment: "書いてあった" });
+
+    const cleared = applyOptimisticAction(written, { type: "comment", id: 11, comment: null });
+
+    expect(find(cleared, 11)).toEqual({ ...NOT_STARTED, comment: null });
+  });
+
   it("start は開始打刻を入れる（割り込みの終了・再開タスク生成はサーバ確定後 / O-2）", () => {
     const applied = apply({ type: "start", id: 11, at: atJst("10:00") });
 

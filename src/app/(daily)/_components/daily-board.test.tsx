@@ -31,6 +31,7 @@ import {
   suspendTaskAction,
   undoCompleteAction,
   undoStartAction,
+  updateTaskCommentAction,
   updateTaskEstimateAction,
   updateTaskPunchAction,
   type CreatingActionResult,
@@ -64,6 +65,7 @@ vi.mock("../actions", () => ({
   suspendTaskAction: vi.fn(),
   undoCompleteAction: vi.fn(),
   undoStartAction: vi.fn(),
+  updateTaskCommentAction: vi.fn(),
   updateTaskEstimateAction: vi.fn(),
   updateTaskPunchAction: vi.fn(),
 }));
@@ -313,6 +315,11 @@ function commit(input: HTMLElement, value: string) {
   fireEvent.keyDown(input, { key: "Enter" });
 }
 
+/** コメントの入力欄（O-16）。クイック追加欄も textbox なので placeholder で絞る */
+function commentInput(): HTMLElement {
+  return screen.getByPlaceholderText("コメント（Shift+Enter で改行）");
+}
+
 beforeEach(() => {
   vi.stubGlobal("ResizeObserver", ResizeObserverStub);
   // 選択行のスクロール追従（§5）は jsdom では測れない（幾何は段3送り）。呼び出し自体は通す
@@ -335,6 +342,7 @@ beforeEach(() => {
   vi.mocked(startTaskAction).mockResolvedValue(OK);
   vi.mocked(suspendTaskAction).mockResolvedValue(OK);
   vi.mocked(undoStartAction).mockResolvedValue(OK);
+  vi.mocked(updateTaskCommentAction).mockResolvedValue(OK);
   vi.mocked(updateTaskEstimateAction).mockResolvedValue(OK);
   vi.mocked(updateTaskPunchAction).mockResolvedValue(OK);
   // 削除・完了の取り消しは Undo（O-8 / O-15）に要る値を返す契約なので、対象から組んで返す
@@ -424,6 +432,38 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
     await gate.resolve({ ok: false, message: "保存に失敗しました" });
 
     expect(within(row(NOT_STARTED)).queryByText("0:30")).not.toBeNull();
+  });
+
+  it("コメントの追加は確定前に反映し、失敗すると元へ戻す（F-206 / O-16）", async () => {
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(updateTaskCommentAction).mockReturnValue(gate.promise);
+    renderBoard();
+    selectRow(NOT_STARTED);
+
+    press("c");
+    commit(commentInput(), "元データ探しに手間取った");
+    // 選択行なので全文が下に出る（§3.3）
+    expect(screen.queryByText("元データ探しに手間取った")).not.toBeNull();
+
+    await gate.resolve({ ok: false, message: "保存に失敗しました" });
+
+    expect(screen.queryByText("元データ探しに手間取った")).toBeNull();
+    expect(within(row(NOT_STARTED)).queryByLabelText("コメントを編集")).toBeNull();
+    expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
+  });
+
+  it("空で確定するとコメントを消す（印も全文も消える。O-16）", async () => {
+    renderBoard([
+      task({ id: 11, name: NOT_STARTED, sectionId: 1, comment: "書いてあった" }),
+    ]);
+    selectRow(NOT_STARTED);
+
+    press("c");
+    commit(commentInput(), "   ");
+
+    expect(vi.mocked(updateTaskCommentAction)).toHaveBeenCalledWith(11, "   ");
+    expect(screen.queryByText("書いてあった")).toBeNull();
+    expect(within(row(NOT_STARTED)).queryByLabelText("コメントを編集")).toBeNull();
   });
 
   it("終了打刻をサーバが拒んだら、行の巻き戻しに合わせて選択も打刻した行へ戻す（F-211 / §5）", async () => {
@@ -1021,6 +1061,57 @@ describe("DailyBoard のインライン編集の検証（§8 / 00_共通 §2.3�
     expect(vi.mocked(updateTaskEstimateAction)).not.toHaveBeenCalled();
   });
 
+  it("コメントも変更なしの確定は送信しない（前後の空白だけの差も同値）", () => {
+    renderBoard([task({ id: 11, name: NOT_STARTED, sectionId: 1, comment: "前に書いた" })]);
+    selectRow(NOT_STARTED);
+
+    press("c");
+    commit(commentInput(), "前に書いた");
+    press("c");
+    commit(commentInput(), "  前に書いた  "); // 正規化すると同値
+
+    expect(vi.mocked(updateTaskCommentAction)).not.toHaveBeenCalled();
+  });
+
+  /**
+   * この欄は blur でも確定する（O-16）ので、Esc の取消は「編集を閉じる」だけでなく
+   * **閉じたことで飛ぶ blur が書きかけを保存しない**ところまでで初めて成立する。
+   * 入力欄の unmount を伴うため、行単体（`daily-list.test.tsx`）では踏めない経路
+   */
+  it("Esc で取り消すと書きかけは保存されず、元のコメントが残る（O-16 / 00_共通 §2.3）", () => {
+    renderBoard([task({ id: 11, name: NOT_STARTED, sectionId: 1, comment: "前に書いた" })]);
+    selectRow(NOT_STARTED);
+
+    press("c");
+    fireEvent.change(commentInput(), { target: { value: "書きかけ" } });
+    fireEvent.keyDown(commentInput(), { key: "Escape" });
+
+    expect(vi.mocked(updateTaskCommentAction)).not.toHaveBeenCalled();
+    expect(screen.queryByText("書きかけ")).toBeNull();
+    expect(screen.queryByText("前に書いた")).not.toBeNull();
+  });
+
+  // 打刻の有無を見る `B`/`F`（§3.3）と違い、コメントは状態を問わず書ける（O-16）
+  it("完了タスクでも C でコメントを開ける（状態を問わない。O-16）", () => {
+    renderBoard();
+    selectRow(COMPLETED);
+
+    press("c");
+
+    expect(commentInput()).not.toBeNull();
+  });
+
+  // `C` を押して何も書かずに抜けるたびに保存＋revalidatePath が飛ぶのを防ぐ（null === null）
+  it("コメントの無い行で空のまま確定しても送信しない", () => {
+    renderBoard();
+    selectRow(NOT_STARTED);
+
+    press("c");
+    commit(commentInput(), "");
+
+    expect(vi.mocked(updateTaskCommentAction)).not.toHaveBeenCalled();
+  });
+
   // FB-68 の症状を通しで固定する。フック側は「編集を開かない」、行側は「入力欄を出さない」
   // としか見ておらず、両者の合成である「キーボードが死なない」はここでしか見えない
   it("未打刻タスクの B／F はキーボード操作を止めない（FB-68）", () => {
@@ -1219,11 +1310,11 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
     expect(isSelected(RUNNING)).toBe(true);
   });
 
-  it("C は現在地（実行中タスク）へ選択を戻す（§5）", () => {
+  it("N は現在地（実行中タスク）へ選択を戻す（§5）", () => {
     renderBoard();
     selectRow(COMPLETED);
 
-    press("c");
+    press("n");
 
     expect(isSelected(RUNNING)).toBe(true);
   });
@@ -1232,11 +1323,11 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
    * 現在セクションの導出（`sections` と現在時刻が要る）は board が担うので、探索順が実際に
    * 効くかはここでしか固定できない。現在時刻 10:30 が属するのは 午前（09:00-13:00）
    */
-  it("C は未分類（リスト先頭）ではなく現在セクションの未実行を選ぶ（§5 規則2 / FB-78）", () => {
+  it("N は未分類（リスト先頭）ではなく現在セクションの未実行を選ぶ（§5 規則2 / FB-78）", () => {
     renderBoard(inboxAndSections());
     selectRow(COMPLETED);
 
-    press("c");
+    press("n");
 
     expect(isSelected(NOT_STARTED)).toBe(true);
     expect(isSelected(INBOX)).toBe(false);
@@ -1257,7 +1348,7 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
     ]);
     selectRow(COMPLETED);
 
-    press("c");
+    press("n");
 
     expect(isSelected(INBOX)).toBe(true);
   });
@@ -1266,18 +1357,18 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
     renderBoard(inboxAndSections(), { date: "2026-07-20", today: TEST_DATE, isToday: false });
     selectRow(COMPLETED);
 
-    press("c");
+    press("n");
 
     expect(isSelected(INBOX)).toBe(true);
   });
 
-  it("全件完了の日で C を押しても選択行は消えない（§5: 選択行は常に1つ）", () => {
+  it("全件完了の日で N を押しても選択行は消えない（§5: 選択行は常に1つ）", () => {
     renderBoard([
       task({ id: 11, name: COMPLETED, sectionId: 1, startedAt: atJst("09:00"), endedAt: atJst("09:20") }),
     ]);
     selectRow(COMPLETED);
 
-    press("c");
+    press("n");
 
     expect(isSelected(COMPLETED)).toBe(true);
   });
@@ -1298,6 +1389,15 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
     press("r");
 
     expect(screen.queryByDisplayValue(NOT_STARTED)).not.toBeNull();
+  });
+
+  it("C はコメントの入力欄を開く（O-16 / F-206）", () => {
+    renderBoard([task({ id: 11, name: NOT_STARTED, sectionId: 1, comment: "前に書いた" })]);
+    selectRow(NOT_STARTED);
+
+    press("c");
+
+    expect(commentInput()).toHaveProperty("value", "前に書いた");
   });
 
   it("A はクイック追加欄へフォーカスする", () => {

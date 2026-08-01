@@ -122,17 +122,23 @@ describe("inlineEditKeyHandler（画面定義書00_共通 §2.3: Enter 保存 / 
     handler: (e: KeyboardEvent<HTMLInputElement>) => void,
     key: string,
     nativeEvent: Readonly<{ isComposing?: boolean }> = {},
-    keyCode = 0
+    keyCode = 0,
+    shiftKey = false
   ) => {
     const input = { value: "入力値" } as HTMLInputElement;
     handler({
       key,
       keyCode,
+      shiftKey,
       nativeEvent: { isComposing: false, ...nativeEvent },
       currentTarget: input,
     } as unknown as KeyboardEvent<HTMLInputElement>);
     return input;
   };
+
+  /** `Shift+<key>` を撃つ（複数行入力＝コメント欄 O-16 の分岐を見るため） */
+  const fireShiftKey = (handler: (e: KeyboardEvent<HTMLInputElement>) => void, key: string) =>
+    fireKey(handler, key, {}, 0, true);
 
   it("Enter で onEnter に入力欄を渡す（取消は呼ばない）", () => {
     const onEnter = vi.fn();
@@ -193,5 +199,48 @@ describe("inlineEditKeyHandler（画面定義書00_共通 §2.3: Enter 保存 / 
     fireKey(handler, "Escape", { isComposing: true });
 
     expect(onEscape).not.toHaveBeenCalled();
+  });
+
+  // 複数行入力（コメント欄 O-16）だけ Shift+Enter を改行として通す。1行の入力欄は改行を持たないので
+  // 既定（multiline 未指定）では Shift 併用でも確定する——ここを取り違えると
+  // タスク名・見積もり・打刻・マスタ管理の全インライン編集が Shift+Enter で確定しなくなる
+  describe("multiline（画面定義書01 O-16 / §6: コメント欄だけ Shift+Enter が改行）", () => {
+    it("multiline 未指定なら Shift+Enter でも確定する（1行入力欄の既定は変えない）", () => {
+      const onEnter = vi.fn();
+      const handler = inlineEditKeyHandler({ onEnter, onEscape: vi.fn() });
+
+      const input = fireShiftKey(handler, "Enter");
+
+      expect(onEnter).toHaveBeenCalledWith(input);
+    });
+
+    it("multiline なら Shift+Enter は確定も取消もしない（改行として素通しする）", () => {
+      const onEnter = vi.fn();
+      const onEscape = vi.fn();
+      const handler = inlineEditKeyHandler({ onEnter, onEscape, multiline: true });
+
+      fireShiftKey(handler, "Enter");
+
+      expect(onEnter).not.toHaveBeenCalled();
+      expect(onEscape).not.toHaveBeenCalled();
+    });
+
+    it("multiline でも Shift なしの Enter は確定する", () => {
+      const onEnter = vi.fn();
+      const handler = inlineEditKeyHandler({ onEnter, onEscape: vi.fn(), multiline: true });
+
+      const input = fireKey(handler, "Enter");
+
+      expect(onEnter).toHaveBeenCalledWith(input);
+    });
+
+    it("Escape は multiline でも Shift 併用でも取消のまま（改行の分岐に巻き込まない）", () => {
+      const onEscape = vi.fn();
+      const handler = inlineEditKeyHandler({ onEnter: vi.fn(), onEscape, multiline: true });
+
+      const input = fireShiftKey(handler, "Escape");
+
+      expect(onEscape).toHaveBeenCalledWith(input);
+    });
   });
 });

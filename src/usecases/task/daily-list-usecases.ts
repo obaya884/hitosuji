@@ -12,6 +12,7 @@ import { err, ok, type Result } from "@/domain/shared/result";
 import { groupTasksBySection, type DailyGroup } from "@/domain/task/daily-list";
 import { appendSortOrder } from "@/domain/task/sort-order";
 import {
+  normalizeComment,
   validateEstimateMinutes,
   validateTaskName,
   type TaskEditError,
@@ -113,6 +114,19 @@ export async function updateTaskEstimate(
   const validated = validateEstimateMinutes(rawMinutes);
   if (!validated.ok) return validated;
   await repo.updateEstimate(id, validated.value);
+  return ok(id);
+}
+
+/**
+ * コメントの編集（F-206 / 画面定義書01 O-16）。長さの制限がなく入力の失敗しようがないため、
+ * 検証ではなく正規化（`normalizeComment`）だけを通す
+ */
+export async function updateTaskComment(
+  repo: TaskRepository,
+  id: TaskId,
+  rawComment: string
+): Promise<Result<TaskId, TaskEditError>> {
+  await repo.updateComment(id, normalizeComment(rawComment));
   return ok(id);
 }
 
