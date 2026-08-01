@@ -3,12 +3,12 @@
 import { useRef, useState } from "react";
 import { useDismiss } from "@/app/_lib/use-dismiss";
 import { useServerAction } from "@/app/_lib/use-server-action";
-import { btnSecondary, floatPanel, linkMuted, noticeDanger } from "@/app/_lib/ui";
-import { PlusIcon } from "@/app/_components/icons";
+import { floatPanel, linkMuted } from "@/app/_lib/ui";
 import { MODE_COLOR_PRESETS, modeColorName, type Mode } from "@/domain/mode/mode";
 import { ArchivedMasterSection } from "../_components/archived-master-section";
 import { MasterEditableCell } from "../_components/master-editable-cell";
 import { MasterNewRow, MasterNewRowInput } from "../_components/master-new-row";
+import { MasterTableFrame } from "../_components/master-table-frame";
 import {
   createModeAction,
   deleteModeAction,
@@ -198,30 +198,16 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
   );
 
   return (
-    <section className="mt-4">
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-ink-muted">色はプリセットから選択します。並び順は名前順です。</p>
-        <button
-          onClick={() => {
-            setError(null);
-            setNewColor(DEFAULT_MODE_COLOR);
-            setEditingId("new");
-          }}
-          // 保存中は新しい編集を始めさせない（開いていたセルが閉じてしまう。00_共通 §2.3）
-          disabled={isPending}
-          className={`inline-flex shrink-0 items-center gap-1 ${btnSecondary}`}
-        >
-          <PlusIcon className="h-3 w-3" />
-          新規追加
-        </button>
-      </div>
-
-      {error !== null && (
-        <p className={`mt-2 ${noticeDanger}`}>
-          {error}
-        </p>
-      )}
-
+    <MasterTableFrame
+      description="色はプリセットから選択します。並び順は名前順です。"
+      error={error}
+      isPending={isPending}
+      onAddNew={() => {
+        setError(null);
+        setNewColor(DEFAULT_MODE_COLOR);
+        setEditingId("new");
+      }}
+    >
       <table className="mt-2 w-full text-sm">
         <thead>
           <tr className="border-b border-line-strong text-left text-xs text-ink-muted">
@@ -272,6 +258,6 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
         onRestore={(id) => run(() => setModeArchivedAction(id, false))}
         onDelete={(id) => run(() => deleteModeAction(id))}
       />
-    </section>
+    </MasterTableFrame>
   );
 }
