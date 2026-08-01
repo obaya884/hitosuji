@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { deferredAction } from "@/app/_testing/actions";
 import { hasClass, rgbOf } from "@/app/_testing/dom";
+import { click } from "@/app/_testing/interactions";
 import { MODE_COLOR_PRESETS, type Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { Routine } from "@/domain/routine/routine";
@@ -74,13 +75,6 @@ function names(container: HTMLElement): (string | null)[] {
 
 function header(label: string): HTMLTableCellElement {
   return screen.getByRole<HTMLTableCellElement>("columnheader", { name: label });
-}
-
-/** startTransition の中で await される Server Action の解決までを流す */
-async function click(element: HTMLElement) {
-  await act(async () => {
-    fireEvent.click(element);
-  });
 }
 
 beforeEach(() => {
@@ -255,42 +249,42 @@ describe("RoutinesTable（画面定義書02 §3.1: 列見出しのクリック�
     expect(header("名前").getAttribute("aria-sort")).toBe("none");
   });
 
-  it("見出しを押すとその軸の昇順になり、もう一度押すと降順になる", () => {
+  it("見出しを押すとその軸の昇順になり、もう一度押すと降順になる", async () => {
     const { container } = renderTable(forSort);
 
-    fireEvent.click(screen.getByText("名前"));
+    await click(screen.getByText("名前"));
     expect(names(container)).toEqual(["あ", "い", "う"]);
     expect(header("名前").getAttribute("aria-sort")).toBe("ascending");
 
-    fireEvent.click(screen.getByText("名前"));
+    await click(screen.getByText("名前"));
     expect(names(container)).toEqual(["う", "い", "あ"]);
     expect(header("名前").getAttribute("aria-sort")).toBe("descending");
   });
 
-  it("同じ見出しを3回押すと昇順に戻る（昇順⇄降順のトグル）", () => {
+  it("同じ見出しを3回押すと昇順に戻る（昇順⇄降順のトグル）", async () => {
     const { container } = renderTable(forSort);
 
-    fireEvent.click(screen.getByText("名前"));
-    fireEvent.click(screen.getByText("名前"));
-    fireEvent.click(screen.getByText("名前"));
+    await click(screen.getByText("名前"));
+    await click(screen.getByText("名前"));
+    await click(screen.getByText("名前"));
 
     expect(header("名前").getAttribute("aria-sort")).toBe("ascending");
     expect(names(container)).toEqual(["あ", "い", "う"]);
   });
 
-  it("別の列に切り替えると昇順から始まる（未設定は昇順・降順のいずれでも末尾）", () => {
+  it("別の列に切り替えると昇順から始まる（未設定は昇順・降順のいずれでも末尾）", async () => {
     const { container } = renderTable(forSort);
 
-    fireEvent.click(screen.getByText("名前"));
-    fireEvent.click(screen.getByText("名前"));
-    fireEvent.click(screen.getByText("モード"));
+    await click(screen.getByText("名前"));
+    await click(screen.getByText("名前"));
+    await click(screen.getByText("モード"));
 
     expect(header("モード").getAttribute("aria-sort")).toBe("ascending");
     expect(header("名前").getAttribute("aria-sort")).toBe("none");
     // モードA(う) → モードB(い) → 未設定(あ)
     expect(names(container)).toEqual(["う", "い", "あ"]);
 
-    fireEvent.click(screen.getByText("モード"));
+    await click(screen.getByText("モード"));
     expect(names(container)).toEqual(["い", "う", "あ"]);
   });
 
@@ -305,20 +299,20 @@ describe("RoutinesTable（画面定義書02 §3.1: 列見出しのクリック�
 
   // 順序規則そのものは domain/routine/order.test.ts が担保済み。
   // ここでは残る2列（プロジェクト・繰り返し）の見出しがその軸に結線されていることを見る
-  it("プロジェクトの見出しは名前順に並べ、未設定を末尾に置く", () => {
+  it("プロジェクトの見出しは名前順に並べ、未設定を末尾に置く", async () => {
     const { container } = renderTable([
       routine({ id: 1, name: "い", scheduledStartTime: "08:00", projectId: null }),
       routine({ id: 2, name: "あ", scheduledStartTime: "09:00", projectId: 12 }), // 案件B
       routine({ id: 3, name: "う", scheduledStartTime: "10:00", projectId: 11 }), // 案件A
     ]);
 
-    fireEvent.click(screen.getByText("プロジェクト"));
+    await click(screen.getByText("プロジェクト"));
 
     expect(header("プロジェクト").getAttribute("aria-sort")).toBe("ascending");
     expect(names(container)).toEqual(["う", "あ", "い"]);
   });
 
-  it("繰り返しの見出しは頻度の高い順に並べる（毎日 → 週次 → 月次 → n日ごと）", () => {
+  it("繰り返しの見出しは頻度の高い順に並べる（毎日 → 週次 → 月次 → n日ごと）", async () => {
     const { container } = renderTable([
       routine({ id: 1, name: "い", scheduledStartTime: "08:00", recurrenceType: "monthly", monthDay: 1 }),
       routine({ id: 2, name: "あ", scheduledStartTime: "09:00", recurrenceType: "interval", intervalDays: 3 }),
@@ -333,16 +327,16 @@ describe("RoutinesTable（画面定義書02 §3.1: 列見出しのクリック�
       }),
     ]);
 
-    fireEvent.click(screen.getByText("繰り返し"));
+    await click(screen.getByText("繰り返し"));
 
     expect(header("繰り返し").getAttribute("aria-sort")).toBe("ascending");
     expect(names(container)).toEqual(["う", "え", "い", "あ"]);
   });
 
-  it("選んだ並び順は記憶しない（開き直すと既定の開始想定の昇順に戻る）", () => {
+  it("選んだ並び順は記憶しない（開き直すと既定の開始想定の昇順に戻る）", async () => {
     const first = renderTable(forSort);
 
-    fireEvent.click(screen.getByText("名前"));
+    await click(screen.getByText("名前"));
     expect(names(first.container)).toEqual(["あ", "い", "う"]);
     first.unmount();
 
@@ -353,7 +347,7 @@ describe("RoutinesTable（画面定義書02 §3.1: 列見出しのクリック�
     expect(header("名前").getAttribute("aria-sort")).toBe("none");
   });
 
-  it("昇順/降順の印は並べ替え中の列にだけ見せる（他の列の印は不可視）", () => {
+  it("昇順/降順の印は並べ替え中の列にだけ見せる（他の列の印は不可視）", async () => {
     renderTable(forSort);
     // 印は見出しボタンの中の装飾（aria-hidden）なので構造で取る
     const mark = (label: string) => header(label).querySelector<HTMLElement>("button > span")!;
@@ -362,12 +356,12 @@ describe("RoutinesTable（画面定義書02 §3.1: 列見出しのクリック�
     expect(hasClass(mark("開始想定"), "invisible")).toBe(false);
     expect(hasClass(mark("名前"), "invisible")).toBe(true);
 
-    fireEvent.click(screen.getByText("名前"));
+    await click(screen.getByText("名前"));
     expect(mark("名前").textContent).toBe("▲");
     expect(hasClass(mark("名前"), "invisible")).toBe(false);
     expect(hasClass(mark("開始想定"), "invisible")).toBe(true);
 
-    fireEvent.click(screen.getByText("名前"));
+    await click(screen.getByText("名前"));
     expect(mark("名前").textContent).toBe("▼");
     expect(hasClass(mark("名前"), "invisible")).toBe(false);
   });
