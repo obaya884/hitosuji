@@ -74,6 +74,13 @@ beforeEach(() => {
 });
 
 describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バーの横に色名を併記）", () => {
+  // 説明文は共通の外枠（MasterTableFrame）へ prop で渡すので、表ごとに渡し違えていないかを見る（T-79）
+  it("色の決め方と並び順を説明文で伝える（§3.2）", () => {
+    renderTable();
+
+    expect(screen.getByText(/色はプリセットから選択します/)).not.toBeNull();
+  });
+
   it("行ごとにカラーバーと色名を併記する", () => {
     renderTable();
     const row = rowOf("モードA");
@@ -381,6 +388,29 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
   });
 
   describe("新規追加", () => {
+    // 「新規追加」も次の編集の始まりなので、直前の失敗の帯を消す（表側に残った配線。T-79）
+    it("「新規追加」を押すとエラー表示を消す", async () => {
+      vi.mocked(updateModeAction).mockResolvedValue({
+        ok: false,
+        message: "名前を入力してください",
+      });
+      renderTable();
+      const input = startEditingCell("モードA");
+      fireEvent.change(input, { target: { value: "" } });
+      fireEvent.blur(input);
+      // 保存中は「新規追加」が押せないので、押せる状態に戻るまで待つ
+      const addNew = await waitFor(() => {
+        expect(screen.getByText("名前を入力してください")).not.toBeNull();
+        const button = screen.getByRole("button", { name: "新規追加" });
+        expect(button).toHaveProperty("disabled", false);
+        return button;
+      });
+
+      fireEvent.click(addNew);
+
+      expect(screen.queryByText("名前を入力してください")).toBeNull();
+    });
+
     it("既定色は先頭のプリセット（赤）で、名前と色を1行で入力する", () => {
       renderTable();
 
@@ -490,7 +520,8 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       expect(screen.getByRole("button", { name: "取消" })).toHaveProperty("disabled", false);
     });
 
-    // 「保存中に始める操作」も止める（§2.3）——押すと開いていたセルが閉じてしまう
+    // 「保存中に始める操作」も止める（§2.3）——押すと開いていたセルが閉じてしまう。
+    // 抑止そのものは MasterTableFrame が持つが、isPending を渡す配線は表ごとなのでここで見る
     it("保存中は「新規追加」を押せない", async () => {
       const pending = deferredAction();
       vi.mocked(setModeArchivedAction).mockReturnValue(pending.promise);

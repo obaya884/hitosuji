@@ -63,6 +63,13 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
     expect(screen.getByRole("button", { name: "プロジェクトB" })).not.toBeNull();
   });
 
+  // 説明文は共通の外枠（MasterTableFrame）へ prop で渡すので、表ごとに渡し違えていないかを見る（T-79）
+  it("並び順の決まり方を説明文で伝える（§3.3: 並び順は名前順）", () => {
+    renderTable();
+
+    expect(screen.getByText(/並び順は名前順です/)).not.toBeNull();
+  });
+
   it("1件も無ければ空であることを文言で示す", () => {
     renderTable({ active: [] });
 
@@ -218,6 +225,31 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
   });
 
   describe("新規追加", () => {
+    // 「新規追加」も次の編集の始まりなので、直前の失敗の帯を消す（表側に残った配線。T-79）
+    it("「新規追加」を押すとエラー表示を消す", async () => {
+      vi.mocked(updateProjectAction).mockResolvedValue({
+        ok: false,
+        message: "名前を入力してください",
+      });
+      renderTable();
+      const input = startEditingCell("プロジェクトA");
+      fireEvent.change(input, { target: { value: "" } });
+      fireEvent.blur(input);
+      await waitFor(() => {
+        expect(screen.getByText("名前を入力してください")).not.toBeNull();
+      });
+
+      // 保存中は「新規追加」が押せないので、押せる状態に戻るまで待つ
+      const addNew = await waitFor(() => {
+        const button = screen.getByRole("button", { name: "新規追加" });
+        expect(button).toHaveProperty("disabled", false);
+        return button;
+      });
+      fireEvent.click(addNew);
+
+      expect(screen.queryByText("名前を入力してください")).toBeNull();
+    });
+
     it("「保存」で追加を送る", async () => {
       renderTable();
       fireEvent.click(screen.getByRole("button", { name: "新規追加" }));
@@ -307,7 +339,8 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
     });
 
     // 「保存中に始める操作」も止める（§2.3）——押すと開いていたセルが閉じ、
-    // 失敗が返っても入力し直せなくなる。守りたいのは「開いている入力欄が残る」こと
+    // 失敗が返っても入力し直せなくなる。守りたいのは「開いている入力欄が残る」こと。
+    // 抑止そのものは MasterTableFrame が持つが、isPending を渡す配線は表ごとなのでここで見る
     it("保存中の「新規追加」は開いている編集セルを閉じない", async () => {
       const pending = deferredAction();
       vi.mocked(setProjectArchivedAction).mockReturnValue(pending.promise);
