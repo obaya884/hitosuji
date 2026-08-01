@@ -1,29 +1,11 @@
-// ドメインのエラーコードを画面表示用の日本語メッセージへ変換する（表示都合なので presentation に置く）
-import type { ModeError } from "@/domain/mode/mode";
-import type { ProjectError } from "@/domain/project/project";
-import type { SectionError } from "@/domain/section/section";
-import type { MasterDeletionError } from "@/domain/shared/master-deletion";
+// マスタ管理の Server Action が失敗を返すときの入口。文言そのものは全画面分を集めた
+// `_lib/error-messages.ts` が持つ（辞書の置き場はアーキテクチャ定義書 §2 の例外条項。T-78）
 import type { ActionResult } from "@/app/_lib/action-result";
+import { MASTER_MESSAGES, type MasterError } from "@/app/_lib/error-messages";
 
 // 共通結果型を再エクスポート（masters の消費側は従来どおり ActionResult を import できる。T-08）
 export type { ActionResult };
 
-export type MasterError = SectionError | ModeError | ProjectError | MasterDeletionError;
-
-const MESSAGES: Record<MasterError, string> = {
-  name_required: "名前を入力してください",
-  name_too_long: "名前は50文字以内で入力してください",
-  invalid_start_time: "開始時刻を HH:MM 形式で入力してください",
-  duplicate_start_time: "同じ開始時刻の有効なセクションがあります",
-  last_active_section: "有効なセクションは最低1件必要です",
-  day_start_section: "日界セクションはアーカイブできません（先に別のセクションを日界に指定してください）",
-  invalid_color: "色はプリセットから選択してください",
-  not_found: "対象が見つかりません（画面を再読み込みしてください）",
-  not_archived: "削除できるのはアーカイブ済みのものだけです",
-  // 参照元はマスタごとに違う（画面定義書03 §4.1）ので、種類を挙げずに言い切る
-  has_references: "参照しているデータがあるため削除できません",
-};
-
 export function failure(error: MasterError): ActionResult {
-  return { ok: false, message: MESSAGES[error] };
+  return { ok: false, message: MASTER_MESSAGES[error] };
 }

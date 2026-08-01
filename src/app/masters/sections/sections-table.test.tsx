@@ -394,6 +394,29 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
   });
 
   describe("新規追加", () => {
+    // 「新規追加」も次の編集の始まりなので、直前の失敗の帯を消す（表側に残った配線。T-79）
+    it("「新規追加」を押すとエラー表示を消す", async () => {
+      vi.mocked(updateSectionAction).mockResolvedValue({
+        ok: false,
+        message: "開始時刻を HH:MM 形式で入力してください",
+      });
+      renderTable();
+      const input = startEditingCell("セクションA");
+      fireEvent.change(input, { target: { value: "改名後" } });
+      fireEvent.blur(input);
+      // 保存中は「新規追加」が押せないので、押せる状態に戻るまで待つ
+      const addNew = await waitFor(() => {
+        expect(screen.getByText("開始時刻を HH:MM 形式で入力してください")).not.toBeNull();
+        const button = screen.getByRole("button", { name: "新規追加" });
+        expect(button).toHaveProperty("disabled", false);
+        return button;
+      });
+
+      fireEvent.click(addNew);
+
+      expect(screen.queryByText("開始時刻を HH:MM 形式で入力してください")).toBeNull();
+    });
+
     it("名前と開始時刻だけを入力し、終了時刻は自動導出であることを示す", () => {
       renderTable();
 
@@ -504,7 +527,8 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
       expect(screen.getByPlaceholderText("セクション名")).not.toBeNull();
     });
 
-    // 「保存中に始める操作」も止める（§2.3）——押すと開いていたセルが閉じてしまう
+    // 「保存中に始める操作」も止める（§2.3）——押すと開いていたセルが閉じてしまう。
+    // 抑止そのものは MasterTableFrame が持つが、isPending を渡す配線は表ごとなのでここで見る
     it("保存中は「新規追加」を押せない", async () => {
       const pending = deferredAction();
       vi.mocked(archiveSectionAction).mockReturnValue(pending.promise);

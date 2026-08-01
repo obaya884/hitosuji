@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { useServerAction } from "@/app/_lib/use-server-action";
-import { btnSecondary, linkMuted, noticeDanger } from "@/app/_lib/ui";
-import { PlusIcon } from "@/app/_components/icons";
+import { linkMuted } from "@/app/_lib/ui";
 import type { Section } from "@/domain/section/section";
 import { ArchivedMasterSection } from "../_components/archived-master-section";
 import { MasterEditableCell } from "../_components/master-editable-cell";
 import { MasterNewRow, MasterNewRowInput } from "../_components/master-new-row";
+import { MasterTableFrame } from "../_components/master-table-frame";
 import {
   archiveSectionAction,
   createSectionAction,
@@ -118,32 +118,21 @@ export function SectionsTable({ ranges, archived, deletableIds }: Props) {
   );
 
   return (
-    <section className="mt-4">
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-ink-muted">
+    <MasterTableFrame
+      description={
+        // 2行に折って書いた形のまま渡す（1つの文字列にすると行の継ぎ目の空白が消えて表示が変わる）
+        <>
           編集できるのは開始時刻だけです（終了時刻は次のセクションの開始から自動導出）。並び順は開始時刻順です。
           先頭のラジオで「1日の開始（日界）」になるセクションを選べます（F-116）。
-        </p>
-        <button
-          onClick={() => {
-            setError(null);
-            setEditing({ id: "new" });
-          }}
-          // 保存中は新しい編集を始めさせない（開いていたセルが閉じてしまう。00_共通 §2.3）
-          disabled={isPending}
-          className={`inline-flex shrink-0 items-center gap-1 ${btnSecondary}`}
-        >
-          <PlusIcon className="h-3 w-3" />
-          新規追加
-        </button>
-      </div>
-
-      {error !== null && (
-        <p className={`mt-2 ${noticeDanger}`}>
-          {error}
-        </p>
-      )}
-
+        </>
+      }
+      error={error}
+      isPending={isPending}
+      onAddNew={() => {
+        setError(null);
+        setEditing({ id: "new" });
+      }}
+    >
       <table className="mt-2 w-full text-sm">
         <thead>
           <tr className="border-b border-line-strong text-left text-xs text-ink-muted">
@@ -199,6 +188,6 @@ export function SectionsTable({ ranges, archived, deletableIds }: Props) {
         onRestore={(id) => run(() => restoreSectionAction(id))}
         onDelete={(id) => run(() => deleteSectionAction(id))}
       />
-    </section>
+    </MasterTableFrame>
   );
 }

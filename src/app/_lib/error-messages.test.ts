@@ -11,11 +11,13 @@ import type { PunchUsecaseError } from "@/usecases/task/punch-usecases";
 import type { ReorderUsecaseError } from "@/usecases/task/reorder-usecases";
 import {
   DUPLICATE_AND_START_MESSAGES,
+  MASTER_MESSAGES,
+  type MasterError,
   OPERATION_MESSAGES,
   PUNCH_EDIT_MESSAGES,
   PUNCH_MESSAGES,
   REORDER_MESSAGES,
-  ROUTINE_ERROR_MESSAGES,
+  ROUTINE_MESSAGES,
   routineFromTaskErrorMessage,
   TASK_EDIT_MESSAGES,
 } from "./error-messages";
@@ -102,6 +104,25 @@ const EXPECTED_ROUTINE_FROM_TASK: Record<CreateRoutineFromTaskError, string> = {
   routine_not_found: ROUTINE_FROM_TASK_FALLBACK,
 };
 
+/**
+ * マスタ管理（画面定義書03 §3.1 のバリデーション・§3.2 の色プリセット・§4.1 の物理削除）。
+ * `Record<MasterError, string>` にしているので、ドメインへエラーコードを足したらこのテストが
+ * 型エラーで落ちる（文言の決め忘れを防ぐ）
+ */
+const EXPECTED_MASTER: Record<MasterError, string> = {
+  name_required: "名前を入力してください",
+  name_too_long: "名前は50文字以内で入力してください",
+  invalid_start_time: "開始時刻を HH:MM 形式で入力してください",
+  duplicate_start_time: "同じ開始時刻の有効なセクションがあります",
+  last_active_section: "有効なセクションは最低1件必要です",
+  day_start_section:
+    "日界セクションはアーカイブできません（先に別のセクションを日界に指定してください）",
+  invalid_color: "色はプリセットから選択してください",
+  not_found: "対象が見つかりません（画面を再読み込みしてください）",
+  not_archived: "削除できるのはアーカイブ済みのものだけです",
+  has_references: "参照しているデータがあるため削除できません",
+};
+
 describe("エラー文言辞書（T-49: クライアントとサーバが同じ辞書を参照する）", () => {
   it("タスク編集（§3.3・§8）の対応表が期待どおり", () => {
     expect(TASK_EDIT_MESSAGES).toEqual(EXPECTED_TASK_EDIT);
@@ -128,7 +149,15 @@ describe("エラー文言辞書（T-49: クライアントとサーバが同じ�
   });
 
   it("ルーチン入力の検証（画面定義書02 §4）の対応表が期待どおり（コードの過不足も含めて固定する）", () => {
-    expect(ROUTINE_ERROR_MESSAGES).toEqual(EXPECTED_ROUTINE);
+    expect(ROUTINE_MESSAGES).toEqual(EXPECTED_ROUTINE);
+  });
+
+  it("マスタ管理（画面定義書03 §3.1 / §3.2 / §4.1）の対応表が期待どおり", () => {
+    expect(MASTER_MESSAGES).toEqual(EXPECTED_MASTER);
+  });
+
+  it("削除できない理由は参照元の種類（タスク・ルーチン）を挙げずに言い切る（§4.1）", () => {
+    expect(MASTER_MESSAGES.has_references).not.toMatch(/タスク|ルーチン/);
   });
 
   it("ルーチン化（F-305 / §4.1）の対応表が期待どおり（辞書に無いコードは既定文言）", () => {
@@ -154,19 +183,28 @@ describe("同じコードは経路が違っても同じ文言を出す（FB-72: 
       Object.keys(EXPECTED_ROUTINE_FROM_TASK) as CreateRoutineFromTaskError[]
     ).filter(
       (code): code is RoutineUsecaseError =>
-        code in ROUTINE_ERROR_MESSAGES &&
+        code in ROUTINE_MESSAGES &&
         routineFromTaskErrorMessage(code) !== ROUTINE_FROM_TASK_FALLBACK
     );
 
     expect(shared.length).toBeGreaterThan(0); // 走査が空振りしていないこと
     for (const code of shared) {
-      expect(routineFromTaskErrorMessage(code)).toBe(ROUTINE_ERROR_MESSAGES[code]);
+      expect(routineFromTaskErrorMessage(code)).toBe(ROUTINE_MESSAGES[code]);
     }
   });
 
   it("task_not_found は打刻・並び替え・ルーチン化で同じ", () => {
     expect(REORDER_MESSAGES.task_not_found).toBe(PUNCH_MESSAGES.task_not_found);
     expect(routineFromTaskErrorMessage("task_not_found")).toBe(PUNCH_MESSAGES.task_not_found);
+  });
+
+  /**
+   * 上の不変条件の**例外**。マスタ管理とルーチン管理は同名コードでも独立した辞書を引き、
+   * `invalid_start_time` は意図的に違う文言を出す（T-78: 辞書を畳まない理由そのもの）。
+   * 揃えにくると落ちるので、「食い違い」と見て直しにきたときにここで気づける
+   */
+  it("マスタとルーチンの invalid_start_time は意図的に違う（T-78: 2つの辞書は連動しない）", () => {
+    expect(MASTER_MESSAGES.invalid_start_time).not.toBe(ROUTINE_MESSAGES.invalid_start_time);
   });
 
   /**
