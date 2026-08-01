@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { routineSkips, routines, sections, tasks } from "@/infrastructure/db/schema";
+import { MODE_COLOR_BY_NAME } from "@/domain/mode/mode";
+import { modes, projects, routineSkips, routines, sections, tasks } from "@/infrastructure/db/schema";
 import { createTestDb, truncateAll } from "@/infrastructure/db/testing/test-db";
 import { createTaskRepository } from "./drizzle-task-repository";
 
@@ -94,6 +95,36 @@ describe("start（F-201: 付帯更新なしの開始打刻）", () => {
     expect(after.startedAt).toEqual(startedAt);
     expect(after.endedAt).toBeNull();
     expect([after.sectionId, after.sortOrder]).toEqual([morning.id, 1000]);
+  });
+});
+
+describe("finish（F-201 / O-3: 終了打刻）", () => {
+  it("対象の ended_at だけを書き、開始打刻・配置と隣の行は動かさない", async () => {
+    const [morning] = await db
+      .insert(sections)
+      .values([{ name: "朝", startTime: "06:00" }])
+      .returning();
+    const startedAt = new Date("2026-07-19T06:30:00Z");
+    // 未実行の行を並べるのは WHERE の効きを差として観測するため（1件だけだと全行更新でも通る）
+    const [target, untouched] = await db
+      .insert(tasks)
+      .values([
+        { taskDate: "2026-07-19", name: "終了対象", sortOrder: 1000, sectionId: morning.id, startedAt },
+        { taskDate: "2026-07-19", name: "未実行の行", sortOrder: 2000, sectionId: morning.id },
+      ])
+      .returning();
+    const endedAt = new Date("2026-07-19T06:48:00Z");
+
+    await repo.finish(target.id, endedAt);
+
+    const after = await repo.listByDate("2026-07-19");
+    const finished = after.find((t) => t.id === target.id);
+    expect(finished?.startedAt).toEqual(startedAt);
+    expect(finished?.endedAt).toEqual(endedAt);
+    expect([finished?.sectionId, finished?.sortOrder]).toEqual([morning.id, 1000]);
+    expect(after.find((t) => t.id === untouched.id)).toEqual(
+      expect.objectContaining({ startedAt: null, endedAt: null })
+    );
   });
 });
 
@@ -457,6 +488,88 @@ describe("suspend（F-204: 終了と再開タスク生成を1トランザクシ�
       expect.objectContaining({ name: "執筆", estimateMinutes: 18, startedAt: null })
     );
   });
+
+  // 中断は再開タスクを「直後」に挟むので、隙間が無ければ振り直しが要る（データモデル定義書 §3.5）。
+  // 振り直しが落ちると、挟んだはずの再開タスクが次のタスクの後ろへ回る
+  it("振り直しを伴う中断で、振り直しと終了・再開タスク生成がすべて反映される", async () => {
+    const startedAt = new Date("2026-07-19T08:48:00Z");
+    const endedAt = new Date("2026-07-19T09:00:00Z");
+    // 元タスクも動かす採番にするのは、振り直しの2件がどちらも効くことを見るため
+    const [running, next] = await db
+      .insert(tasks)
+      .values([
+        { taskDate: "2026-07-19", name: "執筆", estimateMinutes: 30, sortOrder: 900, startedAt },
+        { taskDate: "2026-07-19", name: "次のタスク", sortOrder: 901 }, // 直後に隙間が無い
+      ])
+      .returning();
+
+    await repo.suspend({
+      taskId: running.id,
+      endedAt,
+      resumeTask: {
+        taskDate: "2026-07-19",
+        name: "執筆",
+        estimateMinutes: 18,
+        sectionId: null,
+        modeId: null,
+        projectId: null,
+        sortOrder: 2000,
+        splitParentId: running.id,
+      },
+      renumber: [
+        { taskId: running.id, sortOrder: 1000 },
+        { taskId: next.id, sortOrder: 3000 },
+      ],
+    });
+
+    const bySortOrder = (await repo.listByDate("2026-07-19")).sort(
+      (a, b) => a.sortOrder - b.sortOrder
+    );
+    expect(bySortOrder.map((t) => [t.id, t.sortOrder])).toEqual([
+      [running.id, 1000],
+      [expect.any(Number), 2000], // 挟まれた再開タスク
+      [next.id, 3000],
+    ]);
+    expect(bySortOrder[0].endedAt).toEqual(endedAt);
+    expect(bySortOrder[1].splitParentId).toBe(running.id);
+  });
+
+  it("再開タスクの生成に失敗したら振り直しと終了も巻き戻る（トランザクション境界）", async () => {
+    const startedAt = new Date("2026-07-19T08:48:00Z");
+    const [running, next] = await db
+      .insert(tasks)
+      .values([
+        { taskDate: "2026-07-19", name: "執筆", estimateMinutes: 30, sortOrder: 900, startedAt },
+        { taskDate: "2026-07-19", name: "次のタスク", sortOrder: 901 },
+      ])
+      .returning();
+
+    await expect(
+      repo.suspend({
+        taskId: running.id,
+        endedAt: new Date("2026-07-19T09:00:00Z"),
+        resumeTask: {
+          taskDate: "2026-07-19",
+          name: "執筆",
+          estimateMinutes: 18,
+          sectionId: 999999, // 存在しないセクション → FK違反
+          modeId: null,
+          projectId: null,
+          sortOrder: 2000,
+          splitParentId: running.id,
+        },
+        renumber: [
+          { taskId: running.id, sortOrder: 1000 },
+          { taskId: next.id, sortOrder: 3000 },
+        ],
+      })
+    ).rejects.toThrow();
+
+    const after = await repo.listByDate("2026-07-19");
+    expect(after).toHaveLength(2); // 再開タスクは作られていない
+    expect(after.find((t) => t.id === running.id)?.endedAt).toBeNull();
+    expect(after.find((t) => t.id === next.id)?.sortOrder).toBe(901);
+  });
 });
 
 describe("postpone（F-107: 先送り）", () => {
@@ -472,6 +585,132 @@ describe("postpone（F-107: 先送り）", () => {
     expect((await repo.listByDate("2026-07-20"))[0]).toEqual(
       expect.objectContaining({ taskDate: "2026-07-20", sortOrder: 3000, postponedCount: 2 })
     );
+  });
+});
+
+// 単文 UPDATE で終わる編集経路。付帯更新を持つ側（move・start の割り込み）ばかりを厚く検証していて、
+// 日常操作で最も通るこちらが実DBに一度も当たっていなかった（T-60）
+describe("rename / updateEstimate（O-5: タスク名・見積もりのインライン編集）", () => {
+  it("対象行の値だけを書き換える（隣の行は動かさない）", async () => {
+    const [target, other] = await db
+      .insert(tasks)
+      .values([
+        { taskDate: "2026-07-19", name: "資料作成", estimateMinutes: 30, sortOrder: 1000 },
+        { taskDate: "2026-07-19", name: "隣の行", estimateMinutes: 15, sortOrder: 2000 },
+      ])
+      .returning();
+
+    await repo.rename(target.id, "資料作成（改）");
+    await repo.updateEstimate(target.id, 45);
+
+    const after = await repo.listByDate("2026-07-19");
+    expect(after.find((t) => t.id === target.id)).toEqual(
+      expect.objectContaining({ name: "資料作成（改）", estimateMinutes: 45, sortOrder: 1000 })
+    );
+    expect(after.find((t) => t.id === other.id)).toEqual(
+      expect.objectContaining({ name: "隣の行", estimateMinutes: 15 })
+    );
+  });
+});
+
+describe("updateClassification（F-401 / F-402 / O-5: モード・プロジェクトの割り当て）", () => {
+  /**
+   * 分類を持つ行を2つ作る。2行目（`other`）は WHERE の効きを差として観測するためのもので、
+   * 更新後に見る値が1行目と食い違うよう別のプロジェクトを指しておく
+   */
+  async function twoClassifiedTasks() {
+    const [work, life] = await db
+      .insert(modes)
+      .values([
+        { name: "仕事", color: MODE_COLOR_BY_NAME["青"] },
+        { name: "暮らし", color: MODE_COLOR_BY_NAME["緑"] },
+      ])
+      .returning();
+    const [moving, study] = await db
+      .insert(projects)
+      .values([{ name: "引越し" }, { name: "資格勉強" }])
+      .returning();
+    const [target, other] = await db
+      .insert(tasks)
+      .values([
+        {
+          taskDate: "2026-07-19",
+          name: "見積もり依頼",
+          sortOrder: 1000,
+          modeId: work.id,
+          projectId: moving.id,
+        },
+        {
+          taskDate: "2026-07-19",
+          name: "隣の行",
+          sortOrder: 2000,
+          modeId: work.id,
+          projectId: study.id,
+        },
+      ])
+      .returning();
+    return { work, life, moving, study, target, other };
+  }
+
+  // 片方だけを渡す形（`modeId?` / `projectId?`）は M キーと P キーが別操作であることの写し。
+  // 省略した側を null で潰すと、モードを変えただけでプロジェクトが外れる
+  it("渡した列だけを更新する（省略した側と隣の行は元の値のまま）", async () => {
+    const { work, life, moving, study, target, other } = await twoClassifiedTasks();
+
+    await repo.updateClassification(target.id, { modeId: life.id });
+
+    expect(await repo.findById(target.id)).toEqual(
+      expect.objectContaining({ modeId: life.id, projectId: moving.id })
+    );
+    expect(await repo.findById(other.id)).toEqual(
+      expect.objectContaining({ modeId: work.id, projectId: study.id })
+    );
+  });
+
+  it("null を渡せば外せる（未設定へ戻す）", async () => {
+    const { work, study, target, other } = await twoClassifiedTasks();
+
+    await repo.updateClassification(target.id, { projectId: null });
+
+    expect(await repo.findById(target.id)).toEqual(
+      expect.objectContaining({ modeId: work.id, projectId: null })
+    );
+    expect(await repo.findById(other.id)).toEqual(
+      expect.objectContaining({ projectId: study.id })
+    );
+  });
+});
+
+// ドメイン表現への写像そのものは listByDate のテストが全列で固定しているので、
+// ここで見るのは findById 固有の2点——指定した行を選ぶことと、無ければ null を返すこと
+describe("findById（00_共通 §4.1: 存在検査が拠り所にする1件取得）", () => {
+  /** 2行入れるのは「どれか1件を返して緑」を許さないため */
+  async function twoRowsForLookup() {
+    return await db
+      .insert(tasks)
+      .values([
+        { taskDate: "2026-07-19", name: "1件目", sortOrder: 1000 },
+        { taskDate: "2026-07-19", name: "2件目", sortOrder: 2000 },
+      ])
+      .returning();
+  }
+
+  it("指定した id の行を返す", async () => {
+    const [first, second] = await twoRowsForLookup();
+
+    expect(await repo.findById(second.id)).toEqual(
+      expect.objectContaining({ id: second.id, name: "2件目" })
+    );
+    expect(await repo.findById(first.id)).toEqual(
+      expect.objectContaining({ id: first.id, name: "1件目" })
+    );
+  });
+
+  // ユースケースの存在検査（00_共通 §4.1）は、この null をもって「対象が無い」と判定する
+  it("存在しない id は例外でなく null を返す", async () => {
+    const rows = await twoRowsForLookup();
+
+    expect(await repo.findById(Math.max(...rows.map((r) => r.id)) + 1)).toBeNull();
   });
 });
 
@@ -860,6 +1099,24 @@ describe("relocate（F-113 / データモデル定義書 §4.4: 自動セクシ�
         [b.id, forenoon.id, 600],
       ])
     );
+  });
+
+  // 移動先が現在地と同じなら relocations は空で届く（F-113 の規則が「動かす必要なし」と出す形）。
+  // 守るのは早期 return という書き方ではなく「空でも安全に呼べる」契約——外して空の
+  // トランザクションを開いても結果は同じなので、このテストで分岐の有無は判定できない
+  it("空配列では何も変えない（呼び出し側が空チェックを持たなくてよい）", async () => {
+    const [morning] = await db
+      .insert(sections)
+      .values([{ name: "朝", startTime: "06:00" }])
+      .returning();
+    await db
+      .insert(tasks)
+      .values([{ taskDate: "2026-07-19", name: "A", sortOrder: 1000, sectionId: morning.id }]);
+    const before = await repo.listByDate("2026-07-19");
+
+    await repo.relocate([]);
+
+    expect(await repo.listByDate("2026-07-19")).toEqual(before);
   });
 
   it("途中で失敗した場合は1件も反映されない（1トランザクション）", async () => {

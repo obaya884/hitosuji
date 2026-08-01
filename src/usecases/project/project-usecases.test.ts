@@ -103,7 +103,8 @@ describe("createProject / updateProject", () => {
     expect(repo.rows).toHaveLength(0);
   });
 
-  it("名前を更新する", async () => {
+  // 更新も作成と同じ検証（`validateProjectInput`）を通す。前後の空白が落ちるのがその証拠
+  it("更新経路でも名前を trim して更新する", async () => {
     const repo = inMemoryRepo([{ id: 1, name: "引越し", isArchived: false }]);
 
     expect((await updateProject(repo, 1, { name: " 引っ越し " })).ok).toBe(true);
