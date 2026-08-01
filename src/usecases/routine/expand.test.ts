@@ -157,7 +157,7 @@ describe("expandRoutinesFor（データモデル定義書 §4.1）", () => {
     expect(expanded).toEqual([]);
   });
 
-  it("その日にスキップされたルーチンは展開しない（F-304 / §3.6）", async () => {
+  it("その日にスキップされたルーチンは展開しない（F-301 / §3.6）", async () => {
     const { repo, expanded } = recordingRoutineRepo(
       [routine({ id: 1 }), routine({ id: 2 })],
       [1] // ルーチン1はスキップ済み

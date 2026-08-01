@@ -487,7 +487,7 @@ describe("delete / restore（O-8: 削除と取り消し）", () => {
   });
 });
 
-describe("ルーチン由来タスクの削除とスキップ（F-304 / データモデル定義書 §3.6）", () => {
+describe("ルーチン由来タスクの削除とスキップ（F-301 / データモデル定義書 §3.6）", () => {
   async function createRoutine() {
     const [row] = await db
       .insert(routines)

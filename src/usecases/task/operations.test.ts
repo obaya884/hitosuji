@@ -445,7 +445,7 @@ describe("deleteTask / restoreTask（O-8: 削除と取り消し）", () => {
     });
   });
 
-  it("ルーチン由来タスクの削除はその日のスキップを記録する（F-304: 再展開を防ぐ）", async () => {
+  it("ルーチン由来タスクの削除はその日のスキップを記録する（F-301: 再展開を防ぐ）", async () => {
     const repo = inMemoryTaskRepository([
       task({ id: 1, routineId: 7, taskDate: TEST_DATE }),
     ]);
@@ -460,7 +460,7 @@ describe("deleteTask / restoreTask（O-8: 削除と取り消し）", () => {
     expect(repo.skips).toEqual([]);
   });
 
-  it("ルーチン由来タスクの復元はスキップを解除する（F-304: 再展開を許す）", async () => {
+  it("ルーチン由来タスクの復元はスキップを解除する（F-301: 再展開を許す）", async () => {
     const repo = inMemoryTaskRepository([
       task({ id: 1, routineId: 7, taskDate: TEST_DATE }),
     ]);

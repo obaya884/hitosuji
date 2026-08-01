@@ -9,7 +9,7 @@ export type InMemoryRoutineRepository = RoutineRepository & {
   readonly rows: Routine[];
   /** 展開で投入されたタスクの種（F-301 の検証用） */
   readonly expanded: RoutineTaskSeed[];
-  /** 特定日のスキップ（F-304 の検証用）。テストから直接積む */
+  /** 特定日のスキップ（F-301 の検証用）。テストから直接積む */
   readonly skips: Array<{ routineId: RoutineId; taskDate: LogicalDate }>;
 };
 

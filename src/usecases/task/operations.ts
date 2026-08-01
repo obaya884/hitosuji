@@ -193,7 +193,7 @@ export async function postponeTask(
 
 /**
  * 削除（O-8）。Undo はクライアント側で「削除前のタスクを作り直す」形で実現する。
- * ルーチン由来のタスクは、その日を再展開しないようスキップも記録する（F-304）
+ * ルーチン由来のタスクは、その日を再展開しないようスキップも記録する（F-301）
  */
 export async function deleteTask(
   repo: TaskRepository,
@@ -215,7 +215,7 @@ function skipOf(task: Task): RoutineSkip | null {
 
 /**
  * 削除の取り消し（O-8）。打刻・属性をそのままに復元する（id は採番し直される）。
- * ルーチン由来なら削除時に記録したスキップも解除する（F-304）
+ * ルーチン由来なら削除時に記録したスキップも解除する（F-301）
  */
 export async function restoreTask(
   repo: TaskRepository,

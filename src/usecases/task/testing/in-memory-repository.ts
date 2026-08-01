@@ -16,7 +16,7 @@ import type { Task, TaskId } from "@/domain/task/task";
 
 export type InMemoryTaskRepository = TaskRepository & {
   readonly rows: Task[];
-  /** 記録されたルーチンスキップ（F-304 の検証用） */
+  /** 記録されたルーチンスキップ（F-301 の検証用） */
   readonly skips: RoutineSkip[];
 };
 

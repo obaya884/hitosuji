@@ -6,7 +6,7 @@ import type { Task, TaskId } from "@/domain/task/task";
 // Port は domain の型をそのまま契約に使う（同じ形を書き写さない）
 export type { Renumber };
 
-/** 特定日のルーチンスキップ（F-304 / データモデル定義書 §3.6） */
+/** 特定日のルーチンスキップ（F-301 / データモデル定義書 §3.6） */
 export type RoutineSkip = Readonly<{ routineId: number; taskDate: LogicalDate }>;
 
 /** 新規タスクの永続化入力（id・打刻・created_at 等は永続化側が決める） */
@@ -132,7 +132,7 @@ export type TaskRepository = Readonly<{
   duplicateAndStart(command: DuplicateAndStartCommand): Promise<Task>;
   /**
    * 削除（O-8）。ルーチン由来のタスクを削除するときは、その日を再展開しないよう
-   * スキップも同じトランザクションで記録する（F-304 / データモデル定義書 §3.6）
+   * スキップも同じトランザクションで記録する（F-301 / データモデル定義書 §3.6）
    */
   delete(id: TaskId, skip: RoutineSkip | null): Promise<void>;
   /**

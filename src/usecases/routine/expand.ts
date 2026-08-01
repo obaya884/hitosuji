@@ -31,7 +31,7 @@ export async function expandRoutinesFor(
     deps.routines.listSkippedOn(date),
   ]);
 
-  // その日にスキップされたルーチンは展開しない（F-304 / データモデル定義書 §3.6）
+  // その日にスキップされたルーチンは展開しない（F-301 / データモデル定義書 §3.6）
   const targets = routinesToExpand(routines, date, today, skipped);
   if (targets.length === 0) return 0;
 

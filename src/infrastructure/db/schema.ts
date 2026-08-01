@@ -96,7 +96,7 @@ export const routines = pgTable(
   ]
 );
 
-// §3.6 routine_skips — 特定日にそのルーチンを展開しない記録（F-304）。
+// §3.6 routine_skips — 特定日にそのルーチンを展開しない記録（F-301）。
 // 展開されたタスクの削除で作られ、削除の取り消しで解除される
 export const routineSkips = pgTable(
   "routine_skips",

@@ -70,7 +70,7 @@ export function occursOn(routine: Routine, date: LogicalDate): boolean {
 /**
  * 日付 D に展開すべきルーチンを、生成順（開始想定時刻の昇順・同時刻は名前の自然順）で返す
  * （データモデル定義書 §4.1-2）。過去日は展開しない（§4.1-0）。
- * その日にスキップされたルーチンは除外する（F-304 / §3.6）
+ * その日にスキップされたルーチンは除外する（F-301 / §3.6）
  */
 export function routinesToExpand(
   routines: readonly Routine[],

@@ -213,7 +213,7 @@ describe("routinesToExpand（§4.1-0/2: 過去日は展開しない・生成順�
   });
 });
 
-describe("routinesToExpand — スキップの除外（F-304 / §3.6）", () => {
+describe("routinesToExpand — スキップの除外（F-301 / §3.6）", () => {
   it("その日にスキップされたルーチンは展開対象から除外する", () => {
     const routines = [routine({ id: 1 }), routine({ id: 2 })];
     expect(routinesToExpand(routines, SUNDAY, SUNDAY, [1]).map((r) => r.id)).toEqual([2]);

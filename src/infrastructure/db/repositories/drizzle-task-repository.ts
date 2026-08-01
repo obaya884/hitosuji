@@ -215,7 +215,7 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
       });
     },
 
-    // ルーチン由来のタスクは削除とスキップ記録を1トランザクションで行う（F-304）
+    // ルーチン由来のタスクは削除とスキップ記録を1トランザクションで行う（F-301）
     async delete(id: TaskId, skip: RoutineSkip | null) {
       if (skip === null) {
         await db.delete(tasks).where(eq(tasks.id, id));
