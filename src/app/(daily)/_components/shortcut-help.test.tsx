@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { SHORTCUTS } from "../_lib/shortcuts";
 import { ShortcutHelp } from "./shortcut-help";
 
 /** 一覧の行を「キー列 → 説明列」の対で読む（クラス名ではなく表の構造で取る） */
@@ -11,59 +12,27 @@ function rows(container: HTMLElement) {
   });
 }
 
-// 画面定義書01 §6 の本表が正。ここは「表の内容がそのまま一覧に出るか」と閉じ方を見る
+// ここが見るのは `_lib/shortcuts.ts` の表を**どう描くか**（1行1キー・表示順・ニーモニックの
+// 括弧書き）と、閉じ方。表の中身そのものは `shortcuts.test.ts` が見る。
 describe("ShortcutHelp（画面定義書01 §6: ショートカット一覧を `?` で表示し Esc で閉じる）", () => {
-  it("§6 の全キー（20行）を1行ずつ並べる", () => {
+  it("表の全行を1行ずつ、キー列に表記を置いて表示順どおりに並べる", () => {
     const { container } = render(<ShortcutHelp onClose={vi.fn()} />);
 
-    const listed = rows(container);
-    // 行数を固定して、キーの追加・削除が仕様表と一緒に更新されることを担保する
-    expect(listed).toHaveLength(20);
-    expect(listed.map((r) => r.keys)).toEqual([
-      "J / K",
-      "N",
-      "Enter",
-      "I",
-      "A",
-      "R / F2",
-      "E",
-      "B / F",
-      "M",
-      "P",
-      "S",
-      "C",
-      "H",
-      "Shift+J / Shift+K",
-      "Y",
-      "D",
-      "U",
-      "Shift+H / Shift+L / T",
-      "G",
-      "?",
-    ]);
-    // 説明が空の行を作らない（キーだけ並べても何ができるか分からない）
-    expect(listed.every((r) => r.description.length > 0)).toBe(true);
+    expect(rows(container).map((r) => r.keys)).toEqual(
+      SHORTCUTS.map((shortcut) => shortcut.label)
+    );
   });
 
-  it("ニーモニック由来を併記する（§6「`?` のヘルプ一覧には各キーのニーモニック由来を併記する」）", () => {
+  it("説明のうしろにニーモニック由来だけを括弧書きで添える（§6「ニーモニック由来を併記する」）", () => {
     const { container } = render(<ShortcutHelp onClose={vi.fn()} />);
 
-    const byKey = new Map(rows(container).map((r) => [r.keys, r.description]));
-    expect(byKey.get("N")).toContain("（Now）");
-    expect(byKey.get("C")).toContain("（Comment）");
-    expect(byKey.get("A")).toContain("（Add）");
-    expect(byKey.get("B / F")).toContain("（Begin / Finish）");
-    expect(byKey.get("U")).toContain("（Undo）");
-    expect(byKey.get("G")).toContain("（Go to date）");
-    // 由来のないキーには括弧書きを付けない（表にない由来を創作しない）
-    expect(byKey.get("J / K")).not.toContain("（");
-    expect(byKey.get("D")).not.toContain("（");
-  });
-
-  it("先送りにショートカットが無い旨を添える（§6「先送りとルーチン化にはショートカットを割り当てない」）", () => {
-    render(<ShortcutHelp onClose={vi.fn()} />);
-
-    expect(screen.queryByText(/先送りは誤操作を防ぐためショートカットを割り当てていません/)).not.toBeNull();
+    // 由来のない行には括弧書きを付けない（表にない由来を創作しない）ことも同時に主張する
+    expect(rows(container).map((r) => r.description)).toEqual(
+      SHORTCUTS.map(
+        (shortcut) =>
+          shortcut.description + (shortcut.mnemonic === undefined ? "" : `（${shortcut.mnemonic}）`)
+      )
+    );
   });
 
   it("Esc で閉じる（00_共通 §2.1）", () => {

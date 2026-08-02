@@ -172,7 +172,6 @@ export function useDailyShortcuts(params: DailyShortcutParams): void {
           quickAddRef.current?.focus();
           return;
         case "r":
-        case "F2":
           requestEdit("name");
           return;
         case "e":

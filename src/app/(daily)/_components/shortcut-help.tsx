@@ -2,44 +2,7 @@
 
 import { useDismiss } from "@/app/_lib/use-dismiss";
 import { floatPanel } from "@/app/_lib/ui";
-
-// 画面定義書01 §6 の一覧と対応させる（変更時は仕様書を先に更新する）
-// mnemonic は同§6 本表の括弧書き（Add / Rename / Estimate / Begin / Finish / Now / Comment / Section / Highlight / Yank / Undo）と一致させる。
-// 表にない由来は創作しない（該当なしのキーは mnemonic を付けない）。
-const SHORTCUTS = [
-  { keys: "J / K", description: "選択行の移動" },
-  {
-    keys: "N",
-    description: "現在地へジャンプ（実行中、なければ現在セクションの未実行）",
-    mnemonic: "Now",
-  },
-  { keys: "Enter", description: "開始 →（実行中なら）終了 のトグル。完了タスクは複製して開始" },
-  { keys: "I", description: "中断（実行中タスクのみ）" },
-  { keys: "A", description: "クイック追加欄へフォーカス", mnemonic: "Add" },
-  { keys: "R / F2", description: "タスク名編集", mnemonic: "Rename" },
-  { keys: "E", description: "見積もり編集", mnemonic: "Estimate" },
-  { keys: "B / F", description: "開始時刻 / 終了時刻の修正", mnemonic: "Begin / Finish" },
-  { keys: "M", description: "モードの選択" },
-  { keys: "P", description: "プロジェクトの選択" },
-  { keys: "S", description: "セクションの選択", mnemonic: "Section" },
-  {
-    keys: "C",
-    description: "コメントの編集（Shift+Enter で改行、Enter で確定）",
-    mnemonic: "Comment",
-  },
-  { keys: "H", description: "ハイライトの付け外し", mnemonic: "Highlight" },
-  { keys: "Shift+J / Shift+K", description: "タスクの並び替え（下へ / 上へ）" },
-  { keys: "Y", description: "選択タスクの複製", mnemonic: "Yank" },
-  { keys: "D", description: "削除" },
-  {
-    keys: "U",
-    description: "取り消し（保留中の取り消しを優先 / 実行中は開始打刻 / 完了は未実行へ）",
-    mnemonic: "Undo",
-  },
-  { keys: "Shift+H / Shift+L / T", description: "前日 / 翌日 / 今日へ移動" },
-  { keys: "G", description: "日付を選んでジャンプ（カレンダーを開く）", mnemonic: "Go to date" },
-  { keys: "?", description: "この一覧の表示・非表示" },
-] as const;
+import { SHORTCUTS } from "../_lib/shortcuts";
 
 type Props = Readonly<{ onClose: () => void }>;
 
@@ -65,11 +28,11 @@ export function ShortcutHelp({ onClose }: Props) {
         <table className="mt-3 w-full text-sm">
           <tbody>
             {SHORTCUTS.map((shortcut) => (
-              <tr key={shortcut.keys} className="border-b border-line last:border-0">
-                <td className="w-44 py-1 pr-2 align-top font-mono text-xs">{shortcut.keys}</td>
+              <tr key={shortcut.label} className="border-b border-line last:border-0">
+                <td className="w-44 py-1 pr-2 align-top font-mono text-xs">{shortcut.label}</td>
                 <td className="py-1 text-ink">
                   {shortcut.description}
-                  {"mnemonic" in shortcut && (
+                  {shortcut.mnemonic !== undefined && (
                     <span className="ml-1 text-xs text-ink-muted">（{shortcut.mnemonic}）</span>
                   )}
                 </td>
@@ -77,9 +40,6 @@ export function ShortcutHelp({ onClose }: Props) {
             ))}
           </tbody>
         </table>
-        <p className="mt-3 text-xs text-ink-muted">
-          先送りは誤操作を防ぐためショートカットを割り当てていません（行メニューから実行）。
-        </p>
       </div>
     </div>
   );
