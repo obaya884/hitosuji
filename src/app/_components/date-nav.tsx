@@ -25,10 +25,7 @@ type Props = Readonly<{
   }>;
 }>;
 
-// 画面定義書01 §3.1: 前日/翌日/今日への移動。S-04 でも同じ操作にする（画面定義書04 §3.1）。
-// 「今日へ」は今日以外を表示中のみ表示し、通常の枠線ボタン（強調色なし）にする
-// （2026-07-20 オーナー判断: 強調色だと「表示日＝今日」の状態表示に見えてしまい、
-// 逆に誤認を招いていたため。ボタンの有無自体が今日以外であることを示す。FB-07）
+// 画面定義書01 §3.1: 前日/翌日/今日への移動。S-04 でも同じ操作にする（画面定義書04 §3.1）
 export function DateNav({ date, weekday, isToday, basePath, picker }: Props) {
   const router = useRouter();
   const label = formatLogicalDate(date, weekday);
@@ -77,7 +74,7 @@ export function DateNav({ date, weekday, isToday, basePath, picker }: Props) {
       >
         <ChevronRightIcon className="h-3 w-3" />
       </Link>
-      {/* 今日以外を表示中のみ表示する。ボタンの有無自体が「今日以外」を示す（§3.1） */}
+      {/* 今日以外を表示中のみ表示する。ボタンの有無自体が「今日以外」を示す（上の §3.1 の両画面とも） */}
       {!isToday && (
         <Link href={basePath} className={btnSecondary}>
           今日へ

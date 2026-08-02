@@ -67,7 +67,7 @@ export function MasterEditableCell({
       autoFocus
       type={type}
       defaultValue={value}
-      // 保存中はキー操作を受け付けない＝確定も取消も止める（§2.3「保存中」）。
+      // 保存中はキー操作を受け付けない＝確定も取消も止める（00_共通 §2.3「保存中」）。
       // ハンドラごと外すのは、Enter を通すと `blur()` だけが走って入力欄がフォーカスを失うため
       onKeyDown={
         isPending
@@ -83,7 +83,7 @@ export function MasterEditableCell({
             })
       }
       onBlur={(e) => {
-        // 保存中は確定を止める（開いたままの入力欄で値を変えて確定すると2件目の更新が飛ぶ。§2.3「保存中」）
+        // 保存中は確定を止める（開いたままの入力欄で値を変えて確定すると2件目の更新が飛ぶ。00_共通 §2.3「保存中」）
         if (isPending) return;
         const next = e.currentTarget.value;
         // 変更がなければ何も送信せず閉じる（クリックしただけで UPDATE が飛ばないように）

@@ -6,12 +6,7 @@ import type { Task } from "@/domain/task/task";
 import { isButtonTarget, isGlobalShortcutEvent } from "@/app/_lib/keyboard";
 import type { EditField, EditingCell } from "../_lib/editing";
 
-/**
- * デイリー画面のグローバルキーボードショートカット（画面定義書01 §6）。
- * 挙動は daily-board 本体に埋め込まれていた useEffect と同一で、可読性のためフックへ切り出しただけ。
- * 状態と操作ハンドラを引数で受け取る「配線層」であり、依存配列を持たず毎レンダー登録し直して
- * 最新のクロージャを拾う点も従来どおり。
- */
+/** ショートカットの配線に要る状態と操作ハンドラ。フックは分岐も状態も持たず、これを引数で受け取るだけ */
 export type DailyShortcutParams = Readonly<{
   editing: EditingCell | null;
   /** datepicker（F-117）の表示中は行操作キーを無効化する（背後へ流さない。§6） */
@@ -41,6 +36,11 @@ export type DailyShortcutParams = Readonly<{
   undoPending: () => void;
 }>;
 
+/**
+ * デイリー画面のグローバルキーボードショートカット（画面定義書01 §6）。
+ * **`useEffect` に依存配列を持たせない**——毎レンダー登録し直して最新のクロージャを拾う形で、
+ * 空・不完全な依存配列を足すと古いクロージャを掴む。
+ */
 export function useDailyShortcuts(params: DailyShortcutParams): void {
   const {
     editing,

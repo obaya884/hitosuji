@@ -10,14 +10,14 @@ export type RelocationDeps = Readonly<{
 }>;
 
 /**
- * 規則b（§4.2-b）: 現在位置より前の未実行タスクを繰り下げる。
+ * 規則b（画面定義書01 §4.2-b）: 現在位置より前の未実行タスクを繰り下げる。
  * 打刻時とデイリー表示時に呼ぶ。同じ状態に対して何度呼んでも結果は変わらない（冪等）
  */
 export async function applyCarryOver(
   deps: RelocationDeps,
   input: Readonly<{ date: LogicalDate; today: LogicalDate; nowClock: string }>
 ): Promise<void> {
-  // 過去日はログとして保全し、未来日は計画として尊重する（§4.2 の対象外）
+  // 過去日はログとして保全し、未来日は計画として尊重する（同書 §4.2 の対象外）
   if (input.date !== input.today) return;
 
   const [tasks, sections] = await Promise.all([

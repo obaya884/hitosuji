@@ -37,7 +37,7 @@ const RECURRENCE_LABELS: Readonly<Record<RecurrenceType, string>> = {
  * 保存中（`isPending`）は 00_共通 §2.3 に従い、確定（保存）・取消と、**送信せず表示だけを
  * 変えるその場の選択**（繰り返し種別・曜日・モード/プロジェクト）を止める。
  * **テキスト入力欄は触れるままにする**——失敗して戻ってきたときに入力し直せるようにするため
- * （§2.3「失敗時」）。値を送るのは保存ボタンだけなので、打っている間に送信は起きない
+ * （同書 §2.3「失敗時」）。値を送るのは保存ボタンだけなので、打っている間に送信は起きない
  */
 export function RoutineForm({
   routine,
@@ -272,7 +272,7 @@ export function RoutineForm({
         </div>
       </div>
 
-      {/* 保存中は確定も取消も止める（§2.3。連打は二重に作り、応答待ちの取消は入力を失わせる） */}
+      {/* 保存中は確定も取消も止める（00_共通 §2.3。連打は二重に作り、応答待ちの取消は入力を失わせる） */}
       <div className="mt-3 flex justify-end gap-2">
         <button
           type="button"

@@ -106,7 +106,7 @@ export type TaskRepository = Readonly<{
   updateHighlight(id: TaskId, highlighted: boolean): Promise<void>;
   start(command: StartCommand): Promise<void>;
   /**
-   * 打刻の修正（F-203）。開始時刻の修正に伴う移動（F-113 §4.2-c）があれば同一トランザクションで反映する。
+   * 打刻の修正（F-203）。開始時刻の修正に伴う移動（F-113 / 画面定義書01 §4.2-c）があれば同一トランザクションで反映する。
    * 完了の取り消しの復帰（F-212 / データモデル定義書 §4.7）も、打刻2列＋配置2列の書き戻しとしてここを使う
    */
   updatePunch(

@@ -32,7 +32,7 @@ export default function RootLayout({
       lang="ja"
       className={`h-full antialiased ${plexSans.variable} ${plexMono.variable}`}
     >
-      {/* 左に Navigation Rail、右に本文（本文は従来どおり中央寄せ・最大幅。画面定義書00_共通 §1） */}
+      {/* 左に Navigation Rail、右に本文（本文は中央寄せ・最大幅。画面定義書00_共通 §1） */}
       <body className="flex min-h-full">
         <GlobalNav />
         <main className="mx-auto w-full max-w-page flex-1 px-6 py-6">{children}</main>

@@ -40,7 +40,7 @@ export function MasterNewRow({ isPending, onSave, onCancel, renderCells }: Props
   }
 
   // 新規行は保存経路が blur ではないので、Enter で直接保存する（IME 判定は共通関数に任せる）。
-  // 保存中はキー操作を受け付けない＝確定も取消も止める（§2.3「新規追加行の保存中」）——Enter の
+  // 保存中はキー操作を受け付けない＝確定も取消も止める（00_共通 §2.3「新規追加行の保存中」）——Enter の
   // 連打は同じ行を二重に作り、応答待ちの取消は行を閉じて失敗のメッセージだけを残す
   const onKeyDown = isPending
     ? undefined

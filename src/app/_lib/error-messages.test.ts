@@ -186,7 +186,7 @@ const EXPECTED_MASTER: Record<MasterError, string> = {
 };
 
 describe("エラー文言辞書（T-49: クライアントとサーバが同じ辞書を参照する）", () => {
-  it("タスク編集（§3.3・§8）の対応表が期待どおり", () => {
+  it("タスク編集（画面定義書01 §3.3・同書 §8）の対応表が期待どおり", () => {
     expect(TASK_EDIT_MESSAGES).toEqual(EXPECTED_TASK_EDIT);
   });
 
@@ -212,15 +212,15 @@ describe("エラー文言辞書（T-49: クライアントとサーバが同じ�
     expect(ROUTINE_MESSAGES).toEqual(EXPECTED_ROUTINE);
   });
 
-  it("マスタ管理（画面定義書03 §3.1 / §3.2 / §4.1）の対応表が期待どおり", () => {
+  it("マスタ管理（画面定義書03 §3.1 / 同書 §3.2 / 同書 §4.1）の対応表が期待どおり", () => {
     expect(MASTER_MESSAGES).toEqual(EXPECTED_MASTER);
   });
 
-  it("削除できない理由は参照元の種類（タスク・ルーチン）を挙げずに言い切る（§4.1）", () => {
+  it("削除できない理由は参照元の種類（タスク・ルーチン）を挙げずに言い切る（画面定義書03 §4.1）", () => {
     expect(MASTER_MESSAGES.has_references).not.toMatch(/タスク|ルーチン/);
   });
 
-  it("ルーチン化（F-305 / §4.1）の対応表が期待どおり（辞書に無いコードは既定文言）", () => {
+  it("ルーチン化（F-305 / 画面定義書01 §4.1）の対応表が期待どおり（辞書に無いコードは既定文言）", () => {
     for (const [code, message] of Object.entries(EXPECTED_ROUTINE_FROM_TASK) as ReadonlyArray<
       [CreateRoutineFromTaskError, string]
     >) {

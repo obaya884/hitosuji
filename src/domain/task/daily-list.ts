@@ -13,7 +13,7 @@ export type DailyGroup = Readonly<{
 }>;
 
 /**
- * タスクをセクションごとにまとめる（§3.2）。
+ * タスクをセクションごとにまとめる（画面定義書01 §3.2）。
  * - 未分類（section_id なし）は先頭。0件でも常に表示する（インボックスの受け皿のため）
  * - 有効なセクションはタスク0件でも常に表示する
  * - アーカイブ済みセクションは当日タスクが属している場合のみ表示する
@@ -31,7 +31,7 @@ export function groupTasksBySection(
     .map((id) => sectionById.get(id))
     .filter((s): s is Section => s !== undefined && s.isArchived);
 
-  // 表示順は日界セクションを先頭にした回転（F-116 / §3.1）。日界 00:00（既定）なら start_time 昇順に一致する
+  // 表示順は日界セクションを先頭にした回転（F-116 / データモデル定義書 §3.1）。日界 00:00（既定）なら start_time 昇順に一致する
   const shown = [...sections.filter((s) => !s.isArchived), ...usedArchived].sort(
     byDayStartOrder(dayStartTimeOf(sections))
   );
@@ -49,7 +49,7 @@ export function groupTasksBySection(
 }
 
 /**
- * 表示順のセクション ID 列（未分類 null を先頭にした回転順。§3.2）。
+ * 表示順のセクション ID 列（未分類 null を先頭にした回転順。画面定義書01 §3.2）。
  * Shift+J/K の移動先（画面定義書01 O-6）は表示中のセクション順に一致させる。サーバ確定
  * （`moveTaskByOneStep`）は本関数を使い、presentation の楽観更新（`daily-board`）は同じ規則
  * （`groupTasksBySection` の表示順）を `optimisticGroups` から再現する（関数ではなく規則を共有）。
@@ -73,7 +73,7 @@ export function sectionTotalMinutes(tasks: readonly Task[]): number {
 
 /**
  * タスク進捗（F-114）。セクション見出し（画面定義書01 §3.2）と
- * 1日全体のサマリ行（§3.1）で共用する。
+ * 1日全体のサマリ行（同書 §3.1）で共用する。
  * 実施済み＝完了（ended_at あり）で数え、実行中は含めない（件数ベース）
  */
 export function taskProgress(tasks: readonly Task[]): Readonly<{ done: number; total: number }> {

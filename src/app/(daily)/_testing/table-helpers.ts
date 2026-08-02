@@ -46,8 +46,8 @@ export function taskRows(): HTMLElement[] {
  *
  * **名前を編集中の行は引けない**（名前セルが入力欄に変わるため）。その状態を掴みたいテストは
  * `screen.getByRole("textbox").closest("tr")` を使う。
- * なお素の文言で引いていた頃は「同じ文言が画面に1つだけ」を暗黙に主張していたが、
- * **その代わりに「名前セルがクリック入口である」ことを主張する**形へ寄せた（意図した交換）
+ * この引き方は「同じ文言が画面に1つだけ」ではなく、**「名前セルがクリック入口である」ことを主張する**。
+ * 同名の行が並ぶ場合（複製 O-11 / O-14）は `getByRole` が throw するので `rowAt` を使う
  */
 export function taskRow(name: string): HTMLElement {
   const tr = screen.getByRole("button", { name }).closest("tr");

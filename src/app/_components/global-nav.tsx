@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 // 全画面共通のグローバルナビ（画面定義書00_共通 §1）。
-// 左サイドの Navigation Rail。アイコンは使わずラベルのみ（N-05。2026-07-20 / FB-08）
+// 左サイドの Navigation Rail。アイコンは使わずラベルのみ（N-05）
 const NAV_ITEMS = [
   { href: "/", label: "デイリー" },
   { href: "/routines", label: "ルーチン" },

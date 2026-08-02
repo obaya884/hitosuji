@@ -37,7 +37,7 @@ type Props = Readonly<{
 export function DatePicker({ date, today, onSelect, onClose }: Props) {
   // 画面下部の行では上向きに開く（00_共通 §2.1「表示位置」/ FB-21。選択ポップオーバーと同じ）
   const { ref, positionClass } = useFlipUp<HTMLDivElement>();
-  // キーボードカーソル。開いたときは表示日に置く（§3.1）
+  // キーボードカーソル。開いたときは表示日に置く（画面定義書01 §3.1）
   const [focused, setFocused] = useState<LogicalDate>(date);
   const view = monthOf(focused);
   // monthGrid は軽い純関数なので毎レンダー導出でよい（表示月はカーソルの属する月に追従する）
@@ -46,7 +46,7 @@ export function DatePicker({ date, today, onSelect, onClose }: Props) {
   // Escape は下のキーナビ effect が IME 判定込みで扱うため escape:false（選択ポップオーバーと同じ）
   useDismiss(ref, onClose, { escape: false });
 
-  // キーボード操作（§3.1 / §6）。document で拾い、背後の行操作へ流さない（SelectPopover と同じ流儀）
+  // キーボード操作（画面定義書01 §3.1 / 同書 §6）。document で拾い、背後の行操作へ流さない（SelectPopover と同じ流儀）
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       // IME変換中・修飾キー併用は操作として扱わない（00_共通 §3）
@@ -94,7 +94,7 @@ export function DatePicker({ date, today, onSelect, onClose }: Props) {
       ref={ref}
       className={`absolute left-0 z-10 w-64 p-3 ${positionClass} ${floatPanel}`}
     >
-      {/* 月ヘッダ＋前月/翌月（年ジャンプは持たない。§3.1） */}
+      {/* 月ヘッダ＋前月/翌月（年ジャンプは持たない。画面定義書01 §3.1） */}
       <div className="mb-2 flex items-center justify-between">
         <button
           type="button"

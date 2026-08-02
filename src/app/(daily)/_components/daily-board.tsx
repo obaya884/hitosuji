@@ -480,7 +480,7 @@ export function DailyBoard({
 
   // Undo トーストの自動消去（O-8）は Toast コンポーネント側に一元化してある（画面定義書00_共通 §2.2「消え方」/ FB-15）
 
-  // グローバルキーボードショートカット（§6）。配線はフックへ切り出し（挙動は不変・T-14）
+  // グローバルキーボードショートカット（§6）
   useDailyShortcuts({
     editing,
     pickerOpen: showDatePicker,
