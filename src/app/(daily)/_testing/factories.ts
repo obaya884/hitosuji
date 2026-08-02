@@ -22,13 +22,14 @@ export function unclassifiedGroup(tasks: readonly Task[] = []): DailyGroup {
 }
 
 /**
- * セクションのグループ。枠の終了時刻は呼び出し側が渡す。
+ * セクションのグループ。枠の終了時刻は呼び出し側が渡す（アーカイブ済みセクションでは
+ * 枠が導出できないので null）。
  * `SECTIONS` の3つを組むときは枠が導出される `morning` / `forenoon` / `afternoon` を使い、
  * ここへ直に渡すのは**フィクスチャ外のセクションや任意の時間帯**を置きたいときだけにする
  */
 export function sectionGroup(
   section: Section,
-  endTime: string,
+  endTime: string | null,
   tasks: readonly Task[] = []
 ): DailyGroup {
   return { section, endTime, tasks };
