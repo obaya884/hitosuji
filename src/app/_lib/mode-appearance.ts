@@ -15,7 +15,7 @@ export type ModeAppearance = Readonly<{
 
 /**
  * モード設定時は行の色を継承させ、未設定時のみ既定のグレーにする（F-401 / 画面定義書01 §3.3）。
- * どのセルを副次情報の色にするかは §3.3「モード未設定行の色」が正で、対象の選び方は行側が持つ
+ * どのセルを副次情報の色にするかは同書 §3.3「モード未設定行の色」が正で、対象の選び方は行側が持つ
  */
 export function modeAppearance(mode: Mode | undefined): ModeAppearance {
   const isDimmed = mode === undefined;

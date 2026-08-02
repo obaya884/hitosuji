@@ -3,7 +3,9 @@
 // 置き場は画面配下と共有で分けず、文言辞書はすべてここに集める——同じコードの文言を画面をまたいで
 // 流用するため、境界を引くと1つの文言を追うのに複数ファイルを行き来することになる（T-75）。
 // ルーチン化を除く各辞書は `Record<エラーコード, string>` で閉じているので、コードを足すと型エラーで
-// 気づける（ルーチン化だけ `Partial` にしている理由は当該辞書の doc を参照）
+// 気づける（ルーチン化だけ `Partial` にしている理由は当該辞書の doc を参照）。
+// 共有／専用の切り分けと2辞書を畳まない判断の経緯は、技術改善バックログの `log_` / `closed_`
+// （T-74 / T-76 / T-78）にある
 import type { MasterDeletionError } from "@/domain/shared/master-deletion";
 import type { PunchEditError } from "@/domain/task/punch-edit";
 import type { ModeUsecaseError } from "@/usecases/mode/mode-usecases";
@@ -71,9 +73,8 @@ export const REORDER_MESSAGES: Record<ReorderUsecaseError, string> = {
 /**
  * 中断・複製・先送り・削除（F-204 / F-111 / F-107 / O-8）。
  * `TaskOperationError ⊇ PunchUsecaseError` なので `PUNCH_MESSAGES` を広げた形になるが、
- * **共有するコードの文言は打刻と完全に一致させる**——一致していれば辞書を取り違えても表示は変わらず、
- * 型でも捕まらない取り違えが誤りでなくなる（T-74）。「複製して開始」だけが違う文言を出すため、
- * その差は下の専用辞書へ隔離した。一致は `error-messages.test.ts` の不変条件テストが守る。
+ * **共有するコードの文言は打刻と完全に一致させる**（一致は `error-messages.test.ts` の不変条件
+ * テストが守る）。「複製して開始」だけが違う文言を出すため、その差は下の専用辞書へ隔離してある。
  * **アクションからは直接引かず `taskActionErrorMessage` を通す**（`PUNCH_MESSAGES` と同じ）
  */
 export const OPERATION_MESSAGES: Record<TaskOperationError, string> = {
@@ -83,10 +84,9 @@ export const OPERATION_MESSAGES: Record<TaskOperationError, string> = {
 
 /**
  * 複製して開始（F-208）専用。`not_completed`（複製元が完了でない）に「もう一回」の文脈を添えるため、
- * **ここだけ `OPERATION_MESSAGES` と文言が違う**。差をこの辞書に閉じ込めることで、共有辞書どうしは
- * 取り違えても表示が変わらない状態を保てる（T-74）。
+ * **ここだけ `OPERATION_MESSAGES` と文言が違う**。
  *
- * **エクスポートしない**——外から届かなくして、行き着く道を下の表の1行だけにする（T-76）。
+ * **エクスポートしない**——外から届かなくして、行き着く道を下の表の1行だけにする。
  * 非公開でテストから走査できないぶん、余計なキーが増えていないことは上の `Record<…>` 注釈が見る
  */
 const DUPLICATE_AND_START_MESSAGES: Record<TaskOperationError, string> = {
@@ -187,12 +187,9 @@ export type MasterError =
  *
  * `ROUTINE_MESSAGES` と `name_required` / `name_too_long` の文言が一致するのは偶然ではなく、
  * どちらも `domain/shared/master-name.ts` の `NameError`（マスタ共通の名前検証）に由来する。
- * それでも**2つの辞書は畳まない**（T-78）——検証規則が同じでも、**どう言うかは画面ごとの裁量**に置く:
- * - 同名の `invalid_start_time` をマスタは「開始時刻」・ルーチンは「開始想定時刻」と**意図的に
- *   違う文言**で出しており、キーで統合すると表示が変わる（＝2辞書は連動しない）
- * - `MasterError` と `RoutineUsecaseError` に包含関係が無いので、辞書を取り違えると**型が弾く**。
- *   共有 const（`TASK_NOT_FOUND` 等）を置いた T-74 の動機＝「包含関係のせいで型が捕まえられない
- *   取り違えを、文言の一致で無害化する」はここには働かない
+ * それでも**2つの辞書は畳まない**——検証規則が同じでも、**どう言うかは画面ごとの裁量**に置く。
+ * 同名の `invalid_start_time` をマスタは「開始時刻」・ルーチンは「開始想定時刻」と**意図的に
+ * 違う文言**で出しており、キーで統合すると表示が変わる
  */
 export const MASTER_MESSAGES: Record<MasterError, string> = {
   name_required: "名前を入力してください",

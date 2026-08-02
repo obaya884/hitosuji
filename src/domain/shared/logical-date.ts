@@ -1,5 +1,7 @@
 // 論理日付 "YYYY-MM-DD"（データモデル定義書 §1: task_date は保存された論理日付。打刻時刻から導出しない）
-// 日界の将来導入に備え、日付の計算はこの純関数群に閉じる
+// 日界（F-116）次第で打刻時刻の暦日と一致しない（既定の 00:00 なら一致する）。**論理日付の決定**は
+// この純関数群に閉じる——日界を起点にした時計の折返し・セクション枠の起点は
+// `domain/task/projection.ts` と `domain/section/section.ts` が持つ
 import { err, ok, type Result } from "./result";
 import { zonedParts } from "./time-zone";
 

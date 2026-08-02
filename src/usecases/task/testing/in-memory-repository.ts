@@ -109,7 +109,7 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
         patch(interruption.runningTaskId, { endedAt: interruption.endedAt });
         insertRow(interruption.resumeTask);
       }
-      // 自動セクション移動（F-113 §4.2-a）は打刻と同じ操作の中で反映する
+      // 自動セクション移動（F-113 / 画面定義書01 §4.2-a）は打刻と同じ操作の中で反映する
       applyRelocations(command.relocations);
       patch(taskId, { startedAt });
     },
@@ -120,7 +120,7 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
       relocations: Relocations
     ) => {
       patch(id, punch);
-      // 開始時刻の修正に伴うセクション移動（§4.2-c）・完了の取り消しの復帰（§4.7）
+      // 開始時刻の修正に伴うセクション移動（画面定義書01 §4.2-c）・完了の取り消しの復帰（データモデル定義書 §4.7）
       applyRelocations(relocations);
     },
 
@@ -138,7 +138,7 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
       applyRelocations(relocations);
     },
 
-    // 複製して開始（F-208 / §4.6）。割り込みなら終了・再開タスク生成も伴う
+    // 複製して開始（F-208 / データモデル定義書 §4.6）。割り込みなら終了・再開タスク生成も伴う
     duplicateAndStart: async (command: DuplicateAndStartCommand) => {
       const { newTask, startedAt, interruption } = command;
       if (interruption !== null) {

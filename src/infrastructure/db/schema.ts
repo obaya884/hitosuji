@@ -116,7 +116,8 @@ export const tasks = pgTable(
   "tasks",
   {
     id: serial("id").primaryKey(),
-    taskDate: date("task_date").notNull(), // 保存された論理日付。打刻時刻から導出しない（日界の将来導入に備える）
+    // 保存された論理日付。打刻時刻から導出しない（日界 F-116 次第で打刻時刻の暦日と一致しないため）
+    taskDate: date("task_date").notNull(),
     name: text("name").notNull(),
     estimateMinutes: integer("estimate_minutes").notNull().default(0), // 0 = 未設定扱い
     sectionId: integer("section_id").references(() => sections.id),

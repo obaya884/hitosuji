@@ -3,14 +3,14 @@ import { err, ok, type Result } from "../shared/result";
 
 export type TaskEditError = "name_required" | "invalid_estimate";
 
-/** タスク名は空にできない（§8: 空・空白のみは確定不可） */
+/** タスク名は空にできない（画面定義書01 §8: 空・空白のみは確定不可） */
 export function validateTaskName(raw: string): Result<string, TaskEditError> {
   const name = raw.trim();
   return name === "" ? err("name_required") : ok(name);
 }
 
 /**
- * 見積もりは分の整数で入力する（§3.3）。非数値・負値は確定不可（§8）。
+ * 見積もりは分の整数で入力する（画面定義書01 §3.3）。非数値・負値は確定不可（同書 §8）。
  * 0 は「未設定」として許容し、`--:--` 表示・終了予定計算の対象外になる
  */
 export function validateEstimateMinutes(raw: string): Result<number, TaskEditError> {

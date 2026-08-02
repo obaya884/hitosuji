@@ -75,7 +75,7 @@ describe("suspendTask（F-204: 中断）", () => {
     );
   });
 
-  it("中間値が尽きたら振り直しを伴って再開タスクを挟む（§3.5 の renumber を suspend へ渡す）", async () => {
+  it("中間値が尽きたら振り直しを伴って再開タスクを挟む（データモデル定義書 §3.5 の renumber を suspend へ渡す）", async () => {
     const repo = inMemoryTaskRepository([
       task({ id: 1, sortOrder: 1000, startedAt }),
       task({ id: 2, sortOrder: 1001 }), // 直後に隙間が無い
@@ -325,7 +325,7 @@ describe("duplicateAndStartTask（F-208: 複製して開始）", () => {
     expect(repo.rows.filter((t) => taskStatus(t) === "running")).toHaveLength(1);
   });
 
-  it("表示日が今日でないときは複製元と同じセクションへ置く（§4.2-a を適用しない）", async () => {
+  it("表示日が今日でないときは複製元と同じセクションへ置く（画面定義書01 §4.2-a を適用しない）", async () => {
     const repo = inMemoryTaskRepository([
       task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }), // 朝・完了
     ]);
@@ -339,8 +339,9 @@ describe("duplicateAndStartTask（F-208: 複製して開始）", () => {
     expect(result.ok && result.value.sortOrder).toBe(2000); // 朝の末尾
   });
 
-  it("有効なセクションが1つも無いときは複製元と同じセクションへ置く（§4.2-a 退避）", async () => {
-    // sectionAt は有効セクションが1つも無いときだけ undefined を返す（§3.1: 早朝は最後のセクションに属す）
+  it("有効なセクションが1つも無いときは複製元と同じセクションへ置く（データモデル定義書 §4.6 の退避）", async () => {
+    // sectionAt は有効セクションが1つも無いときだけ undefined を返す（同書 §3.1: 有効セクションは
+    // 24時間を隙間なく敷き詰めるので、早朝など最早セクションの開始前も最後のセクションに属す）
     const repo = inMemoryTaskRepository([
       task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }), // 完了
     ]);
@@ -423,6 +424,15 @@ describe("postponeTask（F-107: 先送り）", () => {
 
     expect((await postponeTask(repo, { taskId: 1 })).ok).toBe(true);
     expect(repo.rows[0].highlighted).toBe(true);
+  });
+
+  it("存在しないタスクは task_not_found", async () => {
+    const repo = inMemoryTaskRepository([]);
+
+    expect(await postponeTask(repo, { taskId: 99 })).toEqual({
+      ok: false,
+      error: "task_not_found",
+    });
   });
 
   it("移動先の同セクション末尾へ置く", async () => {

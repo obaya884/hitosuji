@@ -27,7 +27,7 @@ export function reorderTask(
   const target = tasks.find((t) => t.id === taskId);
   if (target === undefined) return err("task_not_found");
 
-  // 移動対象を除いた並びに対して挿入位置を決める（採番と振り直しは §3.5 の共通規則）
+  // 移動対象を除いた並びに対して挿入位置を決める（採番と振り直しはデータモデル定義書 §3.5 の共通規則）
   const others = tasksInSection(tasks, destination.sectionId).filter((t) => t.id !== taskId);
   const placed = placeSortOrder(others, destination.index, target);
 

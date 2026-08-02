@@ -1,4 +1,4 @@
-// 打刻のユースケース（F-201 / データモデル定義書 §4.2）と、その取り消し（F-210 §4.5 / F-212 §4.7）
+// 打刻のユースケース（F-201 / データモデル定義書 §4.2）と、その取り消し（F-210 同書 §4.5 / F-212 同書 §4.7）
 import type { SectionRepository } from "@/usecases/ports/section-repository";
 import type { Relocations, TaskRepository } from "@/usecases/ports/task-repository";
 import type { LogicalDate } from "@/domain/shared/logical-date";
@@ -40,7 +40,7 @@ export async function startTask(
   const startable = canStart(target);
   if (!startable.ok) return startable;
 
-  // 開始したタスク自身を、開始時刻を含むセクションへ移す（F-113 §4.2-a）。
+  // 開始したタスク自身を、開始時刻を含むセクションへ移す（F-113 / 画面定義書01 §4.2-a）。
   // 対象は今日のタスクのみ。打刻の書き込みと同一トランザクションで反映する
   const sameDay = await repo.listByDate(target.taskDate);
   const startRelocation =
@@ -71,7 +71,7 @@ export async function startTask(
 
   // 再開タスクは開始タスクの直下（＝開始タスクと同じ日付・セクション）に置く。
   // 前日以前の実行中タスクを割り込んだ場合も当日側に生成される（データモデル定義書 §4.2）。
-  // §4.2-a で開始タスクが移動した場合は移動先の直下になる
+  // 画面定義書01 §4.2-a で開始タスクが移動した場合は移動先の直下になる
   const group = tasksInSection(
     sameDay.map((t) => (t.id === started.id ? started : t)),
     started.sectionId
@@ -122,7 +122,7 @@ export async function undoStart(
   return ok(target.id);
 }
 
-/** 完了の取り消し（F-212 / §4.7）で保持する復帰用のスナップショット（書き換わる4列） */
+/** 完了の取り消し（F-212 / データモデル定義書 §4.7）で保持する復帰用のスナップショット（書き換わる4列） */
 export type CompletionSnapshot = Readonly<{
   taskId: TaskId;
   startedAt: Date;
@@ -166,7 +166,7 @@ export async function undoComplete(
 /**
  * 完了の取り消しの取り消し（F-212 / データモデル定義書 §4.7）。
  * 取り消し前の打刻2列と配置2列を書き戻して完了状態へ復帰させる（1トランザクション）。
- * `sort_order` は復帰までの間に他タスクが同値を取っていてもそのまま書き戻す（§4.7）
+ * `sort_order` は復帰までの間に他タスクが同値を取っていてもそのまま書き戻す（同書 §4.7）
  */
 export async function restoreCompletion(
   repo: TaskRepository,
@@ -184,7 +184,7 @@ export async function restoreCompletion(
 }
 
 /**
- * 打刻の取り消し（開始 §4.5 / 完了 §4.7）に伴う並べ直し。
+ * 打刻の取り消し（開始 データモデル定義書 §4.5 / 完了 同書 §4.7）に伴う並べ直し。
  * 今日のタスクだけ未実行として並べ直す（今日以外は現在位置・これから領域が定義できない）
  */
 async function relocationsForUndoPunch(
@@ -221,7 +221,7 @@ export async function finishTask(
  * 打刻時刻の修正（F-203）。
  * `HH:MM` → 絶対時刻の変換はクライアント側（利用者のタイムゾーン）で行い、
  * ここでは永続化前に 開始 ≦ 終了 の整合性を再検証する。
- * 開始時刻が変わった場合は、修正後の時刻を含むセクションへ移す（F-113 §4.2-c）
+ * 開始時刻が変わった場合は、修正後の時刻を含むセクションへ移す（F-113 / 画面定義書01 §4.2-c）
  */
 export async function updateTaskPunch(
   deps: PunchDeps,
@@ -243,7 +243,7 @@ export async function updateTaskPunch(
     return err("ended_before_started");
   }
 
-  // 終了時刻だけの修正では移動しない（§4.2 の対象外。帰属は「いつ始めたか」で決める）
+  // 終了時刻だけの修正では移動しない（画面定義書01 §4.2 の対象外。帰属は「いつ始めたか」で決める）
   const startedAtChanged = target.startedAt.getTime() !== input.startedAt.getTime();
   const relocations =
     startedAtChanged && target.taskDate === input.today

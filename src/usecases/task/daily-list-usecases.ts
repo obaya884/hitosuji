@@ -20,7 +20,7 @@ import {
 import type { Task, TaskId } from "@/domain/task/task";
 
 /**
- * タスクの編集（O-5 / O-16 / §3.3）で起こりうる失敗。入力の検証（`TaskEditError`）に加えて、
+ * タスクの編集（O-5 / O-16 / 画面定義書01 §3.3）で起こりうる失敗。入力の検証（`TaskEditError`）に加えて、
  * **対象がすでに存在しない**場合を含む——他の画面・端末で削除されたタスクへの更新は、
  * 1行も当たらないまま成功として返さない（画面定義書00_共通 §4.1）。
  * 打刻（`PunchUsecaseError`）・並び替え（`ReorderUsecaseError`）と同じ形で揃えてある
@@ -57,10 +57,10 @@ export async function listDailyList(
     deps.tasks.findRunning(),
   ]);
 
-  // 実行中タスクが表示日より前の日付にあるなら、終了打刻の失念として警告する（§8）
+  // 実行中タスクが表示日より前の日付にあるなら、終了打刻の失念として警告する（画面定義書01 §8）
   const staleRunningTask = running !== null && running.taskDate < date ? running : null;
 
-  // 選択肢・表示の並び順は name 昇順（モード・プロジェクト）/ セクションは日界起点の回転で見出しと揃える（F-116 / §3.2）
+  // 選択肢・表示の並び順は name 昇順（モード・プロジェクト）/ セクションは日界起点の回転で見出しと揃える（F-116 / 画面定義書01 §3.2）
   return {
     date,
     groups: groupTasksBySection(tasks, sections),
@@ -74,7 +74,7 @@ export async function listDailyList(
 /**
  * クイック追加（F-102 / 画面定義書01 §3.4）。
  * タスク名のみを受け取り、未分類グループ（インボックス）の末尾へ未実行タスクとして追加する。
- * 空名は「何もしない」ではなくエラーとして返し、呼び出し側（UI）が握りつぶす（§8）
+ * 空名は「何もしない」ではなくエラーとして返し、呼び出し側（UI）が握りつぶす（同書 §8）
  */
 export async function addTask(
   repo: TaskRepository,
@@ -90,7 +90,7 @@ export async function addTask(
     {
       taskDate: input.date,
       name,
-      estimateMinutes: 0, // 見積もり未設定（§3.4 既定値）
+      estimateMinutes: 0, // 見積もり未設定（画面定義書01 §3.4 既定値）
       sectionId: null,
       modeId: null,
       projectId: null,

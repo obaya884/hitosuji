@@ -69,7 +69,7 @@ export function projectedStartTimes(tasks: readonly Task[], now: Date): Map<Task
   for (const task of tasks) {
     if (taskStatus(task) !== "not_started") continue;
     startTimes.set(task.id, new Date(now.getTime() + offset * 60_000));
-    offset += task.estimateMinutes; // 未設定（0分）は0として積む（§4.3）
+    offset += task.estimateMinutes; // 未設定（0分）は0として積む（データモデル定義書 §4.3）
   }
   return startTimes;
 }
@@ -97,7 +97,7 @@ function logicalClock(
 /**
  * 終了予定時刻の表示（F-104: 24:00超過は翌日表記 `25:30`）。
  * 折返しの時計数字は論理日の暦日 0:00 起点（日界 F-116 を踏まえる。データモデル定義書 §4.3）。
- * 既定（dayStartMinutes = 0）では now の暦日 0:00 起点で従来どおり。
+ * 既定（dayStartMinutes = 0）では now の暦日 0:00 が起点になる。
  */
 export function formatProjectedEnd(
   end: Date,
@@ -142,7 +142,7 @@ export function isOverMidnight(
 /**
  * セクション開始の絶対時刻。枠の起点（日界からの巡回位置。F-116）を論理日の区切りから測るので、
  * 日界を跨ぐ枠（回転で末尾に来る深夜など）も同じ論理日の中で正しく置ける。
- * 既定（dayStartMinutes = 0）では now の暦日で解釈する従来挙動に一致する。
+ * 既定（dayStartMinutes = 0）では now の暦日で解釈する。
  */
 function sectionStartAt(
   now: Date,

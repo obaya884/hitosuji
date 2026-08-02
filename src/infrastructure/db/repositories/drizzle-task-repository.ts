@@ -37,7 +37,8 @@ async function applyRelocations(tx: Pick<Database, "update">, relocations: Reloc
 }
 
 /**
- * 打刻列の書き込み（修正 F-203 §4.2-c / 開始の取り消し F-210 §4.5 / 完了の取り消し F-212 §4.7）。
+ * 打刻列の書き込み（修正 F-203 / 画面定義書01 §4.2-c、開始の取り消し F-210 / データモデル定義書 §4.5、
+ * 完了の取り消し F-212 / 同書 §4.7）。
  * 渡された列だけを更新し、伴う並べ直し・戻し位置があれば同一トランザクションで反映する
  */
 async function writePunch(
@@ -144,7 +145,7 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
       }
 
       if (interruption === null) {
-        // 自動セクション移動（F-113 §4.2-a）は打刻と同一トランザクションで反映する
+        // 自動セクション移動（F-113 / 画面定義書01 §4.2-a）は打刻と同一トランザクションで反映する
         await db.transaction(async (tx) => {
           const now = new Date();
           await applyRelocations(tx, relocations);
@@ -166,7 +167,8 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
       });
     },
 
-    // 打刻の修正と、それに伴うセクション移動（§4.2-c）・完了への復帰（§4.7）を1トランザクションで反映する
+    // 打刻の修正と、それに伴うセクション移動（画面定義書01 §4.2-c）・完了への復帰（データモデル定義書 §4.7）を
+    // 1トランザクションで反映する
     async updatePunch(
       id: TaskId,
       punch: Readonly<{ startedAt: Date; endedAt: Date | null }>,

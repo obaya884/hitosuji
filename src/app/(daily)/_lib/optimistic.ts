@@ -58,10 +58,10 @@ export function applyOptimisticAction(
     // 割り込み時の「実行中タスクの終了・再開タスク生成」はサーバ確定後に反映される
     case "start":
       return withTaskUpdated(groups, action.id, (t) => ({ ...t, startedAt: action.at }));
-    // 未実行への並べ直し（§4.5）はサーバ確定後に反映される。まず打刻だけ消す
+    // 未実行への並べ直し（データモデル定義書 §4.5）はサーバ確定後に反映される。まず打刻だけ消す
     case "unstart":
       return withTaskUpdated(groups, action.id, (t) => ({ ...t, startedAt: null }));
-    // 完了の取り消し（§4.7）も並べ直しはサーバ確定後。打刻2列のクリアだけ即時に反映する（O-15）
+    // 完了の取り消し（データモデル定義書 §4.7）も並べ直しはサーバ確定後。打刻2列のクリアだけ即時に反映する（O-15）
     case "uncomplete":
       return withTaskUpdated(groups, action.id, (t) => ({
         ...t,
@@ -92,8 +92,7 @@ export function applyOptimisticAction(
  * こうしておけば確定済みの行とぶつからない。
  *
  * `seq` は**そのボードが生きている間ずっと重複しない正の整数**（0 は `-0` になって負にならない）。
- * 時刻由来（`-Date.now()`）だと同一ミリ秒内に2件追加したときIDが衝突し、片方への更新・削除が
- * 他方を巻き添えにするため、呼び出し側が単調増加カウンタで採る（T-63）
+ * 呼び出し側が単調増加カウンタで採ること——重複すると片方への更新・削除が他方を巻き添えにする
  */
 export function optimisticTask(date: LogicalDate, name: string, seq: number): Task {
   return {

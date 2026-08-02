@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 type Tab = Readonly<{ href: string; label: string }>;
 
 // 画面内のタブ（マスタ管理のセクション/モード/プロジェクト切替）の下線タブ描画。
-// グローバルナビは左の Navigation Rail（global-nav.tsx）へ分離した（FB-08）。
+// **画面をまたぐナビは扱わない**（それは左の Navigation Rail＝`global-nav.tsx`）。
 // アクティブ判定は呼び出し側の関数に委ねる（prefix 一致 / 完全一致）。
 export function NavTabs({
   tabs,

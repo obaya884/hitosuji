@@ -35,7 +35,7 @@ export const MODE_COLOR_PRESETS = [
 
 type ModeColorName = (typeof MODE_COLOR_PRESETS)[number]["name"];
 
-/** プリセットの色値だけを並べたもの（並びは §3.2 の表と同じ） */
+/** プリセットの色値だけを並べたもの（並びは画面定義書03 §3.2 の表と同じ） */
 export const MODE_COLORS: readonly string[] = MODE_COLOR_PRESETS.map((p) => p.value);
 
 /**

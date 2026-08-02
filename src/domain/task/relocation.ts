@@ -20,7 +20,7 @@ export type Relocation = Readonly<{
 }>;
 
 /**
- * 規則a（§4.2-a）: 開始したタスク自身を、開始時刻を含むセクションの末尾へ移す。
+ * 規則a（画面定義書01 §4.2-a）: 開始したタスク自身を、開始時刻を含むセクションの末尾へ移す。
  * 移動が不要なら null（既にそのセクションにいる／該当セクションが無い場合）
  */
 export function relocationOnStart(
@@ -46,7 +46,7 @@ export function relocationOnStart(
 }
 
 /**
- * 規則c（§4.2-c）: 開始時刻を修正したタスク自身を、修正後の時刻を含むセクションへ移す。
+ * 規則c（画面定義書01 §4.2-c）: 開始時刻を修正したタスク自身を、修正後の時刻を含むセクションへ移す。
  * 規則aと違い、移動先での位置は**開始時刻順**にする（ログの訂正であり、
  * 打刻済みタスクと時刻順に並んでいないと記録として読めないため）。移動が不要なら空配列
  */
@@ -75,7 +75,7 @@ export function relocationOnPunchEdit(
 }
 
 /**
- * 規則b（§4.2-b）: 「現在位置」より前にある未実行タスクを現在位置の直後へ繰り下げる計画。
+ * 規則b（画面定義書01 §4.2-b）: 「現在位置」より前にある未実行タスクを現在位置の直後へ繰り下げる計画。
  * 移動が不要なら空配列
  */
 export function planCarryOver(
@@ -124,7 +124,7 @@ export function planCarryOver(
       ? SORT_ORDER_STEP
       : Math.floor((nextTask.sortOrder - previousOrder) / (carryOverTargets.length + 1));
 
-  // 中間値が尽きたら移動先セクション全体を振り直す（§3.5 の再採番）
+  // 中間値が尽きたら移動先セクション全体を振り直す（データモデル定義書 §3.5 の再採番）
   if (step < 1) {
     const reordered = [...stayBeforeInDestination, ...carryOverTargets, ...remainInDestination];
     const sortOrders = renumberSortOrders(reordered.length);
@@ -142,7 +142,7 @@ export function planCarryOver(
 
 /**
  * 打刻の取り消しに伴う戻し位置（開始の取り消し F-210 / データモデル定義書 §4.5、
- * 完了の取り消し F-212 / §4.7）。取り消したタスクを未実行として「現在位置」（画面定義書01 §4.2:
+ * 完了の取り消し F-212 / 同書 §4.7）。取り消したタスクを未実行として「現在位置」（画面定義書01 §4.2:
  * 他に実行中タスクがあればその直後、なければ現在時刻を含むセクションの未実行タスクの先頭）へ置く。
  * 開始の取り消しでは対象自身が唯一の実行中タスクなので、常に後者（現在時刻のセクション）になる。
  * 表示日が今日のときだけ呼ぶ。移動が不要（すでにその位置）または現在位置が定まらないなら空配列
@@ -170,7 +170,7 @@ export function relocationOnUndoPunch(
 
 /**
  * 移動先セクション（`sectionId`）の `siblings` の `index` 番目へ `task` を差し込む Relocation 列。
- * 採番も振り直しも §3.5 の共通規則（`placeSortOrder`）が決め、ここは
+ * 採番も振り直しもデータモデル定義書 §3.5 の共通規則（`placeSortOrder`）が決め、ここは
  * 「実際に変わる行だけ動かす」ぶんを取り出すだけ。
  * `siblings` は `placeSortOrder` と同じ前提——**`task` を除いた sort_order 昇順の並び**
  */

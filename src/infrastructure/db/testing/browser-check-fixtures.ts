@@ -60,12 +60,12 @@ export async function loadBrowserCheckFixtures(
 ): Promise<CheckFixtureResult> {
   await truncateAll(db);
 
-  // マスタは初期データの正（§5）をそのまま使う。セクション5件・モード3件
+  // マスタは初期データの正（データモデル定義書 §5）をそのまま使う。セクション5件・モード3件
   await seedMasters(db);
   const sectionList = await createSectionRepository(db).listAll();
   const modeRows = await db.select({ id: modes.id }).from(modes).orderBy(modes.id);
 
-  // **セクションは名前で引く**（並び順で引かない）。§5 の並びは開始時刻順で
+  // **セクションは名前で引く**（並び順で引かない）。同書 §5 の並びは開始時刻順で
   // 深夜 00:00 が先頭に来るため、位置で取ると全部が1つずれる
   const sectionIdOf = (name: string): number => {
     const found = sectionList.find((s) => s.name === name);
@@ -73,7 +73,7 @@ export async function loadBrowserCheckFixtures(
     return found.id;
   };
 
-  // §5 は projects を空と定めるので、候補が要る確認（ポップオーバー・キーナビ）のために
+  // データモデル定義書 §5 は projects を空と定めるので、候補が要る確認（ポップオーバー・キーナビ）のために
   // ここで足す。本番の初期データには入らない
   const projectRows = await db
     .insert(projects)
@@ -156,7 +156,8 @@ export async function loadBrowserCheckFixtures(
       projectId: projectRows[1].id,
       comment: "確認用のコメント",
     }),
-    // 折り返しと行の伸び（F-206 / §3.3: 長さの制限を設けず改行も含む）を測るための長文
+    // 折り返しと行の伸び（F-206 / 画面定義書01 §3.3。長さの制限を設けず改行も含むのは
+    // データモデル定義書 §3.5 の comment 列）を測るための長文
     task({
       id: 6,
       taskDate,
@@ -167,7 +168,7 @@ export async function loadBrowserCheckFixtures(
       comment:
         "確認用の長いコメント。折り返しの幅と行の伸び方を測るために、1行では収まらない長さにしてある。\n2行目は改行のあとに続く。改行がそのまま保たれ、横スクロールが出ないことを見る。",
     }),
-    // ハイライト（F-118 / §3.3）。未実行は地色が出て、完了は地色を出さず⭐だけ残る——
+    // ハイライト（F-118 / 画面定義書01 §3.3）。未実行は地色が出て、完了は地色を出さず⭐だけ残る——
     // 2件揃えないと「完了行で地色が消える」を差として測れない
     task({
       id: 7,

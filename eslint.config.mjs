@@ -2,7 +2,7 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
-// レイヤー依存方向の強制（docs/アーキテクチャ定義書.md §3）
+// レイヤー依存方向の強制（docs/仕様/15_アーキテクチャ定義書.md §3）
 // domain ← usecases ← infrastructure / presentation(src/app)
 const layerRules = [
   {

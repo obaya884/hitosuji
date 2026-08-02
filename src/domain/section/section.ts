@@ -10,7 +10,7 @@ export type Section = Readonly<{
   name: string;
   startTime: string; // "HH:MM"
   isArchived: boolean;
-  // 日界セクション（1日の開始。F-116）。省略時は非日界として扱う（フォールバックは "00:00"＝現状踏襲）
+  // 日界セクション（1日の開始。F-116）。省略時は非日界として扱う（フォールバックは "00:00"）
   isDayStart?: boolean;
 }>;
 
@@ -45,7 +45,7 @@ export function isValidStartTime(value: string): boolean {
 }
 
 /** start_time 昇順。手動の並び替えは提供しない（画面定義書03 §3.1） */
-export function sortByStartTime(sections: readonly Section[]): Section[] {
+function sortByStartTime(sections: readonly Section[]): Section[] {
   return [...sections].sort((a, b) => a.startTime.localeCompare(b.startTime));
 }
 
@@ -53,7 +53,7 @@ export function activeSections(sections: readonly Section[]): Section[] {
   return sortByStartTime(sections.filter((s) => !s.isArchived));
 }
 
-/** 日界セクションの開始時刻（F-116）。指定がなければ "00:00"（現状の 0:00 固定を踏襲するフォールバック） */
+/** 日界セクションの開始時刻（F-116）。指定がなければ "00:00"（＝暦日と一致するフォールバック） */
 export function dayStartTimeOf(sections: readonly Section[]): string {
   const dayStart = activeSections(sections).find((s) => s.isDayStart);
   return dayStart ? dayStart.startTime : "00:00";

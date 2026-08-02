@@ -50,7 +50,7 @@ export type DailyListProps = Pick<
     dayStartMinutes: number;
   }>;
 
-// 画面定義書01 §3.2/§3.3。打刻・並び替えは後続ステップ
+// 画面定義書01 §3.2/§3.3
 export function DailyList({
   groups,
   modes,
@@ -86,9 +86,8 @@ export function DailyList({
   const sectionOptions = toSectionOptions(sections, currentSectionId);
 
   return (
-    // table-fixed + colgroup で列幅を1箇所に集約する。table-auto のままだと
-    // colSpan の行（セクション見出し・空セクション）の内容量次第で列幅の再計算結果が
-    // ずれ、見出しと本文の列境界が揃わないことがあった（FB-14）
+    // table-fixed + colgroup で列幅を1箇所に集約する。**table-auto にしない**——colSpan の行
+    // （セクション見出し・空セクション）の内容量で列幅が動き、見出しと本文の列境界が揃わなくなる（FB-14）
     <table className="mt-4 w-full table-fixed text-base">
       <colgroup>
         <col className="w-10" />
