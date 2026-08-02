@@ -6,7 +6,7 @@ import { act, fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { formatClock } from "@/app/_lib/format";
-import { atJst, TEST_DATE } from "@/domain/shared/testing/clock";
+import { atJst, NEXT_TEST_DATE, TEST_DATE } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
 
 import {
@@ -321,7 +321,9 @@ describe("DailyBoard のインライン編集の検証（§8 / 00_共通 §2.3�
     expect(screen.queryByText("時刻は HH:MM 形式で入力してください")).not.toBeNull();
   });
 
-  it("終了時刻を開始より前へ直すと確定不可（§8: 開始 ≦ 終了）", () => {
+  // 終了時刻は「開始以降で最も早い候補」として読む（§3.3）ので、開始より前の入力は翌暦日と
+  // 解釈される。その結果まだ来ていない時刻になるため、止めるのは未来の検証のほう
+  it("終了時刻を開始より前へ直すと翌日と読まれ、未来なので確定不可（§3.3 / §8）", () => {
     renderBoard();
     selectRow(COMPLETED);
 
@@ -329,11 +331,62 @@ describe("DailyBoard のインライン編集の検証（§8 / 00_共通 §2.3�
     commit(punchInput(), "0800");
 
     expect(vi.mocked(updateTaskPunchAction)).not.toHaveBeenCalled();
+    expect(screen.queryByText("現在時刻までの時刻を入力してください")).not.toBeNull();
+  });
+
+  it("開始時刻を終了より後へ直すと確定不可（§8: 開始 ≦ 終了）", () => {
+    renderBoard();
+    selectRow(COMPLETED); // 09:00-09:20
+
+    press("b");
+    commit(punchInput(), "0930");
+
+    expect(vi.mocked(updateTaskPunchAction)).not.toHaveBeenCalled();
     expect(screen.queryByText("終了時刻は開始時刻より後にしてください")).not.toBeNull();
   });
 
-  // 引数の検証は `toHaveBeenCalledWith` を基準にし、**引数の一部だけを調べるときだけ**
-  // `mock.calls[0]` を使う（入力の HH:MM が `APP_TIME_ZONE` の壁時計として解釈された結果を見る）
+  // ここから下の3件は、引数の検証を `toHaveBeenCalledWith` ではなく `mock.calls[0]` で行う
+  // （**引数の一部だけを調べるときだけ**使う道具。入力の HH:MM が `APP_TIME_ZONE` の壁時計として
+  // 解釈された結果を見たいため）
+
+  // FB-83 の症状を通しで固定する。日界（06:00）が 00:00 以外だと論理日は暦日をまたぐので、
+  // 深夜側に打刻したタスクを「前の晩」へ直せるかどうかは実打刻の暦日に引きずられてはいけない
+  it("深夜側に打刻したタスクの開始時刻を、前の晩の時刻へ直せる（FB-83 / §3.3）", () => {
+    vi.setSystemTime(atJst("02:30", NEXT_TEST_DATE)); // 論理日 TEST_DATE の深夜側
+    renderBoard([
+      task({
+        id: 12,
+        name: RUNNING,
+        sectionId: FORENOON.id,
+        startedAt: atJst("02:00", NEXT_TEST_DATE),
+      }),
+    ]);
+    selectRow(RUNNING);
+
+    press("b");
+    commit(punchInput(), "2340");
+
+    // 論理日 TEST_DATE の 23:40（＝実打刻の暦日である翌日ではない）
+    expect(vi.mocked(updateTaskPunchAction).mock.calls[0][1].startedAt).toEqual(atJst("23:40"));
+  });
+
+  // 上のテストは日界を 0 にしても通る（23:40 はどちらの規則でも同じ暦日）。日界そのものの
+  // 配線は、日界より前＝翌暦日へ送られる時刻でしか見えない
+  it("日界より前の時刻は論理日の翌暦日として送る（F-116 / §3.3）", () => {
+    vi.setSystemTime(atJst("10:00", NEXT_TEST_DATE)); // 前日のリストを翌朝に開いている
+    renderBoard();
+    selectRow(RUNNING);
+
+    press("b");
+    commit(punchInput(), "0300");
+
+    const call = vi.mocked(updateTaskPunchAction).mock.calls[0];
+    // 日界 06:00（フィクスチャの「朝」）より前なので、論理日 TEST_DATE の 03:00 は翌暦日
+    expect(call[1].startedAt).toEqual(atJst("03:00", NEXT_TEST_DATE));
+    // セクション判定に使う HH:MM は暦日を持たないので、深夜側でも入力どおり（§4.2-c）
+    expect(call[2]).toBe(formatClock(atJst("03:00", NEXT_TEST_DATE)));
+  });
+
   it("終了時刻の修正は開始時刻を保ったまま送る（F-203）", () => {
     renderBoard();
     selectRow(COMPLETED);

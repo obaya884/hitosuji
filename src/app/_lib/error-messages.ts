@@ -63,6 +63,7 @@ export const PUNCH_EDIT_MESSAGES: Record<PunchEditError, string> = {
   not_punched: "打刻されていないため修正できません",
   no_started_at: "開始時刻のないタスクに終了時刻は設定できません",
   ended_before_started: ENDED_BEFORE_STARTED,
+  future_time: "現在時刻までの時刻を入力してください",
 };
 
 /** 並び替え・セクション割り当て（O-6 / O-5） */

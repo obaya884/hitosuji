@@ -2,12 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   addDays,
   applyDayStart,
+  atLogicalDayClock,
   isValidLogicalDate,
   parseLogicalDate,
   todayLogicalDate,
   weekdayIndex,
 } from "./logical-date";
-import { APP_TIME_ZONE } from "./time-zone";
+import { APP_TIME_ZONE, zonedParts } from "./time-zone";
 
 describe("isValidLogicalDate（データモデル定義書 §1: task_date は YYYY-MM-DD の論理日付）", () => {
   it("形式と実在日を検証する", () => {
@@ -57,6 +58,57 @@ describe("applyDayStart（F-116: 日界を踏まえて論理日付を決める�
   it("日界 0 なら常に暦日と一致する", () => {
     expect(applyDayStart("2026-07-21", 0, 0)).toBe("2026-07-21");
     expect(applyDayStart("2026-07-21", 5, 0)).toBe("2026-07-21");
+  });
+});
+
+describe("atLogicalDayClock（F-116 / 画面定義書01 §3.3: 論理日の中の壁時計を絶対時刻にする）", () => {
+  const DAY_START_0600 = 6 * 60;
+
+  it("日界以降の時刻は論理日の暦日に落ちる", () => {
+    // JST 2026-07-21 23:40 = 07-21T14:40Z
+    expect(
+      atLogicalDayClock("2026-07-21", 23 * 60 + 40, APP_TIME_ZONE, DAY_START_0600).toISOString()
+    ).toBe("2026-07-21T14:40:00.000Z");
+  });
+
+  it("日界より前の時刻は論理日の翌暦日に落ちる（applyDayStart の逆向き）", () => {
+    // JST 2026-07-22 01:00 = 07-21T16:00Z
+    expect(atLogicalDayClock("2026-07-21", 60, APP_TIME_ZONE, DAY_START_0600).toISOString()).toBe(
+      "2026-07-21T16:00:00.000Z"
+    );
+  });
+
+  it("日界ちょうどはその暦日のまま", () => {
+    expect(
+      atLogicalDayClock("2026-07-21", DAY_START_0600, APP_TIME_ZONE, DAY_START_0600).toISOString()
+    ).toBe("2026-07-20T21:00:00.000Z"); // JST 07-21 06:00
+  });
+
+  it("日界 0 なら常に論理日の暦日そのもの", () => {
+    expect(atLogicalDayClock("2026-07-21", 0, APP_TIME_ZONE, 0).toISOString()).toBe(
+      "2026-07-20T15:00:00.000Z" // JST 07-21 00:00
+    );
+  });
+
+  it("月末をまたぐ論理日でも翌暦日を正しく取る", () => {
+    expect(atLogicalDayClock("2026-07-31", 60, APP_TIME_ZONE, DAY_START_0600).toISOString()).toBe(
+      "2026-07-31T16:00:00.000Z" // JST 08-01 01:00
+    );
+  });
+
+  it("壁時計はタイムゾーン引数で解釈する（定数を直接見ていない）", () => {
+    expect(atLogicalDayClock("2026-07-21", 60, "UTC", DAY_START_0600).toISOString()).toBe(
+      "2026-07-22T01:00:00.000Z"
+    );
+  });
+
+  it("日界を戻すと元の論理日に一致する（applyDayStart との往復）", () => {
+    const minuteOfDay = 60;
+    const at = atLogicalDayClock("2026-07-21", minuteOfDay, APP_TIME_ZONE, DAY_START_0600);
+    const { hours, minutes } = zonedParts(at, APP_TIME_ZONE);
+    expect(
+      applyDayStart(todayLogicalDate(at, APP_TIME_ZONE, 0), hours * 60 + minutes, DAY_START_0600)
+    ).toBe("2026-07-21");
   });
 });
 

@@ -44,6 +44,7 @@ const EXPECTED_PUNCH_EDIT: Record<PunchEditError, string> = {
   not_punched: "打刻されていないため修正できません",
   no_started_at: "開始時刻のないタスクに終了時刻は設定できません",
   ended_before_started: "終了時刻は開始時刻より後にしてください",
+  future_time: "現在時刻までの時刻を入力してください",
 };
 
 const EXPECTED_REORDER: Record<ReorderUsecaseError, string> = {

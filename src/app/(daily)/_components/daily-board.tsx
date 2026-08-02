@@ -335,12 +335,19 @@ export function DailyBoard({
     );
   }
 
-  /** 開始・終了時刻のインライン修正（F-203）。HH:MM の解釈は運用タイムゾーン固定（T-47） */
+  /**
+   * 開始・終了時刻のインライン修正（F-203）。HH:MM の解釈は運用タイムゾーン固定（T-47）で、
+   * どの暦日へ落とすかは日界（F-116）とタスクの論理日で決まる（画面定義書01 §3.3）。
+   * 現在時刻は未来への修正を弾くために渡す（他の打刻と同じくクライアントのもの）
+   */
   function editPunch(task: Task, field: "startedAt" | "endedAt", hhmm: string) {
+    // 検証と送信で同じ現在時刻を使う（分をまたぐ瞬間に判定と保存で日が割れないように）
+    const now = new Date();
+    const context = { timeZone: APP_TIME_ZONE, dayStartMinutes, now };
     const edited =
       field === "startedAt"
-        ? editStartedAt(task, hhmm, APP_TIME_ZONE)
-        : editEndedAt(task, hhmm, APP_TIME_ZONE);
+        ? editStartedAt(task, hhmm, context)
+        : editEndedAt(task, hhmm, context);
     if (!edited.ok) {
       setError(PUNCH_EDIT_MESSAGES[edited.error]);
       return;
