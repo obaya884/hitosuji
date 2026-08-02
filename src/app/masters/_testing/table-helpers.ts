@@ -4,10 +4,10 @@
 // `interactions.ts` / Server Action の保留＝`actions.ts`）。
 import { screen, within } from "@testing-library/react";
 import { rowOf } from "@/app/_testing/dom";
-import { click } from "@/app/_testing/interactions";
+import { clickWithoutServer } from "@/app/_testing/interactions";
 
-/** 名前セル（ボタン）を押してインライン編集に入り、現れた入力欄を返す */
-export async function startEditingCell(name: string): Promise<HTMLInputElement> {
-  await click(within(rowOf(name)).getByRole("button", { name }));
+/** 名前セル（ボタン）を押してインライン編集に入り、現れた入力欄を返す（開くだけでサーバへは届かない） */
+export function startEditingCell(name: string): HTMLInputElement {
+  clickWithoutServer(within(rowOf(name)).getByRole("button", { name }));
   return screen.getByDisplayValue<HTMLInputElement>(name);
 }

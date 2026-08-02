@@ -5,7 +5,7 @@ import type { Section } from "@/domain/section/section";
 
 import { deferredAction } from "@/app/_testing/actions";
 import { rowOf } from "@/app/_testing/dom";
-import { click } from "@/app/_testing/interactions";
+import { click, clickWithoutServer } from "@/app/_testing/interactions";
 import { startEditingCell } from "../_testing/table-helpers";
 
 // Server Action の先は実DB接続と revalidatePath に届くため、同じ返り値の契約
@@ -72,12 +72,12 @@ function renderTable(
  * 開始時刻セルを押して編集に入る（名前セルは startEditingCell）。
  * セルの見出しは `開始–終了` の枠なので、枠を組み立てて押し、開始時刻の入力欄を返す
  */
-const startEditingStartTime = async (
+const startEditingStartTime = (
   name: string,
   startTime: string,
   endTime: string
-): Promise<HTMLInputElement> => {
-  await click(within(rowOf(name)).getByRole("button", { name: `${startTime}–${endTime}` }));
+): HTMLInputElement => {
+  clickWithoutServer(within(rowOf(name)).getByRole("button", { name: `${startTime}–${endTime}` }));
   return screen.getByDisplayValue<HTMLInputElement>(startTime);
 };
 
@@ -197,7 +197,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
     it("名前セルと開始時刻セルは独立して編集できる（一方だけが入力欄になる）", async () => {
       renderTable();
 
-      await startEditingCell("セクションA");
+      startEditingCell("セクションA");
 
       const row = rowOf("06:00–12:00");
       expect(within(row).getByRole("button", { name: "06:00–12:00" })).not.toBeNull();
@@ -207,7 +207,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
     it("開始時刻の編集中も終了時刻は導出値のまま出す（編集できるのは開始のみ）", async () => {
       renderTable();
 
-      const input = await startEditingStartTime("セクションA", "06:00", "12:00");
+      const input = startEditingStartTime("セクションA", "06:00", "12:00");
 
       expect(input.type).toBe("time");
       const derived = screen.getByTitle("次のセクションの開始時刻から自動導出");
@@ -217,7 +217,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
 
     it("名前の変更なしは何も送信せず閉じる", async () => {
       renderTable();
-      const input = await startEditingCell("セクションA");
+      const input = startEditingCell("セクションA");
 
       fireEvent.blur(input);
 
@@ -229,7 +229,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
 
     it("開始時刻の変更なしは何も送信せず閉じる", async () => {
       renderTable();
-      const input = await startEditingStartTime("セクションA", "06:00", "12:00");
+      const input = startEditingStartTime("セクションA", "06:00", "12:00");
 
       fireEvent.blur(input);
 
@@ -241,7 +241,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
 
     it("名前を変えると開始時刻は現在値のまま送る（§4「行の全項目をまとめて送る」）", async () => {
       renderTable();
-      const input = await startEditingCell("セクションB");
+      const input = startEditingCell("セクションB");
 
       fireEvent.change(input, { target: { value: "改名後" } });
       fireEvent.blur(input);
@@ -256,7 +256,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
 
     it("開始時刻を変えると名前は現在値のまま送る", async () => {
       renderTable();
-      const input = await startEditingStartTime("セクションA", "06:00", "12:00");
+      const input = startEditingStartTime("セクションA", "06:00", "12:00");
 
       fireEvent.change(input, { target: { value: "07:30" } });
       fireEvent.blur(input);
@@ -271,7 +271,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
 
     it("Enter でも確定する（入力欄を抜けて blur の経路に合流する）", async () => {
       renderTable();
-      const input = await startEditingCell("セクションA");
+      const input = startEditingCell("セクションA");
 
       fireEvent.change(input, { target: { value: "改名後" } });
       fireEvent.keyDown(input, { key: "Enter" });
@@ -286,7 +286,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
 
     it("Esc は元の値に戻して閉じる（送信しない）", async () => {
       renderTable();
-      const input = await startEditingStartTime("セクションA", "06:00", "12:00");
+      const input = startEditingStartTime("セクションA", "06:00", "12:00");
       fireEvent.change(input, { target: { value: "23:45" } });
 
       fireEvent.keyDown(input, { key: "Escape" });
@@ -299,7 +299,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
 
     it("名前の Esc も元の値に戻して閉じる", async () => {
       renderTable();
-      const input = await startEditingCell("セクションB");
+      const input = startEditingCell("セクションB");
       fireEvent.change(input, { target: { value: "書きかけ" } });
 
       fireEvent.keyDown(input, { key: "Escape" });
@@ -314,7 +314,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
       const pending = deferredAction();
       vi.mocked(updateSectionAction).mockReturnValue(pending.promise);
       renderTable();
-      const input = await startEditingCell("セクションA");
+      const input = startEditingCell("セクションA");
       fireEvent.change(input, { target: { value: "改名後" } });
 
       fireEvent.blur(input);
@@ -350,7 +350,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
         message: "同じ開始時刻の有効なセクションがあります",
       });
       renderTable();
-      const input = await startEditingStartTime("セクションA", "06:00", "12:00");
+      const input = startEditingStartTime("セクションA", "06:00", "12:00");
 
       fireEvent.change(input, { target: { value: "12:00" } });
       fireEvent.blur(input);
@@ -367,7 +367,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
         message: "開始時刻を HH:MM 形式で入力してください",
       });
       renderTable();
-      const input = await startEditingCell("セクションA");
+      const input = startEditingCell("セクションA");
       fireEvent.change(input, { target: { value: "改名後" } });
       fireEvent.blur(input);
       // メッセージの表示と isPending の解除は別のタイミングで届く。§2.3 が要求するのは
@@ -394,7 +394,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
         message: "開始時刻を HH:MM 形式で入力してください",
       });
       renderTable();
-      const input = await startEditingCell("セクションA");
+      const input = startEditingCell("セクションA");
       fireEvent.change(input, { target: { value: "改名後" } });
       fireEvent.blur(input);
       // 保存中は「新規追加」が押せないので、押せる状態に戻るまで待つ
@@ -413,7 +413,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
     it("名前と開始時刻だけを入力し、終了時刻は自動導出であることを示す", async () => {
       renderTable();
 
-      await click(screen.getByRole("button", { name: "新規追加" }));
+      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
 
       expect(screen.getByPlaceholderText("セクション名")).not.toBeNull();
       expect(screen.getByTitle("次のセクションの開始時刻から自動導出").textContent).toBe("–自動");
@@ -423,7 +423,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
 
     it("「保存」で名前と開始時刻をまとめて送る", async () => {
       renderTable();
-      await click(screen.getByRole("button", { name: "新規追加" }));
+      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
 
       fireEvent.change(screen.getByPlaceholderText("セクション名"), {
         target: { value: "新セクション" },
@@ -440,7 +440,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
 
     it("成功したら新規行を閉じる（保存の完了を待って反映する。§1）", async () => {
       renderTable();
-      await click(screen.getByRole("button", { name: "新規追加" }));
+      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
       fireEvent.change(screen.getByPlaceholderText("セクション名"), {
         target: { value: "新セクション" },
       });
@@ -452,7 +452,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
 
     it("Enter でも追加を送る（新規行は blur 経路を通らない）", async () => {
       renderTable();
-      await click(screen.getByRole("button", { name: "新規追加" }));
+      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
       const name = screen.getByPlaceholderText("セクション名");
 
       fireEvent.change(name, { target: { value: "新セクション" } });
@@ -468,12 +468,12 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
 
     it("「取消」で新規行を捨てる（送信しない）", async () => {
       renderTable();
-      await click(screen.getByRole("button", { name: "新規追加" }));
+      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
       fireEvent.change(screen.getByPlaceholderText("セクション名"), {
         target: { value: "書きかけ" },
       });
 
-      await click(screen.getByRole("button", { name: "取消" }));
+      clickWithoutServer(screen.getByRole("button", { name: "取消" }));
 
       expect(screen.queryByPlaceholderText("セクション名")).toBeNull();
       expect(createSectionAction).not.toHaveBeenCalled();
@@ -481,7 +481,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
 
     it("「保存」の押下は入力欄の blur より先に拾う（mousedown の既定動作を抑止して二重送信を防ぐ）", async () => {
       renderTable();
-      await click(screen.getByRole("button", { name: "新規追加" }));
+      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
 
       // preventDefault されると fireEvent は false を返す（＝入力欄はフォーカスを失わない）
       expect(fireEvent.mouseDown(screen.getByRole("button", { name: "保存" }))).toBe(false);
@@ -489,7 +489,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
 
     it("Esc でも新規行を捨てる", async () => {
       renderTable();
-      await click(screen.getByRole("button", { name: "新規追加" }));
+      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
 
       fireEvent.keyDown(screen.getByPlaceholderText("セクション名"), { key: "Escape" });
 
@@ -503,7 +503,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
       const pending = deferredAction();
       vi.mocked(createSectionAction).mockReturnValue(pending.promise);
       renderTable();
-      await click(screen.getByRole("button", { name: "新規追加" }));
+      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
       fireEvent.change(screen.getByPlaceholderText("セクション名"), {
         target: { value: "新セクション" },
       });
@@ -550,7 +550,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
       const pending = deferredAction();
       vi.mocked(createSectionAction).mockReturnValue(pending.promise);
       renderTable();
-      await click(screen.getByRole("button", { name: "新規追加" }));
+      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
       fireEvent.change(screen.getByPlaceholderText("セクション名"), {
         target: { value: "新セクション" },
       });
@@ -601,7 +601,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
 
       expect(within(rowOf("旧セクションA")).queryByRole("button", { name: "削除" })).toBeNull();
       const row = rowOf("旧セクションB");
-      await click(within(row).getByRole("button", { name: "削除" }));
+      clickWithoutServer(within(row).getByRole("button", { name: "削除" }));
       await click(within(row).getByRole("button", { name: "削除する" }));
 
       expect(deleteSectionAction).toHaveBeenCalledExactlyOnceWith(9);
@@ -618,7 +618,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
       });
       const row = rowOf("旧セクション");
 
-      await click(within(row).getByRole("button", { name: "削除" }));
+      clickWithoutServer(within(row).getByRole("button", { name: "削除" }));
       await click(within(row).getByRole("button", { name: "削除する" }));
 
       expect(screen.getByText("参照しているデータがあるため削除できません")).not.toBeNull();

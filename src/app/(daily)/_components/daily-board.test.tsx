@@ -2,7 +2,8 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { formatClock } from "@/app/_lib/format";
+import { formatClock, formatDuration } from "@/app/_lib/format";
+import { click, clickWithoutServer } from "@/app/_testing/interactions";
 import { otherRouterCalls, router } from "@/app/_testing/next-navigation";
 import { atJst, TEST_DATE } from "@/domain/shared/testing/clock";
 import { groupTasksBySection } from "@/domain/task/daily-list";
@@ -287,7 +288,7 @@ function isSelected(target: string | HTMLElement): boolean {
 
 /** クリックでの行選択（§5: マウス操作とキーボード操作は等価） */
 function selectRow(name: string) {
-  fireEvent.click(row(name));
+  clickWithoutServer(row(name));
 }
 
 /** ハイライトの⭐（O-17）。ON/OFF は `aria-pressed` が持つ */
@@ -300,20 +301,9 @@ function press(key: string, init: KeyboardEventInit = {}) {
   fireEvent.keyDown(document.body, { key, ...init });
 }
 
-/** 解決済みの Server Action の後始末（トースト表示・選択移動）まで流す */
-async function settleActions() {
-  await act(async () => {});
-}
-
 async function pressAndSettle(key: string, init: KeyboardEventInit = {}) {
   await act(async () => {
     press(key, init);
-  });
-}
-
-async function clickAndSettle(element: HTMLElement) {
-  await act(async () => {
-    fireEvent.click(element);
   });
 }
 
@@ -329,10 +319,13 @@ function punchInput(): HTMLElement {
   return screen.getByPlaceholderText("1935");
 }
 
-/** 行メニュー（O-7/O-8 の導線）から項目を選ぶ */
-function chooseRowMenu(name: string, label: string) {
-  fireEvent.click(within(row(name)).getByLabelText("行メニュー"));
-  fireEvent.click(screen.getByRole("button", { name: label }));
+/**
+ * 行メニュー（O-7/O-8 の導線）から項目を選ぶ。1回目は開くだけ、
+ * 2回目は**項目によっては Server Action を呼ぶ**（先送りは呼び、ルーチン化はポップオーバーを開く）ので `click` に通す
+ */
+async function chooseRowMenu(name: string, label: string) {
+  clickWithoutServer(within(row(name)).getByLabelText("行メニュー"));
+  await click(screen.getByRole("button", { name: label }));
 }
 
 /**
@@ -340,7 +333,7 @@ function chooseRowMenu(name: string, label: string) {
  * 同名の行内ボタン（行のセクション表記など）と混ざらないようにそこで絞る。
  * セクション候補は名前の右に時間帯が付く（FB-46）ため前方一致で照合する
  */
-function chooseOption(labelPrefix: string) {
+async function chooseOption(labelPrefix: string) {
   const option = screen
     .getAllByRole("button")
     .find(
@@ -349,7 +342,7 @@ function chooseOption(labelPrefix: string) {
         (button.textContent ?? "").startsWith(labelPrefix)
     );
   if (option === undefined) throw new Error(`候補が見つかりません: ${labelPrefix}`);
-  fireEvent.click(option);
+  await click(option);
 }
 
 /** インライン編集の確定（00_共通 §2.3: Enter または blur で確定） */
@@ -411,12 +404,12 @@ afterEach(async () => {
 });
 
 describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 → 失敗時はトースト＋ロールバック）", () => {
-  it("開始打刻はサーバ確定を待たずに実行中として反映する", () => {
+  it("開始打刻はサーバ確定を待たずに実行中として反映する", async () => {
     const gate = hold<DailyActionResult>(OK);
     vi.mocked(startTaskAction).mockReturnValue(gate.promise);
     renderBoard();
 
-    fireEvent.click(within(row(NOT_STARTED)).getByLabelText("開始"));
+    await click(within(row(NOT_STARTED)).getByLabelText("開始"));
 
     // 未解決のまま＝サーバ確定前に実行中（終了できる状態）になっている
     expect(within(row(NOT_STARTED)).queryByLabelText("終了")).not.toBeNull();
@@ -427,7 +420,7 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
     vi.mocked(startTaskAction).mockReturnValue(gate.promise);
     renderBoard();
 
-    fireEvent.click(within(row(NOT_STARTED)).getByLabelText("開始"));
+    await click(within(row(NOT_STARTED)).getByLabelText("開始"));
     await gate.resolve({ ok: false, message: "保存に失敗しました" });
 
     expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
@@ -456,9 +449,7 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
     vi.mocked(startTaskAction).mockRejectedValue(new Error("Failed to fetch"));
     renderBoard();
 
-    await act(async () => {
-      fireEvent.click(within(row(NOT_STARTED)).getByLabelText("開始"));
-    });
+    await click(within(row(NOT_STARTED)).getByLabelText("開始"));
 
     expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
     expect(within(row(NOT_STARTED)).queryByLabelText("開始")).not.toBeNull();
@@ -473,7 +464,7 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
     vi.mocked(startTaskAction).mockReturnValue(gate.promise);
     renderBoard();
 
-    fireEvent.click(within(row(NOT_STARTED)).getByLabelText("開始"));
+    await click(within(row(NOT_STARTED)).getByLabelText("開始"));
     await gate.resolve({ ok: false, message: "タスクが見つかりませんでした" });
 
     // 消えた行が画面に残り、触るたび同じ失敗を繰り返す状態にしない（§4.1）
@@ -486,7 +477,7 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
     vi.mocked(startTaskAction).mockReturnValue(gate.promise);
     renderBoard();
 
-    fireEvent.click(within(row(NOT_STARTED)).getByLabelText("開始"));
+    await click(within(row(NOT_STARTED)).getByLabelText("開始"));
     await gate.resolve(OK);
 
     expect(vi.mocked(startTaskAction)).toHaveBeenCalledOnce(); // 操作自体は走っている
@@ -499,9 +490,9 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
     vi.mocked(startTaskAction).mockReturnValue(gate.promise);
     renderBoard();
 
-    fireEvent.click(within(row(NOT_STARTED)).getByLabelText("開始"));
+    await click(within(row(NOT_STARTED)).getByLabelText("開始"));
     await gate.resolve({ ok: false, message: "保存に失敗しました" });
-    fireEvent.click(screen.getByLabelText("閉じる"));
+    clickWithoutServer(screen.getByLabelText("閉じる"));
 
     expect(screen.queryByText("保存に失敗しました")).toBeNull();
   });
@@ -565,12 +556,12 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
     expect(starOf(NOT_STARTED).getAttribute("aria-pressed")).toBe("false");
   });
 
-  it("⭐のクリックでも同じくトグルする（O-17）", () => {
+  it("⭐のクリックでも同じくトグルする（O-17）", async () => {
     renderBoard([task({ id: 11, name: NOT_STARTED, sectionId: FORENOON.id, highlighted: false })]);
     // 未ハイライト行の⭐は選択行にだけ出る（§3.3）ので、既定選択に頼らず自分で選ぶ
     selectRow(NOT_STARTED);
 
-    fireEvent.click(starOf(NOT_STARTED));
+    await click(starOf(NOT_STARTED));
 
     expect(vi.mocked(setTaskHighlightAction)).toHaveBeenCalledWith(11, true);
   });
@@ -632,7 +623,7 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
     renderBoard();
     selectRow(RUNNING);
 
-    fireEvent.click(within(row(RUNNING)).getByLabelText("終了"));
+    await click(within(row(RUNNING)).getByLabelText("終了"));
     // 確定前は送り先（現在地）が選ばれている
     expect(isSelected(NOT_STARTED)).toBe(true);
 
@@ -653,9 +644,7 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
     renderBoard();
     selectRow(RUNNING);
 
-    await act(async () => {
-      fireEvent.click(within(row(RUNNING)).getByLabelText("終了"));
-    });
+    await click(within(row(RUNNING)).getByLabelText("終了"));
 
     expect(within(row(RUNNING)).queryByLabelText("終了")).not.toBeNull();
     expect(isSelected(RUNNING)).toBe(true);
@@ -669,7 +658,7 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
     // 送り先（NOT_STARTED）でも打刻対象（RUNNING）でもない第3の行を選んでおく
     selectRow(COMPLETED);
 
-    fireEvent.click(within(row(RUNNING)).getByLabelText("終了"));
+    await click(within(row(RUNNING)).getByLabelText("終了"));
     await gate.resolve({ ok: false, message: "保存に失敗しました" });
 
     expect(isSelected(RUNNING)).toBe(true);
@@ -696,7 +685,7 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
     renderBoard([task({ id: 10, name: INBOX }), ...defaultTasks()]);
     selectRow(RUNNING);
 
-    fireEvent.click(within(row(RUNNING)).getByLabelText("終了"));
+    await click(within(row(RUNNING)).getByLabelText("終了"));
     selectRow(INBOX); // 送られた選択を待っている間にユーザーが動かす
     await gate.resolve({ ok: false, message: "保存に失敗しました" });
 
@@ -746,54 +735,69 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
 });
 
 describe("DailyBoard の打刻（F-201 / F-211 / §7: クライアントの現在時刻を送る）", () => {
-  it("開始打刻はクライアントの現在時刻を Server Action へ送る（サーバ時刻を使わない）", () => {
+  it("開始打刻はクライアントの現在時刻を Server Action へ送る（サーバ時刻を使わない）", async () => {
     renderBoard();
 
-    fireEvent.click(within(row(NOT_STARTED)).getByLabelText("開始"));
+    await click(within(row(NOT_STARTED)).getByLabelText("開始"));
 
     expect(vi.mocked(startTaskAction)).toHaveBeenCalledWith(11, NOW);
   });
 
-  it("開始打刻の楽観的更新はクライアントの現在時刻をその場に表示する", () => {
+  it("開始打刻の楽観的更新はクライアントの現在時刻をその場に表示する", async () => {
+    // 主張は「確定前に出ている」こと。解決させると楽観的更新が解けて props の状態へ戻るので保留する
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(startTaskAction).mockReturnValue(gate.promise);
     renderBoard();
 
-    fireEvent.click(within(row(NOT_STARTED)).getByLabelText("開始"));
+    await click(within(row(NOT_STARTED)).getByLabelText("開始"));
 
-    expect(within(row(NOT_STARTED)).queryByText(formatClock(NOW))).not.toBeNull();
+    expect(within(cellsOf(row(NOT_STARTED)).time).queryByText(formatClock(NOW))).not.toBeNull();
   });
 
-  it("終了打刻もクライアントの現在時刻を送り、実績を即時に表示する", () => {
+  it("終了打刻もクライアントの現在時刻を送り、実績を即時に表示する", async () => {
+    // 実績の表示も確定前の主張なので、保留したまま観測する
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(finishTaskAction).mockReturnValue(gate.promise);
     renderBoard();
 
-    fireEvent.click(within(row(RUNNING)).getByLabelText("終了"));
+    await click(within(row(RUNNING)).getByLabelText("終了"));
 
     expect(vi.mocked(finishTaskAction)).toHaveBeenCalledWith(12, NOW);
     // 10:00 開始 → 10:30 終了 = 実績 0:30
-    expect(within(row(RUNNING)).queryByText("→ 0:30")).not.toBeNull();
+    expect(
+      within(cellsOf(row(RUNNING)).actual).queryByText(`→ ${formatDuration(30)}`)
+    ).not.toBeNull();
   });
 
-  it("終了打刻で完了したら選択行を現在地へ送る（F-211 / §5）", () => {
+  it("終了打刻で完了したら選択行を現在地へ送る（F-211 / §5）", async () => {
+    // 選択の移動は確定を待たない（§5）ので、保留したまま送り先を読む
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(finishTaskAction).mockReturnValue(gate.promise);
     renderBoard();
     selectRow(RUNNING);
 
-    fireEvent.click(within(row(RUNNING)).getByLabelText("終了"));
+    await click(within(row(RUNNING)).getByLabelText("終了"));
 
     expect(isSelected(NOT_STARTED)).toBe(true);
     expect(isSelected(RUNNING)).toBe(false);
   });
 
-  it("終了打刻の送り先も未分類ではなく現在セクションの未実行（F-211 / §5 規則2 / FB-78）", () => {
+  it("終了打刻の送り先も未分類ではなく現在セクションの未実行（F-211 / §5 規則2 / FB-78）", async () => {
     // 現在時刻 10:30 が属するのは 午前（09:00-13:00）。未分類はリスト先頭に居るが送り先にしない
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(finishTaskAction).mockReturnValue(gate.promise);
     renderBoard([task({ id: 10, name: INBOX }), ...defaultTasks()]);
     selectRow(RUNNING);
 
-    fireEvent.click(within(row(RUNNING)).getByLabelText("終了"));
+    await click(within(row(RUNNING)).getByLabelText("終了"));
 
     expect(isSelected(NOT_STARTED)).toBe(true);
     expect(isSelected(INBOX)).toBe(false);
   });
 
-  it("現在セクションに未実行がなければ送り先は未分類（F-211 / §5 規則3）", () => {
+  it("現在セクションに未実行がなければ送り先は未分類（F-211 / §5 規則3）", async () => {
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(finishTaskAction).mockReturnValue(gate.promise);
     renderBoard([
       task({ id: 10, name: INBOX }),
       task({ id: 12, name: RUNNING, sectionId: FORENOON.id, startedAt: atJst("10:00") }),
@@ -801,25 +805,51 @@ describe("DailyBoard の打刻（F-201 / F-211 / §7: クライアントの現�
     ]);
     selectRow(RUNNING);
 
-    fireEvent.click(within(row(RUNNING)).getByLabelText("終了"));
+    await click(within(row(RUNNING)).getByLabelText("終了"));
 
     expect(isSelected(INBOX)).toBe(true);
   });
 
-  it("送り先の未実行タスクがなければ選択は完了行に据え置く（F-211）", () => {
+  it("送り先の未実行タスクがなければ打刻した行を選ぶ（F-211）", async () => {
+    // 保留したまま読む。確定させると完了が解けて実行中に戻り、「打刻した行を選んだ」のか
+    // 「選択を捨てて現在地（＝実行中の行）から採り直した」のかが区別できなくなる
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(finishTaskAction).mockReturnValue(gate.promise);
     renderBoard([task({ id: 12, name: RUNNING, sectionId: FORENOON.id, startedAt: atJst("10:00") })]);
     selectRow(RUNNING);
 
-    fireEvent.click(within(row(RUNNING)).getByLabelText("終了"));
+    await click(within(row(RUNNING)).getByLabelText("終了"));
 
     expect(isSelected(RUNNING)).toBe(true);
+  });
+
+  it("送り先がなければ、別の行を選んだまま打刻しても選択は打刻した行へ移る（F-211 / §5）", async () => {
+    // 打刻対象でも送り先でもない第3の行を選んでおく（拒否されたときの戻し先と同じ規則）
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(finishTaskAction).mockReturnValue(gate.promise);
+    renderBoard([
+      task({ id: 12, name: RUNNING, sectionId: FORENOON.id, startedAt: atJst("10:00") }),
+      task({
+        id: 14,
+        name: COMPLETED,
+        sectionId: FORENOON.id,
+        startedAt: atJst("09:00"),
+        endedAt: atJst("09:30"),
+      }),
+    ]);
+    selectRow(COMPLETED);
+
+    await click(within(row(RUNNING)).getByLabelText("終了"));
+
+    expect(isSelected(RUNNING)).toBe(true);
+    expect(isSelected(COMPLETED)).toBe(false);
   });
 
   it("終了打刻がサーバで確定したら選択は送り先に残る（F-211）", async () => {
     const { applyServerState } = renderBoard();
     selectRow(RUNNING);
 
-    await clickAndSettle(within(row(RUNNING)).getByLabelText("終了"));
+    await click(within(row(RUNNING)).getByLabelText("終了"));
     // サーバ確定後の再取得（完了した打刻が乗った状態）まで流して確かめる
     applyServerState([
       task({ id: 11, name: NOT_STARTED, sectionId: FORENOON.id, sortOrder: 1000 }),
@@ -871,10 +901,10 @@ describe("DailyBoard の打刻（F-201 / F-211 / §7: クライアントの現�
     expect(within(row(COMPLETED)).getByLabelText("完了済み")).toHaveProperty("disabled", true);
   });
 
-  it("割り込み（O-2 / F-201）で既存の実行中タスクを終える処理はサーバの1トランザクションに委ねる", () => {
+  it("割り込み（O-2 / F-201）で既存の実行中タスクを終える処理はサーバの1トランザクションに委ねる", async () => {
     renderBoard();
 
-    fireEvent.click(within(row(NOT_STARTED)).getByLabelText("開始"));
+    await click(within(row(NOT_STARTED)).getByLabelText("開始"));
 
     // 画面側で2アクションに分解しない（終了・再開タスク生成は startTaskAction の中で起きる）
     expect(vi.mocked(startTaskAction)).toHaveBeenCalledTimes(1);
@@ -907,7 +937,7 @@ describe("DailyBoard の削除と取り消し（O-8 / F-115）", () => {
     selectRow(NOT_STARTED);
     await pressAndSettle("d");
 
-    await clickAndSettle(screen.getByText("取り消す"));
+    await click(screen.getByText("取り消す"));
 
     // 復元は削除で返ってきたタスクそのものを送る（並びも戻すため）
     expect(vi.mocked(restoreTaskAction)).toHaveBeenCalledWith(
@@ -922,7 +952,7 @@ describe("DailyBoard の削除と取り消し（O-8 / F-115）", () => {
     selectRow(NOT_STARTED);
     await pressAndSettle("d");
 
-    await clickAndSettle(screen.getByText("取り消す"));
+    await click(screen.getByText("取り消す"));
 
     expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
   });
@@ -964,18 +994,18 @@ describe("DailyBoard の削除と取り消し（O-8 / F-115）", () => {
     selectRow(NOT_STARTED);
     await pressAndSettle("d");
 
-    await clickAndSettle(screen.getByText("取り消す"));
+    await click(screen.getByText("取り消す"));
 
     expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
   });
 
-  it("打刻済みタスクの削除は確認を挟み、キャンセルすると削除しない（O-8）", () => {
+  it("打刻済みタスクの削除は確認を挟み、キャンセルすると削除しない（O-8）", async () => {
     // スタブではなく spy にする（afterEach の restoreAllMocks で本物へ戻り、
     // 後続のテストに「常に false を返す confirm」が residue として残らない）
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     renderBoard();
 
-    chooseRowMenu(COMPLETED, "削除");
+    await chooseRowMenu(COMPLETED, "削除");
 
     expect(confirm).toHaveBeenCalledWith(`「${COMPLETED}」は打刻済みです。削除しますか？`);
     expect(vi.mocked(deleteTaskAction)).not.toHaveBeenCalled();
@@ -1018,7 +1048,7 @@ describe("DailyBoard の完了の取り消し（O-15 / F-212）", () => {
     selectRow(COMPLETED);
     await pressAndSettle("u");
 
-    await clickAndSettle(screen.getByText("取り消す"));
+    await click(screen.getByText("取り消す"));
 
     expect(vi.mocked(restoreCompletionAction)).toHaveBeenCalledWith({
       taskId: 13,
@@ -1691,10 +1721,10 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
   it("? ボタン（画面右上）から開き、パネルの閉じるボタンで閉じられる", () => {
     renderBoard();
 
-    fireEvent.click(screen.getByLabelText("キーボードショートカット"));
+    clickWithoutServer(screen.getByLabelText("キーボードショートカット"));
     expect(screen.queryByRole("heading", { name: "キーボードショートカット" })).not.toBeNull();
 
-    fireEvent.click(screen.getByText("閉じる（Esc）"));
+    clickWithoutServer(screen.getByText("閉じる（Esc）"));
     expect(screen.queryByRole("heading", { name: "キーボードショートカット" })).toBeNull();
   });
 
@@ -1757,7 +1787,7 @@ describe("DailyBoard の割り当て（O-5: モード・プロジェクト・セ
     selectRow(NOT_STARTED);
 
     press("m");
-    chooseOption(MODE.name);
+    await chooseOption(MODE.name);
 
     expect(vi.mocked(setTaskModeAction)).toHaveBeenCalledWith(42, MODE.id);
     expect(within(row(NOT_STARTED)).queryByLabelText(`モード（${MODE.name}）`)).not.toBeNull();
@@ -1767,7 +1797,7 @@ describe("DailyBoard の割り当て（O-5: モード・プロジェクト・セ
     expect(within(row(NOT_STARTED)).queryByLabelText("モード（未設定）")).not.toBeNull();
   });
 
-  it("プロジェクトの割り当てもモードと同じ規則で楽観的に反映する（O-5 / F-402）", () => {
+  it("プロジェクトの割り当てもモードと同じ規則で楽観的に反映する（O-5 / F-402）", async () => {
     const gate = hold<DailyActionResult>(OK);
     vi.mocked(setTaskProjectAction).mockReturnValue(gate.promise);
     // タスクの ID をマスタの ID と重ならない値で描く。既定タスク（id 11）のままだと
@@ -1776,7 +1806,7 @@ describe("DailyBoard の割り当て（O-5: モード・プロジェクト・セ
     selectRow(NOT_STARTED);
 
     press("p");
-    chooseOption(PROJECT.name);
+    await chooseOption(PROJECT.name);
 
     expect(vi.mocked(setTaskProjectAction)).toHaveBeenCalledWith(41, PROJECT.id);
     expect(
@@ -1791,7 +1821,7 @@ describe("DailyBoard の割り当て（O-5: モード・プロジェクト・セ
     selectRow(NOT_STARTED);
 
     press("s");
-    chooseOption(AFTERNOON.name);
+    await chooseOption(AFTERNOON.name);
 
     expect(vi.mocked(setTaskSectionAction)).toHaveBeenCalledWith({
       taskId: 11,
@@ -1836,8 +1866,8 @@ describe("DailyBoard の通知と行メニュー（画面定義書01 §8 / O-7 /
   it("ルーチン化（O-12）はサーバ確定を待って完了通知を出す", async () => {
     renderBoard();
 
-    chooseRowMenu(NOT_STARTED, "ルーチン化");
-    await clickAndSettle(screen.getByRole("button", { name: "作成" }));
+    await chooseRowMenu(NOT_STARTED, "ルーチン化");
+    await click(screen.getByRole("button", { name: "作成" }));
 
     expect(vi.mocked(createRoutineFromTaskAction)).toHaveBeenCalledWith(
       11,
@@ -1869,8 +1899,8 @@ describe("DailyBoard の通知と行メニュー（画面定義書01 §8 / O-7 /
     });
     renderBoard();
 
-    chooseRowMenu(NOT_STARTED, "ルーチン化");
-    await clickAndSettle(screen.getByRole("button", { name: "作成" }));
+    await chooseRowMenu(NOT_STARTED, "ルーチン化");
+    await click(screen.getByRole("button", { name: "作成" }));
 
     expect(screen.queryByText("見積もりを入力してからルーチン化してください")).not.toBeNull();
     expect(screen.queryByText(/ルーチン化しました/)).toBeNull();
@@ -1881,8 +1911,8 @@ describe("DailyBoard の通知と行メニュー（画面定義書01 §8 / O-7 /
     vi.mocked(createRoutineFromTaskAction).mockRejectedValue(new Error("Failed to fetch"));
     renderBoard();
 
-    chooseRowMenu(NOT_STARTED, "ルーチン化");
-    await clickAndSettle(screen.getByRole("button", { name: "作成" }));
+    await chooseRowMenu(NOT_STARTED, "ルーチン化");
+    await click(screen.getByRole("button", { name: "作成" }));
 
     expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
     expect(screen.queryByText(/ルーチン化しました/)).toBeNull();
@@ -1891,9 +1921,9 @@ describe("DailyBoard の通知と行メニュー（画面定義書01 §8 / O-7 /
   it("完了通知トーストは × で閉じられる（00_共通 §2.2）", async () => {
     renderBoard();
 
-    chooseRowMenu(NOT_STARTED, "ルーチン化");
-    await clickAndSettle(screen.getByRole("button", { name: "作成" }));
-    fireEvent.click(screen.getByLabelText("閉じる"));
+    await chooseRowMenu(NOT_STARTED, "ルーチン化");
+    await click(screen.getByRole("button", { name: "作成" }));
+    clickWithoutServer(screen.getByLabelText("閉じる"));
 
     expect(screen.queryByText(/ルーチン化しました/)).toBeNull();
   });
@@ -1904,7 +1934,7 @@ describe("DailyBoard の通知と行メニュー（画面定義書01 §8 / O-7 /
     await pressAndSettle("d");
     applyServerState(defaultTasks().filter((t) => t.id !== 11)); // 選択は現在地（実行中）へ移る
 
-    fireEvent.click(screen.getByLabelText("閉じる"));
+    clickWithoutServer(screen.getByLabelText("閉じる"));
     press("u"); // 保留が無くなったので選択行（削除後は現在地＝実行中タスク）の切り分けへ
 
     expect(vi.mocked(restoreTaskAction)).not.toHaveBeenCalled();
@@ -1924,18 +1954,17 @@ describe("DailyBoard の通知と行メニュー（画面定義書01 §8 / O-7 /
     });
     renderBoard();
 
-    chooseRowMenu(NOT_STARTED, "翌日へ先送り");
-    await settleActions();
+    await chooseRowMenu(NOT_STARTED, "翌日へ先送り");
 
     expect(screen.queryByText("先送りできるのは未実行タスクだけです")).not.toBeNull();
   });
 
-  it("先送り（O-7）は行メニューから実行し、楽観的更新はしない", () => {
+  it("先送り（O-7）は行メニューから実行し、楽観的更新はしない", async () => {
     const gate = hold<DailyActionResult>(OK);
     vi.mocked(postponeTaskAction).mockReturnValue(gate.promise);
     renderBoard();
 
-    chooseRowMenu(NOT_STARTED, "翌日へ先送り");
+    await chooseRowMenu(NOT_STARTED, "翌日へ先送り");
 
     expect(vi.mocked(postponeTaskAction)).toHaveBeenCalledWith(11);
     expect(rowNames()).toEqual([NOT_STARTED, RUNNING, COMPLETED]);

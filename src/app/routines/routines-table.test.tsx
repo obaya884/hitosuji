@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { deferredAction } from "@/app/_testing/actions";
 import { hasClass, rgbOf } from "@/app/_testing/dom";
-import { click } from "@/app/_testing/interactions";
+import { click, clickWithoutServer } from "@/app/_testing/interactions";
 import { MODE_COLOR_PRESETS, type Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { Routine } from "@/domain/routine/routine";
@@ -228,7 +228,7 @@ describe("RoutinesTable（画面定義書02 §3: 一覧の列と表記）", () =
   it("0件でもフォームを開いている間は空の案内を出さない", async () => {
     renderTable([]);
 
-    await click(screen.getByText("新規ルーチン"));
+    clickWithoutServer(screen.getByText("新規ルーチン"));
 
     expect(screen.queryByText("ルーチンはまだありません。")).toBeNull();
   });
@@ -252,11 +252,11 @@ describe("RoutinesTable（画面定義書02 §3.1: 列見出しのクリック�
   it("見出しを押すとその軸の昇順になり、もう一度押すと降順になる", async () => {
     const { container } = renderTable(forSort);
 
-    await click(screen.getByText("名前"));
+    clickWithoutServer(screen.getByText("名前"));
     expect(names(container)).toEqual(["あ", "い", "う"]);
     expect(header("名前").getAttribute("aria-sort")).toBe("ascending");
 
-    await click(screen.getByText("名前"));
+    clickWithoutServer(screen.getByText("名前"));
     expect(names(container)).toEqual(["う", "い", "あ"]);
     expect(header("名前").getAttribute("aria-sort")).toBe("descending");
   });
@@ -264,9 +264,9 @@ describe("RoutinesTable（画面定義書02 §3.1: 列見出しのクリック�
   it("同じ見出しを3回押すと昇順に戻る（昇順⇄降順のトグル）", async () => {
     const { container } = renderTable(forSort);
 
-    await click(screen.getByText("名前"));
-    await click(screen.getByText("名前"));
-    await click(screen.getByText("名前"));
+    clickWithoutServer(screen.getByText("名前"));
+    clickWithoutServer(screen.getByText("名前"));
+    clickWithoutServer(screen.getByText("名前"));
 
     expect(header("名前").getAttribute("aria-sort")).toBe("ascending");
     expect(names(container)).toEqual(["あ", "い", "う"]);
@@ -275,16 +275,16 @@ describe("RoutinesTable（画面定義書02 §3.1: 列見出しのクリック�
   it("別の列に切り替えると昇順から始まる（未設定は昇順・降順のいずれでも末尾）", async () => {
     const { container } = renderTable(forSort);
 
-    await click(screen.getByText("名前"));
-    await click(screen.getByText("名前"));
-    await click(screen.getByText("モード"));
+    clickWithoutServer(screen.getByText("名前"));
+    clickWithoutServer(screen.getByText("名前"));
+    clickWithoutServer(screen.getByText("モード"));
 
     expect(header("モード").getAttribute("aria-sort")).toBe("ascending");
     expect(header("名前").getAttribute("aria-sort")).toBe("none");
     // モードA(う) → モードB(い) → 未設定(あ)
     expect(names(container)).toEqual(["う", "い", "あ"]);
 
-    await click(screen.getByText("モード"));
+    clickWithoutServer(screen.getByText("モード"));
     expect(names(container)).toEqual(["い", "う", "あ"]);
   });
 
@@ -306,7 +306,7 @@ describe("RoutinesTable（画面定義書02 §3.1: 列見出しのクリック�
       routine({ id: 3, name: "う", scheduledStartTime: "10:00", projectId: 11 }), // 案件A
     ]);
 
-    await click(screen.getByText("プロジェクト"));
+    clickWithoutServer(screen.getByText("プロジェクト"));
 
     expect(header("プロジェクト").getAttribute("aria-sort")).toBe("ascending");
     expect(names(container)).toEqual(["う", "あ", "い"]);
@@ -327,7 +327,7 @@ describe("RoutinesTable（画面定義書02 §3.1: 列見出しのクリック�
       }),
     ]);
 
-    await click(screen.getByText("繰り返し"));
+    clickWithoutServer(screen.getByText("繰り返し"));
 
     expect(header("繰り返し").getAttribute("aria-sort")).toBe("ascending");
     expect(names(container)).toEqual(["う", "え", "い", "あ"]);
@@ -336,7 +336,7 @@ describe("RoutinesTable（画面定義書02 §3.1: 列見出しのクリック�
   it("選んだ並び順は記憶しない（開き直すと既定の開始想定の昇順に戻る）", async () => {
     const first = renderTable(forSort);
 
-    await click(screen.getByText("名前"));
+    clickWithoutServer(screen.getByText("名前"));
     expect(names(first.container)).toEqual(["あ", "い", "う"]);
     first.unmount();
 
@@ -356,12 +356,12 @@ describe("RoutinesTable（画面定義書02 §3.1: 列見出しのクリック�
     expect(hasClass(mark("開始想定"), "invisible")).toBe(false);
     expect(hasClass(mark("名前"), "invisible")).toBe(true);
 
-    await click(screen.getByText("名前"));
+    clickWithoutServer(screen.getByText("名前"));
     expect(mark("名前").textContent).toBe("▲");
     expect(hasClass(mark("名前"), "invisible")).toBe(false);
     expect(hasClass(mark("開始想定"), "invisible")).toBe(true);
 
-    await click(screen.getByText("名前"));
+    clickWithoutServer(screen.getByText("名前"));
     expect(mark("名前").textContent).toBe("▼");
     expect(hasClass(mark("名前"), "invisible")).toBe(false);
   });
@@ -449,7 +449,7 @@ describe("RoutinesTable（画面定義書02 §5: 有効/無効・削除・編集
     const pending = deferredAction();
     vi.mocked(createRoutineAction).mockReturnValue(pending.promise);
     renderTable([]);
-    await click(screen.getByText("新規ルーチン"));
+    clickWithoutServer(screen.getByText("新規ルーチン"));
 
     await click(screen.getByText("保存"));
 
@@ -467,7 +467,7 @@ describe("RoutinesTable（画面定義書02 §5: 有効/無効・削除・編集
     const pending = deferredAction();
     vi.mocked(updateRoutineAction).mockReturnValue(pending.promise);
     renderTable([routine({ id: 7 })]);
-    await click(screen.getByText("編集"));
+    clickWithoutServer(screen.getByText("編集"));
 
     await click(screen.getByText("保存"));
 
@@ -483,7 +483,7 @@ describe("RoutinesTable（画面定義書02 §5: 有効/無効・削除・編集
   it("保存に失敗したらフォームを残し、保存・取消を再び押せる状態へ戻す", async () => {
     vi.mocked(createRoutineAction).mockResolvedValue({ ok: false, message: "保存に失敗しました" });
     renderTable([]);
-    await click(screen.getByText("新規ルーチン"));
+    clickWithoutServer(screen.getByText("新規ルーチン"));
 
     await click(screen.getByText("保存"));
 
@@ -555,7 +555,7 @@ describe("RoutinesTable（画面定義書02 §4・§5: 新規/編集フォーム
   it("新規ルーチンでフォームを開き、保存が成功すると閉じる（O-1）", async () => {
     renderTable([]);
 
-    await click(screen.getByText("新規ルーチン"));
+    clickWithoutServer(screen.getByText("新規ルーチン"));
     fireEvent.change(screen.getByLabelText("名前"), { target: { value: "点検" } });
     await click(screen.getByText("保存"));
 
@@ -574,7 +574,7 @@ describe("RoutinesTable（画面定義書02 §4・§5: 新規/編集フォーム
     });
     renderTable([]);
 
-    await click(screen.getByText("新規ルーチン"));
+    clickWithoutServer(screen.getByText("新規ルーチン"));
     await click(screen.getByText("保存"));
 
     expect(screen.queryByText("名前を入力してください")).not.toBeNull();
@@ -584,7 +584,7 @@ describe("RoutinesTable（画面定義書02 §4・§5: 新規/編集フォーム
   it("編集ボタンでその行のフォームを開き、ボタンは「閉じる」になる（O-2）", async () => {
     renderTable([routine({ id: 7, name: "点検" })]);
 
-    await click(screen.getByText("編集"));
+    clickWithoutServer(screen.getByText("編集"));
 
     expect(screen.getByLabelText<HTMLInputElement>("名前").value).toBe("点検");
     expect(screen.queryByText("閉じる")).not.toBeNull();
@@ -594,8 +594,8 @@ describe("RoutinesTable（画面定義書02 §4・§5: 新規/編集フォーム
   it("「閉じる」でフォームを閉じる", async () => {
     renderTable([routine({ id: 7 })]);
 
-    await click(screen.getByText("編集"));
-    await click(screen.getByText("閉じる"));
+    clickWithoutServer(screen.getByText("編集"));
+    clickWithoutServer(screen.getByText("閉じる"));
 
     expect(screen.queryByLabelText("名前")).toBeNull();
   });
@@ -603,7 +603,7 @@ describe("RoutinesTable（画面定義書02 §4・§5: 新規/編集フォーム
   it("編集の保存はその行の id で更新を依頼し、成功するとフォームを閉じる", async () => {
     renderTable([routine({ id: 7, name: "点検" })]);
 
-    await click(screen.getByText("編集"));
+    clickWithoutServer(screen.getByText("編集"));
     fireEvent.change(screen.getByLabelText("名前"), { target: { value: "点検（改）" } });
     await click(screen.getByText("保存"));
 
@@ -619,7 +619,7 @@ describe("RoutinesTable（画面定義書02 §4・§5: 新規/編集フォーム
     });
     renderTable([routine({ id: 7, name: "点検" })]);
 
-    await click(screen.getByText("編集"));
+    clickWithoutServer(screen.getByText("編集"));
     fireEvent.change(screen.getByLabelText("見積もり（分）"), { target: { value: "" } });
     await click(screen.getByText("保存"));
 
@@ -634,7 +634,7 @@ describe("RoutinesTable（画面定義書02 §4・§5: 新規/編集フォーム
     await click(screen.getByText("削除"));
     expect(screen.queryByText("削除できません")).not.toBeNull();
 
-    await click(screen.getByText("編集"));
+    clickWithoutServer(screen.getByText("編集"));
 
     expect(screen.queryByText("削除できません")).toBeNull();
   });
@@ -642,8 +642,8 @@ describe("RoutinesTable（画面定義書02 §4・§5: 新規/編集フォーム
   it("編集フォームの取消では保存を依頼しない", async () => {
     renderTable([routine({ id: 7 })]);
 
-    await click(screen.getByText("編集"));
-    await click(screen.getByText("取消"));
+    clickWithoutServer(screen.getByText("編集"));
+    clickWithoutServer(screen.getByText("取消"));
 
     expect(updateRoutineAction).not.toHaveBeenCalled();
     expect(screen.queryByLabelText("名前")).toBeNull();
@@ -652,8 +652,8 @@ describe("RoutinesTable（画面定義書02 §4・§5: 新規/編集フォーム
   it("新規フォームの取消では作成を依頼しない", async () => {
     renderTable([]);
 
-    await click(screen.getByText("新規ルーチン"));
-    await click(screen.getByText("取消"));
+    clickWithoutServer(screen.getByText("新規ルーチン"));
+    clickWithoutServer(screen.getByText("取消"));
 
     expect(createRoutineAction).not.toHaveBeenCalled();
     expect(screen.queryByLabelText("名前")).toBeNull();
