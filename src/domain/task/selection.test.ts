@@ -73,7 +73,7 @@ describe("currentNotStartedId（画面定義書01 §5 規則2〜4: 現在セク�
 
   // 規則3 が規則4 のコードパスで満たされる理由は `currentNotStartedId` のコメント。
   // その前提（未分類が表示順の先頭）は domain/task/daily-list.test.ts が固定し、
-  // 両者を合成した経路は daily-board.test.tsx が見る
+  // 両者を合成した経路は daily-board.shortcuts.test.tsx が見る
   it("現在セクションに未実行がなければ未分類の未実行を選ぶ（規則3。未分類はリスト先頭）", () => {
     const tasks = [
       task({ id: 1 }), // 未分類

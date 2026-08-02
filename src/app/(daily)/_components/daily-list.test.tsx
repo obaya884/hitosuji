@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
-import { hasClass, rowOf } from "@/app/_testing/dom";
+import { hasClass } from "@/app/_testing/dom";
 import { atJst } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
 import {
@@ -14,7 +14,7 @@ import {
   SECTIONS,
   unclassifiedGroup,
 } from "../_testing/factories";
-import { cellsOf, headingOf, popoverLabels } from "../_testing/table-helpers";
+import { cellsOf, headingOf, popoverLabels, taskRow } from "../_testing/table-helpers";
 import { DailyList, type DailyListProps } from "./daily-list";
 
 /**
@@ -230,7 +230,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
         groups: [morning([task({ id: 1, name: "日次プラン", projectId: 11, modeId: 1 })])],
       });
 
-      const { project, mode } = cellsOf(rowOf("日次プラン"));
+      const { project, mode } = cellsOf(taskRow("日次プラン"));
       expect(project.textContent).toBe("サイト改善");
       expect(mode.textContent).toBe("仕事");
     });
@@ -238,13 +238,13 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
     it("アーカイブ済みプロジェクトも名前をそのまま表示する（過去タスクからの参照を保つ。§3.3）", () => {
       renderList({ groups: [morning([task({ id: 1, name: "日次プラン", projectId: 12 })])] });
 
-      expect(cellsOf(rowOf("日次プラン")).project.textContent).toBe("終わった案件");
+      expect(cellsOf(taskRow("日次プラン")).project.textContent).toBe("終わった案件");
     });
 
     it("アーカイブ済みモードも名前と色をそのまま反映する（過去タスクから色ごと消えない）", () => {
       renderList({ groups: [morning([task({ id: 1, name: "日次プラン", modeId: 3 })])] });
 
-      const row = rowOf("日次プラン");
+      const row = taskRow("日次プラン");
       expect(cellsOf(row).mode.textContent).toBe("旧モード");
       // モードは行全体の文字色も担う（F-401）ので、名前だけでなく色も残ること
       expect(row.style.color).toBe(colorOf("旧モード"));
@@ -266,15 +266,15 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
 
       // 実施時間セルは「実打刻（あれば）→ 予想開始」の順に並ぶ（§3.3: 実打刻と同じ位置に
       // 縦に並べて上から下へ時間の流れとして読ませる）ので、予想開始は常に最後の子
-      const projected = cellsOf(rowOf("日次プラン")).time.lastElementChild as HTMLElement;
+      const projected = cellsOf(taskRow("日次プラン")).time.lastElementChild as HTMLElement;
       // メール（実行中）は見積もり未設定＝残り0分なので、次の行の予想開始は now そのもの
       expect(projected.textContent).toBe("10:00–");
       // 実打刻（確定した記録）との区別は弱色が担う
       expect(projected.classList.contains("text-ink-faint")).toBe(true);
 
       // 打刻済みの行は実打刻だけ（予想は出さない）
-      expect(cellsOf(rowOf("朝食")).time.textContent).toBe("06:30–06:48");
-      expect(cellsOf(rowOf("メール")).time.textContent).toBe("08:05–");
+      expect(cellsOf(taskRow("朝食")).time.textContent).toBe("06:30–06:48");
+      expect(cellsOf(taskRow("メール")).time.textContent).toBe("08:05–");
     });
 
     // 同じグループの中でも表示順に積む。ここが崩れると**行の並びは正しいまま値だけ入れ替わる**ので、
@@ -290,8 +290,8 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
         ],
       });
 
-      expect(cellsOf(rowOf("資料作成")).time.textContent).toBe("10:00–");
-      expect(cellsOf(rowOf("レビュー依頼")).time.textContent).toBe("10:30–");
+      expect(cellsOf(taskRow("資料作成")).time.textContent).toBe("10:00–");
+      expect(cellsOf(taskRow("レビュー依頼")).time.textContent).toBe("10:30–");
     });
 
     it("セクションをまたいで積み上げ、日界（F-116）を起点に折り返して表す", () => {
@@ -307,8 +307,8 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
 
       // 1件目は now そのまま、2件目は前セクションの見積もり90分ぶん後ろ（グループをまたいでも
       // 積み上げをリセットしない）。どちらも論理日の中の位置として 24 時超えで表記する
-      expect(cellsOf(rowOf("夜の片付け")).time.textContent).toBe("26:00–");
-      expect(cellsOf(rowOf("日記")).time.textContent).toBe("27:30–");
+      expect(cellsOf(taskRow("夜の片付け")).time.textContent).toBe("26:00–");
+      expect(cellsOf(taskRow("日記")).time.textContent).toBe("27:30–");
     });
 
     it("表示日が今日でなければ出さない（終了予定・残り時間と同じ規律）", () => {
@@ -317,7 +317,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
         groups: [morning([task({ id: 1, name: "日次プラン", estimateMinutes: 15 })])],
       });
 
-      expect(cellsOf(rowOf("日次プラン")).time.textContent).toBe("");
+      expect(cellsOf(taskRow("日次プラン")).time.textContent).toBe("");
     });
   });
 
@@ -328,8 +328,8 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
         groups: [morning([task({ id: 1, name: "朝食" }), task({ id: 2, name: "メール" })])],
       });
 
-      expect(rowOf("メール").classList.contains("bg-accent-weak")).toBe(true);
-      expect(rowOf("朝食").classList.contains("bg-accent-weak")).toBe(false);
+      expect(taskRow("メール").classList.contains("bg-accent-weak")).toBe(true);
+      expect(taskRow("朝食").classList.contains("bg-accent-weak")).toBe(false);
     });
 
     // 「見えていれば動かす必要がない」＝ nearest の実挙動はレイアウトを持つブラウザ段でしか
@@ -342,7 +342,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
 
       expect(scrollIntoView).toHaveBeenCalledOnce();
       expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
-      expect(scrollIntoView.mock.contexts[0]).toBe(rowOf("メール"));
+      expect(scrollIntoView.mock.contexts[0]).toBe(taskRow("メール"));
     });
 
     // 選択したままの行が並び替え（Shift+J/K）や自動セクション移動（§4.2）で位置を変えたら
@@ -416,7 +416,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
 
       // 開いているのは1つだけ（行を取り違えていない）
       const popover = (document.querySelector("[data-option-index]") as HTMLElement).closest("td");
-      expect(popover).toBe(cellsOf(rowOf("メール")).mode);
+      expect(popover).toBe(cellsOf(taskRow("メール")).mode);
     });
   });
 
@@ -427,14 +427,14 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
     it("コメントのある行にだけ印を出す（無い行には出さない）", () => {
       renderList({ groups: [morning([WITH_COMMENT, WITHOUT_COMMENT])] });
 
-      expect(within(rowOf("朝食")).queryByLabelText("コメントを編集")).not.toBeNull();
-      expect(within(rowOf("メール")).queryByLabelText("コメントを編集")).toBeNull();
+      expect(within(taskRow("朝食")).queryByLabelText("コメントを編集")).not.toBeNull();
+      expect(within(taskRow("メール")).queryByLabelText("コメントを編集")).toBeNull();
     });
 
     it("印を押すとコメント編集を要求する（マウスからの入口）", () => {
       const { onBeginEdit } = renderList({ groups: [morning([WITH_COMMENT])] });
 
-      fireEvent.click(within(rowOf("朝食")).getByLabelText("コメントを編集"));
+      fireEvent.click(within(taskRow("朝食")).getByLabelText("コメントを編集"));
 
       expect(onBeginEdit).toHaveBeenCalledWith(WITH_COMMENT, "comment");
     });
@@ -586,16 +586,16 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
     it("コメント行を開く行は下線をコメント行へ譲る（2本の線で分断しない）", () => {
       renderList({ selectedId: 1, groups: [morning([WITH_COMMENT])] });
 
-      const taskRow = rowOf("朝食");
+      const opener = taskRow("朝食");
       const commentRow = screen.getByText("パンが切れていた").closest("tr") as HTMLElement;
-      expect(hasClass(taskRow, "border-b")).toBe(false);
+      expect(hasClass(opener, "border-b")).toBe(false);
       expect(hasClass(commentRow, "border-b")).toBe(true);
     });
 
     it("コメントを開かない行は下線を自分で持つ", () => {
       renderList({ groups: [morning([WITHOUT_COMMENT])] });
 
-      expect(hasClass(rowOf("メール"), "border-b")).toBe(true);
+      expect(hasClass(taskRow("メール"), "border-b")).toBe(true);
     });
   });
 });

@@ -1,8 +1,9 @@
 // デイリーの表（画面定義書01 §3.3）の DOM 読み取り。列位置の取り違えとポップオーバーの
 // 候補順は仕様そのものなので、どのテストからも同じ読み方をするためここに集約する。
-// **画面をまたぐ読み取り（単一行の特定・クラス判定・色の表記変換）は `@/app/_testing/dom`**
-// ——ここが持つのはデイリーの表に固有の「行の形」と列の並びの知識。
-import { within } from "@testing-library/react";
+// ここが持つのは**デイリーの表に固有の「行の形」**——名前セルがボタンである・列が8つある・
+// 選択行が地色で示される、といった前提に依る読み取り。**行の取り方は表の作りごとに違う**ので
+// 共有側（`@/app/_testing/dom`）には置かない（マスタは `masters/_testing/table-helpers.ts`）。
+import { screen, within } from "@testing-library/react";
 
 /** タスク行の列数（§3.3）。`cellsOf` が名前を付けている列と同数で、`taskRows` の判定が使う */
 const TASK_ROW_COLUMN_COUNT = 8;
@@ -11,8 +12,8 @@ const TASK_ROW_COLUMN_COUNT = 8;
  * 列の並び（§3.3）でセルを名前で引く。列位置の取り違えを検出できるようにする。
  * **列を足すときは `TASK_ROW_COLUMN_COUNT` も一緒に直す**（タスク行かどうかの判定が列数を見る）
  */
-export function cellsOf(row: HTMLElement) {
-  const td = row.querySelectorAll("td");
+export function cellsOf(tr: HTMLElement) {
+  const td = tr.querySelectorAll("td");
   // 列がずれても「空セルを期待する assert」は緑のまま通るので、ここで行の形を確かめておく
   if (td.length !== TASK_ROW_COLUMN_COUNT) {
     throw new Error(`タスク行ではありません（列数 ${td.length} / 期待 ${TASK_ROW_COLUMN_COUNT}）`);
@@ -36,6 +37,52 @@ export function cellsOf(row: HTMLElement) {
  */
 export function taskRows(): HTMLElement[] {
   return allRows().filter((tr) => tr.querySelectorAll("td").length === TASK_ROW_COLUMN_COUNT);
+}
+
+/**
+ * タスク名で引くタスク行。**名前セルがボタン**（クリックで rename に入る入口。§3.3）
+ * であることを使って役割で引き、そこから行へ遡る——素の文言で引くと、同じ名前が
+ * セクション併記やコメント全文にも出るデイリーでは取り違える。
+ *
+ * **名前を編集中の行は引けない**（名前セルが入力欄に変わるため）。その状態を掴みたいテストは
+ * `screen.getByRole("textbox").closest("tr")` を使う。
+ * なお素の文言で引いていた頃は「同じ文言が画面に1つだけ」を暗黙に主張していたが、
+ * **その代わりに「名前セルがクリック入口である」ことを主張する**形へ寄せた（意図した交換）
+ */
+export function taskRow(name: string): HTMLElement {
+  const tr = screen.getByRole("button", { name }).closest("tr");
+  if (tr === null) throw new Error(`行が見つかりません: ${name}`);
+  // 同名のボタンは行メニュー項目・ポップオーバー候補・トーストにも現れうる。掴んだ行が
+  // タスク行かをここで確かめないと、別の `tr` を返しても assert が静かに通る（`cellsOf` と同じ理由）
+  if (tr.querySelectorAll("td").length !== TASK_ROW_COLUMN_COUNT) {
+    throw new Error(`「${name}」で掴んだのはタスク行ではありません（列数 ${tr.querySelectorAll("td").length}）`);
+  }
+  return tr;
+}
+
+/** 表示順 index 番目のタスク行。複製（O-11/O-14）のように同名の行が並ぶ場合に使う */
+export function rowAt(index: number): HTMLElement {
+  const rows = taskRows();
+  if (rows[index] === undefined) throw new Error(`${index} 番目の行がありません`);
+  return rows[index];
+}
+
+/**
+ * 表示順のタスク名。並び替え・追加・削除の検証に使う。
+ * **名前を編集中の行は落ちる**（名前セルが入力欄でボタンが無いため）ので、編集を開いたまま
+ * 本数を主張しない——「消えた」と「編集中」が区別できなくなる
+ */
+export function rowNames(): string[] {
+  return taskRows().flatMap((tr) => {
+    const nameButton = cellsOf(tr).name.querySelector("button");
+    return nameButton === null ? [] : [nameButton.textContent ?? ""];
+  });
+}
+
+/** 選択行の強調（§5）。行の地色で示す */
+export function isSelected(target: string | HTMLElement): boolean {
+  const tr = typeof target === "string" ? taskRow(target) : target;
+  return tr.classList.contains("bg-accent-weak");
 }
 
 /**
