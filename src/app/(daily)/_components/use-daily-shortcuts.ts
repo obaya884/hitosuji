@@ -1,8 +1,9 @@
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
-import { addDays, type LogicalDate } from "@/domain/shared/logical-date";
+import { type LogicalDate } from "@/domain/shared/logical-date";
 import { currentTaskId, moveSelection } from "@/domain/task/selection";
 import { taskStatus } from "@/domain/task/status";
 import type { Task } from "@/domain/task/task";
+import { dateHref, DAILY_PATH } from "@/app/_lib/date-href";
 import { isButtonTarget, isGlobalShortcutEvent } from "@/app/_lib/keyboard";
 import type { EditField, EditingCell } from "../_lib/editing";
 
@@ -103,10 +104,10 @@ export function useDailyShortcuts(params: DailyShortcutParams): void {
             moveByStep(-1);
             return;
           case "H":
-            router.push(`/?date=${addDays(date, -1)}`);
+            router.push(dateHref(DAILY_PATH, date, -1));
             return;
           case "L":
-            router.push(`/?date=${addDays(date, 1)}`);
+            router.push(dateHref(DAILY_PATH, date, 1));
             return;
           default:
             return;
@@ -161,7 +162,7 @@ export function useDailyShortcuts(params: DailyShortcutParams): void {
           return;
         }
         case "t":
-          router.push("/");
+          router.push(DAILY_PATH);
           return;
         case "g": // 日付を選んでジャンプ（datepicker を開く。§3.1 / §6）
           e.preventDefault();

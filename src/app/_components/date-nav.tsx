@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { addDays, type LogicalDate } from "@/domain/shared/logical-date";
+import { type LogicalDate } from "@/domain/shared/logical-date";
 import { ChevronLeftIcon, ChevronRightIcon } from "@/app/_components/icons";
 import { DatePicker } from "@/app/_components/date-picker";
+import { dateHref } from "@/app/_lib/date-href";
 import { formatLogicalDate } from "@/app/_lib/format";
 import { btnSecondary } from "@/app/_lib/ui";
 
@@ -12,7 +13,7 @@ type Props = Readonly<{
   date: string;
   weekday: number;
   isToday: boolean;
-  /** 移動先の画面（S-01 は `/`、S-04 は `/review`）。表示日は画面ごとに独立に持つ（画面定義書04 §3.1） */
+  /** 移動先の画面パス（`DAILY_PATH` / `REVIEW_PATH`）。表示日は画面ごとに独立に持つ（画面定義書04 §3.1） */
   basePath: string;
   /**
    * datepicker（F-117）を有効にする画面のみ渡す（S-01）。未指定なら日付は素の表示のまま。
@@ -33,7 +34,7 @@ export function DateNav({ date, weekday, isToday, basePath, picker }: Props) {
   return (
     <div className="flex items-center gap-2">
       <Link
-        href={`${basePath}?date=${addDays(date, -1)}`}
+        href={dateHref(basePath, date, -1)}
         aria-label="前日"
         className={`inline-flex items-center self-stretch ${btnSecondary}`}
       >
@@ -58,7 +59,7 @@ export function DateNav({ date, weekday, isToday, basePath, picker }: Props) {
               today={picker.today}
               onSelect={(selected) => {
                 picker.onOpenChange(false);
-                if (selected !== date) router.push(`${basePath}?date=${selected}`);
+                if (selected !== date) router.push(dateHref(basePath, selected));
               }}
               onClose={() => picker.onOpenChange(false)}
             />
@@ -68,7 +69,7 @@ export function DateNav({ date, weekday, isToday, basePath, picker }: Props) {
         <span className="px-2 py-1 font-mono text-sm font-medium tabular-nums">{label}</span>
       )}
       <Link
-        href={`${basePath}?date=${addDays(date, 1)}`}
+        href={dateHref(basePath, date, 1)}
         aria-label="翌日"
         className={`inline-flex items-center self-stretch ${btnSecondary}`}
       >

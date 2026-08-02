@@ -29,6 +29,7 @@ import { normalizeComment, validateEstimateMinutes, validateTaskName } from "@/d
 import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
 import type { Task } from "@/domain/task/task";
 import { PlusIcon } from "@/app/_components/icons";
+import { DAILY_PATH } from "@/app/_lib/date-href";
 import { formatClock } from "@/app/_lib/format";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { inputBase } from "@/app/_lib/ui";
@@ -533,7 +534,7 @@ export function DailyBoard({
             date={date}
             weekday={weekdayIndex(date)}
             isToday={isToday}
-            basePath="/"
+            basePath={DAILY_PATH}
             picker={{ today, open: showDatePicker, onOpenChange: setShowDatePicker }}
           />
           <DailySummary
