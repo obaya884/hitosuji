@@ -59,7 +59,7 @@ import {
   type CreatingActionResult,
   type DailyActionResult,
 } from "../actions";
-import { callAction, isUnreachable, type ActionFailure } from "@/app/_lib/action-result";
+import { callAction, handleActionFailure, type ActionFailure } from "@/app/_lib/action-result";
 import { PUNCH_EDIT_MESSAGES, TASK_EDIT_MESSAGES } from "@/app/_lib/error-messages";
 import type { EditingCell } from "../_lib/editing";
 import {
@@ -156,13 +156,9 @@ export function DailyBoard({
   // 「現在地」（§5 の規則）へ自動的に戻る
   const selectedId = keepSelection(orderedTasks, rawSelectedId, currentSectionId);
 
-  /**
-   * 失敗したときの表示と後始末（画面定義書00_共通 §4.1）。メッセージを出したうえで、
-   * **サーバが失敗を返したときだけ**表示中のデータを取り直す（判断の理由は `isUnreachable`）
-   */
-  function handleFailure(failure: ActionFailure) {
-    setError(failure.message);
-    if (!isUnreachable(failure)) router.refresh();
+  /** 失敗したときの表示と後始末（規則は `handleActionFailure`）。巻き戻しは各操作が持つ */
+  function showFailure(result: ActionFailure) {
+    handleActionFailure(result, { setError, refresh: () => router.refresh() });
   }
 
   /**
@@ -187,7 +183,7 @@ export function DailyBoard({
       const result = await callAction(action);
       if (!result.ok) {
         onFailure?.();
-        handleFailure(result);
+        showFailure(result);
       }
     });
   }
@@ -206,7 +202,7 @@ export function DailyBoard({
       if (optimistic !== undefined) dispatchOptimistic(optimistic);
       const result = await callAction(action);
       if (result.ok) setSelectedId(result.createdId);
-      else handleFailure(result);
+      else showFailure(result);
     });
   }
 

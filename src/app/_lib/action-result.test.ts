@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { callAction, isUnreachable, type ActionResult } from "./action-result";
+import {
+  callAction,
+  failure,
+  handleActionFailure,
+  isUnreachable,
+  type ActionResult,
+} from "./action-result";
 import { SAVE_FAILED } from "./error-messages";
 
 // 各テストで console.error を黙らせるので、ここで本物へ戻す（unit 段には共通の setup が無い）
@@ -56,12 +62,53 @@ describe("callAction（00_共通 §4.1: 拒否を失敗の結果へ落とす）"
   });
 });
 
-describe("isUnreachable（§4.1: 取り直しに行くかの判断）", () => {
+describe("isUnreachable（00_共通 §4.1: 取り直しに行くかの判断）", () => {
   it("サーバが返した失敗は false（＝取り直しに行く）", () => {
     expect(isUnreachable({ ok: false, message: "タスクが見つかりませんでした" })).toBe(false);
   });
 
   it("届かなかった失敗は true（＝取り直しに行かない）", () => {
     expect(isUnreachable({ ok: false, message: SAVE_FAILED, unreachable: true })).toBe(true);
+  });
+});
+
+describe("failure（00_共通 §4.1: サーバが返した失敗）", () => {
+  it("渡された文言だけを持つ失敗を作る", () => {
+    expect(failure("タスクが見つかりませんでした")).toEqual({
+      ok: false,
+      message: "タスクが見つかりませんでした",
+    });
+  });
+
+  // すべての Server Action の失敗はここを通るので、届かなかった印が紛れ込むと全画面が
+  // 取り直しをやめる。作る側と判定する側を1本で結んでおく
+  it("届かなかった印は付けない（＝取り直しに行く側）", () => {
+    expect(isUnreachable(failure("タスクが見つかりませんでした"))).toBe(false);
+  });
+});
+
+// ここで見るのは §4.1 の規則そのもの。各フックの段（`use-server-action.test.tsx` /
+// `daily-board.optimistic.test.tsx`）が見るのは、その規則へ配線されているか
+describe("handleActionFailure（00_共通 §4.1: 失敗の表示と後始末）", () => {
+  function spies() {
+    return { setError: vi.fn(), refresh: vi.fn() };
+  }
+
+  it("サーバが返した失敗は、文言を出したうえで表示中のデータを取り直す", () => {
+    const handlers = spies();
+
+    handleActionFailure({ ok: false, message: "タスクが見つかりませんでした" }, handlers);
+
+    expect(handlers.setError).toHaveBeenCalledExactlyOnceWith("タスクが見つかりませんでした");
+    expect(handlers.refresh).toHaveBeenCalledOnce();
+  });
+
+  it("届かなかった失敗は文言だけ出し、取り直しに行かない（また失敗するだけのため）", () => {
+    const handlers = spies();
+
+    handleActionFailure({ ok: false, message: SAVE_FAILED, unreachable: true }, handlers);
+
+    expect(handlers.setError).toHaveBeenCalledExactlyOnceWith(SAVE_FAILED);
+    expect(handlers.refresh).not.toHaveBeenCalled();
   });
 });

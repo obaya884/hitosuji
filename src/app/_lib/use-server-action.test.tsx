@@ -1,13 +1,12 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { ActionResult } from "./action-result";
+import { failure, type ActionResult } from "./action-result";
 import { deferredAction } from "@/app/_testing/actions";
 import { router } from "@/app/_testing/next-navigation";
 import { useServerAction } from "./use-server-action";
 
 const ok = (): ActionResult => ({ ok: true });
-const failure = (message: string): ActionResult => ({ ok: false, message });
 
 // マスタ管理・routines は N-01（楽観的更新）の対象外で、保存の完了を待って反映する
 // （画面定義書02 §1・03 §1。両画面とも同文で規定）
