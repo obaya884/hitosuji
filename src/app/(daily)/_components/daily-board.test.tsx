@@ -2,9 +2,6 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MODE_COLOR_PRESETS, type Mode } from "@/domain/mode/mode";
-import type { Project } from "@/domain/project/project";
-import type { Section } from "@/domain/section/section";
 import { formatClock } from "@/app/_lib/format";
 import { otherRouterCalls, router } from "@/app/_testing/next-navigation";
 import { atJst, TEST_DATE } from "@/domain/shared/testing/clock";
@@ -38,7 +35,8 @@ import {
   type CreatingActionResult,
   type DailyActionResult,
 } from "../actions";
-import { headingOf, popoverLabels } from "../_testing/table-helpers";
+import { MODES, PROJECTS, SECTIONS } from "../_testing/factories";
+import { cellsOf, headingOf, popoverLabels, taskRows } from "../_testing/table-helpers";
 import { DailyBoard } from "./daily-board";
 
 // このファイルが偽物にするのは `../actions` だけ（テスト戦略定義書 §2「偽物を置いてよい境界」）。
@@ -122,14 +120,22 @@ function stickyObserver(): ResizeObserverStub {
 /** 打刻はクライアントの現在時刻を送る（§7）ので、時計を固定して観測できるようにする */
 const NOW = atJst("10:30");
 
-const SECTIONS: readonly Section[] = [
-  { id: 1, name: "午前", startTime: "09:00", isArchived: false },
-  { id: 2, name: "午後", startTime: "13:00", isArchived: false },
-];
-const MODES: readonly Mode[] = [
-  { id: 1, name: "集中", color: MODE_COLOR_PRESETS[8].value, isArchived: false },
-];
-const PROJECTS: readonly Project[] = [{ id: 1, name: "改善", isArchived: false }];
+/** マスタを名前で引く（添字だと並び替えで意味が変わる。`factories` の `modeOf` と同じ流儀） */
+function masterOf<T extends { name: string }>(kind: string, masters: readonly T[], name: string): T {
+  const master = masters.find((m) => m.name === name);
+  if (master === undefined) throw new Error(`${kind}「${name}」がフィクスチャにありません`);
+  return master;
+}
+
+// マスタは `_testing/factories` の共有フィクスチャを使う（時間帯の定義はそちらが正）。
+// **NOW = 10:30 が属するのは 午前**なので、現在セクションを要するテストは FORENOON に、
+// 「現在セクションより後ろ」を要するテストは AFTERNOON に置く。
+// ID ではなく実体で持つのは、同じテストの中で「名前で選び ID で送られたかを見る」ため
+const FORENOON = masterOf("セクション", SECTIONS, "午前");
+const AFTERNOON = masterOf("セクション", SECTIONS, "午後");
+// モードは**先頭の候補を選ばない**（「常に先頭を送る」実装でも緑になってしまうため）
+const MODE = masterOf("モード", MODES, "生活");
+const PROJECT = masterOf("プロジェクト", PROJECTS, "サイト改善");
 
 const NOT_STARTED = "資料作成";
 const RUNNING = "定例会議";
@@ -140,12 +146,12 @@ const INBOX = "未分類のメモ";
 /** 未実行・実行中・完了が1件ずつある1日（表示順は 午前[未実行, 実行中] → 午後[完了]） */
 function defaultTasks(): Task[] {
   return [
-    task({ id: 11, name: NOT_STARTED, sectionId: 1, sortOrder: 1000 }),
-    task({ id: 12, name: RUNNING, sectionId: 1, sortOrder: 2000, startedAt: atJst("10:00") }),
+    task({ id: 11, name: NOT_STARTED, sectionId: FORENOON.id, sortOrder: 1000 }),
+    task({ id: 12, name: RUNNING, sectionId: FORENOON.id, sortOrder: 2000, startedAt: atJst("10:00") }),
     task({
       id: 13,
       name: COMPLETED,
-      sectionId: 2,
+      sectionId: AFTERNOON.id,
       sortOrder: 1000,
       startedAt: atJst("09:00"),
       endedAt: atJst("09:20"),
@@ -161,11 +167,11 @@ function defaultTasks(): Task[] {
 function inboxAndSections(): Task[] {
   return [
     task({ id: 10, name: INBOX }),
-    task({ id: 11, name: NOT_STARTED, sectionId: 1 }),
+    task({ id: 11, name: NOT_STARTED, sectionId: FORENOON.id }),
     task({
       id: 13,
       name: COMPLETED,
-      sectionId: 2,
+      sectionId: AFTERNOON.id,
       startedAt: atJst("09:00"),
       endedAt: atJst("09:20"),
     }),
@@ -177,7 +183,7 @@ const SNAPSHOT: CompletionSnapshot = {
   taskId: 13,
   startedAt: atJst("09:00"),
   endedAt: atJst("09:20"),
-  sectionId: 2,
+  sectionId: AFTERNOON.id,
   sortOrder: 1000,
 };
 
@@ -252,11 +258,6 @@ function hold<T>(settleOnCleanup: T) {
   return { promise, resolve };
 }
 
-/** 表示順のタスク行（列見出し・セクション見出し行は除く） */
-function taskRows(): HTMLElement[] {
-  return screen.getAllByRole("row").filter((tr) => tr.querySelectorAll("td").length >= 2);
-}
-
 function row(name: string): HTMLElement {
   const tr = screen.getByRole("button", { name }).closest("tr");
   if (tr === null) throw new Error(`行が見つかりません: ${name}`);
@@ -273,7 +274,7 @@ function rowAt(index: number): HTMLElement {
 /** 表示順のタスク名。並び替え・追加・削除の検証に使う */
 function rowNames(): string[] {
   return taskRows().flatMap((tr) => {
-    const nameButton = tr.querySelectorAll("td")[1].querySelector("button");
+    const nameButton = cellsOf(tr).name.querySelector("button");
     return nameButton === null ? [] : [nameButton.textContent ?? ""];
   });
 }
@@ -509,7 +510,7 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
     const gate = hold<DailyActionResult>(OK);
     vi.mocked(updateTaskEstimateAction).mockReturnValue(gate.promise);
     // 巻き戻り先の 0:30 をテスト本文で決める（既定値に寄りかからない）
-    renderBoard([task({ id: 11, name: NOT_STARTED, sectionId: 1, estimateMinutes: 30 })]);
+    renderBoard([task({ id: 11, name: NOT_STARTED, sectionId: FORENOON.id, estimateMinutes: 30 })]);
     selectRow(NOT_STARTED);
 
     press("e");
@@ -555,7 +556,7 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
   });
 
   it("ハイライト済みの行では OFF を送る（トグルの反転。O-17）", () => {
-    renderBoard([task({ id: 11, name: NOT_STARTED, sectionId: 1, highlighted: true })]);
+    renderBoard([task({ id: 11, name: NOT_STARTED, sectionId: FORENOON.id, highlighted: true })]);
     selectRow(NOT_STARTED);
 
     press("h");
@@ -565,7 +566,7 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
   });
 
   it("⭐のクリックでも同じくトグルする（O-17）", () => {
-    renderBoard([task({ id: 11, name: NOT_STARTED, sectionId: 1, highlighted: false })]);
+    renderBoard([task({ id: 11, name: NOT_STARTED, sectionId: FORENOON.id, highlighted: false })]);
     // 未ハイライト行の⭐は選択行にだけ出る（§3.3）ので、既定選択に頼らず自分で選ぶ
     selectRow(NOT_STARTED);
 
@@ -577,7 +578,7 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
   // O-17: 状態も日付も問わない。終了予定（F-104）等の「今日だけ」の規律は、
   // 現在時刻から導出する値の話であって、保存された宣言であるハイライトには及ばない（要件 §5.1）
   it("今日以外を表示中でもハイライトを付け外しできる（表示日を問わない）", () => {
-    renderBoard([task({ id: 11, name: NOT_STARTED, sectionId: 1, taskDate: "2026-07-20" })], {
+    renderBoard([task({ id: 11, name: NOT_STARTED, sectionId: FORENOON.id, taskDate: "2026-07-20" })], {
       date: "2026-07-20",
       today: TEST_DATE,
       isToday: false,
@@ -593,7 +594,13 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
   // 削除・完了の取り消しと保留1スロットを奪い合わせない（O-13）
   it("ハイライトされた実行中タスクの `U` は開始打刻の取り消しで、ハイライトには触れない", async () => {
     renderBoard([
-      task({ id: 11, name: RUNNING, sectionId: 1, startedAt: atJst("09:00"), highlighted: true }),
+      task({
+        id: 11,
+        name: RUNNING,
+        sectionId: FORENOON.id,
+        startedAt: atJst("09:00"),
+        highlighted: true,
+      }),
     ]);
     selectRow(RUNNING);
 
@@ -607,7 +614,7 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
 
   it("空で確定するとコメントを消す（印も全文も消える。O-16）", async () => {
     renderBoard([
-      task({ id: 11, name: NOT_STARTED, sectionId: 1, comment: "書いてあった" }),
+      task({ id: 11, name: NOT_STARTED, sectionId: FORENOON.id, comment: "書いてあった" }),
     ]);
     selectRow(NOT_STARTED);
 
@@ -729,7 +736,7 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
     // サーバが採番した複製（同名・未実施のトップ＝実行中タスクの直後）が現れる
     applyServerState([
       ...defaultTasks(),
-      task({ id: 31, name: NOT_STARTED, sectionId: 1, sortOrder: 3000 }),
+      task({ id: 31, name: NOT_STARTED, sectionId: FORENOON.id, sortOrder: 3000 }),
     ]);
 
     // 同名の行が2つ並ぶので位置で見る（複製元ではなく複製へ移っている）
@@ -789,8 +796,8 @@ describe("DailyBoard の打刻（F-201 / F-211 / §7: クライアントの現�
   it("現在セクションに未実行がなければ送り先は未分類（F-211 / §5 規則3）", () => {
     renderBoard([
       task({ id: 10, name: INBOX }),
-      task({ id: 12, name: RUNNING, sectionId: 1, startedAt: atJst("10:00") }),
-      task({ id: 13, name: NOT_STARTED, sectionId: 2 }), // 午後＝現在セクションより後ろ
+      task({ id: 12, name: RUNNING, sectionId: FORENOON.id, startedAt: atJst("10:00") }),
+      task({ id: 13, name: NOT_STARTED, sectionId: AFTERNOON.id }), // 現在セクションより後ろ
     ]);
     selectRow(RUNNING);
 
@@ -800,7 +807,7 @@ describe("DailyBoard の打刻（F-201 / F-211 / §7: クライアントの現�
   });
 
   it("送り先の未実行タスクがなければ選択は完了行に据え置く（F-211）", () => {
-    renderBoard([task({ id: 12, name: RUNNING, sectionId: 1, startedAt: atJst("10:00") })]);
+    renderBoard([task({ id: 12, name: RUNNING, sectionId: FORENOON.id, startedAt: atJst("10:00") })]);
     selectRow(RUNNING);
 
     fireEvent.click(within(row(RUNNING)).getByLabelText("終了"));
@@ -815,11 +822,11 @@ describe("DailyBoard の打刻（F-201 / F-211 / §7: クライアントの現�
     await clickAndSettle(within(row(RUNNING)).getByLabelText("終了"));
     // サーバ確定後の再取得（完了した打刻が乗った状態）まで流して確かめる
     applyServerState([
-      task({ id: 11, name: NOT_STARTED, sectionId: 1, sortOrder: 1000 }),
+      task({ id: 11, name: NOT_STARTED, sectionId: FORENOON.id, sortOrder: 1000 }),
       task({
         id: 12,
         name: RUNNING,
-        sectionId: 1,
+        sectionId: FORENOON.id,
         sortOrder: 2000,
         startedAt: atJst("10:00"),
         endedAt: NOW,
@@ -850,7 +857,7 @@ describe("DailyBoard の打刻（F-201 / F-211 / §7: クライアントの現�
     // サーバが採番した複製（同名・実行中）が末尾に現れる
     applyServerState([
       ...defaultTasks(),
-      task({ id: 32, name: COMPLETED, sectionId: 2, sortOrder: 2000, startedAt: NOW }),
+      task({ id: 32, name: COMPLETED, sectionId: AFTERNOON.id, sortOrder: 2000, startedAt: NOW }),
     ]);
 
     // 同名の行が2つ並ぶので位置で見る（複製元は完了のまま残る）
@@ -982,7 +989,7 @@ describe("DailyBoard の完了の取り消し（O-15 / F-212）", () => {
       taskId: 13,
       startedAt: atJst("09:00"),
       endedAt: atJst("09:20"),
-      sectionId: 2,
+      sectionId: AFTERNOON.id,
       sortOrder: 1000,
     };
     const gate = hold<UndoCompleteResult>(UNCOMPLETE_OK);
@@ -999,7 +1006,7 @@ describe("DailyBoard の完了の取り消し（O-15 / F-212）", () => {
     await gate.resolve({ ok: true, snapshot });
     applyServerState([
       ...defaultTasks().filter((t) => t.id !== 13),
-      task({ id: 13, name: COMPLETED, sectionId: 1, sortOrder: 1500 }),
+      task({ id: 13, name: COMPLETED, sectionId: FORENOON.id, sortOrder: 1500 }),
     ]);
 
     expect(within(row(COMPLETED)).queryByText(formatClock(atJst("09:00")))).toBeNull();
@@ -1017,7 +1024,7 @@ describe("DailyBoard の完了の取り消し（O-15 / F-212）", () => {
       taskId: 13,
       startedAt: atJst("09:00"),
       endedAt: atJst("09:20"),
-      sectionId: 2,
+      sectionId: AFTERNOON.id,
       sortOrder: 1000,
     });
   });
@@ -1275,7 +1282,7 @@ describe("DailyBoard のインライン編集の検証（§8 / 00_共通 §2.3�
   });
 
   it("変更なしの確定は送信しない（タスク名・見積もりとも）", () => {
-    renderBoard([task({ id: 11, name: NOT_STARTED, sectionId: 1, estimateMinutes: 30 })]);
+    renderBoard([task({ id: 11, name: NOT_STARTED, sectionId: FORENOON.id, estimateMinutes: 30 })]);
     selectRow(NOT_STARTED);
 
     press("r");
@@ -1288,7 +1295,7 @@ describe("DailyBoard のインライン編集の検証（§8 / 00_共通 §2.3�
   });
 
   it("コメントも変更なしの確定は送信しない（前後の空白だけの差も同値）", () => {
-    renderBoard([task({ id: 11, name: NOT_STARTED, sectionId: 1, comment: "前に書いた" })]);
+    renderBoard([task({ id: 11, name: NOT_STARTED, sectionId: FORENOON.id, comment: "前に書いた" })]);
     selectRow(NOT_STARTED);
 
     press("c");
@@ -1305,7 +1312,7 @@ describe("DailyBoard のインライン編集の検証（§8 / 00_共通 §2.3�
    * 入力欄の unmount を伴うため、行単体（`daily-list.test.tsx`）では踏めない経路
    */
   it("Esc で取り消すと書きかけは保存されず、元のコメントが残る（O-16 / 00_共通 §2.3）", () => {
-    renderBoard([task({ id: 11, name: NOT_STARTED, sectionId: 1, comment: "前に書いた" })]);
+    renderBoard([task({ id: 11, name: NOT_STARTED, sectionId: FORENOON.id, comment: "前に書いた" })]);
     selectRow(NOT_STARTED);
 
     press("c");
@@ -1448,8 +1455,8 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
     vi.mocked(moveTaskByStepAction).mockReturnValue(gate.promise);
     // 初期選択は「現在地」＝先頭の未実行タスク。固定しないと移動後に選択が再導出されて別タスクへ飛ぶ
     renderBoard([
-      task({ id: 21, name: "洗濯", sectionId: 1, sortOrder: 1000 }),
-      task({ id: 22, name: "掃除", sectionId: 1, sortOrder: 2000 }),
+      task({ id: 21, name: "洗濯", sectionId: FORENOON.id, sortOrder: 1000 }),
+      task({ id: 22, name: "掃除", sectionId: FORENOON.id, sortOrder: 2000 }),
     ]);
 
     press("J", { shiftKey: true });
@@ -1489,7 +1496,7 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
     press("J", { shiftKey: true });
 
     // 表示順は隣接したままだが、行のセクション表記が移動先（午後）に変わる
-    expect(within(row(RUNNING)).queryByRole("button", { name: "午後" })).not.toBeNull();
+    expect(within(row(RUNNING)).queryByRole("button", { name: AFTERNOON.name })).not.toBeNull();
     expect(rowNames()).toEqual([NOT_STARTED, RUNNING, COMPLETED]);
     expect(isSelected(RUNNING)).toBe(true);
   });
@@ -1566,11 +1573,11 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
       task({
         id: 11,
         name: COMPLETED,
-        sectionId: 1,
+        sectionId: FORENOON.id,
         startedAt: atJst("09:00"),
         endedAt: atJst("09:20"),
       }),
-      task({ id: 13, name: NOT_STARTED, sectionId: 2 }), // 午後＝現在セクションより後ろ
+      task({ id: 13, name: NOT_STARTED, sectionId: AFTERNOON.id }), // 現在セクションより後ろ
     ]);
     selectRow(COMPLETED);
 
@@ -1590,7 +1597,13 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
 
   it("全件完了の日で N を押しても選択行は消えない（§5: 選択行は常に1つ）", () => {
     renderBoard([
-      task({ id: 11, name: COMPLETED, sectionId: 1, startedAt: atJst("09:00"), endedAt: atJst("09:20") }),
+      task({
+        id: 11,
+        name: COMPLETED,
+        sectionId: FORENOON.id,
+        startedAt: atJst("09:00"),
+        endedAt: atJst("09:20"),
+      }),
     ]);
     selectRow(COMPLETED);
 
@@ -1618,7 +1631,7 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
   });
 
   it("C はコメントの入力欄を開く（O-16 / F-206）", () => {
-    renderBoard([task({ id: 11, name: NOT_STARTED, sectionId: 1, comment: "前に書いた" })]);
+    renderBoard([task({ id: 11, name: NOT_STARTED, sectionId: FORENOON.id, comment: "前に書いた" })]);
     selectRow(NOT_STARTED);
 
     press("c");
@@ -1703,18 +1716,26 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
  * **導出して配れているか**（配線を切っても他段のテストは緑のままになるため）
  */
 describe("DailyBoard の現在セクションの導出（§3.2 F-121 の強調 / §4.3 の固定候補）", () => {
-  it("現在時刻を含むセクションの見出しだけ強調する（F-121）", () => {
-    renderBoard(); // NOW = 10:30 → 午前（09:00-13:00）
+  /**
+   * 「だけ」を主張するので**有効セクションを全部見る**（強調された見出しの一覧で照合する）。
+   * 個別の見出しを名指しで数えると、フィクスチャにセクションが増えたぶんが検査から漏れる。
+   * アーカイブ済みは当日タスクが属さない限り見出しが出ない（§3.2）ので母集団から外す
+   */
+  const highlightedSectionNames = () =>
+    SECTIONS.filter((s) => !s.isArchived)
+      .filter((s) => headingOf(s.name).classList.contains("bg-band-now"))
+      .map((s) => s.name);
 
-    expect(headingOf("午前").classList.contains("bg-band-now")).toBe(true);
-    expect(headingOf("午後").classList.contains("bg-band-now")).toBe(false);
+  it("現在時刻を含むセクションの見出しだけ強調する（F-121）", () => {
+    renderBoard(); // NOW = 10:30 → 午前
+
+    expect(highlightedSectionNames()).toEqual([FORENOON.name]);
   });
 
   it("表示日が今日でなければどのセクションも強調しない（F-121）", () => {
     renderBoard(defaultTasks(), { date: "2026-07-20", today: TEST_DATE, isToday: false });
 
-    expect(headingOf("午前").classList.contains("bg-band-now")).toBe(false);
-    expect(headingOf("午後").classList.contains("bg-band-now")).toBe(false);
+    expect(highlightedSectionNames()).toEqual([]);
   });
 
   it("セクション選択の候補先頭に「現在のセクションへ」を出す（O-5 / §4.3）", () => {
@@ -1723,7 +1744,7 @@ describe("DailyBoard の現在セクションの導出（§3.2 F-121 の強調 /
 
     press("s");
 
-    expect(popoverLabels()[0]).toBe("現在のセクションへ（午前）");
+    expect(popoverLabels()[0]).toBe(`現在のセクションへ（${FORENOON.name}）`);
   });
 });
 
@@ -1731,14 +1752,15 @@ describe("DailyBoard の割り当て（O-5: モード・プロジェクト・セ
   it("モードの割り当ては楽観的に反映し、失敗すると未設定へ戻す", async () => {
     const gate = hold<DailyActionResult>(OK);
     vi.mocked(setTaskModeAction).mockReturnValue(gate.promise);
-    renderBoard();
+    // タスクの ID をマスタの ID と重ならない値で描く（下のプロジェクトと同じ理由）
+    renderBoard([task({ id: 42, name: NOT_STARTED, sectionId: FORENOON.id })]);
     selectRow(NOT_STARTED);
 
     press("m");
-    chooseOption("集中");
+    chooseOption(MODE.name);
 
-    expect(vi.mocked(setTaskModeAction)).toHaveBeenCalledWith(11, 1);
-    expect(within(row(NOT_STARTED)).queryByLabelText("モード（集中）")).not.toBeNull();
+    expect(vi.mocked(setTaskModeAction)).toHaveBeenCalledWith(42, MODE.id);
+    expect(within(row(NOT_STARTED)).queryByLabelText(`モード（${MODE.name}）`)).not.toBeNull();
 
     await gate.resolve({ ok: false, message: "保存に失敗しました" });
 
@@ -1748,14 +1770,18 @@ describe("DailyBoard の割り当て（O-5: モード・プロジェクト・セ
   it("プロジェクトの割り当てもモードと同じ規則で楽観的に反映する（O-5 / F-402）", () => {
     const gate = hold<DailyActionResult>(OK);
     vi.mocked(setTaskProjectAction).mockReturnValue(gate.promise);
-    renderBoard();
+    // タスクの ID をマスタの ID と重ならない値で描く。既定タスク（id 11）のままだと
+    // `サイト改善` の ID と同値になり、`(taskId, projectId)` を取り違えた実装でも緑になる
+    renderBoard([task({ id: 41, name: NOT_STARTED, sectionId: FORENOON.id })]);
     selectRow(NOT_STARTED);
 
     press("p");
-    chooseOption("改善");
+    chooseOption(PROJECT.name);
 
-    expect(vi.mocked(setTaskProjectAction)).toHaveBeenCalledWith(11, 1);
-    expect(within(row(NOT_STARTED)).queryByLabelText("プロジェクト（改善）")).not.toBeNull();
+    expect(vi.mocked(setTaskProjectAction)).toHaveBeenCalledWith(41, PROJECT.id);
+    expect(
+      within(row(NOT_STARTED)).queryByLabelText(`プロジェクト（${PROJECT.name}）`)
+    ).not.toBeNull();
   });
 
   it("セクションの割り当ては移動先の末尾へ楽観的に動かし、失敗すると元の位置へ戻す（O-5 / §4.3）", async () => {
@@ -1765,12 +1791,12 @@ describe("DailyBoard の割り当て（O-5: モード・プロジェクト・セ
     selectRow(NOT_STARTED);
 
     press("s");
-    chooseOption("午後");
+    chooseOption(AFTERNOON.name);
 
     expect(vi.mocked(setTaskSectionAction)).toHaveBeenCalledWith({
       taskId: 11,
       date: TEST_DATE,
-      sectionId: 2,
+      sectionId: AFTERNOON.id,
     });
     expect(rowNames()).toEqual([RUNNING, COMPLETED, NOT_STARTED]);
 
@@ -1798,7 +1824,7 @@ describe("DailyBoard の割り当て（O-5: モード・プロジェクト・セ
     expect(vi.mocked(setTaskSectionAction)).toHaveBeenCalledWith({
       taskId: 11,
       date: TEST_DATE,
-      sectionId: 2,
+      sectionId: AFTERNOON.id,
     });
     expect(vi.mocked(startTaskAction)).not.toHaveBeenCalled();
     expect(vi.mocked(finishTaskAction)).not.toHaveBeenCalled();
@@ -1922,8 +1948,17 @@ describe("DailyBoard の固定領域の高さ（§2 / §5: 追従した行が固
   /** 行ごとの写像は task-row.test.tsx が持つので、ここで見るのは「全行に同じ値が届いたか」 */
   const scrollMargins = () => new Set(taskRows().map((tr) => tr.style.scrollMarginTop));
 
+  /**
+   * 現在地（実行中タスク＝初期選択）にコメントを付けた盤面。コメント行（O-16）は選択行の
+   * 直下に出るがタスク行ではなく scroll-margin を持たないので、**タスク行の数え方を緩めると
+   * 集合に "" が混ざって落ちる**——数え方そのものをここで固定する
+   */
+  const tasksWithCommentRow = () =>
+    defaultTasks().map((t) => (t.name === RUNNING ? { ...t, comment: "延びた" } : t));
+
   it("実測した高さを全行の scroll-margin へ配り、変化のたびに追う", () => {
-    renderBoard();
+    renderBoard(tasksWithCommentRow());
+    expect(taskRows()).toHaveLength(3); // コメント行はタスク行に数えない
     expect(scrollMargins()).toEqual(new Set(["0px"])); // 実測が届く前は 0
 
     act(() => stickyObserver().resizeTo(96));
