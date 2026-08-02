@@ -291,12 +291,13 @@ export function DailyBoard({
   /**
    * 終了打刻（実行中→完了）。完了したら選択行を次の未実行タスクへ送る（F-211 / §5）。送り先を
    * 決める `orderedTasks` は楽観的更新の適用前で終了対象がまだ実行中として残るため、実行中を優先する
-   * `currentTaskId` だとその行を選び直してしまう。送り先がなければ据え置く（`setSelectedId` しない）。
+   * `currentTaskId` だとその行を選び直してしまう。送り先がなければ打刻した行を選ぶ（§5。別の行を
+   * 選んだまま打刻していてもそこへ送る＝拒否されたときの戻し先と同じ）。
    * サーバが拒んだら行の巻き戻しに合わせて選択も戻す（§5 / N-01。完了していない以上、選択だけ先へ送らない）
    */
   function finish(task: Task, now: Date) {
-    const next = currentNotStartedId(orderedTasks, currentSectionId);
-    if (next !== null) setSelectedId(next);
+    const next = currentNotStartedId(orderedTasks, currentSectionId) ?? task.id;
+    setSelectedId(next);
 
     run(
       () => finishTaskAction(task.id, now),

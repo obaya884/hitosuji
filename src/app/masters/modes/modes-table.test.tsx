@@ -5,7 +5,7 @@ import { MODE_COLOR_PRESETS, type Mode } from "@/domain/mode/mode";
 
 import { deferredAction } from "@/app/_testing/actions";
 import { rgbOf, rowOf } from "@/app/_testing/dom";
-import { click } from "@/app/_testing/interactions";
+import { click, clickWithoutServer } from "@/app/_testing/interactions";
 import { startEditingCell } from "../_testing/table-helpers";
 
 // Server Action の先は実DB接続と revalidatePath に届くため、同じ返り値の契約
@@ -56,9 +56,11 @@ function renderTable(
   );
 }
 
-/** カラーバーを押してプリセット選択を開く */
-const openColorPicker = async (row: HTMLElement, currentColorName: string): Promise<void> =>
-  click(within(row).getByRole("button", { name: `色を変更（現在: ${currentColorName}）` }));
+/** カラーバーを押してプリセット選択を開く（開くだけなのでサーバへは届かない） */
+const openColorPicker = (row: HTMLElement, currentColorName: string): void =>
+  clickWithoutServer(
+    within(row).getByRole("button", { name: `色を変更（現在: ${currentColorName}）` })
+  );
 
 /** 開いているプリセット選択のパネル（候補の外へ検索が漏れないよう、ここへ絞って主張する） */
 const colorPickerPanel = (): HTMLElement => {
@@ -98,7 +100,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
     it("カラーバーを押すとプリセット13色（12色＋グレー）がその場に開く", async () => {
       renderTable();
 
-      await openColorPicker(rowOf("モードA"), "赤");
+      openColorPicker(rowOf("モードA"), "赤");
 
       const swatches = screen.getAllByRole("button", { name: /^色 / });
       expect(swatches.map((b) => b.getAttribute("aria-label"))).toEqual([
@@ -121,7 +123,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
     it("自由入力は設けない（N-05: 開いたパネルは候補だけで入力欄を持たない）", async () => {
       renderTable();
 
-      await openColorPicker(rowOf("モードA"), "赤");
+      openColorPicker(rowOf("モードA"), "赤");
 
       const panel = colorPickerPanel();
       expect(within(panel).queryByRole("textbox")).toBeNull();
@@ -132,7 +134,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
     it("候補は色名に対応する色値で塗られる", async () => {
       renderTable();
 
-      await openColorPicker(rowOf("モードA"), "赤");
+      openColorPicker(rowOf("モードA"), "赤");
 
       for (const { value, name } of MODE_COLOR_PRESETS) {
         const swatch = screen.getByRole("button", { name: `色 ${name}` });
@@ -143,7 +145,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
     it("開くと現在値を輪郭で示す（画面定義書03 §3.2）", async () => {
       renderTable();
 
-      await openColorPicker(rowOf("モードB"), "青");
+      openColorPicker(rowOf("モードB"), "青");
 
       // 輪郭は面色と違い role や aria では読めないので classList で見る
       // （`select-popover.test.tsx` のハイライト判定と同じ流儀）
@@ -158,7 +160,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
     it("現在値を読み上げにも出す（`aria-pressed`）", async () => {
       renderTable();
 
-      await openColorPicker(rowOf("モードB"), "青");
+      openColorPicker(rowOf("モードB"), "青");
 
       expect(screen.getByRole("button", { name: "色 青" }).getAttribute("aria-pressed")).toBe("true");
       expect(screen.getByRole("button", { name: "色 赤" }).getAttribute("aria-pressed")).toBe(
@@ -168,7 +170,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
 
     it("候補にマウスを乗せるとその色の名前を吹き出しで出す", async () => {
       renderTable();
-      await openColorPicker(rowOf("モードA"), "赤");
+      openColorPicker(rowOf("モードA"), "赤");
       const swatch = screen.getByRole("button", { name: "色 ライム" });
 
       fireEvent.mouseEnter(swatch);
@@ -180,7 +182,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
 
     it("キーボードで候補へ移っても色名を吹き出しで出す（マウスを使わなくても色名が読める）", async () => {
       renderTable();
-      await openColorPicker(rowOf("モードA"), "赤");
+      openColorPicker(rowOf("モードA"), "赤");
       const swatch = screen.getByRole("button", { name: "色 ティール" });
 
       fireEvent.focus(swatch);
@@ -192,7 +194,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
 
     it("色を選ぶと即保存し（名前は現在値のまま送る）ポップオーバーを閉じる", async () => {
       renderTable();
-      await openColorPicker(rowOf("モードA"), "赤");
+      openColorPicker(rowOf("モードA"), "赤");
 
       await click(screen.getByRole("button", { name: "色 グレー" }));
 
@@ -205,7 +207,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
 
     it("Esc で閉じる（送信しない。00_共通 §2.1「閉じ方」）", async () => {
       renderTable();
-      await openColorPicker(rowOf("モードA"), "赤");
+      openColorPicker(rowOf("モードA"), "赤");
 
       fireEvent.keyDown(document, { key: "Escape" });
 
@@ -215,7 +217,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
 
     it("外側のクリックで閉じる（送信しない。00_共通 §2.1「閉じ方」）", async () => {
       renderTable();
-      await openColorPicker(rowOf("モードA"), "赤");
+      openColorPicker(rowOf("モードA"), "赤");
 
       fireEvent.mouseDown(document.body);
 
@@ -228,14 +230,14 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
     it("名前セルをクリックするとその場が入力欄になる", async () => {
       renderTable();
 
-      const input = await startEditingCell("モードA");
+      const input = startEditingCell("モードA");
 
       expect(input.tagName).toBe("INPUT");
     });
 
     it("変更なしの確定は何も送信せず閉じる", async () => {
       renderTable();
-      const input = await startEditingCell("モードA");
+      const input = startEditingCell("モードA");
 
       fireEvent.blur(input);
 
@@ -247,7 +249,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
 
     it("フォーカスが外れたときに確定し、色は現在値のまま送る（§4「行の全項目をまとめて送る」）", async () => {
       renderTable();
-      const input = await startEditingCell("モードB");
+      const input = startEditingCell("モードB");
 
       fireEvent.change(input, { target: { value: "改名後" } });
       fireEvent.blur(input);
@@ -262,7 +264,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
 
     it("Enter でも確定する（入力欄を抜けて blur の経路に合流する）", async () => {
       renderTable();
-      const input = await startEditingCell("モードA");
+      const input = startEditingCell("モードA");
 
       fireEvent.change(input, { target: { value: "改名後" } });
       fireEvent.keyDown(input, { key: "Enter" });
@@ -274,7 +276,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
 
     it("Esc は元の値に戻して閉じる（送信しない）", async () => {
       renderTable();
-      const input = await startEditingCell("モードA");
+      const input = startEditingCell("モードA");
       fireEvent.change(input, { target: { value: "書きかけ" } });
 
       fireEvent.keyDown(input, { key: "Escape" });
@@ -318,7 +320,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       const pending = deferredAction();
       vi.mocked(updateModeAction).mockReturnValue(pending.promise);
       renderTable();
-      const input = await startEditingCell("モードA");
+      const input = startEditingCell("モードA");
 
       fireEvent.change(input, { target: { value: "改名後" } });
       fireEvent.blur(input);
@@ -344,7 +346,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
         message: "名前は50文字以内で入力してください",
       });
       renderTable();
-      const input = await startEditingCell("モードA");
+      const input = startEditingCell("モードA");
 
       fireEvent.change(input, { target: { value: "あ".repeat(51) } });
       fireEvent.blur(input);
@@ -362,7 +364,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
         message: "名前を入力してください",
       });
       renderTable();
-      const input = await startEditingCell("モードA");
+      const input = startEditingCell("モードA");
       fireEvent.change(input, { target: { value: "" } });
       fireEvent.blur(input);
       // メッセージの表示と isPending の解除は別のタイミングで届く。§2.3 が要求するのは
@@ -389,7 +391,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
         message: "名前を入力してください",
       });
       renderTable();
-      const input = await startEditingCell("モードA");
+      const input = startEditingCell("モードA");
       fireEvent.change(input, { target: { value: "" } });
       fireEvent.blur(input);
       // 保存中は「新規追加」が押せないので、押せる状態に戻るまで待つ
@@ -408,7 +410,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
     it("既定色は先頭のプリセット（赤）で、名前と色を1行で入力する", async () => {
       renderTable();
 
-      await click(screen.getByRole("button", { name: "新規追加" }));
+      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
 
       expect(screen.getByPlaceholderText("モード名")).not.toBeNull();
       expect(screen.getByRole("button", { name: "色を選択（現在: 赤）" })).not.toBeNull();
@@ -416,10 +418,10 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
 
     it("新規行の色選択はまだ送信せず、「保存」でまとめて送る", async () => {
       renderTable();
-      await click(screen.getByRole("button", { name: "新規追加" }));
+      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
 
-      await click(screen.getByRole("button", { name: "色を選択（現在: 赤）" }));
-      await click(screen.getByRole("button", { name: "色 青" }));
+      clickWithoutServer(screen.getByRole("button", { name: "色を選択（現在: 赤）" }));
+      clickWithoutServer(screen.getByRole("button", { name: "色 青" }));
       expect(createModeAction).not.toHaveBeenCalled();
       expect(updateModeAction).not.toHaveBeenCalled();
       expect(screen.getByRole("button", { name: "色を選択（現在: 青）" })).not.toBeNull();
@@ -432,7 +434,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
 
     it("成功したら新規行を閉じる（保存の完了を待って反映する。§1）", async () => {
       renderTable();
-      await click(screen.getByRole("button", { name: "新規追加" }));
+      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
       fireEvent.change(screen.getByPlaceholderText("モード名"), { target: { value: "新モード" } });
 
       await click(screen.getByRole("button", { name: "保存" }));
@@ -442,7 +444,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
 
     it("Enter でも追加を送る（新規行は blur 経路を通らない）", async () => {
       renderTable();
-      await click(screen.getByRole("button", { name: "新規追加" }));
+      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
       const input = screen.getByPlaceholderText("モード名");
 
       fireEvent.change(input, { target: { value: "新モード" } });
@@ -455,10 +457,10 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
 
     it("「取消」で新規行を捨てる（送信しない）", async () => {
       renderTable();
-      await click(screen.getByRole("button", { name: "新規追加" }));
+      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
       fireEvent.change(screen.getByPlaceholderText("モード名"), { target: { value: "書きかけ" } });
 
-      await click(screen.getByRole("button", { name: "取消" }));
+      clickWithoutServer(screen.getByRole("button", { name: "取消" }));
 
       expect(screen.queryByPlaceholderText("モード名")).toBeNull();
       expect(createModeAction).not.toHaveBeenCalled();
@@ -466,7 +468,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
 
     it("Esc でも新規行を捨てる", async () => {
       renderTable();
-      await click(screen.getByRole("button", { name: "新規追加" }));
+      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
 
       fireEvent.keyDown(screen.getByPlaceholderText("モード名"), { key: "Escape" });
 
@@ -476,7 +478,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
 
     it("「保存」の押下は入力欄の blur より先に拾う（mousedown の既定動作を抑止して二重送信を防ぐ）", async () => {
       renderTable();
-      await click(screen.getByRole("button", { name: "新規追加" }));
+      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
 
       // preventDefault されると fireEvent は false を返す（＝入力欄はフォーカスを失わない）
       expect(fireEvent.mouseDown(screen.getByRole("button", { name: "保存" }))).toBe(false);
@@ -488,7 +490,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       const pending = deferredAction();
       vi.mocked(createModeAction).mockReturnValue(pending.promise);
       renderTable();
-      await click(screen.getByRole("button", { name: "新規追加" }));
+      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
       fireEvent.change(screen.getByPlaceholderText("モード名"), { target: { value: "新モード" } });
 
       await click(screen.getByRole("button", { name: "保存" }));
@@ -532,7 +534,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       const pending = deferredAction();
       vi.mocked(createModeAction).mockReturnValue(pending.promise);
       renderTable();
-      await click(screen.getByRole("button", { name: "新規追加" }));
+      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
       fireEvent.change(screen.getByPlaceholderText("モード名"), { target: { value: "新モード" } });
 
       await click(screen.getByRole("button", { name: "保存" }));
@@ -554,7 +556,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       const pending = deferredAction();
       vi.mocked(createModeAction).mockReturnValue(pending.promise);
       renderTable();
-      await click(screen.getByRole("button", { name: "新規追加" }));
+      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
       fireEvent.change(screen.getByPlaceholderText("モード名"), { target: { value: "新モード" } });
 
       await click(screen.getByRole("button", { name: "保存" }));
@@ -569,12 +571,12 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
 
     it("開くたびに既定色へ戻す（前回の選択を持ち越さない）", async () => {
       renderTable();
-      await click(screen.getByRole("button", { name: "新規追加" }));
-      await click(screen.getByRole("button", { name: "色を選択（現在: 赤）" }));
-      await click(screen.getByRole("button", { name: "色 青" }));
-      await click(screen.getByRole("button", { name: "取消" }));
+      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
+      clickWithoutServer(screen.getByRole("button", { name: "色を選択（現在: 赤）" }));
+      clickWithoutServer(screen.getByRole("button", { name: "色 青" }));
+      clickWithoutServer(screen.getByRole("button", { name: "取消" }));
 
-      await click(screen.getByRole("button", { name: "新規追加" }));
+      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
 
       expect(screen.getByRole("button", { name: "色を選択（現在: 赤）" })).not.toBeNull();
     });
@@ -622,7 +624,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
 
       expect(within(rowOf("旧モードA")).queryByRole("button", { name: "削除" })).toBeNull();
       const row = rowOf("旧モードB");
-      await click(within(row).getByRole("button", { name: "削除" }));
+      clickWithoutServer(within(row).getByRole("button", { name: "削除" }));
       await click(within(row).getByRole("button", { name: "削除する" }));
 
       expect(deleteModeAction).toHaveBeenCalledExactlyOnceWith(9);
