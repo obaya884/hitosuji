@@ -1,11 +1,11 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { hasClass, rowOf } from "@/app/_testing/dom";
+import { hasClass } from "@/app/_testing/dom";
 import { atJst } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
 import { colorOf, modeOf, MODES, PROJECTS, SECTIONS } from "../_testing/factories";
-import { cellsOf, checkedPopoverLabels, popoverLabels } from "../_testing/table-helpers";
+import { cellsOf, checkedPopoverLabels, popoverLabels, taskRow } from "../_testing/table-helpers";
 import { TaskRow, type TaskRowProps } from "./task-row";
 
 /**
@@ -74,7 +74,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
     it("未実行は開始ボタン（押したときの動作を示す。F-201）", () => {
       renderRow({ task: task({ id: 1, name: "日次プラン" }) });
 
-      const button = within(cellsOf(rowOf("日次プラン")).punch).getByRole("button");
+      const button = within(cellsOf(taskRow("日次プラン")).punch).getByRole("button");
       expect(button.getAttribute("aria-label")).toBe("開始");
       expect((button as HTMLButtonElement).disabled).toBe(false);
     });
@@ -82,7 +82,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
     it("実行中は終了ボタン", () => {
       renderRow({ task: task({ id: 1, name: "メール", startedAt: atJst("08:05") }) });
 
-      const button = within(cellsOf(rowOf("メール")).punch).getByRole("button");
+      const button = within(cellsOf(taskRow("メール")).punch).getByRole("button");
       expect(button.getAttribute("aria-label")).toBe("終了");
       expect((button as HTMLButtonElement).disabled).toBe(false);
     });
@@ -92,7 +92,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
         task: task({ id: 1, name: "朝食", startedAt: atJst("06:30"), endedAt: atJst("06:48") }),
       });
 
-      const button = within(cellsOf(rowOf("朝食")).punch).getByRole("button");
+      const button = within(cellsOf(taskRow("朝食")).punch).getByRole("button");
       expect(button.getAttribute("aria-label")).toBe("完了済み");
       expect((button as HTMLButtonElement).disabled).toBe(true);
     });
@@ -102,7 +102,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
         task: task({ id: 1, name: "朝食", estimateMinutes: 20, startedAt: atJst("06:30"), endedAt: atJst("06:48") }),
       });
 
-      const { actual } = cellsOf(rowOf("朝食"));
+      const { actual } = cellsOf(taskRow("朝食"));
       expect(actual.textContent).toBe("→ 0:18");
       expect((actual.firstElementChild as HTMLElement).classList.contains("text-danger")).toBe(false);
     });
@@ -112,7 +112,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
         task: task({ id: 1, name: "朝食", estimateMinutes: 10, startedAt: atJst("06:30"), endedAt: atJst("06:48") }),
       });
 
-      const { actual } = cellsOf(rowOf("朝食"));
+      const { actual } = cellsOf(taskRow("朝食"));
       expect((actual.firstElementChild as HTMLElement).classList.contains("text-danger")).toBe(true);
     });
 
@@ -121,7 +121,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
         task: task({ id: 1, name: "朝食", estimateMinutes: 0, startedAt: atJst("06:30"), endedAt: atJst("06:48") }),
       });
 
-      const { actual } = cellsOf(rowOf("朝食"));
+      const { actual } = cellsOf(taskRow("朝食"));
       expect((actual.firstElementChild as HTMLElement).classList.contains("text-danger")).toBe(false);
     });
 
@@ -131,7 +131,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
         task: task({ id: 1, name: "朝食", estimateMinutes: 20, startedAt: atJst("06:30"), endedAt: atJst("06:30") }),
       });
 
-      expect(cellsOf(rowOf("朝食")).actual.textContent).toBe("→ 0:00");
+      expect(cellsOf(taskRow("朝食")).actual.textContent).toBe("→ 0:00");
     });
 
     it("実行中は経過を出す（F-205。実績は出さない）", () => {
@@ -140,7 +140,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
         task: task({ id: 1, name: "メール", estimateMinutes: 30, startedAt: atJst("08:05") }),
       });
 
-      expect(cellsOf(rowOf("メール")).actual.textContent).toBe("(経過 0:12)");
+      expect(cellsOf(taskRow("メール")).actual.textContent).toBe("(経過 0:12)");
     });
 
     it("経過が見積もりを超えたら警告色（F-205。完了の実績超過と同じ規則）", () => {
@@ -149,7 +149,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
         task: task({ id: 1, name: "メール", estimateMinutes: 10, startedAt: atJst("08:05") }),
       });
 
-      const { actual } = cellsOf(rowOf("メール"));
+      const { actual } = cellsOf(taskRow("メール"));
       expect(actual.textContent).toBe("(経過 0:55)");
       expect((actual.firstElementChild as HTMLElement).classList.contains("text-danger")).toBe(true);
     });
@@ -157,7 +157,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
     it("未実行は実績も経過も出さない", () => {
       renderRow({ task: task({ id: 1, name: "日次プラン" }) });
 
-      expect(cellsOf(rowOf("日次プラン")).actual.textContent).toBe("");
+      expect(cellsOf(taskRow("日次プラン")).actual.textContent).toBe("");
     });
 
     it("完了は開始–終了の両方を出す（F-203）", () => {
@@ -165,13 +165,13 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
         task: task({ id: 1, name: "朝食", startedAt: atJst("06:30"), endedAt: atJst("06:48") }),
       });
 
-      expect(cellsOf(rowOf("朝食")).time.textContent).toBe("06:30–06:48");
+      expect(cellsOf(taskRow("朝食")).time.textContent).toBe("06:30–06:48");
     });
 
     it("実行中は開始だけを出す（F-203）", () => {
       renderRow({ task: task({ id: 1, name: "メール", startedAt: atJst("08:05") }) });
 
-      expect(cellsOf(rowOf("メール")).time.textContent).toBe("08:05–");
+      expect(cellsOf(taskRow("メール")).time.textContent).toBe("08:05–");
     });
   });
 
@@ -180,7 +180,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
       renderRow({ task: task({ id: 1, name: "日次プラン" }) });
 
       // 列位置つきで見る（2列は同じ `AssignCell` なので、label を入れ替えても位置を見ないと通る）
-      const { project, mode } = cellsOf(rowOf("日次プラン"));
+      const { project, mode } = cellsOf(taskRow("日次プラン"));
       expect(within(project).queryByLabelText("プロジェクト（未設定）")).not.toBeNull();
       expect(within(mode).queryByLabelText("モード（未設定）")).not.toBeNull();
     });
@@ -188,7 +188,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
     it("見積もり未設定（0分）は薄色の `--:--`（終了予定の計算に入っていないことを示す。§3.3）", () => {
       renderRow({ task: task({ id: 1, name: "買い出しメモ", estimateMinutes: 0 }) });
 
-      const button = within(cellsOf(rowOf("買い出しメモ")).estimate).getByRole("button");
+      const button = within(cellsOf(taskRow("買い出しメモ")).estimate).getByRole("button");
       expect(button.textContent).toBe("--:--");
       expect(button.classList.contains("text-ink-faint")).toBe(true);
     });
@@ -196,7 +196,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
     it("見積もり設定済みは H:MM を通常色で出す", () => {
       renderRow({ task: task({ id: 1, name: "日次プラン", estimateMinutes: 15 }) });
 
-      const button = within(cellsOf(rowOf("日次プラン")).estimate).getByRole("button");
+      const button = within(cellsOf(taskRow("日次プラン")).estimate).getByRole("button");
       expect(button.textContent).toBe("0:15");
       expect(button.classList.contains("text-ink-faint")).toBe(false);
     });
@@ -211,7 +211,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
         projectedStart: "10:00–",
       });
 
-      const projected = within(cellsOf(rowOf("日次プラン")).time).getByText("10:00–");
+      const projected = within(cellsOf(taskRow("日次プラン")).time).getByText("10:00–");
       // 実打刻（確定した記録）との区別は弱色が担う
       expect(projected.classList.contains("text-ink-faint")).toBe(true);
     });
@@ -224,7 +224,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
         projectedStart: "10:00–",
       });
 
-      const { time } = cellsOf(rowOf("メール"));
+      const { time } = cellsOf(taskRow("メール"));
       expect([...time.children].map((child) => child.textContent)).toEqual(["08:05", "10:00–"]);
     });
   });
@@ -233,7 +233,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
     it("行のクリックで選択する（マウスとキーボードは等価）", () => {
       const { onSelect } = renderRow({ task: task({ id: 7, name: "朝食" }) });
 
-      fireEvent.click(rowOf("朝食"));
+      fireEvent.click(taskRow("朝食"));
 
       expect(onSelect).toHaveBeenCalledWith(7);
     });
@@ -243,21 +243,21 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
     it("固定領域の高さぶん余白を取り、追従した行が裏に隠れないようにする（§2 / §5）", () => {
       renderRow({ stickyHeight: 96, task: task({ id: 1, name: "朝食" }) });
 
-      expect(rowOf("朝食").style.scrollMarginTop).toBe("96px");
+      expect(taskRow("朝食").style.scrollMarginTop).toBe("96px");
     });
   });
 
   describe("ハイライト（F-118 / §3.3 / O-17）", () => {
     /** ⭐は**タスク名セルの中（コメント印の右）**に置く（§3.3）ので、セルの内側から取る */
     const starOf = (name: string) =>
-      within(cellsOf(rowOf(name)).name).getByRole("button", { name: "ハイライト" });
+      within(cellsOf(taskRow(name)).name).getByRole("button", { name: "ハイライト" });
     /** 塗り（ON）か輪郭（OFF）か。`StarIcon` の `filled` がそのまま `fill` に出る */
     const starFill = (name: string) => starOf(name).querySelector("polygon")?.getAttribute("fill");
 
     it("ハイライト行は地色を変え、⭐を塗りつぶす", () => {
       renderRow({ task: task({ id: 1, name: "提案書", highlighted: true }) });
 
-      expect(hasClass(rowOf("提案書"), "bg-highlight")).toBe(true);
+      expect(hasClass(taskRow("提案書"), "bg-highlight")).toBe(true);
       expect(starFill("提案書")).toBe("currentColor");
       expect(hasClass(starOf("提案書"), "text-highlight-mark")).toBe(true);
     });
@@ -265,7 +265,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
     it("ハイライトされていない行は地色を変えない", () => {
       renderRow({ task: task({ id: 1, name: "提案書", highlighted: false }) });
 
-      expect(hasClass(rowOf("提案書"), "bg-highlight")).toBe(false);
+      expect(hasClass(taskRow("提案書"), "bg-highlight")).toBe(false);
     });
 
     it("選択行の未ハイライトの⭐は輪郭で、色も弱める", () => {
@@ -281,14 +281,14 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
         task: task({ id: 1, name: "提案書", highlighted: true, startedAt: atJst("09:00") }),
       });
 
-      expect(hasClass(rowOf("提案書"), "bg-highlight")).toBe(true);
+      expect(hasClass(taskRow("提案書"), "bg-highlight")).toBe(true);
     });
 
     // 選択中は地色を選択（`bg-accent-weak`）に譲り、⭐が印を担う（§3.3）
     it("選択中のハイライト行はハイライトの地色を出さない（⭐は塗ったまま）", () => {
       renderRow({ task: task({ id: 1, name: "提案書", highlighted: true }), isSelected: true });
 
-      expect(hasClass(rowOf("提案書"), "bg-highlight")).toBe(false);
+      expect(hasClass(taskRow("提案書"), "bg-highlight")).toBe(false);
       expect(starFill("提案書")).toBe("currentColor");
     });
 
@@ -304,7 +304,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
         }),
       });
 
-      expect(hasClass(rowOf("提案書"), "bg-highlight")).toBe(false);
+      expect(hasClass(taskRow("提案書"), "bg-highlight")).toBe(false);
       expect(starFill("提案書")).toBe("currentColor");
     });
 
@@ -313,7 +313,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
       renderRow({ task: task({ id: 1, name: "提案書", highlighted: false }) });
 
       expect(
-        within(cellsOf(rowOf("提案書")).name).queryByRole("button", { name: "ハイライト" })
+        within(cellsOf(taskRow("提案書")).name).queryByRole("button", { name: "ハイライト" })
       ).toBeNull();
     });
 
@@ -330,7 +330,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
         task: task({ id: 1, name: "提案書", highlighted: true, comment: "メモ", sectionId: 100 }),
       });
 
-      const marks = within(cellsOf(rowOf("提案書")).name).getAllByRole("button");
+      const marks = within(cellsOf(taskRow("提案書")).name).getAllByRole("button");
       expect(marks.map((m) => m.getAttribute("aria-label") ?? m.textContent)).toEqual([
         "提案書",
         "朝",
@@ -367,7 +367,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
         task: task({ id: 7, name: "提案書", highlighted: true }),
       });
 
-      fireEvent.click(within(cellsOf(rowOf("提案書")).menu).getByLabelText("行メニュー"));
+      fireEvent.click(within(cellsOf(taskRow("提案書")).menu).getByLabelText("行メニュー"));
       fireEvent.click(screen.getByText("ハイライトを外す"));
 
       expect(onToggleHighlight).toHaveBeenCalledWith(expect.objectContaining({ id: 7 }));
@@ -378,7 +378,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
         task: task({ id: 7, name: "提案書", highlighted: false }),
       });
 
-      fireEvent.click(within(cellsOf(rowOf("提案書")).menu).getByLabelText("行メニュー"));
+      fireEvent.click(within(cellsOf(taskRow("提案書")).menu).getByLabelText("行メニュー"));
       fireEvent.click(screen.getByText("ハイライト"));
 
       expect(onToggleHighlight).toHaveBeenCalledWith(expect.objectContaining({ id: 7 }));
@@ -389,13 +389,13 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
     it("行全体のテキスト色に反映する", () => {
       renderRow({ task: task({ id: 1, name: "朝食", modeId: 1 }), mode: modeOf("仕事") });
 
-      expect(rowOf("朝食").style.color).toBe(colorOf("仕事"));
+      expect(taskRow("朝食").style.color).toBe(colorOf("仕事"));
     });
 
     it("モード未設定なら既定の文字色のまま（色を指定しない）", () => {
       renderRow({ task: task({ id: 1, name: "朝食" }) });
 
-      expect(rowOf("朝食").style.color).toBe("");
+      expect(taskRow("朝食").style.color).toBe("");
     });
 
     // グレーにする範囲は §3.3「モード未設定行の色」が正——モード・プロジェクト・セクションの
@@ -403,7 +403,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
     it("モード未設定の行は対象セルすべてを副次情報の色にする（§3.3「モード未設定行の色」）", () => {
       renderRow({ task: task({ id: 1, name: "朝食", estimateMinutes: 20, sectionId: 100 }) });
 
-      const { name, project, mode, estimate, actual, time } = cellsOf(rowOf("朝食"));
+      const { name, project, mode, estimate, actual, time } = cellsOf(taskRow("朝食"));
       for (const cell of [project, mode, actual, time]) {
         expect(cell.classList.contains("text-ink-muted")).toBe(true);
       }
@@ -420,7 +420,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
         mode: modeOf("仕事"),
       });
 
-      const { name, project, mode, actual, time } = cellsOf(rowOf("朝食"));
+      const { name, project, mode, actual, time } = cellsOf(taskRow("朝食"));
       for (const cell of [project, mode, actual, time]) {
         expect(cell.classList.contains("text-ink-muted")).toBe(false);
       }
@@ -432,7 +432,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
     it("押すと打刻し、その行を選択する", () => {
       const { onPunch, onSelect } = renderRow({ task: task({ id: 5, name: "日次プラン" }) });
 
-      fireEvent.click(within(cellsOf(rowOf("日次プラン")).punch).getByRole("button"));
+      fireEvent.click(within(cellsOf(taskRow("日次プラン")).punch).getByRole("button"));
 
       expect(onPunch).toHaveBeenCalledOnce();
       expect(onPunch.mock.calls[0][0].id).toBe(5);
@@ -571,7 +571,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
         task: task({ id: 1, name: "朝食", estimateMinutes: 20 }),
       });
 
-      fireEvent.click(within(cellsOf(rowOf("朝食")).estimate).getByText("0:20"));
+      fireEvent.click(within(cellsOf(taskRow("朝食")).estimate).getByText("0:20"));
 
       expect(onBeginEdit).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), "estimate");
     });
@@ -592,7 +592,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
       it("未打刻のタスクは時刻を編集させない", () => {
         renderRow({ task: task({ id: 1, name: "日次プラン", estimateMinutes: 15 }) });
 
-        const { time } = cellsOf(rowOf("日次プラン"));
+        const { time } = cellsOf(taskRow("日次プラン"));
         expect(time.querySelector("button")).toBeNull();
       });
 
@@ -657,7 +657,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
       it("実行中タスクは終了時刻のクリック入口を出さない（開始時刻だけ押せる）", () => {
         renderRow({ task: task({ id: 1, name: "メール", startedAt: atJst("08:05") }) });
 
-        const { time } = cellsOf(rowOf("メール"));
+        const { time } = cellsOf(taskRow("メール"));
         expect(within(time).getAllByRole("button").map((b) => b.textContent)).toEqual(["08:05"]);
       });
     });
@@ -667,7 +667,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
     it("タスク名の右にセクション名を併記し、クリックで選択を開く", () => {
       const { onBeginEdit } = renderRow({ task: task({ id: 1, name: "朝食", sectionId: 100 }) });
 
-      const { name } = cellsOf(rowOf("朝食"));
+      const { name } = cellsOf(taskRow("朝食"));
       const sectionButton = within(name).getByText("朝");
       fireEvent.click(sectionButton);
 
@@ -677,7 +677,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
     it("セクション未指定の行は「未分類」と併記する", () => {
       renderRow({ task: task({ id: 1, name: "買い出しメモ" }) });
 
-      expect(within(cellsOf(rowOf("買い出しメモ")).name).queryByText("未分類")).not.toBeNull();
+      expect(within(cellsOf(taskRow("買い出しメモ")).name).queryByText("未分類")).not.toBeNull();
     });
 
     it("タスク名を編集中はセクションの併記を隠す（入力欄に集中させる）", () => {
@@ -702,7 +702,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
         task: task({ id: 1, name: "朝食", sectionId: 100, comment: "パンが切れていた" }),
       });
 
-      const nameCell = cellsOf(rowOf("朝食")).name;
+      const nameCell = cellsOf(taskRow("朝食")).name;
       const section = within(nameCell).getByText("朝");
       const mark = within(nameCell).getByLabelText("コメントを編集");
       // DOM 順で「セクション併記 → 印」（Node.DOCUMENT_POSITION_FOLLOWING = 4）
@@ -755,7 +755,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
 
     it("セルのクリックが選択の入口になる（§3.3「割り当ての入口はセルのクリック」）", () => {
       const { onBeginEdit } = renderRow({ task: task({ id: 1, name: "朝食" }) });
-      const { project, mode } = cellsOf(rowOf("朝食"));
+      const { project, mode } = cellsOf(taskRow("朝食"));
 
       fireEvent.click(within(project).getByRole("button"));
       expect(onBeginEdit).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), "project");
@@ -772,7 +772,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
 
     it("未実行タスクでは先送りができ、中断はできない（F-107 / F-204）", () => {
       renderRow({ task: task({ id: 1, name: "日次プラン" }) });
-      openMenu(rowOf("日次プラン"));
+      openMenu(taskRow("日次プラン"));
 
       expect((screen.getByText("翌日へ先送り") as HTMLButtonElement).disabled).toBe(false);
       expect((screen.getByText("中断") as HTMLButtonElement).disabled).toBe(true);
@@ -780,7 +780,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
 
     it("実行中タスクでは中断ができ、先送りはできない", () => {
       renderRow({ task: task({ id: 1, name: "メール", startedAt: atJst("08:05") }) });
-      openMenu(rowOf("メール"));
+      openMenu(taskRow("メール"));
 
       expect((screen.getByText("中断") as HTMLButtonElement).disabled).toBe(false);
       expect((screen.getByText("翌日へ先送り") as HTMLButtonElement).disabled).toBe(true);
@@ -790,7 +790,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
       renderRow({
         task: task({ id: 1, name: "朝食", startedAt: atJst("06:30"), endedAt: atJst("06:48") }),
       });
-      openMenu(rowOf("朝食"));
+      openMenu(taskRow("朝食"));
 
       expect((screen.getByText("中断") as HTMLButtonElement).disabled).toBe(true);
       expect((screen.getByText("翌日へ先送り") as HTMLButtonElement).disabled).toBe(true);
@@ -799,7 +799,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
 
     it("ルーチン由来のタスクはルーチン化を非活性で見せる（§4.1 / FB-30）", () => {
       renderRow({ task: task({ id: 1, name: "朝食", routineId: 9 }) });
-      openMenu(rowOf("朝食"));
+      openMenu(taskRow("朝食"));
 
       expect((screen.getByText("ルーチン化") as HTMLButtonElement).disabled).toBe(true);
     });
@@ -808,7 +808,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
       const { onOperate } = renderRow({
         task: task({ id: 1, name: "メール", startedAt: atJst("08:05") }),
       });
-      openMenu(rowOf("メール"));
+      openMenu(taskRow("メール"));
 
       fireEvent.click(screen.getByText("中断"));
 
@@ -817,7 +817,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
 
     it("複製を選ぶと duplicate で通知する（O-11 / F-111）", () => {
       const { onOperate } = renderRow({ task: task({ id: 1, name: "朝食" }) });
-      openMenu(rowOf("朝食"));
+      openMenu(taskRow("朝食"));
 
       fireEvent.click(screen.getByText("複製"));
 
@@ -826,7 +826,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
 
     it("先送りを選ぶと postpone で通知する（O-7 / F-107。行メニューからのみ実行できる）", () => {
       const { onOperate } = renderRow({ task: task({ id: 1, name: "日次プラン" }) });
-      openMenu(rowOf("日次プラン"));
+      openMenu(taskRow("日次プラン"));
 
       fireEvent.click(screen.getByText("翌日へ先送り"));
 
@@ -836,7 +836,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
     it("未実行タスクの削除は確認を挟まない（O-8: 即削除＋Undoトースト）", () => {
       const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
       const { onOperate } = renderRow({ task: task({ id: 1, name: "日次プラン" }) });
-      openMenu(rowOf("日次プラン"));
+      openMenu(taskRow("日次プラン"));
 
       fireEvent.click(screen.getByText("削除"));
 
@@ -849,7 +849,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
       const { onOperate } = renderRow({
         task: task({ id: 1, name: "朝食", startedAt: atJst("06:30"), endedAt: atJst("06:48") }),
       });
-      openMenu(rowOf("朝食"));
+      openMenu(taskRow("朝食"));
 
       fireEvent.click(screen.getByText("削除"));
 
@@ -859,7 +859,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
 
     it("ルーチン化を選ぶとポップオーバーを開く（O-12）", () => {
       const { onBeginEdit } = renderRow({ task: task({ id: 1, name: "朝食" }) });
-      openMenu(rowOf("朝食"));
+      openMenu(taskRow("朝食"));
 
       fireEvent.click(screen.getByText("ルーチン化"));
 

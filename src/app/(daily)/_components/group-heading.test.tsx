@@ -30,7 +30,7 @@ function renderHeading(overrides: Overrides) {
 }
 
 // 現在セクションの強調（F-121）は `currentSectionId` の導出とセットで意味を持つため、
-// 「現在時刻がどのセクションか」まで通す形で daily-board.test.tsx が見る（導出は board の仕事）
+// 「現在時刻がどのセクションか」まで通す形で daily-board.display.test.tsx が見る（導出は board の仕事）
 describe("GroupHeading（画面定義書01 §3.2: セクション見出し行）", () => {
   it("セクション名と時間帯を出す", () => {
     renderHeading({ group: morning([task({ id: 1, name: "朝食" })]) });

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { rowOf } from "@/app/_testing/dom";
+import { rowOf } from "../_testing/table-helpers";
 import { ArchivedMasterSection } from "./archived-master-section";
 
 type Item = Readonly<{ id: number; name: string }>;

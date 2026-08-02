@@ -51,11 +51,30 @@ export const SECTIONS: readonly Section[] = [
   { id: 300, name: "午後", startTime: "13:00", isArchived: false },
 ];
 
-/** モードを名前で引く（添字だと並び替えで意味が変わり、どのモードの話か読めない） */
+/** マスタを名前で引く（添字だと並び替えで意味が変わり、どのマスタの話か読めない） */
+function masterOf<T extends { name: string }>(
+  kind: string,
+  masters: readonly T[],
+  name: string
+): T {
+  const master = masters.find((m) => m.name === name);
+  if (master === undefined) throw new Error(`${kind}「${name}」がフィクスチャにありません`);
+  return master;
+}
+
+/** モードを名前で引く */
 export function modeOf(name: string): Mode {
-  const mode = MODES.find((m) => m.name === name);
-  if (mode === undefined) throw new Error(`モード「${name}」がフィクスチャにありません`);
-  return mode;
+  return masterOf("モード", MODES, name);
+}
+
+/** プロジェクトを名前で引く */
+export function projectOf(name: string): Project {
+  return masterOf("プロジェクト", PROJECTS, name);
+}
+
+/** セクションを名前で引く */
+export function sectionOf(name: string): Section {
+  return masterOf("セクション", SECTIONS, name);
 }
 
 /** モードの色を名前で引く（jsdom が返す `rgb()` 表記） */
@@ -66,7 +85,7 @@ export function colorOf(name: string): string {
 /** 有効セクションの枠（アーカイブ済みは `sectionRanges` が落とす） */
 const SECTION_RANGES = sectionRanges(SECTIONS);
 
-/** セクションを名前で引き、導出した枠でグループにする（名前で引く理由は `modeOf` と同じ） */
+/** セクションを名前で引き、導出した枠でグループにする（名前で引く理由は `masterOf` と同じ） */
 function derivedSectionGroup(name: string, tasks: readonly Task[]): DailyGroup {
   const range = SECTION_RANGES.find((r) => r.section.name === name);
   if (range === undefined) throw new Error(`有効セクション「${name}」がフィクスチャにありません`);

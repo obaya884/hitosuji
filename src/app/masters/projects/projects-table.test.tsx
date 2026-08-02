@@ -4,9 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Project } from "@/domain/project/project";
 
 import { deferredAction } from "@/app/_testing/actions";
-import { rowOf } from "@/app/_testing/dom";
 import { click, clickWithoutServer } from "@/app/_testing/interactions";
-import { startEditingCell } from "../_testing/table-helpers";
+import { rowOf, startEditingCell } from "../_testing/table-helpers";
 
 // Server Action の先は実DB接続と revalidatePath に届くため、同じ返り値の契約
 // （ActionResult）を返す偽物へ差し替える（テスト戦略定義書 §2「偽物を置いてよい境界」）
