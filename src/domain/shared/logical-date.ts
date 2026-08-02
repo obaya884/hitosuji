@@ -1,9 +1,9 @@
 // 論理日付 "YYYY-MM-DD"（データモデル定義書 §1: task_date は保存された論理日付。打刻時刻から導出しない）
-// 日界（F-116）次第で打刻時刻の暦日と一致しない（既定の 00:00 なら一致する）。**論理日付の決定**は
-// この純関数群に閉じる——日界を起点にした時計の折返し・セクション枠の起点は
-// `domain/task/projection.ts` と `domain/section/section.ts` が持つ
+// 日界（F-116）次第で打刻時刻の暦日と一致しない（既定の 00:00 なら一致する）。**論理日付の決定と、
+// その逆向き（論理日の中の壁時計 → 絶対時刻）**はこの純関数群に閉じる——日界を起点にした時計の
+// 折返し・セクション枠の起点は `domain/task/projection.ts` と `domain/section/section.ts` が持つ
 import { err, ok, type Result } from "./result";
-import { zonedParts } from "./time-zone";
+import { fromZonedClock, zonedParts } from "./time-zone";
 
 export type LogicalDate = string;
 
@@ -63,6 +63,26 @@ export function todayLogicalDate(
   const { year, month, day, hours, minutes } = zonedParts(now, timeZone);
   const calendarDate = toLogicalDate(new Date(Date.UTC(year, month - 1, day)));
   return applyDayStart(calendarDate, hours * 60 + minutes, dayStartMinutes);
+}
+
+/**
+ * 論理日の中の壁時計（0時からの分）を絶対時刻にする（F-116 / 画面定義書01 §3.3）。
+ * 1日は日界で始まり次の日界で終わるので、日界より前の時刻はその論理日の**翌暦日**に当たる
+ * （論理日を決める `applyDayStart` の逆向き）。日界が 0（既定の 00:00）なら論理日の暦日そのもの。
+ * 暦日と壁時計は運用タイムゾーン（引数）で読む（表示の `formatClock` と同じ基準。T-47）
+ */
+export function atLogicalDayClock(
+  date: LogicalDate,
+  minuteOfDay: number,
+  timeZone: string,
+  dayStartMinutes: number
+): Date {
+  const calendarDate = minuteOfDay < dayStartMinutes ? addDays(date, 1) : date;
+  const [year, month, day] = calendarDate.split("-").map(Number);
+  return fromZonedClock(
+    { year, month, day, hours: Math.floor(minuteOfDay / 60), minutes: minuteOfDay % 60 },
+    timeZone
+  );
 }
 
 /** 曜日（0=日）。表示用の曜日名は presentation で解決する */

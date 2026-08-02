@@ -82,7 +82,7 @@ export class ResizeObserverStub {
   }
 }
 
-// 打刻の修正（F-203 / `applyClockTime`）も表示（`formatClock`）も `APP_TIME_ZONE` 固定の
+// 打刻の修正（F-203 / `punch-edit`）も表示（`formatClock`）も `APP_TIME_ZONE` 固定の
 // 壁時計で扱うので、テストデータは `atJst` で組む（T-47）。それでも**画面に出る時刻の期待値は
 // リテラルで書かず `formatClock(atJst(...))` で組み立てる**（整形の書式を二重に書かないため）
 

@@ -570,6 +570,18 @@ describe("updateTaskPunch（F-203: 打刻時刻の修正）", () => {
     expect(repo.rows[0].startedAt).toEqual(startedAt);
   });
 
+  // 再検証するのは DB の整合性制約（ck_tasks_time）と対になるものだけ、という層の切り分け。
+  // 未来の禁止は画面側の検証に閉じており、ここは判定材料（現在時刻）すら受け取らない
+  it("未来の開始時刻はサーバでは弾かない（未来の検査は画面側だけ。画面定義書01 §3.3）", async () => {
+    const repo = inMemoryTaskRepository([task({ id: 1, startedAt })]);
+    const farFuture = new Date("2099-01-01T00:00:00Z");
+
+    expect((await editPunch(repo, { taskId: 1, startedAt: farFuture, endedAt: null })).ok).toBe(
+      true
+    );
+    expect(repo.rows[0].startedAt).toEqual(farFuture);
+  });
+
   it("未実行タスクの打刻は修正できない", async () => {
     const repo = inMemoryTaskRepository([task({ id: 1 })]);
     expect(await editPunch(repo, { taskId: 1, startedAt, endedAt: null })).toEqual({

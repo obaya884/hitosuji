@@ -13,8 +13,14 @@ import type { LogicalDate } from "../logical-date";
 export const TEST_DATE: LogicalDate = "2026-07-26";
 
 /**
+ * `TEST_DATE` の翌暦日。日界（F-116）が 00:00 以外だと論理日は暦日をまたぐので、
+ * 「またいだ側」を指す期待値がこれになる（打刻修正 F-203 / 画面定義書01 §3.3）
+ */
+export const NEXT_TEST_DATE: LogicalDate = "2026-07-27";
+
+/**
  * `HH:MM` を **JST の壁時計**として Date にする。
- * 打刻の表示（`formatClock`）・入力の解釈（`applyClockTime`）・導出（`projection`）は
+ * 打刻の表示（`formatClock`）・入力の解釈（`punch-edit`）・導出（`projection`）は
  * いずれも `APP_TIME_ZONE = Asia/Tokyo` 基準なので、時刻を伴うテストデータはすべてこれで組む
  */
 export function atJst(clock: string, date: LogicalDate = TEST_DATE): Date {

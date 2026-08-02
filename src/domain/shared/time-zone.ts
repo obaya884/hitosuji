@@ -77,17 +77,3 @@ export function fromZonedClock(clock: ZonedClock, timeZone: string): Date {
   const firstGuess = asIfUtc - offsetMs(new Date(asIfUtc), timeZone);
   return new Date(asIfUtc - offsetMs(new Date(firstGuess), timeZone));
 }
-
-/**
- * 基準時刻と同じ暦日（指定タイムゾーン）の `hours:minutes` の絶対時刻。
- * 打刻の時刻だけを直す操作（F-203）で使う——日付は動かさない
- */
-export function withZonedClockTime(
-  base: Date,
-  hours: number,
-  minutes: number,
-  timeZone: string
-): Date {
-  const { year, month, day } = zonedParts(base, timeZone);
-  return fromZonedClock({ year, month, day, hours, minutes }, timeZone);
-}

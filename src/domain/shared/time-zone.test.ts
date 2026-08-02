@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { APP_TIME_ZONE, fromZonedClock, withZonedClockTime, zonedParts } from "./time-zone";
+import { APP_TIME_ZONE, fromZonedClock, zonedParts } from "./time-zone";
 
 // 夏時間を持つゾーン。運用タイムゾーン（Asia/Tokyo）には無いが、ずれを瞬間ごとに引く実装を固定する
 const NEW_YORK = "America/New_York";
@@ -103,19 +103,5 @@ describe("fromZonedClock（壁時計から絶対時刻を作る）", () => {
   it("夏時間でないゾーンの壁時計は往復しても変わらない", () => {
     const clock = { year: 2026, month: 12, day: 31, hours: 23, minutes: 59 };
     expect(zonedParts(fromZonedClock(clock, APP_TIME_ZONE), APP_TIME_ZONE)).toEqual(clock);
-  });
-});
-
-describe("withZonedClockTime（F-203: 時刻だけを当てはめ暦日は動かさない）", () => {
-  it("基準時刻の JST 暦日に時分を当てはめる", () => {
-    // 2026-07-20T15:30:00Z = JST 07-21 00:30 → 同じ JST 暦日の 09:05 = 07-21T00:05Z
-    const applied = withZonedClockTime(new Date("2026-07-20T15:30:00Z"), 9, 5, APP_TIME_ZONE);
-    expect(applied.toISOString()).toBe("2026-07-21T00:05:00.000Z");
-  });
-
-  it("同じ絶対時刻でもタイムゾーンが違えば当てはめる暦日が変わる", () => {
-    // 2026-07-20T15:30:00Z は NY では 07-20 11:30 → 09:05 EDT = 07-20T13:05Z
-    const applied = withZonedClockTime(new Date("2026-07-20T15:30:00Z"), 9, 5, NEW_YORK);
-    expect(applied.toISOString()).toBe("2026-07-20T13:05:00.000Z");
   });
 });
