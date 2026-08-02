@@ -4,18 +4,22 @@ import { SAVE_FAILED } from "./error-messages";
 
 export type ActionResult = Readonly<{ ok: true } | { ok: false; message: string }>;
 
-/** 失敗した結果（メッセージの形は `ActionResult` から導く） */
-type Failed = Extract<ActionResult, { ok: false }>;
+/**
+ * 失敗した結果（メッセージの形は `ActionResult` から導く）。
+ * 成功時に値を返すアクションは `Readonly<{ ok: true; … }> | FailedActionResult` の形で組む——
+ * 失敗側を書き写すと `ActionResult` に手を入れたときに取り残される
+ */
+export type FailedActionResult = Extract<ActionResult, { ok: false }>;
 
 /**
  * 結果が届かなかった失敗。通信断・タイムアウト・サーバ側の異常終了で呼び出しが拒否されたときに
  * `callAction` が作る。**サーバが返した失敗と区別するための印**で、こちらは画面の取り直しに行かない——
  * 届かない以上また失敗するだけのため（画面定義書00_共通 §4.1。判定は `isUnreachable`）
  */
-export type UnreachableFailure = Failed & Readonly<{ unreachable: true }>;
+export type UnreachableFailure = FailedActionResult & Readonly<{ unreachable: true }>;
 
 /** サーバが返した失敗と、届かなかった失敗（`UnreachableFailure`）の両方 */
-export type ActionFailure = Failed & Readonly<{ unreachable?: true }>;
+export type ActionFailure = FailedActionResult & Readonly<{ unreachable?: true }>;
 
 /**
  * Server Action の呼び出しを包み、**拒否を失敗の結果へ落とす**（画面定義書00_共通 §4.1）。
@@ -36,7 +40,27 @@ export async function callAction<T extends ActionResult>(
   }
 }
 
+/**
+ * 失敗の結果を作る。Server Action が失敗を返す道はこれ1つ。
+ * **文言を引くのは呼び出し側**——打刻・タスク操作は `taskActionErrorMessage` を通すこと
+ */
+export function failure(message: string): FailedActionResult {
+  return { ok: false, message };
+}
+
 /** 結果が届かなかった失敗か（`UnreachableFailure` の doc のとおり、これだけは取り直しに行かない） */
 export function isUnreachable(result: ActionFailure): result is UnreachableFailure {
   return result.unreachable === true;
+}
+
+/**
+ * 失敗したときの表示と後始末（画面定義書00_共通 §4.1）。切り分けの理由は `UnreachableFailure`。
+ * **巻き戻しは含めない**——戻す対象が操作ごとに違うので呼び出し側に残す
+ */
+export function handleActionFailure(
+  result: ActionFailure,
+  handlers: Readonly<{ setError: (message: string) => void; refresh: () => void }>
+): void {
+  handlers.setError(result.message);
+  if (!isUnreachable(result)) handlers.refresh();
 }
