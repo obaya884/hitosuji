@@ -698,7 +698,7 @@
 - 優先度の根拠: 素の別名なので取り違えを型が捕まえるわけではなく、実害は読みやすさに留まる。ただし「どこまで適用するか」が未決のまま両方が増え続けている
 - 関連: [T-51](./closed_23_技術改善バックログ.md#t-51)（Port の型を正規化した案件）/ [アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md) §4
 - 結果（2026-08-03）: オーナー裁定は **(a) 全層でエイリアスを通す**。domain・usecases・Port・infrastructure・presentation の全層で素の `number` の ID をエイリアスへ置き換え、背景が挙げた `Task.routineId` の不揃いも直した。方針は[アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md) §4「ID型」の行に明記した。**例外は ID の種類が静的に決まらない箇所**（`field` で種類が決まる割り当てハンドラ、マスタ種別を跨いで共通化した部品＝選択ポップオーバー・アーカイブ済み一覧・名前の引き当て）で、理由は共通部品側（`select-popover.tsx`）に1か所だけ書いた
-- 経過（2026-08-03）: 最初の実装は presentation だけを直して §4 に「全層」と書いたため、**規則と実装が逆向きに食い違った**（domain・usecases・Port に36箇所が残り、同じ入力オブジェクトが層をまたぐと流儀が変わる状態）。`code-quality-reviewer` と `spec-reviewer` が独立に同じ指摘をしたため、同じコミットで下層まで揃えた。`daily-board` の `useState<number | null>`（選択行 ID の供給元）とマスタ3表の `deletableIds` / `editingId` も取りこぼしていた
+- 経過（2026-08-03）: 最初の実装は presentation だけを直して §4 に「全層」と書いたため、**規則と実装が逆向きに食い違った**（domain・usecases・Port に36箇所が残り、同じ入力オブジェクトが層をまたぐと流儀が変わる状態）。`code-quality-reviewer` と `spec-reviewer` が独立に同じ指摘をしたため、同じコミットで下層まで揃えた。`daily-board` の `useState<number | null>`（選択行 ID の供給元）とマスタ3表の `deletableIds` / `editingId` も取りこぼしていた。**さらに `(number | null)[]` と `Map<number | null, …>` の形が grep の網から漏れており**、再検証で5箇所（Port の `updateClassification` とそのインメモリ実装・`reorder.ts` の `sectionOrder` 2本・`displaySectionOrder` の戻り値・展開の採番 Map）を追加で潰した。**`testing/` 配下でも Port 実装は対象**という線引きはこのとき決まった（本物と偽物で契約の書き方が割れるため。§4 に明記）
 
 ## 旧書式の記録（2026-07-26 以前）
 

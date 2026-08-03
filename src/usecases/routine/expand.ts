@@ -3,7 +3,7 @@ import type { RoutineRepository, RoutineTaskSeed } from "@/usecases/ports/routin
 import type { SectionRepository } from "@/usecases/ports/section-repository";
 import type { TaskRepository } from "@/usecases/ports/task-repository";
 import { routinesToExpand } from "@/domain/routine/expansion";
-import { sectionAt } from "@/domain/section/section";
+import { sectionAt, type SectionId } from "@/domain/section/section";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import { appendSortOrder } from "@/domain/task/sort-order";
 
@@ -38,7 +38,7 @@ export async function expandRoutinesFor(
   const existing = await deps.tasks.listByDate(date);
 
   // セクションごとの末尾 sort_order を進めながら採番する（§4.1-3）
-  const nextSortOrders = new Map<number | null, number>();
+  const nextSortOrders = new Map<SectionId | null, number>();
   const seeds: RoutineTaskSeed[] = targets.map((routine) => {
     const section = sectionAt(sections, routine.scheduledStartTime);
     const sectionId = section?.id ?? null;

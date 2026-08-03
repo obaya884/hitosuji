@@ -64,7 +64,7 @@ export function groupTasksBySection(
 export function displaySectionOrder(
   tasks: readonly Task[],
   sections: readonly Section[]
-): (number | null)[] {
+): (SectionId | null)[] {
   return groupTasksBySection(tasks, sections).map((g) => g.section?.id ?? null);
 }
 

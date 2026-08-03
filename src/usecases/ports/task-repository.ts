@@ -155,6 +155,6 @@ export type TaskRepository = Readonly<{
   /** モード・プロジェクトの割り当て（O-5 / F-401・F-402） */
   updateClassification(
     id: TaskId,
-    classification: Readonly<{ modeId?: number | null; projectId?: number | null }>
+    classification: Readonly<{ modeId?: ModeId | null; projectId?: ProjectId | null }>
   ): Promise<void>;
 }>;

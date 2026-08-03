@@ -51,7 +51,7 @@ export function stepMoveDestination(
   taskId: TaskId,
   step: 1 | -1,
   /** 表示順のセクション（未分類を先頭にした並び。null = 未分類） */
-  sectionOrder: readonly (number | null)[]
+  sectionOrder: readonly (SectionId | null)[]
 ): Readonly<{ sectionId: SectionId | null; index: number }> | null {
   const target = tasks.find((t) => t.id === taskId);
   if (target === undefined) return null;
@@ -83,7 +83,7 @@ export function moveTaskByStep(
   taskId: TaskId,
   step: 1 | -1,
   /** 表示順のセクション（未分類を先頭にした並び。null = 未分類） */
-  sectionOrder: readonly (number | null)[]
+  sectionOrder: readonly (SectionId | null)[]
 ): Result<Reorder, ReorderError> {
   const target = tasks.find((t) => t.id === taskId);
   if (target === undefined) return err("task_not_found");
