@@ -4,10 +4,10 @@ import { useState } from "react";
 import { useServerAction } from "@/app/_lib/use-server-action";
 import { linkMuted } from "@/app/_lib/ui";
 import type { Section } from "@/domain/section/section";
+import { TableFrame } from "@/app/_components/table-frame";
 import { ArchivedMasterSection } from "../_components/archived-master-section";
 import { MasterEditableCell } from "../_components/master-editable-cell";
 import { MasterNewRow, MasterNewRowInput } from "../_components/master-new-row";
-import { MasterTableFrame } from "../_components/master-table-frame";
 import {
   archiveSectionAction,
   createSectionAction,
@@ -118,7 +118,7 @@ export function SectionsTable({ ranges, archived, deletableIds }: Props) {
   );
 
   return (
-    <MasterTableFrame
+    <TableFrame
       description={
         // 2行に折って書いた形のまま渡す（1つの文字列にすると行の継ぎ目の空白が消えて表示が変わる）
         <>
@@ -188,6 +188,6 @@ export function SectionsTable({ ranges, archived, deletableIds }: Props) {
         onRestore={(id) => run(() => restoreSectionAction(id))}
         onDelete={(id) => run(() => deleteSectionAction(id))}
       />
-    </MasterTableFrame>
+    </TableFrame>
   );
 }

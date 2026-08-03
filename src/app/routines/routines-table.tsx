@@ -13,8 +13,8 @@ import {
 import { sectionAt, type Section } from "@/domain/section/section";
 import { formatEstimate } from "@/app/_lib/format";
 import { useServerAction } from "@/app/_lib/use-server-action";
-import { btnSecondary, linkAccent, linkMuted, noticeDanger } from "@/app/_lib/ui";
-import { PlusIcon } from "@/app/_components/icons";
+import { linkAccent, linkMuted } from "@/app/_lib/ui";
+import { TableFrame } from "@/app/_components/table-frame";
 import { UnsetMark } from "@/app/_components/unset-mark";
 import {
   createRoutineAction,
@@ -128,31 +128,16 @@ export function RoutinesTable({
   );
 
   return (
-    <section className="mt-4">
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-ink-muted">
-          有効なルーチンは、デイリーリストで対象日を表示したときに自動で展開されます（当日以降のみ）。
-        </p>
-        <button
-          onClick={() => {
-            setError(null);
-            setEditing("new");
-          }}
-          // 保存中は新しい編集を始めさせない（開いていたフォームが閉じてしまう。00_共通 §2.3）
-          disabled={isPending}
-          className={`inline-flex shrink-0 items-center gap-1 ${btnSecondary}`}
-        >
-          <PlusIcon className="h-3 w-3" />
-          新規ルーチン
-        </button>
-      </div>
-
-      {error !== null && (
-        <p className={`mt-2 ${noticeDanger}`}>
-          {error}
-        </p>
-      )}
-
+    <TableFrame
+      description="有効なルーチンは、デイリーリストで対象日を表示したときに自動で展開されます（当日以降のみ）。"
+      error={error}
+      isPending={isPending}
+      addLabel="新規ルーチン"
+      onAddNew={() => {
+        setError(null);
+        setEditing("new");
+      }}
+    >
       {editing === "new" && form(null)}
 
       <table className="mt-3 w-full text-sm">
@@ -284,6 +269,6 @@ export function RoutinesTable({
       {editing !== null && editing !== "new" && (
         <Fragment key={editing.id}>{form(editing)}</Fragment>
       )}
-    </section>
+    </TableFrame>
   );
 }

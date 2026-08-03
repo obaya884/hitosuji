@@ -5,10 +5,10 @@ import { useDismiss } from "@/app/_lib/use-dismiss";
 import { useServerAction } from "@/app/_lib/use-server-action";
 import { floatPanel, linkMuted } from "@/app/_lib/ui";
 import { MODE_COLOR_PRESETS, modeColorName, type Mode } from "@/domain/mode/mode";
+import { TableFrame } from "@/app/_components/table-frame";
 import { ArchivedMasterSection } from "../_components/archived-master-section";
 import { MasterEditableCell } from "../_components/master-editable-cell";
 import { MasterNewRow, MasterNewRowInput } from "../_components/master-new-row";
-import { MasterTableFrame } from "../_components/master-table-frame";
 import {
   createModeAction,
   deleteModeAction,
@@ -198,7 +198,7 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
   );
 
   return (
-    <MasterTableFrame
+    <TableFrame
       description="色はプリセットから選択します。並び順は名前順です。"
       error={error}
       isPending={isPending}
@@ -258,6 +258,6 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
         onRestore={(id) => run(() => setModeArchivedAction(id, false))}
         onDelete={(id) => run(() => deleteModeAction(id))}
       />
-    </MasterTableFrame>
+    </TableFrame>
   );
 }
