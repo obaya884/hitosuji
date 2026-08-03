@@ -4,9 +4,9 @@ import { useEffect, useRef } from "react";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
-import type { Section } from "@/domain/section/section";
+import type { Section, SectionId } from "@/domain/section/section";
 import { taskStatus } from "@/domain/task/status";
-import { actualMinutes, elapsedMinutes, type Task } from "@/domain/task/task";
+import { actualMinutes, elapsedMinutes, type Task, type TaskId } from "@/domain/task/task";
 import { CheckIcon, CommentIcon, PlayIcon, StarIcon, StopIcon } from "@/app/_components/icons";
 import { formatClock, formatDuration, formatEstimate } from "@/app/_lib/format";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
@@ -33,7 +33,7 @@ export type TaskRowProps = Readonly<{
   onPunch: (task: Task) => void;
   onEditPunch: (task: Task, field: "startedAt" | "endedAt", hhmm: string) => void;
   index: number;
-  sectionId: number | null;
+  sectionId: SectionId | null;
   modes: readonly Mode[];
   projects: readonly Project[];
   sections: readonly Section[];
@@ -46,7 +46,7 @@ export type TaskRowProps = Readonly<{
   /** ルーチン化（O-12 / §4.1） */
   onRoutinize: (task: Task, choice: RoutineFromTaskChoice) => void;
   isSelected: boolean;
-  onSelect: (taskId: number) => void;
+  onSelect: (taskId: TaskId) => void;
   editing: EditField | null;
   onBeginEdit: (task: Task, field: EditField) => void;
   onEndEdit: () => void;

@@ -1,7 +1,7 @@
 // タスクの自動セクション移動（F-113）
 // 挙動の契約は画面定義書01 §4.2、書き換わる列と採番は データモデル定義書 §4.4 が正
 import { groupTasksBySection, orderTasksForDisplay } from "./daily-list";
-import { sectionAt, type Section } from "../section/section";
+import { sectionAt, type Section, type SectionId } from "../section/section";
 import {
   appendSortOrder,
   placeSortOrder,
@@ -15,7 +15,7 @@ import type { Task, TaskId } from "./task";
 /** 1タスクの移動先。sortOrder は移動先グループ内での採番済みの値 */
 export type Relocation = Readonly<{
   taskId: TaskId;
-  sectionId: number | null;
+  sectionId: SectionId | null;
   sortOrder: number;
 }>;
 
@@ -178,7 +178,7 @@ function relocationsFor(
   task: Task,
   siblings: readonly Task[],
   index: number,
-  sectionId: number
+  sectionId: SectionId
 ): Relocation[] {
   const placed = placeSortOrder(siblings, index, task);
   if (placed.renumber.length === 0) {
@@ -228,7 +228,7 @@ function currentPositionIndex(
 /** 実際に section_id か sort_order が変わる行だけを Relocation にする（無駄な UPDATE を避ける） */
 function changedOnly(
   assignments: readonly Readonly<{ task: Task; sortOrder: number }>[],
-  sectionId: number
+  sectionId: SectionId
 ): Relocation[] {
   return assignments.flatMap(({ task, sortOrder }) =>
     task.sectionId === sectionId && task.sortOrder === sortOrder

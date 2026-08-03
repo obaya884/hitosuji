@@ -1,3 +1,4 @@
+import type { SectionId } from "@/domain/section/section";
 import { sectionTotalMinutes, type DailyGroup } from "@/domain/task/daily-list";
 import { sectionCapacityMinutes } from "@/domain/task/projection";
 import { formatDuration, formatEstimate, formatSignedDuration } from "@/app/_lib/format";
@@ -11,7 +12,7 @@ export type GroupHeadingProps = Readonly<{
    */
   remainingMinutes: number | null;
   /** 現在時刻を含むセクションの id（§3.2 / F-121）。未分類・表示日≠今日は null */
-  currentSectionId: number | null;
+  currentSectionId: SectionId | null;
 }>;
 
 /** セクション見出し行（画面定義書01 §3.2）。0件のセクションは見出し行だけを置く（FB-26） */

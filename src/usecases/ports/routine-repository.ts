@@ -1,5 +1,8 @@
+import type { ModeId } from "@/domain/mode/mode";
+import type { ProjectId } from "@/domain/project/project";
 import type { Routine, RoutineId } from "@/domain/routine/routine";
 import type { ValidRoutineInput } from "@/domain/routine/input";
+import type { SectionId } from "@/domain/section/section";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 
 /** 展開で生成するタスク（データモデル定義書 §4.1-3） */
@@ -8,9 +11,9 @@ export type RoutineTaskSeed = Readonly<{
   taskDate: LogicalDate;
   name: string;
   estimateMinutes: number;
-  sectionId: number | null;
-  modeId: number | null;
-  projectId: number | null;
+  sectionId: SectionId | null;
+  modeId: ModeId | null;
+  projectId: ProjectId | null;
   sortOrder: number;
 }>;
 

@@ -1,4 +1,6 @@
 // ルーチンの入力検証（画面定義書02 §4）
+import type { ModeId } from "../mode/mode";
+import type { ProjectId } from "../project/project";
 import { isValidLogicalDate, type LogicalDate } from "../shared/logical-date";
 import { validateName } from "../shared/master-name";
 import { err, ok, type Result } from "../shared/result";
@@ -10,8 +12,8 @@ export type RoutineInput = Readonly<{
   name: string;
   estimateMinutes: number;
   scheduledStartTime: string;
-  modeId: number | null;
-  projectId: number | null;
+  modeId: ModeId | null;
+  projectId: ProjectId | null;
   recurrenceType: RecurrenceType;
   weekdays: number | null;
   weekInterval: number | null;
@@ -26,8 +28,8 @@ export type ValidRoutineInput = Readonly<{
   name: string;
   estimateMinutes: number;
   scheduledStartTime: string;
-  modeId: number | null;
-  projectId: number | null;
+  modeId: ModeId | null;
+  projectId: ProjectId | null;
   recurrenceType: RecurrenceType;
   weekdays: number | null;
   weekInterval: number | null;

@@ -1,6 +1,7 @@
 // タスク集約（データモデル定義書 §3.5）。プランとログを兼ねる中心テーブルの表現
 import type { ModeId } from "../mode/mode";
 import type { ProjectId } from "../project/project";
+import type { RoutineId } from "../routine/routine";
 import type { SectionId } from "../section/section";
 import type { LogicalDate } from "../shared/logical-date";
 
@@ -19,7 +20,7 @@ export type Task = Readonly<{
   endedAt: Date | null;
   comment: string | null;
   highlighted: boolean; // その日注力する印（F-118）。導出できないユーザーの宣言
-  routineId: number | null;
+  routineId: RoutineId | null;
   splitParentId: TaskId | null;
   postponedCount: number;
 }>;

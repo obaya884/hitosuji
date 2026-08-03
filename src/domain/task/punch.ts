@@ -1,4 +1,6 @@
 // 打刻と割り込み・中断の生成規則（要件定義書 §5.2 F-201/F-204 / データモデル定義書 §4.2）
+import type { ModeId } from "../mode/mode";
+import type { ProjectId } from "../project/project";
 import { err, ok, type Result } from "../shared/result";
 import { taskStatus } from "./status";
 import { actualMinutes, type Task, type TaskId } from "./task";
@@ -22,8 +24,8 @@ export function resumeEstimateMinutes(original: Task, actual: number): number {
 export type ResumeTaskDraft = Readonly<{
   name: string;
   estimateMinutes: number;
-  modeId: number | null;
-  projectId: number | null;
+  modeId: ModeId | null;
+  projectId: ProjectId | null;
   highlighted: boolean;
   splitParentId: TaskId;
 }>;

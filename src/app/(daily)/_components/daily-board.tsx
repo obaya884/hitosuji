@@ -27,7 +27,7 @@ import { taskStatus } from "@/domain/task/status";
 import { editEndedAt, editStartedAt } from "@/domain/task/punch-edit";
 import { normalizeComment, validateEstimateMinutes, validateTaskName } from "@/domain/task/edit";
 import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
-import type { Task } from "@/domain/task/task";
+import type { Task, TaskId } from "@/domain/task/task";
 import { PlusIcon } from "@/app/_components/icons";
 import { DAILY_PATH } from "@/app/_lib/date-href";
 import { formatClock } from "@/app/_lib/format";
@@ -102,7 +102,7 @@ export function DailyBoard({
 }: Props) {
   const [optimisticGroups, dispatchOptimistic] = useOptimistic(groups, applyOptimisticAction);
   const [name, setName] = useState("");
-  const [rawSelectedId, setSelectedId] = useState<number | null>(null);
+  const [rawSelectedId, setSelectedId] = useState<TaskId | null>(null);
   const [editing, setEditing] = useState<EditingCell | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   // datepicker（F-117）の開閉。日付クリックと G（Go to date）の両方から開くため board で持つ

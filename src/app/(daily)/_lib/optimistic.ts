@@ -7,8 +7,11 @@ import {
   withTaskUpdated,
   type DailyGroup,
 } from "@/domain/task/daily-list";
+import type { ModeId } from "@/domain/mode/mode";
+import type { ProjectId } from "@/domain/project/project";
+import type { SectionId } from "@/domain/section/section";
 import type { LogicalDate } from "@/domain/shared/logical-date";
-import type { Task } from "@/domain/task/task";
+import type { Task, TaskId } from "@/domain/task/task";
 
 /**
  * 楽観的更新（N-01 / 00_共通 §4）: 永続化を待たずに画面へ反映し、失敗時はサーバ状態へ巻き戻す。
@@ -17,23 +20,23 @@ import type { Task } from "@/domain/task/task";
  */
 export type OptimisticAction =
   | Readonly<{ type: "append"; task: Task }>
-  | Readonly<{ type: "rename"; id: number; name: string }>
-  | Readonly<{ type: "estimate"; id: number; minutes: number }>
-  | Readonly<{ type: "comment"; id: number; comment: string | null }>
-  | Readonly<{ type: "highlight"; id: number; highlighted: boolean }>
-  | Readonly<{ type: "start"; id: number; at: Date }>
-  | Readonly<{ type: "unstart"; id: number }>
-  | Readonly<{ type: "uncomplete"; id: number }>
-  | Readonly<{ type: "finish"; id: number; at: Date }>
-  | Readonly<{ type: "punch"; id: number; startedAt: Date; endedAt: Date | null }>
+  | Readonly<{ type: "rename"; id: TaskId; name: string }>
+  | Readonly<{ type: "estimate"; id: TaskId; minutes: number }>
+  | Readonly<{ type: "comment"; id: TaskId; comment: string | null }>
+  | Readonly<{ type: "highlight"; id: TaskId; highlighted: boolean }>
+  | Readonly<{ type: "start"; id: TaskId; at: Date }>
+  | Readonly<{ type: "unstart"; id: TaskId }>
+  | Readonly<{ type: "uncomplete"; id: TaskId }>
+  | Readonly<{ type: "finish"; id: TaskId; at: Date }>
+  | Readonly<{ type: "punch"; id: TaskId; startedAt: Date; endedAt: Date | null }>
   | Readonly<{
       type: "move";
-      id: number;
-      destination: Readonly<{ sectionId: number | null; index: number }>;
+      id: TaskId;
+      destination: Readonly<{ sectionId: SectionId | null; index: number }>;
     }>
-  | Readonly<{ type: "mode"; id: number; modeId: number | null }>
-  | Readonly<{ type: "project"; id: number; projectId: number | null }>
-  | Readonly<{ type: "remove"; id: number }>;
+  | Readonly<{ type: "mode"; id: TaskId; modeId: ModeId | null }>
+  | Readonly<{ type: "project"; id: TaskId; projectId: ProjectId | null }>
+  | Readonly<{ type: "remove"; id: TaskId }>;
 
 export function applyOptimisticAction(
   groups: readonly DailyGroup[],

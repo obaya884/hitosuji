@@ -1,6 +1,7 @@
 // 並び替えのユースケース（画面定義書01 O-6）
 import type { TaskRepository } from "@/usecases/ports/task-repository";
 import type { SectionRepository } from "@/usecases/ports/section-repository";
+import type { SectionId } from "@/domain/section/section";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import { ok, type Result } from "@/domain/shared/result";
 import { displaySectionOrder } from "@/domain/task/daily-list";
@@ -15,7 +16,7 @@ export async function moveTaskTo(
   input: Readonly<{
     taskId: TaskId;
     date: LogicalDate;
-    sectionId: number | null;
+    sectionId: SectionId | null;
     index: number;
   }>
 ): Promise<Result<TaskId, ReorderUsecaseError>> {
@@ -57,7 +58,7 @@ export async function moveTaskByOneStep(
  */
 export async function setTaskSection(
   repo: TaskRepository,
-  input: Readonly<{ taskId: TaskId; date: LogicalDate; sectionId: number | null }>
+  input: Readonly<{ taskId: TaskId; date: LogicalDate; sectionId: SectionId | null }>
 ): Promise<Result<TaskId, ReorderUsecaseError>> {
   const sameDay = await repo.listByDate(input.date);
   const destinationSize = sameDay.filter(

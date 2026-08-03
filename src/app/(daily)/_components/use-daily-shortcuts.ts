@@ -1,8 +1,9 @@
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
+import type { SectionId } from "@/domain/section/section";
 import { type LogicalDate } from "@/domain/shared/logical-date";
 import { currentTaskId, moveSelection } from "@/domain/task/selection";
 import { taskStatus } from "@/domain/task/status";
-import type { Task } from "@/domain/task/task";
+import type { Task, TaskId } from "@/domain/task/task";
 import { dateHref, DAILY_PATH } from "@/app/_lib/date-href";
 import { isButtonTarget, isGlobalShortcutEvent } from "@/app/_lib/keyboard";
 import type { EditField, EditingCell } from "../_lib/editing";
@@ -14,9 +15,9 @@ export type DailyShortcutParams = Readonly<{
   pickerOpen: boolean;
   orderedTasks: readonly Task[];
   /** 表示時に導出された選択行 ID（keepSelection 後の値） */
-  selectedId: number | null;
+  selectedId: TaskId | null;
   /** 現在時刻を含むセクション（§4.3）。`N` の現在地探索（§5）に渡す。今日でなければ null */
-  currentSectionId: number | null;
+  currentSectionId: SectionId | null;
   /** 取り消しの保留（Undoトースト表示中）があるか。`U` の切り分けで最優先する（O-13） */
   hasPendingUndo: boolean;
   date: LogicalDate;

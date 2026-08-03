@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useServerAction } from "@/app/_lib/use-server-action";
 import { linkMuted } from "@/app/_lib/ui";
-import type { Section } from "@/domain/section/section";
+import type { Section, SectionId } from "@/domain/section/section";
 import { TableFrame } from "@/app/_components/table-frame";
 import { ArchivedMasterSection } from "../_components/archived-master-section";
 import { MasterEditableCell } from "../_components/master-editable-cell";
@@ -22,12 +22,12 @@ type SectionRow = Section & { endTime: string };
 type Props = Readonly<{
   ranges: readonly SectionRow[];
   archived: readonly Section[];
-  deletableIds: readonly number[];
+  deletableIds: readonly SectionId[];
 }>;
 
 // セルごとに独立して編集できる（名前・開始時刻のどちらか一方だけが入力欄になる）
 type Editing =
-  | Readonly<{ id: number; field: "name" | "startTime" }>
+  | Readonly<{ id: SectionId; field: "name" | "startTime" }>
   | Readonly<{ id: "new" }>;
 
 /** 終了時刻は次セクションの開始からの導出（入力しない）ことを示す添え書き（§3.1） */
@@ -45,7 +45,7 @@ export function SectionsTable({ ranges, archived, deletableIds }: Props) {
   const { error, setError, isPending, run } = useServerAction();
 
   /** 更新は行の全項目をまとめて送る（§4）。編集していないもう片方は現在値をそのまま送る */
-  function update(id: number, payload: Readonly<{ name: string; startTime: string }>) {
+  function update(id: SectionId, payload: Readonly<{ name: string; startTime: string }>) {
     // 失敗時は編集状態のまま残し、入力し直せるようにする
     run(() => updateSectionAction(id, payload), () => setEditing(null));
   }

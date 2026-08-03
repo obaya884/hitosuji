@@ -1,3 +1,7 @@
+import type { ModeId } from "@/domain/mode/mode";
+import type { ProjectId } from "@/domain/project/project";
+import type { RoutineId } from "@/domain/routine/routine";
+import type { SectionId } from "@/domain/section/section";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import type { Renumber } from "@/domain/task/sort-order";
 import type { Task, TaskId } from "@/domain/task/task";
@@ -7,16 +11,16 @@ import type { Task, TaskId } from "@/domain/task/task";
 export type { Renumber };
 
 /** 特定日のルーチンスキップ（F-301 / データモデル定義書 §3.6） */
-export type RoutineSkip = Readonly<{ routineId: number; taskDate: LogicalDate }>;
+export type RoutineSkip = Readonly<{ routineId: RoutineId; taskDate: LogicalDate }>;
 
 /** 新規タスクの永続化入力（id・打刻・created_at 等は永続化側が決める） */
 export type NewTask = Readonly<{
   taskDate: LogicalDate;
   name: string;
   estimateMinutes: number;
-  sectionId: number | null;
-  modeId: number | null;
-  projectId: number | null;
+  sectionId: SectionId | null;
+  modeId: ModeId | null;
+  projectId: ProjectId | null;
   sortOrder: number;
   /** ハイライト（F-118）。再開タスクだけが元タスクの値を引き継ぐ（省略時は false） */
   highlighted?: boolean;
@@ -48,7 +52,7 @@ export type StartCommand = Readonly<{
 /** 並び替えの命令（画面定義書01 O-6 / データモデル定義書 §3.5） */
 export type MoveCommand = Readonly<{
   taskId: TaskId;
-  sectionId: number | null;
+  sectionId: SectionId | null;
   sortOrder: number;
   /** 中間値が尽きた場合の同一グループの振り直し */
   renumber: Renumber;
@@ -61,7 +65,7 @@ export type MoveCommand = Readonly<{
  */
 export type Relocations = readonly Readonly<{
   taskId: TaskId;
-  sectionId: number | null;
+  sectionId: SectionId | null;
   sortOrder: number;
 }>[];
 

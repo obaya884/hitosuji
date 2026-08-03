@@ -10,6 +10,8 @@ import type {
   SuspendCommand,
   TaskRepository,
 } from "@/usecases/ports/task-repository";
+import type { ModeId } from "@/domain/mode/mode";
+import type { ProjectId } from "@/domain/project/project";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import type { Task, TaskId } from "@/domain/task/task";
 import { db as defaultDb, type Database } from "@/infrastructure/db";
@@ -275,7 +277,7 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
 
     async updateClassification(
       id: TaskId,
-      classification: Readonly<{ modeId?: number | null; projectId?: number | null }>
+      classification: Readonly<{ modeId?: ModeId | null; projectId?: ProjectId | null }>
     ) {
       await db
         .update(tasks)
