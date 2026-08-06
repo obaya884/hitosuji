@@ -9,6 +9,10 @@ import { useFlipUp } from "@/app/_lib/use-flip-up";
 import { revealedScrollTop } from "../_lib/popover-scroll";
 
 export type PopoverOption = Readonly<{
+  /**
+   * 候補の ID。モード・プロジェクト・セクションのどれを並べるかは呼び出し側が決めるので、
+   * **ID 型エイリアスに寄せず素の `number` で受ける**（アーキテクチャ定義書 §4「ID型」の例外）
+   */
   id: number | null;
   label: string;
   /** モードのカラーバー表示に使う */

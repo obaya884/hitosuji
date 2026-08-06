@@ -1,4 +1,7 @@
 // draft（複製・再開）から永続化入力 NewTask を組み立てる共通ヘルパー（T-18）
+import type { ModeId } from "@/domain/mode/mode";
+import type { ProjectId } from "@/domain/project/project";
+import type { SectionId } from "@/domain/section/section";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import type { TaskId } from "@/domain/task/task";
 import type { NewTask } from "@/usecases/ports/task-repository";
@@ -11,8 +14,8 @@ import type { NewTask } from "@/usecases/ports/task-repository";
 type TaskContentDraft = Readonly<{
   name: string;
   estimateMinutes: number;
-  modeId: number | null;
-  projectId: number | null;
+  modeId: ModeId | null;
+  projectId: ProjectId | null;
   highlighted?: boolean;
   splitParentId?: TaskId | null;
 }>;
@@ -26,7 +29,7 @@ export function newTaskFromDraft(
   draft: TaskContentDraft,
   placement: Readonly<{
     taskDate: LogicalDate;
-    sectionId: number | null;
+    sectionId: SectionId | null;
     sortOrder: number;
   }>
 ): NewTask {

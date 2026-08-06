@@ -3,11 +3,11 @@
 import { useState } from "react";
 import { useServerAction } from "@/app/_lib/use-server-action";
 import { linkMuted } from "@/app/_lib/ui";
-import type { Project } from "@/domain/project/project";
+import type { Project, ProjectId } from "@/domain/project/project";
+import { TableFrame } from "@/app/_components/table-frame";
 import { ArchivedMasterSection } from "../_components/archived-master-section";
 import { MasterEditableCell } from "../_components/master-editable-cell";
 import { MasterNewRow, MasterNewRowInput } from "../_components/master-new-row";
-import { MasterTableFrame } from "../_components/master-table-frame";
 import {
   createProjectAction,
   deleteProjectAction,
@@ -18,12 +18,12 @@ import {
 type Props = Readonly<{
   active: readonly Project[];
   archived: readonly Project[];
-  deletableIds: readonly number[];
+  deletableIds: readonly ProjectId[];
 }>;
 
 export function ProjectsTable({ active, archived, deletableIds }: Props) {
   // 編集中のセル（`"new"` は新規追加行）。値は入力欄の DOM が持つ
-  const [editingId, setEditingId] = useState<number | "new" | null>(null);
+  const [editingId, setEditingId] = useState<ProjectId | "new" | null>(null);
   const { error, setError, isPending, run } = useServerAction();
 
   /** 一覧の名前セル。クリックでその場編集（§4「編集方式」） */
@@ -68,7 +68,7 @@ export function ProjectsTable({ active, archived, deletableIds }: Props) {
   );
 
   return (
-    <MasterTableFrame
+    <TableFrame
       description="並び順は名前順です（`01.仕事` のような接頭辞で制御できます）。"
       error={error}
       isPending={isPending}
@@ -115,6 +115,6 @@ export function ProjectsTable({ active, archived, deletableIds }: Props) {
         onRestore={(id) => run(() => setProjectArchivedAction(id, false))}
         onDelete={(id) => run(() => deleteProjectAction(id))}
       />
-    </MasterTableFrame>
+    </TableFrame>
   );
 }

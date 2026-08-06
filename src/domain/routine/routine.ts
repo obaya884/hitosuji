@@ -1,4 +1,6 @@
 // ルーチン集約（データモデル定義書 §3.4 / 画面定義書02）
+import type { ModeId } from "../mode/mode";
+import type { ProjectId } from "../project/project";
 import type { LogicalDate } from "../shared/logical-date";
 import type { NameError } from "../shared/master-name";
 
@@ -12,8 +14,8 @@ export type Routine = Readonly<{
   estimateMinutes: number;
   /** 開始想定時刻 "HH:MM"。展開順とセクション配置の導出に使う（予約時刻ではない） */
   scheduledStartTime: string;
-  modeId: number | null;
-  projectId: number | null;
+  modeId: ModeId | null;
+  projectId: ProjectId | null;
   recurrenceType: RecurrenceType;
   /** weekly のビットマスク（bit0=月 … bit6=日） */
   weekdays: number | null;

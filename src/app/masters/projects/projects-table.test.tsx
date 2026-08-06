@@ -63,7 +63,7 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
     expect(screen.getByRole("button", { name: "プロジェクトB" })).not.toBeNull();
   });
 
-  // 説明文は共通の外枠（MasterTableFrame）へ prop で渡すので、表ごとに渡し違えていないかを見る（T-79）
+  // 説明文は共通の外枠（TableFrame）へ prop で渡すので、表ごとに渡し違えていないかを見る（T-79）
   it("並び順の決まり方を説明文で伝える（§3.3: 並び順は名前順）", () => {
     renderTable();
 
@@ -340,7 +340,7 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
 
     // 「保存中に始める操作」も止める（§2.3）——押すと開いていたセルが閉じ、
     // 失敗が返っても入力し直せなくなる。守りたいのは「開いている入力欄が残る」こと。
-    // 抑止そのものは MasterTableFrame が持つが、isPending を渡す配線は表ごとなのでここで見る
+    // 抑止そのものは TableFrame が持つが、isPending を渡す配線は表ごとなのでここで見る
     it("保存中の「新規追加」は開いている編集セルを閉じない", async () => {
       const pending = deferredAction();
       vi.mocked(setProjectArchivedAction).mockReturnValue(pending.promise);

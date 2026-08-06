@@ -3,8 +3,8 @@ import type { ModeRepository } from "@/usecases/ports/mode-repository";
 import type { ProjectRepository } from "@/usecases/ports/project-repository";
 import type { SectionRepository } from "@/usecases/ports/section-repository";
 import type { TaskRepository } from "@/usecases/ports/task-repository";
-import type { Mode } from "@/domain/mode/mode";
-import type { Project } from "@/domain/project/project";
+import type { Mode, ModeId } from "@/domain/mode/mode";
+import type { Project, ProjectId } from "@/domain/project/project";
 import { byDayStartOrder, dayStartTimeOf, type Section } from "@/domain/section/section";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import { sortByName } from "@/domain/shared/name-order";
@@ -159,7 +159,7 @@ export async function setTaskHighlight(
 export async function setTaskMode(
   repo: TaskRepository,
   id: TaskId,
-  modeId: number | null
+  modeId: ModeId | null
 ): Promise<Result<TaskId, TaskEditUsecaseError>> {
   if ((await repo.findById(id)) === null) return err("task_not_found");
   await repo.updateClassification(id, { modeId });
@@ -170,7 +170,7 @@ export async function setTaskMode(
 export async function setTaskProject(
   repo: TaskRepository,
   id: TaskId,
-  projectId: number | null
+  projectId: ProjectId | null
 ): Promise<Result<TaskId, TaskEditUsecaseError>> {
   if ((await repo.findById(id)) === null) return err("task_not_found");
   await repo.updateClassification(id, { projectId });

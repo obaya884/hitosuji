@@ -1,9 +1,10 @@
 import { render, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import type { Section } from "@/domain/section/section";
 import { atJst } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
-import { morning, unclassifiedGroup } from "../_testing/factories";
+import { morning, sectionGroup, unclassifiedGroup } from "../_testing/factories";
 import { headingOf } from "../_testing/table-helpers";
 import { GroupHeading, type GroupHeadingProps } from "./group-heading";
 
@@ -44,6 +45,23 @@ describe("GroupHeading（画面定義書01 §3.2: セクション見出し行）
     renderHeading({ group: unclassifiedGroup([task({ id: 1, name: "買い出しメモ" })]) });
 
     expect(headingOf("未分類").textContent).not.toContain("–");
+  });
+
+  // アーカイブ済みセクションは `sectionRanges` が落として枠を導けないので、
+  // `morning` 系ではなく `sectionGroup` へ直に組んで渡す（T-110）
+  it("アーカイブ済みセクションのグループは名前と開始時刻を出し、枠に依る表示だけを落とす", () => {
+    const archived: Section = { id: 900, name: "旧セクション", startTime: "22:00", isArchived: true };
+
+    renderHeading({
+      group: sectionGroup(archived, null, [task({ id: 1, name: "夜の片付け", estimateMinutes: 20 })]),
+    });
+
+    const heading = headingOf("旧セクション");
+    expect(within(heading).queryByText("22:00")).not.toBeNull();
+    // 枠から導く2つ（時間帯の終了時刻 `–HH:MM` と時間合計の分母 `/H:MM`）だけが出ない。
+    // 合計は分子まで含めて全文で見る——分母と一緒に分子も落とす書き換えを通さないため
+    expect(heading.textContent).not.toContain("–");
+    expect(within(heading).getByText(/^合計/).textContent).toBe("合計 0:20");
   });
 
   it("時間合計は完了は実績・未完了は見積もりを合算する（分母はセクション枠の長さ）", () => {

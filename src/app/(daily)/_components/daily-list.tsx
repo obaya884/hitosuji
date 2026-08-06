@@ -41,7 +41,7 @@ export type DailyListProps = Pick<
   Pick<GroupHeadingProps, "currentSectionId"> &
   Readonly<{
     groups: readonly DailyGroup[];
-    selectedId: number | null;
+    selectedId: TaskId | null;
     /** 編集中のセル（選択行モデルと同じく親が単一の真実を持つ） */
     editing: EditingCell | null;
     /** 表示日が今日か。セクション残り時間（§3.2）と予想開始時刻（§3.3）は今日のみ出す */

@@ -1,5 +1,6 @@
 // sort_order の採番と並び順（データモデル定義書 §3.5）
 // 連番ではなく1000刻み。途中挿入は前後の中間値を振り、中間値が尽きたときだけ振り直す
+import type { SectionId } from "../section/section";
 import { err, ok, type Result } from "../shared/result";
 import type { Task, TaskId } from "./task";
 
@@ -25,7 +26,7 @@ export function sortedBySortOrder(tasks: readonly Task[]): Task[] {
 }
 
 /** 指定セクション（null = 未分類）のタスクを sort_order 昇順で取り出す（§3.5） */
-export function tasksInSection(tasks: readonly Task[], sectionId: number | null): Task[] {
+export function tasksInSection(tasks: readonly Task[], sectionId: SectionId | null): Task[] {
   return sortedBySortOrder(tasks.filter((t) => t.sectionId === sectionId));
 }
 

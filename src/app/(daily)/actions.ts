@@ -27,8 +27,11 @@ import {
   restoreTask,
   suspendTask,
 } from "@/usecases/task/operations";
+import type { ModeId } from "@/domain/mode/mode";
+import type { ProjectId } from "@/domain/project/project";
+import type { SectionId } from "@/domain/section/section";
 import type { LogicalDate } from "@/domain/shared/logical-date";
-import type { Task } from "@/domain/task/task";
+import type { Task, TaskId } from "@/domain/task/task";
 import { moveTaskByOneStep, setTaskSection } from "@/usecases/task/reorder-usecases";
 import { createRoutineFromTask } from "@/usecases/routine/routine-usecases";
 import { applyCarryOverAfterPunch } from "@/usecases/task/relocation-usecases";
@@ -63,7 +66,7 @@ export type DailyActionResult = ActionResult;
 
 /** 生成系アクション（追加・複製・複製して開始）の結果。成功時に採番された生成物 id を返す */
 export type CreatingActionResult =
-  | Readonly<{ ok: true; createdId: number }>
+  | Readonly<{ ok: true; createdId: TaskId }>
   | FailedActionResult;
 
 /** 削除（O-8）の結果。取り消しで書き戻せるよう、消した行をそのまま返す */
@@ -88,7 +91,7 @@ export async function addTaskAction(
 }
 
 export async function renameTaskAction(
-  id: number,
+  id: TaskId,
   name: string
 ): Promise<DailyActionResult> {
   const result = await renameTask(taskRepo, id, name);
@@ -101,7 +104,7 @@ export async function renameTaskAction(
 }
 
 export async function updateTaskEstimateAction(
-  id: number,
+  id: TaskId,
   rawMinutes: string
 ): Promise<DailyActionResult> {
   const result = await updateTaskEstimate(taskRepo, id, rawMinutes);
@@ -115,7 +118,7 @@ export async function updateTaskEstimateAction(
 
 /** コメントの編集（F-206 / O-16） */
 export async function updateTaskCommentAction(
-  id: number,
+  id: TaskId,
   rawComment: string
 ): Promise<DailyActionResult> {
   const result = await updateTaskComment(taskRepo, id, rawComment);
@@ -129,7 +132,7 @@ export async function updateTaskCommentAction(
 
 /** ハイライトの付け外し（F-118 / O-17） */
 export async function setTaskHighlightAction(
-  id: number,
+  id: TaskId,
   highlighted: boolean
 ): Promise<DailyActionResult> {
   const result = await setTaskHighlight(taskRepo, id, highlighted);
@@ -142,7 +145,7 @@ export async function setTaskHighlightAction(
 }
 
 /** 開始打刻（F-201）。now はクライアントの現在時刻を受け取る */
-export async function startTaskAction(id: number, now: Date): Promise<DailyActionResult> {
+export async function startTaskAction(id: TaskId, now: Date): Promise<DailyActionResult> {
   // 「今日」は日界（F-116）を踏まえて解決する（サーバ側で日界セクションを読む）
   const today = await resolveToday(sectionRepo, now);
   const nowClock = formatClock(now);
@@ -158,7 +161,7 @@ export async function startTaskAction(id: number, now: Date): Promise<DailyActio
 }
 
 /** 開始打刻の取り消し（F-210 / O-13）。now はクライアントの現在時刻を受け取る */
-export async function undoStartAction(id: number, now: Date): Promise<DailyActionResult> {
+export async function undoStartAction(id: TaskId, now: Date): Promise<DailyActionResult> {
   const result = await undoStart(punchDeps, {
     taskId: id,
     nowClock: formatClock(now),
@@ -177,7 +180,7 @@ export async function undoStartAction(id: number, now: Date): Promise<DailyActio
  * now はクライアントの現在時刻を受け取る
  */
 export async function undoCompleteAction(
-  id: number,
+  id: TaskId,
   now: Date
 ): Promise<UncompletingActionResult> {
   const result = await undoComplete(punchDeps, {
@@ -206,7 +209,7 @@ export async function restoreCompletionAction(
   }
 }
 
-export async function finishTaskAction(id: number, now: Date): Promise<DailyActionResult> {
+export async function finishTaskAction(id: TaskId, now: Date): Promise<DailyActionResult> {
   const result = await finishTask(taskRepo, { taskId: id, now });
   if (result.ok) {
     const today = await resolveToday(sectionRepo, now);
@@ -225,7 +228,7 @@ export async function finishTaskAction(id: number, now: Date): Promise<DailyActi
  * 移動先の判定に使う `HH:MM` もクライアントのタイムゾーンで整形して受け取る
  */
 export async function updateTaskPunchAction(
-  id: number,
+  id: TaskId,
   punch: Readonly<{ startedAt: Date; endedAt: Date | null }>,
   startClock: string,
   now: Date
@@ -247,7 +250,7 @@ export async function updateTaskPunchAction(
 
 /** Shift+J/K での並び替え（O-6） */
 export async function moveTaskByStepAction(
-  input: Readonly<{ taskId: number; date: LogicalDate; step: 1 | -1 }>
+  input: Readonly<{ taskId: TaskId; date: LogicalDate; step: 1 | -1 }>
 ): Promise<DailyActionResult> {
   const result = await moveTaskByOneStep(
     { tasks: taskRepo, sections: sectionRepo },
@@ -263,8 +266,8 @@ export async function moveTaskByStepAction(
 
 /** モード・プロジェクト・セクションの割り当て（O-5） */
 export async function setTaskModeAction(
-  id: number,
-  modeId: number | null
+  id: TaskId,
+  modeId: ModeId | null
 ): Promise<DailyActionResult> {
   const result = await setTaskMode(taskRepo, id, modeId);
   if (result.ok) {
@@ -276,8 +279,8 @@ export async function setTaskModeAction(
 }
 
 export async function setTaskProjectAction(
-  id: number,
-  projectId: number | null
+  id: TaskId,
+  projectId: ProjectId | null
 ): Promise<DailyActionResult> {
   const result = await setTaskProject(taskRepo, id, projectId);
   if (result.ok) {
@@ -289,7 +292,7 @@ export async function setTaskProjectAction(
 }
 
 export async function setTaskSectionAction(
-  input: Readonly<{ taskId: number; date: LogicalDate; sectionId: number | null }>
+  input: Readonly<{ taskId: TaskId; date: LogicalDate; sectionId: SectionId | null }>
 ): Promise<DailyActionResult> {
   const result = await setTaskSection(taskRepo, input);
   if (result.ok) {
@@ -301,7 +304,7 @@ export async function setTaskSectionAction(
 }
 
 /** 中断（F-204） */
-export async function suspendTaskAction(id: number, now: Date): Promise<DailyActionResult> {
+export async function suspendTaskAction(id: TaskId, now: Date): Promise<DailyActionResult> {
   const result = await suspendTask(taskRepo, { taskId: id, now });
   if (result.ok) {
     revalidatePath("/");
@@ -312,7 +315,7 @@ export async function suspendTaskAction(id: number, now: Date): Promise<DailyAct
 }
 
 /** 複製（F-111）。複製後に選択行を移すため、作られたタスクのIDを返す（O-11） */
-export async function duplicateTaskAction(id: number): Promise<CreatingActionResult> {
+export async function duplicateTaskAction(id: TaskId): Promise<CreatingActionResult> {
   const result = await duplicateTask({ tasks: taskRepo, sections: sectionRepo }, { taskId: id });
   if (result.ok) {
     revalidatePath("/");
@@ -327,7 +330,7 @@ export async function duplicateTaskAction(id: number): Promise<CreatingActionRes
  * 楽観的更新はしない。開始した複製タスクへ選択を移すため作られたIDを返す。now はクライアントの現在時刻
  */
 export async function duplicateAndStartTaskAction(
-  id: number,
+  id: TaskId,
   now: Date
 ): Promise<CreatingActionResult> {
   const today = await resolveToday(sectionRepo, now);
@@ -351,7 +354,7 @@ export async function duplicateAndStartTaskAction(
  * 楽観的更新の対象外なので、サーバ確定を待って結果を返す
  */
 export async function createRoutineFromTaskAction(
-  id: number,
+  id: TaskId,
   choice: RoutineFromTaskChoice
 ): Promise<DailyActionResult> {
   const result = await createRoutineFromTask(
@@ -369,7 +372,7 @@ export async function createRoutineFromTaskAction(
 }
 
 /** 先送り（F-107） */
-export async function postponeTaskAction(id: number): Promise<DailyActionResult> {
+export async function postponeTaskAction(id: TaskId): Promise<DailyActionResult> {
   const result = await postponeTask(taskRepo, { taskId: id });
   if (result.ok) {
     revalidatePath("/");
@@ -381,7 +384,7 @@ export async function postponeTaskAction(id: number): Promise<DailyActionResult>
 
 /** 削除（O-8）。Undo のために削除したタスクを返す */
 export async function deleteTaskAction(
-  id: number
+  id: TaskId
 ): Promise<DeletingActionResult> {
   const result = await deleteTask(taskRepo, { taskId: id });
   if (result.ok) {

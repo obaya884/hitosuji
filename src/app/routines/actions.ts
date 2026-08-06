@@ -8,6 +8,7 @@ import {
   updateRoutine,
 } from "@/usecases/routine/routine-usecases";
 import type { RoutineInput } from "@/domain/routine/input";
+import type { RoutineId } from "@/domain/routine/routine";
 import { createRoutineRepository } from "@/infrastructure/db/repositories/drizzle-routine-repository";
 import { failure, type ActionResult } from "@/app/_lib/action-result";
 import { ROUTINE_MESSAGES } from "@/app/_lib/error-messages";
@@ -30,7 +31,7 @@ export async function createRoutineAction(input: RoutineInput): Promise<RoutineA
 }
 
 export async function updateRoutineAction(
-  id: number,
+  id: RoutineId,
   input: RoutineInput
 ): Promise<RoutineActionResult> {
   const result = await updateRoutine(repo, id, input);
@@ -43,7 +44,7 @@ export async function updateRoutineAction(
 }
 
 export async function setRoutineActiveAction(
-  id: number,
+  id: RoutineId,
   isActive: boolean
 ): Promise<RoutineActionResult> {
   const result = await setRoutineActive(repo, id, isActive);
@@ -55,7 +56,7 @@ export async function setRoutineActiveAction(
   }
 }
 
-export async function deleteRoutineAction(id: number): Promise<RoutineActionResult> {
+export async function deleteRoutineAction(id: RoutineId): Promise<RoutineActionResult> {
   const result = await deleteRoutine(repo, id);
   if (result.ok) {
     revalidatePath(PATH);

@@ -11,6 +11,8 @@ import type {
   SuspendCommand,
   TaskRepository,
 } from "@/usecases/ports/task-repository";
+import type { ModeId } from "@/domain/mode/mode";
+import type { ProjectId } from "@/domain/project/project";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import type { Task, TaskId } from "@/domain/task/task";
 
@@ -184,7 +186,7 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
 
     updateClassification: async (
       id: TaskId,
-      classification: Readonly<{ modeId?: number | null; projectId?: number | null }>
+      classification: Readonly<{ modeId?: ModeId | null; projectId?: ProjectId | null }>
     ) => patch(id, classification),
 
     move: async (command: MoveCommand) => {

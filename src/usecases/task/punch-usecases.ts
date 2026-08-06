@@ -1,6 +1,7 @@
 // 打刻のユースケース（F-201 / データモデル定義書 §4.2）と、その取り消し（F-210 同書 §4.5 / F-212 同書 §4.7）
 import type { SectionRepository } from "@/usecases/ports/section-repository";
 import type { Relocations, TaskRepository } from "@/usecases/ports/task-repository";
+import type { SectionId } from "@/domain/section/section";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import { err, ok, type Result } from "@/domain/shared/result";
 import {
@@ -127,7 +128,7 @@ export type CompletionSnapshot = Readonly<{
   taskId: TaskId;
   startedAt: Date;
   endedAt: Date;
-  sectionId: number | null;
+  sectionId: SectionId | null;
   sortOrder: number;
 }>;
 

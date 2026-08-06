@@ -524,7 +524,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
     });
 
     // 「保存中に始める操作」も止める（§2.3）——押すと開いていたセルが閉じてしまう。
-    // 抑止そのものは MasterTableFrame が持つが、isPending を渡す配線は表ごとなのでここで見る
+    // 抑止そのものは TableFrame が持つが、isPending を渡す配線は表ごとなのでここで見る
     it("保存中は「新規追加」を押せない", async () => {
       const pending = deferredAction();
       vi.mocked(archiveSectionAction).mockReturnValue(pending.promise);

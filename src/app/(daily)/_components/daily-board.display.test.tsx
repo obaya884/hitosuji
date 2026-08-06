@@ -97,6 +97,16 @@ describe("DailyBoard の固定領域の高さ（§2 / §5: 追従した行が固
 });
 
 describe("DailyBoard の表示日に応じた出し分けと警告（§3.1 / F-209）", () => {
+  // 移動先が S-04（/review）になっていないことは href でしか判らない（04 §3.1
+  // 「S-01 と S-04 の表示日は連動させない」の S-01 側。04 の対は review-board.test.tsx）
+  it("日付ナビの移動先は S-01 に閉じる（前日・翌日・今日へ）", () => {
+    renderBoard(defaultTasks(), { date: "2026-07-20", today: TEST_DATE, isToday: false });
+
+    expect(screen.getByLabelText("前日").getAttribute("href")).toBe("/?date=2026-07-19");
+    expect(screen.getByLabelText("翌日").getAttribute("href")).toBe("/?date=2026-07-21");
+    expect(screen.getByText("今日へ").getAttribute("href")).toBe("/");
+  });
+
   it("今日以外を表示中は「今日へ」を出す（isToday の配線。§3.1）", () => {
     renderBoard(defaultTasks(), { date: "2026-07-20", today: TEST_DATE, isToday: false });
 

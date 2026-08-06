@@ -4,12 +4,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import type { DailyReviewView } from "@/usecases/review/review-usecases";
-import { addDays, weekdayIndex } from "@/domain/shared/logical-date";
+import { weekdayIndex } from "@/domain/shared/logical-date";
 import { estimateDiffMinutes, sharePercent, type ActualTotal } from "@/domain/task/review";
 import { actualMinutes, type Task } from "@/domain/task/task";
 import { DateNav } from "@/app/_components/date-nav";
 import { StarIcon } from "@/app/_components/icons";
 import { UnsetMark } from "@/app/_components/unset-mark";
+import { dateHref, DAILY_PATH, REVIEW_PATH } from "@/app/_lib/date-href";
 import {
   formatClock,
   formatDuration,
@@ -36,11 +37,11 @@ export function ReviewBoard({
       if (!isGlobalShortcutEvent(e)) return;
 
       if (e.shiftKey) {
-        if (e.key === "H") router.push(`/review?date=${addDays(date, -1)}`);
-        if (e.key === "L") router.push(`/review?date=${addDays(date, 1)}`);
+        if (e.key === "H") router.push(dateHref(REVIEW_PATH, date, -1));
+        if (e.key === "L") router.push(dateHref(REVIEW_PATH, date, 1));
         return;
       }
-      if (e.key === "t") router.push("/review");
+      if (e.key === "t") router.push(REVIEW_PATH);
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -56,7 +57,7 @@ export function ReviewBoard({
           date={date}
           weekday={weekdayIndex(date)}
           isToday={isToday}
-          basePath="/review"
+          basePath={REVIEW_PATH}
         />
         {/* サマリ（§3.2） */}
         <p className="text-sm tabular-nums">
@@ -190,7 +191,7 @@ function LogRow({
               </span>
             )}
             {/* 修正は S-01 の過去日表示で行う（O-2 / §1）。モード色を消さないよう下線のみで示す */}
-            <Link href={`/?date=${date}`} className="hover:underline">
+            <Link href={dateHref(DAILY_PATH, date)} className="hover:underline">
               {task.name}
             </Link>
           </div>

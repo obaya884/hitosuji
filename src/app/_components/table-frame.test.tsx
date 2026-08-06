@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { hasClass } from "@/app/_testing/dom";
-import { MasterTableFrame } from "./master-table-frame";
+import { TableFrame } from "./table-frame";
 
 /**
  * エラー帯（`noticeDanger`）。文言ではなく帯そのものを探すので、
@@ -17,14 +17,17 @@ function renderFrame(
     description: ReactNode;
     error: string | null;
     isPending: boolean;
+    addLabel: string;
     onAddNew: () => void;
   }> = {}
 ) {
   return render(
-    <MasterTableFrame
+    <TableFrame
       description={props.description ?? "並び順は名前順です。"}
       error={props.error ?? null}
       isPending={props.isPending ?? false}
+      // 渡さないときは既定の「新規追加」になる（マスタ管理3表はこちら）
+      addLabel={props.addLabel}
       onAddNew={props.onAddNew ?? vi.fn()}
     >
       <table>
@@ -34,12 +37,11 @@ function renderFrame(
           </tr>
         </tbody>
       </table>
-    </MasterTableFrame>
+    </TableFrame>
   );
 }
 
-// マスタ管理3表に共通の外枠（画面定義書03 §3・§4）
-describe("MasterTableFrame（画面定義書03: 説明文・新規追加・エラー帯を3表で共通にする）", () => {
+describe("TableFrame（画面定義書02 §3 / 画面定義書03 §3・§4: 説明文・新規追加・エラー帯を管理画面の表で共通にする）", () => {
   it("説明文と「新規追加」と表の中身を出す", () => {
     renderFrame();
 
@@ -76,9 +78,9 @@ describe("MasterTableFrame（画面定義書03: 説明文・新規追加・エ�
     expect(errorNotice(container)).not.toBeNull();
 
     rerender(
-      <MasterTableFrame description="並び順は名前順です。" error={null} isPending={false} onAddNew={vi.fn()}>
+      <TableFrame description="並び順は名前順です。" error={null} isPending={false} onAddNew={vi.fn()}>
         <table />
-      </MasterTableFrame>
+      </TableFrame>
     );
 
     expect(errorNotice(container)).toBeNull();
@@ -96,6 +98,28 @@ describe("MasterTableFrame（画面定義書03: 説明文・新規追加・エ�
     });
 
     expect(screen.getByText(/編集できるのは開始時刻だけです。 先頭のラジオで/)).not.toBeNull();
+  });
+
+  // 表が増えるたびに枠を写さないための唯一の可変部分（画面定義書02 §3。ルーチン管理は「新規ルーチン」）。
+  // **既定側も同じテストで見る**——ヘルパの既定値に依らせると、渡し方を変えた瞬間に黙って検証が消える
+  it("新規追加ボタンの文言は既定が「新規追加」で、渡せば表ごとに差し替わる", () => {
+    const { rerender } = renderFrame();
+    expect(screen.getByRole("button", { name: "新規追加" })).not.toBeNull();
+
+    rerender(
+      <TableFrame
+        description="並び順は名前順です。"
+        error={null}
+        isPending={false}
+        addLabel="新規ルーチン"
+        onAddNew={vi.fn()}
+      >
+        <table />
+      </TableFrame>
+    );
+
+    expect(screen.getByRole("button", { name: "新規ルーチン" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "新規追加" })).toBeNull();
   });
 
   it("「新規追加」で新規行を開く合図を返す（開くのに要る初期化は表側が持つ）", () => {

@@ -4,11 +4,11 @@ import { useRef, useState } from "react";
 import { useDismiss } from "@/app/_lib/use-dismiss";
 import { useServerAction } from "@/app/_lib/use-server-action";
 import { floatPanel, linkMuted } from "@/app/_lib/ui";
-import { MODE_COLOR_PRESETS, modeColorName, type Mode } from "@/domain/mode/mode";
+import { MODE_COLOR_PRESETS, modeColorName, type Mode, type ModeId } from "@/domain/mode/mode";
+import { TableFrame } from "@/app/_components/table-frame";
 import { ArchivedMasterSection } from "../_components/archived-master-section";
 import { MasterEditableCell } from "../_components/master-editable-cell";
 import { MasterNewRow, MasterNewRowInput } from "../_components/master-new-row";
-import { MasterTableFrame } from "../_components/master-table-frame";
 import {
   createModeAction,
   deleteModeAction,
@@ -19,7 +19,7 @@ import {
 type Props = Readonly<{
   active: readonly Mode[];
   archived: readonly Mode[];
-  deletableIds: readonly number[];
+  deletableIds: readonly ModeId[];
 }>;
 
 /** 新規モードの既定色（プリセットの先頭＝赤。画面定義書03 §3.2） */
@@ -83,9 +83,9 @@ function ColorPickerPopover({
 
 export function ModesTable({ active, archived, deletableIds }: Props) {
   // 編集中のセル（`"new"` は新規追加行）。値は入力欄の DOM が持つ
-  const [editingId, setEditingId] = useState<number | "new" | null>(null);
+  const [editingId, setEditingId] = useState<ModeId | "new" | null>(null);
   const [newColor, setNewColor] = useState<string>(DEFAULT_MODE_COLOR);
-  const [colorPickerId, setColorPickerId] = useState<number | "new" | null>(null);
+  const [colorPickerId, setColorPickerId] = useState<ModeId | "new" | null>(null);
   const { error, setError, isPending, run } = useServerAction();
 
   /** 新規追加行を閉じる（開いていたプリセット選択も畳む） */
@@ -198,7 +198,7 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
   );
 
   return (
-    <MasterTableFrame
+    <TableFrame
       description="色はプリセットから選択します。並び順は名前順です。"
       error={error}
       isPending={isPending}
@@ -258,6 +258,6 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
         onRestore={(id) => run(() => setModeArchivedAction(id, false))}
         onDelete={(id) => run(() => deleteModeAction(id))}
       />
-    </MasterTableFrame>
+    </TableFrame>
   );
 }

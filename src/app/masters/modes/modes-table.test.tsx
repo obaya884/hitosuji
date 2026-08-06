@@ -77,7 +77,7 @@ beforeEach(() => {
 });
 
 describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バーの横に色名を併記）", () => {
-  // 説明文は共通の外枠（MasterTableFrame）へ prop で渡すので、表ごとに渡し違えていないかを見る（T-79）
+  // 説明文は共通の外枠（TableFrame）へ prop で渡すので、表ごとに渡し違えていないかを見る（T-79）
   it("色の決め方と並び順を説明文で伝える（§3.2）", () => {
     renderTable();
 
@@ -510,7 +510,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
     });
 
     // 「保存中に始める操作」も止める（§2.3）——押すと開いていたセルが閉じてしまう。
-    // 抑止そのものは MasterTableFrame が持つが、isPending を渡す配線は表ごとなのでここで見る
+    // 抑止そのものは TableFrame が持つが、isPending を渡す配線は表ごとなのでここで見る
     it("保存中は「新規追加」を押せない", async () => {
       const pending = deferredAction();
       vi.mocked(setModeArchivedAction).mockReturnValue(pending.promise);

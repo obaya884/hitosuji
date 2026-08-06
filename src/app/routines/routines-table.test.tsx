@@ -92,6 +92,13 @@ afterEach(() => {
 });
 
 describe("RoutinesTable（画面定義書02 §3: 一覧の列と表記）", () => {
+  // 説明文は共通の外枠（TableFrame）へ prop で渡すので、表ごとに渡し違えていないかを見る（T-94）
+  it("展開は当日以降だけであることを一覧上部の説明文で伝える", () => {
+    renderTable([routine({ id: 1 })]);
+
+    expect(screen.getByText(/自動で展開されます（当日以降のみ）/)).not.toBeNull();
+  });
+
   it("列は左から 名前/モード/プロジェクト/見積/繰り返し/開始想定/有効/操作 の順に並べる", () => {
     const { container } = renderTable([routine({ id: 1 })]);
 
@@ -424,7 +431,8 @@ describe("RoutinesTable（画面定義書02 §5: 有効/無効・削除・編集
     expect(edit.disabled).toBe(false);
   });
 
-  // 「保存中に始める操作」も止める（00_共通 §2.3）——開いていたフォームが閉じてしまうため
+  // 「保存中に始める操作」も止める（00_共通 §2.3）——開いていたフォームが閉じてしまうため。
+  // 抑止そのものは TableFrame が持つが、isPending を渡す配線は表ごとなのでここで見る
   it("保存中は「新規ルーチン」を押せない", async () => {
     const pending = deferredAction();
     vi.mocked(setRoutineActiveAction).mockReturnValue(pending.promise);
@@ -637,6 +645,20 @@ describe("RoutinesTable（画面定義書02 §4・§5: 新規/編集フォーム
     clickWithoutServer(screen.getByText("編集"));
 
     expect(screen.queryByText("削除できません")).toBeNull();
+  });
+
+  // 上と同じ規則の「新規ルーチン」経由（外枠の onAddNew は初期化も担う。マスタ管理3表と同型）
+  it("前の失敗のエラーは「新規ルーチン」を押しても消える", async () => {
+    vi.mocked(deleteRoutineAction).mockResolvedValue({ ok: false, message: "削除できません" });
+    renderTable([routine({ id: 7 })]);
+
+    await click(screen.getByText("削除"));
+    expect(screen.queryByText("削除できません")).not.toBeNull();
+
+    clickWithoutServer(screen.getByText("新規ルーチン"));
+
+    expect(screen.queryByText("削除できません")).toBeNull();
+    expect(screen.queryByLabelText("名前")).not.toBeNull();
   });
 
   it("編集フォームの取消では保存を依頼しない", async () => {

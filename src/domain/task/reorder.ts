@@ -1,5 +1,6 @@
 // 並び替え（画面定義書01 O-6 / データモデル定義書 §3.5）
 // 表示順は「セクション（start_time 順）→ sort_order」。移動先の前後から中間値を採番する
+import type { SectionId } from "../section/section";
 import { err, ok, type Result } from "../shared/result";
 import { placeSortOrder, tasksInSection, type Renumber } from "./sort-order";
 import type { Task, TaskId } from "./task";
@@ -9,7 +10,7 @@ export type ReorderError = "task_not_found";
 /** 並び替えの結果 */
 export type Reorder = Readonly<{
   taskId: TaskId;
-  sectionId: number | null;
+  sectionId: SectionId | null;
   sortOrder: number;
   /** 中間値が尽きた場合の振り直し（グループ全体の新しい採番。空配列＝振り直しなし） */
   renumber: Renumber;
@@ -22,7 +23,7 @@ export type Reorder = Readonly<{
 export function reorderTask(
   tasks: readonly Task[],
   taskId: TaskId,
-  destination: Readonly<{ sectionId: number | null; index: number }>
+  destination: Readonly<{ sectionId: SectionId | null; index: number }>
 ): Result<Reorder, ReorderError> {
   const target = tasks.find((t) => t.id === taskId);
   if (target === undefined) return err("task_not_found");
@@ -50,8 +51,8 @@ export function stepMoveDestination(
   taskId: TaskId,
   step: 1 | -1,
   /** 表示順のセクション（未分類を先頭にした並び。null = 未分類） */
-  sectionOrder: readonly (number | null)[]
-): Readonly<{ sectionId: number | null; index: number }> | null {
+  sectionOrder: readonly (SectionId | null)[]
+): Readonly<{ sectionId: SectionId | null; index: number }> | null {
   const target = tasks.find((t) => t.id === taskId);
   if (target === undefined) return null;
 
@@ -82,7 +83,7 @@ export function moveTaskByStep(
   taskId: TaskId,
   step: 1 | -1,
   /** 表示順のセクション（未分類を先頭にした並び。null = 未分類） */
-  sectionOrder: readonly (number | null)[]
+  sectionOrder: readonly (SectionId | null)[]
 ): Result<Reorder, ReorderError> {
   const target = tasks.find((t) => t.id === taskId);
   if (target === undefined) return err("task_not_found");

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { dateHref, DAILY_PATH } from "@/app/_lib/date-href";
 import { formatClock, formatLogicalDate } from "@/app/_lib/format";
 import { noticeDanger } from "@/app/_lib/ui";
 import { weekdayIndex } from "@/domain/shared/logical-date";
@@ -19,7 +20,7 @@ export function StaleRunningBanner({ task }: Props) {
         {formatLogicalDate(task.taskDate, weekdayIndex(task.taskDate))}
         {task.startedAt !== null && ` ${formatClock(task.startedAt)}〜`}
       </span>
-      <Link href={`/?date=${task.taskDate}`} className="ml-2 underline">
+      <Link href={dateHref(DAILY_PATH, task.taskDate)} className="ml-2 underline">
         該当日を開く
       </Link>
     </div>
