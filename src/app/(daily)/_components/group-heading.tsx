@@ -1,6 +1,5 @@
-import type { SectionId } from "@/domain/section/section";
+import { sectionCapacityMinutes, type SectionId } from "@/domain/section/section";
 import { sectionTotalMinutes, type DailyGroup } from "@/domain/task/daily-list";
-import { sectionCapacityMinutes } from "@/domain/task/projection";
 import { formatDuration, formatEstimate, formatSignedDuration } from "@/app/_lib/format";
 import { TaskProgress } from "./task-progress";
 

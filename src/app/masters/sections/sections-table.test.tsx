@@ -98,6 +98,42 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
     expect(within(rowOf("セクションB")).getByRole("button", { name: "12:00–06:00" })).not.toBeNull();
   });
 
+  describe("枠の長さ（画面定義書03 §3.1「長さ」/ FB-90）", () => {
+    it("「長さ」列を時間帯の右に置く", () => {
+      renderTable();
+
+      // 列名と位置の両方が §3.1 の定め（末尾の空欄は操作列）
+      expect(screen.getAllByRole("columnheader").map((th) => th.textContent)).toEqual([
+        "日界",
+        "名前",
+        "時間帯",
+        "長さ",
+        "",
+      ]);
+    });
+
+    it("各行に枠の長さを H:MM で出す", () => {
+      renderTable();
+
+      expect(within(rowOf("セクションA")).getByText("6:00")).not.toBeNull();
+      // 日をまたぐ枠（12:00–06:00）も24時間の巡回で測る
+      expect(within(rowOf("セクションB")).getByText("18:00")).not.toBeNull();
+    });
+
+    it("有効セクションが1件なら丸1日（24:00）になる", () => {
+      renderTable({ ranges: [section(1, "終日", "06:00", { endTime: "06:00", isDayStart: true })] });
+
+      expect(within(rowOf("終日")).getByText("24:00")).not.toBeNull();
+    });
+
+    // 導出値なので編集に入らない（開始時刻セルと違い、押しても入力欄にならない）
+    it("長さは読み取り専用（セルがボタンになっていない）", () => {
+      renderTable();
+
+      expect(within(rowOf("セクションA")).queryByRole("button", { name: "6:00" })).toBeNull();
+    });
+  });
+
   describe("日界セクションの選択（F-116 / 画面定義書03 §3.1）", () => {
     it("ちょうど1行が選択された状態で示す", () => {
       renderTable();
@@ -420,6 +456,18 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
       expect(screen.getAllByRole("radio")).toHaveLength(RANGES.length);
     });
 
+    // 長さも枠が定まってから決まる＝新規行では空。空セルを置き忘れると以降の列がずれる
+    it("長さの列は空のまま置く（列数と位置を見出しにそろえる）", () => {
+      renderTable();
+
+      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
+
+      const newRow = screen.getByPlaceholderText("セクション名").closest("tr") as HTMLElement;
+      const cells = within(newRow).getAllByRole("cell");
+      expect(cells).toHaveLength(screen.getAllByRole("columnheader").length);
+      expect(cells[3].textContent).toBe(""); // 4列目＝長さ
+    });
+
     it("「保存」で名前と開始時刻をまとめて送る", async () => {
       renderTable();
       clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
@@ -571,6 +619,8 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
       const row = rowOf("旧セクション");
 
       expect(within(row).getByText("03:00")).not.toBeNull();
+      // 枠の導出対象外で終了時刻が定まらないため長さは出さない（名前・開始時刻・操作の3列。§3.1）
+      expect(within(row).getAllByRole("cell")).toHaveLength(3);
       await click(within(row).getByRole("button", { name: "復元" }));
 
       expect(restoreSectionAction).toHaveBeenCalledExactlyOnceWith(9);

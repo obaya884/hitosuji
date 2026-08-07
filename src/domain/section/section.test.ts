@@ -7,6 +7,7 @@ import {
   dayStartOffset,
   dayStartTimeOf,
   sectionAt,
+  sectionCapacityMinutes,
   sectionRanges,
   validateSectionInput,
   type Section,
@@ -42,6 +43,20 @@ describe("sectionRanges（画面定義書03 §3.1: 終了時刻は次セクシ�
   it("アーカイブ済みセクションは枠の導出に含めない", () => {
     const archived = section({ id: 4, startTime: "12:00", isArchived: true });
     expect(sectionRanges([morning, forenoon, archived]).map((r) => r.section.id)).toEqual([1, 2]);
+  });
+});
+
+describe("sectionCapacityMinutes（データモデル定義書 §3.1: 枠の長さ＝終了時刻 − start_time）", () => {
+  it("開始から終了までの分数を返す", () => {
+    expect(sectionCapacityMinutes("06:00", "09:00")).toBe(180);
+  });
+
+  it("日をまたぐ枠（夜 18:00–00:00）も正しく求める", () => {
+    expect(sectionCapacityMinutes("18:00", "00:00")).toBe(360);
+  });
+
+  it("有効セクションが1件で先頭へ折り返す場合は24時間", () => {
+    expect(sectionCapacityMinutes("06:00", "06:00")).toBe(24 * 60);
   });
 });
 

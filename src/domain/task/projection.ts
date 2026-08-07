@@ -1,6 +1,11 @@
 // 終了予定時刻と残時間（F-104）・予想開始時刻（F-120 / データモデル定義書 §4.3）
 // DBには保存しない導出値。現在時刻とタイムゾーンは引数で受け取る（domain は now も環境も持たない）
-import { offsetFromDayStart, startMinutes, type SectionId } from "../section/section";
+import {
+  offsetFromDayStart,
+  sectionCapacityMinutes,
+  startMinutes,
+  type SectionId,
+} from "../section/section";
 import { todayLogicalDate } from "../shared/logical-date";
 import { fromZonedClock } from "../shared/time-zone";
 import type { DailyGroup } from "./daily-list";
@@ -206,20 +211,4 @@ export function sectionSlacks(
   }
 
   return slacks;
-}
-
-/**
- * セクション枠の長さ（分）。開始時刻から終了時刻まで（日をまたぐ場合は24時間を足す）。
- * F-110 の「合計 2:30/3:00」の分母
- */
-export function sectionCapacityMinutes(startTime: string, endTime: string): number {
-  const toMinutes = (hhmm: string) => {
-    const [h, m] = hhmm.split(":").map(Number);
-    return h * 60 + m;
-  };
-
-  const start = toMinutes(startTime);
-  const end = toMinutes(endTime);
-  const span = end - start;
-  return span > 0 ? span : span + 24 * 60;
 }
