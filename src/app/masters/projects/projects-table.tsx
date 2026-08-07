@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useServerAction } from "@/app/_lib/use-server-action";
-import { linkMuted } from "@/app/_lib/ui";
+import { linkMuted, tableHeadRow } from "@/app/_lib/ui";
 import type { Project, ProjectId } from "@/domain/project/project";
 import { TableFrame } from "@/app/_components/table-frame";
 import { ArchivedMasterSection } from "../_components/archived-master-section";
@@ -77,9 +77,9 @@ export function ProjectsTable({ active, archived, deletableIds }: Props) {
         setEditingId("new");
       }}
     >
-      <table className="mt-2 w-full text-sm">
+      <table className="mt-2 w-full">
         <thead>
-          <tr className="border-b border-line-strong text-left text-xs text-ink-muted">
+          <tr className={tableHeadRow}>
             <th className="py-2 font-normal">名前</th>
             <th className="w-32 py-2" />
           </tr>

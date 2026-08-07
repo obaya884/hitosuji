@@ -7,19 +7,24 @@ export const btnPrimary =
 export const btnSecondary =
   "rounded-control border border-line bg-surface px-3 py-1 text-sm text-ink hover:bg-accent-weak";
 
-export const linkAccent = "text-accent hover:underline";
+// 部品（リンク状のボタン・入力欄）は本文のサイズを継承させず自分で持つ
+// ——本文は主/従/メタの3段（00_共通 §1.1）だが、部品はその外側なので継承すると置かれた場所で大小が変わる
+export const linkAccent = "text-sm text-accent hover:underline";
 
-export const linkMuted = "text-ink-muted hover:text-ink";
+export const linkMuted = "text-sm text-ink-muted hover:text-ink";
 
 // 取り消せない操作（マスタの物理削除）の確定ボタン
-export const linkDanger = "text-danger hover:underline";
+export const linkDanger = "text-sm text-danger hover:underline";
 
 export const inputBase =
-  "rounded-control border border-line bg-surface px-2 py-1 text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none";
+  "rounded-control border border-line bg-surface px-2 py-1 text-sm text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none";
 
 export const floatPanel =
   // text-ink を明示し、行のモード色（F-401）を継承しないようにする（FB-38）
   "rounded-float border border-line bg-surface text-ink shadow-float";
+
+// 一覧の列見出し行。見出しは従段で、主従は色で示す（00_共通 §1.1）
+export const tableHeadRow = "border-b border-line-strong text-left text-sm text-ink-muted";
 
 // エラー・警告の帯（Server Action の失敗、前日以前の実行中タスク等）
 export const noticeDanger =

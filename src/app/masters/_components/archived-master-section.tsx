@@ -29,7 +29,7 @@ export function ArchivedMasterSection<T extends { id: number }>({
       <summary className="cursor-pointer text-sm text-ink-muted">
         アーカイブ済み（{archived.length}）
       </summary>
-      <table className="mt-2 w-full text-sm">
+      <table className="mt-2 w-full">
         <tbody>
           {archived.map((item) => (
             <tr key={item.id} className="border-b border-line text-ink-muted">

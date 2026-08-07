@@ -13,7 +13,7 @@ import {
 import { sectionAt, type Section } from "@/domain/section/section";
 import { formatEstimate } from "@/app/_lib/format";
 import { useServerAction } from "@/app/_lib/use-server-action";
-import { linkAccent, linkMuted } from "@/app/_lib/ui";
+import { linkAccent, linkMuted, tableHeadRow } from "@/app/_lib/ui";
 import { TableFrame } from "@/app/_components/table-frame";
 import { UnsetMark } from "@/app/_components/unset-mark";
 import {
@@ -140,9 +140,9 @@ export function RoutinesTable({
     >
       {editing === "new" && form(null)}
 
-      <table className="mt-3 w-full text-sm">
+      <table className="mt-3 w-full">
         <thead>
-          <tr className="border-b border-line-strong text-left text-xs text-ink-muted">
+          <tr className={tableHeadRow}>
             <SortableHeader label="名前" sortKey="name" sort={sort} onSort={toggleSort} />
             <SortableHeader
               label="モード"
@@ -158,8 +158,6 @@ export function RoutinesTable({
               onSort={toggleSort}
               className="w-28"
             />
-            {/* 見積は並べ替えの対象外（画面定義書02 §3.1） */}
-            <th className="w-20 py-2 pr-4 text-right font-normal">見積</th>
             <SortableHeader
               label="繰り返し"
               sortKey="recurrence"
@@ -167,6 +165,8 @@ export function RoutinesTable({
               onSort={toggleSort}
               className="w-40"
             />
+            {/* 見積は並べ替えの対象外（画面定義書02 §3.1） */}
+            <th className="w-20 py-2 pr-4 text-right font-normal">見積</th>
             <SortableHeader
               label="開始想定"
               sortKey="scheduledStartTime"
@@ -201,16 +201,17 @@ export function RoutinesTable({
                 >
                   {routine.name}
                 </td>
-                <td className="py-2 text-xs">{mode?.name ?? <UnsetMark />}</td>
-                <td className="py-2 text-xs">{project?.name ?? <UnsetMark />}</td>
+                <td className="py-2 text-sm">{mode?.name ?? <UnsetMark />}</td>
+                <td className="py-2 text-sm">{project?.name ?? <UnsetMark />}</td>
+                <td className="py-2 text-sm">{describeRecurrence(routine)}</td>
                 <td className="py-2 pr-4 text-right font-mono tabular-nums">
                   {formatEstimate(routine.estimateMinutes)}
                 </td>
-                <td className="py-2 text-xs">{describeRecurrence(routine)}</td>
-                <td className="py-2 text-xs tabular-nums">
+                <td className="py-2 tabular-nums">
                   <span className="font-mono">{routine.scheduledStartTime}</span>
+                  {/* 併記するセクション名は従（00_共通 §1.1。S-01 のタスク名に添えるセクション名と同じ） */}
                   {section !== undefined && (
-                    <span className="ml-1 text-ink-muted">({section.name})</span>
+                    <span className="ml-1 text-sm text-ink-muted">({section.name})</span>
                   )}
                 </td>
                 <td className="py-2">

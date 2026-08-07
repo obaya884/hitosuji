@@ -278,7 +278,7 @@ export function RoutineForm({
           type="button"
           onClick={onCancel}
           disabled={isPending}
-          className={`px-3 py-1 text-sm ${linkMuted}`}
+          className={`px-3 py-1 ${linkMuted}`}
         >
           取消
         </button>
