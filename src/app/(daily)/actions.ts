@@ -230,15 +230,12 @@ export async function finishTaskAction(id: TaskId, now: Date): Promise<DailyActi
 export async function updateTaskPunchAction(
   id: TaskId,
   punch: Readonly<{ startedAt: Date; endedAt: Date | null }>,
-  startClock: string,
-  now: Date
+  startClock: string
 ): Promise<DailyActionResult> {
   const result = await updateTaskPunch(punchDeps, {
     taskId: id,
     ...punch,
     startClock,
-    // 「今日」の判定は他の打刻アクションと同じくクライアントの現在時刻＋日界（F-116）から導く
-    today: await resolveToday(sectionRepo, now),
   });
   if (result.ok) {
     revalidatePath("/");

@@ -14,7 +14,12 @@ import {
 } from "@/domain/task/punch";
 import { newTaskFromDraft } from "@/usecases/task/from-draft";
 import { placeSortOrder, tasksInSection } from "@/domain/task/sort-order";
-import { relocationOnPunchEdit, relocationOnStart, relocationOnUndoPunch } from "@/domain/task/relocation";
+import {
+  relocationOnPunchEdit,
+  relocationOnStart,
+  relocationOnUndoPunch,
+  withRelocations,
+} from "@/domain/task/relocation";
 import type { Task, TaskId } from "@/domain/task/task";
 
 export type PunchUsecaseError = PunchError | "task_not_found";
@@ -41,20 +46,17 @@ export async function startTask(
   const startable = canStart(target);
   if (!startable.ok) return startable;
 
-  // 開始したタスク自身を、開始時刻を含むセクションへ移す（F-113 / 画面定義書01 §4.2-a）。
+  // 開始したタスク自身を、開始時刻を含むセクションの開始時刻順の位置へ移す（F-113 / 画面定義書01 §4.2-a）。
   // 対象は今日のタスクのみ。打刻の書き込みと同一トランザクションで反映する
   const sameDay = await repo.listByDate(target.taskDate);
-  const startRelocation =
+  const relocations =
     target.taskDate === input.today
-      ? relocationOnStart(target, sameDay, await deps.sections.listAll(), input.nowClock)
-      : null;
-  const relocations = startRelocation === null ? [] : [startRelocation];
+      ? relocationOnStart(target, sameDay, await deps.sections.listAll(), input.now, input.nowClock)
+      : [];
 
-  // 移動した場合、以降の配置計算（再開タスクの位置）は移動後の位置を基準にする
-  const started =
-    startRelocation === null
-      ? target
-      : { ...target, sectionId: startRelocation.sectionId, sortOrder: startRelocation.sortOrder };
+  // 以降の配置計算（再開タスクの位置）は移動後の位置を基準にする
+  const afterMove = withRelocations(sameDay, relocations);
+  const started = withRelocations([target], relocations)[0];
 
   const running = await repo.findRunning();
   if (running === null) {
@@ -73,10 +75,7 @@ export async function startTask(
   // 再開タスクは開始タスクの直下（＝開始タスクと同じ日付・セクション）に置く。
   // 前日以前の実行中タスクを割り込んだ場合も当日側に生成される（データモデル定義書 §4.2）。
   // 画面定義書01 §4.2-a で開始タスクが移動した場合は移動先の直下になる
-  const group = tasksInSection(
-    sameDay.map((t) => (t.id === started.id ? started : t)),
-    started.sectionId
-  );
+  const group = tasksInSection(afterMove, started.sectionId);
   // 再開タスクは新規なので自身は振り直しに含めない
   const placed = placeSortOrder(group, group.findIndex((t) => t.id === started.id) + 1);
 
@@ -222,7 +221,8 @@ export async function finishTask(
  * 打刻時刻の修正（F-203）。
  * `HH:MM` → 絶対時刻の変換はクライアント側（利用者のタイムゾーン）で行い、
  * ここでは永続化前に 開始 ≦ 終了 の整合性を再検証する。
- * 開始時刻が変わった場合は、修正後の時刻を含むセクションへ移す（F-113 / 画面定義書01 §4.2-c）
+ * 開始時刻が変わった場合は、修正後の時刻を含むセクションへ移す（F-113 / 画面定義書01 §4.2-c。
+ * 規則cは表示日を問わないので「今日」を受け取らない）
  */
 export async function updateTaskPunch(
   deps: PunchDeps,
@@ -232,7 +232,6 @@ export async function updateTaskPunch(
     endedAt: Date | null;
     /** 修正後の開始時刻の `HH:MM`（クライアントのタイムゾーンで整形したもの） */
     startClock: string;
-    today: LogicalDate;
   }>
 ): Promise<Result<TaskId, PunchUsecaseError>> {
   const repo = deps.tasks;
@@ -246,16 +245,15 @@ export async function updateTaskPunch(
 
   // 終了時刻だけの修正では移動しない（画面定義書01 §4.2 の対象外。帰属は「いつ始めたか」で決める）
   const startedAtChanged = target.startedAt.getTime() !== input.startedAt.getTime();
-  const relocations =
-    startedAtChanged && target.taskDate === input.today
-      ? relocationOnPunchEdit(
-          target,
-          await repo.listByDate(target.taskDate),
-          await deps.sections.listAll(),
-          input.startedAt,
-          input.startClock
-        )
-      : [];
+  const relocations = startedAtChanged
+    ? relocationOnPunchEdit(
+        target,
+        await repo.listByDate(target.taskDate),
+        await deps.sections.listAll(),
+        input.startedAt,
+        input.startClock
+      )
+    : [];
 
   await repo.updatePunch(
     target.id,

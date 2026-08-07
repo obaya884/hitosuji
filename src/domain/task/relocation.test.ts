@@ -6,7 +6,7 @@ import {
   relocationOnPunchEdit,
   relocationOnStart,
   relocationOnUndoPunch,
-  type Relocation,
+  withRelocations,
 } from "./relocation";
 import type { Task } from "./task";
 import { task } from "./testing/task";
@@ -19,39 +19,119 @@ const sections = [morning, forenoon, afternoon];
 const started = atJst("10:00"); // 実行中タスク用のダミー開始時刻
 const completed = { startedAt: atJst("09:00"), endedAt: atJst("09:30") };
 
-/** テストの都合で Relocation を tasks へ反映するヘルパー（冪等性の検証に使う） */
-function applyRelocations(tasks: readonly Task[], relocations: readonly Relocation[]): Task[] {
-  const byId = new Map(relocations.map((r) => [r.taskId, r]));
-  return tasks.map((t) => {
-    const r = byId.get(t.id);
-    return r === undefined ? t : { ...t, sectionId: r.sectionId, sortOrder: r.sortOrder };
-  });
-}
-
 describe("relocationOnStart（画面定義書01 §4.2-a: 開始したタスク自身の移動）", () => {
-  it("未分類（section_id IS NULL）から開始時刻を含むセクションの末尾へ移る（FB-02）", () => {
+  /** 午前セクションの 09:30 に打刻したときの移動計画（ケース差分は「移動先の顔ぶれ」だけ） */
+  const startAt0930 = (t: Task, sameDay: readonly Task[], within: readonly Section[] = sections) =>
+    relocationOnStart(t, sameDay, within, atJst("09:30"), "09:30");
+
+  /** 打刻済みの同僚（開始時刻と現在の並び順だけを指定する） */
+  const punchedAt = (id: number, clock: string, sortOrder: number) =>
+    task({ id, sectionId: forenoon.id, sortOrder, startedAt: atJst(clock) });
+
+  it("未分類（section_id IS NULL）から開始時刻を含むセクションへ移る（FB-02）", () => {
     const t = task({ id: 1, sectionId: null });
-    const result = relocationOnStart(t, [t], sections, "09:30");
-    expect(result).toEqual({ taskId: 1, sectionId: forenoon.id, sortOrder: 1000 });
+    expect(startAt0930(t, [t])).toEqual([{ taskId: 1, sectionId: forenoon.id, sortOrder: 1000 }]);
   });
 
-  it("移動先セクションに既存タスクがあれば末尾（最大値+1000）に置く", () => {
+  it("移動先の打刻済みタスクとは開始時刻順に並ぶ", () => {
     const t = task({ id: 1, sectionId: null });
-    const sibling = task({ id: 2, sectionId: forenoon.id, sortOrder: 2500 });
-    const result = relocationOnStart(t, [t, sibling], sections, "09:30");
-    expect(result).toEqual({ taskId: 1, sectionId: forenoon.id, sortOrder: 3500 });
+    const earlier = punchedAt(2, "09:10", 2500);
+    expect(startAt0930(t, [t, earlier])).toEqual([
+      { taskId: 1, sectionId: forenoon.id, sortOrder: 3500 },
+    ]);
   });
 
-  it("既に開始時刻を含むセクションにいる場合は null（移動不要）", () => {
-    const t = task({ id: 1, sectionId: forenoon.id });
-    const result = relocationOnStart(t, [t], sections, "09:30");
-    expect(result).toBeNull();
+  it("移動先の未実行タスクよりは前に入る（上から実行順のログとして読めるように）", () => {
+    const t = task({ id: 1, sectionId: null });
+    const notStarted = task({ id: 2, sectionId: forenoon.id, sortOrder: 2500 });
+    expect(startAt0930(t, [t, notStarted])).toEqual([
+      { taskId: 1, sectionId: forenoon.id, sortOrder: 1500 },
+    ]);
   });
 
-  it("開始時刻を含む有効セクションが無い場合は null", () => {
+  it("既に開始時刻のセクションにいても、開始時刻順の位置へ置き直す（FB-86）", () => {
+    // ルーチン展開の並びのまま先頭にいるタスクを、先に実行した2件の後ろへ積み直す
+    const t = task({ id: 1, sectionId: forenoon.id, sortOrder: 1000 });
+    const first = punchedAt(2, "09:10", 2000);
+    const second = punchedAt(3, "09:20", 3000);
+
+    expect(startAt0930(t, [t, first, second])).toEqual([
+      { taskId: 1, sectionId: forenoon.id, sortOrder: 4000 },
+    ]);
+  });
+
+  it("冪等性: 移動結果を反映した後に再度呼ぶと空配列になる（デイリー表示のたびに走るため）", () => {
+    const t = task({ id: 1, sectionId: forenoon.id, sortOrder: 1000 });
+    const tasks = [t, punchedAt(2, "09:10", 2000)];
+
+    const plan = startAt0930(t, tasks);
+    const applied = withRelocations(tasks, plan);
+    const moved = withRelocations([t], plan)[0];
+
+    expect(startAt0930(moved, applied)).toEqual([]);
+  });
+
+  it("中間値が尽きたら移動先セクション全体を振り直す（§3.5 / データモデル定義書 §4.4）", () => {
+    // 09:20 と未実行の間（1000 と 1001）に入る余地が無い
     const t = task({ id: 1, sectionId: null });
-    const result = relocationOnStart(t, [t], [], "09:30");
-    expect(result).toBeNull();
+    const earlier = punchedAt(2, "09:20", 1000);
+    const notStarted = task({ id: 3, sectionId: forenoon.id, sortOrder: 1001 });
+
+    // 値が変わらない行（id=2 は 1000 のまま）は Relocation に含めない
+    expect(startAt0930(t, [t, earlier, notStarted])).toEqual([
+      { taskId: 1, sectionId: forenoon.id, sortOrder: 2000 },
+      { taskId: 3, sectionId: forenoon.id, sortOrder: 3000 },
+    ]);
+  });
+
+  it("位置は打刻の時刻で決まり、タスク行の started_at は見ない（打刻の書き込み前に呼ばれる）", () => {
+    // 本番は `started_at` を書く前の行を渡す（punch-usecases の startTask）
+    const t = task({ id: 1, sectionId: null, startedAt: null });
+    const earlier = punchedAt(2, "09:40", 2500);
+
+    // 09:30 の打刻として渡すので、09:40 の同僚より前に入る
+    expect(startAt0930(t, [t, earlier])).toEqual([
+      { taskId: 1, sectionId: forenoon.id, sortOrder: 1500 },
+    ]);
+  });
+
+  it("開始時刻を含む有効セクションが無い場合は空配列", () => {
+    const t = task({ id: 1, sectionId: null });
+    expect(startAt0930(t, [t], [])).toEqual([]);
+  });
+});
+
+describe("withRelocations（移動計画をタスク列へ当てる）", () => {
+  const plan = [{ taskId: 2, sectionId: afternoon.id, sortOrder: 5000 }];
+
+  it("計画のある行だけ section_id・sort_order を差し替える", () => {
+    const untouched = task({ id: 1, sectionId: morning.id, sortOrder: 1000 });
+    const moving = task({ id: 2, sectionId: forenoon.id, sortOrder: 2000 });
+
+    expect(withRelocations([untouched, moving], plan)).toEqual([
+      untouched,
+      { ...moving, sectionId: afternoon.id, sortOrder: 5000 },
+    ]);
+  });
+
+  it("計画に無い taskId は無視する（入力に無い行を作らない）", () => {
+    const only = task({ id: 1, sectionId: morning.id, sortOrder: 1000 });
+    expect(withRelocations([only], plan)).toEqual([only]);
+  });
+
+  it("空の計画では入力と同じ並び・同じ値を返す", () => {
+    const tasks = [task({ id: 1 }), task({ id: 2 })];
+    expect(withRelocations(tasks, [])).toEqual(tasks);
+  });
+
+  it("引数の配列を破壊的に変更しない", () => {
+    const moving = task({ id: 2, sectionId: forenoon.id, sortOrder: 2000 });
+    const tasks = [moving];
+
+    withRelocations(tasks, plan);
+
+    expect(tasks[0]).toEqual(moving);
+    expect(moving.sortOrder).toBe(2000);
   });
 });
 
@@ -162,7 +242,7 @@ describe("planCarryOver（画面定義書01 §4.2-b: 現在位置より前の未
     const first = planCarryOver(tasks, sections, "10:00");
     expect(first.length).toBeGreaterThan(0);
 
-    const applied = applyRelocations(tasks, first);
+    const applied = withRelocations(tasks, first);
     const second = planCarryOver(applied, sections, "10:00");
     expect(second).toEqual([]);
   });
@@ -176,7 +256,7 @@ describe("planCarryOver（画面定義書01 §4.2-b: 現在位置より前の未
     const first = planCarryOver(tasks, sections, "00:00");
     expect(first.length).toBeGreaterThan(0);
 
-    const applied = applyRelocations(tasks, first);
+    const applied = withRelocations(tasks, first);
     const second = planCarryOver(applied, sections, "00:00");
     expect(second).toEqual([]);
   });
@@ -258,6 +338,66 @@ describe("relocationOnPunchEdit（画面定義書01 §4.2-c: 開始時刻の修�
     );
 
     expect(result).toEqual([{ taskId: 1, sectionId: afternoon.id, sortOrder: 1500 }]);
+  });
+
+  it("位置は修正後の時刻で決まり、行に残っている修正前の時刻は見ない", () => {
+    // 行は修正前（08:00）のまま。本番も打刻列を書き換える前の行を渡す（punch-usecases）
+    const edited = task({
+      id: 1,
+      sectionId: forenoon.id,
+      sortOrder: 1000,
+      startedAt: atJst("08:00"),
+      endedAt: atJst("12:40"),
+    });
+    const later = task({
+      id: 2,
+      sectionId: afternoon.id,
+      sortOrder: 1000,
+      startedAt: atJst("13:00"),
+      endedAt: atJst("14:00"),
+    });
+
+    // 修正後は 12:10。08:00 基準なら 13:00 の前で同じ位置になってしまうため、
+    // 12:10 の側でしか差が出ない構成にする（13:00 の後ろに別の打刻済みを置く）
+    const latest = task({
+      id: 3,
+      sectionId: afternoon.id,
+      sortOrder: 2000,
+      startedAt: atJst("15:00"),
+      endedAt: atJst("15:30"),
+    });
+
+    const result = relocationOnPunchEdit(
+      edited,
+      [edited, later, latest],
+      sections,
+      atJst("14:00"),
+      "14:00"
+    );
+
+    // 14:00 基準なので 13:00 の後・15:00 の前（08:00 基準なら 13:00 の前になる）
+    expect(result).toEqual([{ taskId: 1, sectionId: afternoon.id, sortOrder: 1500 }]);
+  });
+
+  it("移動先に同じ開始時刻の打刻済みタスクがあれば、その後ろに入る", () => {
+    const edited = task({ id: 1, sectionId: forenoon.id, sortOrder: 1000, startedAt: atJst("09:00") });
+    const sameTime = task({
+      id: 2,
+      sectionId: afternoon.id,
+      sortOrder: 1000,
+      startedAt: atJst("12:10"),
+      endedAt: atJst("12:30"),
+    });
+
+    const result = relocationOnPunchEdit(
+      edited,
+      [edited, sameTime],
+      sections,
+      atJst("12:10"),
+      "12:10"
+    );
+
+    expect(result).toEqual([{ taskId: 1, sectionId: afternoon.id, sortOrder: 2000 }]);
   });
 
   it("未実行タスクは打刻済みタスクより後ろとして扱い、その直前に入る", () => {

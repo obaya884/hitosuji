@@ -86,6 +86,63 @@ describe("startTask（F-201: 開始打刻）", () => {
     expect(repo.rows[0].sectionId).toBeNull();
   });
 
+  it("画面定義書01 §4.2-a: 既にそのセクションにいるタスクも、開始時刻順の位置へ置き直す（FB-86）", async () => {
+    const sections: Section[] = [{ id: 2, name: "夜", startTime: "18:00", isArchived: false }];
+    const repo = inMemoryTaskRepository([
+      // ルーチン展開の並びのまま先頭にいる（打刻しても以前は動かなかった）
+      task({ id: 1, sectionId: 2, sortOrder: 1000 }),
+      task({ id: 2, sectionId: 2, sortOrder: 2000, startedAt: new Date("2026-07-26T08:00:00Z") }),
+    ]);
+
+    const result = await startTask(depsOf(repo, sections), { taskId: 1, now, nowClock, today });
+
+    expect(result.ok).toBe(true);
+    expect(repo.rows.find((r) => r.id === 1)?.sortOrder).toBe(3000); // 先に実行した id=2 の後ろ
+  });
+
+  it("画面定義書01 §4.2-a: 同セクション内で置き直したときも、再開タスクは置き直し後の直下に付く（FB-86）", async () => {
+    const sections: Section[] = [
+      { id: 1, name: "午前", startTime: "09:00", isArchived: false },
+      { id: 2, name: "夜", startTime: "18:00", isArchived: false },
+    ];
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 1, startedAt: new Date("2026-07-26T08:30:00Z") }), // 実行中（別セクション）
+      task({ id: 2, sectionId: 2, sortOrder: 1000 }), // これを開始（既に「夜」にいる）
+      task({ id: 3, sectionId: 2, sortOrder: 2000, startedAt: new Date("2026-07-26T08:00:00Z") }),
+    ]);
+
+    const result = await startTask(depsOf(repo, sections), { taskId: 2, now, nowClock, today });
+
+    expect(result.ok).toBe(true);
+    const started = repo.rows.find((r) => r.id === 2);
+    const resumed = repo.rows.find((r) => r.splitParentId !== null);
+    expect(started?.sortOrder).toBe(3000); // 打刻済みの id=3 の後ろへ置き直す
+    expect(resumed?.sectionId).toBe(2);
+    expect(resumed?.sortOrder).toBe(4000); // 置き直し後の直下（1500 ではない）
+  });
+
+  it("移動と振り直しが同じ行を指したら、振り直し後の値が残る（データモデル定義書 §3.5）", async () => {
+    const sections: Section[] = [
+      { id: 1, name: "午前", startTime: "09:00", isArchived: false },
+      { id: 2, name: "夜", startTime: "18:00", isArchived: false },
+    ];
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 1, startedAt: new Date("2026-07-26T08:30:00Z") }), // 実行中（別セクション）
+      task({ id: 2, sectionId: null }), // これを開始 → 「夜」へ移る
+      task({ id: 3, sectionId: 2, sortOrder: 1000, startedAt: new Date("2026-07-26T08:00:00Z") }),
+      task({ id: 4, sectionId: 2, sortOrder: 1002 }), // 未実行（再開タスクを置く隙間が無い）
+    ]);
+
+    const result = await startTask(depsOf(repo, sections), { taskId: 2, now, nowClock, today });
+
+    expect(result.ok).toBe(true);
+    // 移動（1001）のあとに再開タスクの採番で夜セクション全体が振り直され、id=2 は 2000 に落ち着く
+    expect(repo.rows.find((t) => t.id === 3)?.sortOrder).toBe(1000);
+    expect(repo.rows.find((t) => t.id === 2)?.sortOrder).toBe(2000);
+    expect(repo.rows.find((t) => t.splitParentId !== null)?.sortOrder).toBe(3000);
+    expect(repo.rows.find((t) => t.id === 4)?.sortOrder).toBe(4000);
+  });
+
   it("画面定義書01 §4.2-a: 割り込みの再開タスクは、移動後のセクションの直下に生成する", async () => {
     const sections: Section[] = [
       { id: 1, name: "午前", startTime: "09:00", isArchived: false },
@@ -537,7 +594,6 @@ describe("updateTaskPunch（F-203: 打刻時刻の修正）", () => {
     return updateTaskPunch(depsOf(repo, sections), {
       ...input,
       startClock: clockOf(input.startedAt),
-      today,
     });
   }
 
@@ -629,14 +685,70 @@ describe("updateTaskPunch（F-203: 打刻時刻の修正）", () => {
     expect(repo.rows[0].sectionId).toBe(1);
   });
 
-  it("今日以外の日付のタスクは移動しない", async () => {
+  // 画面定義書01 §4.2: 規則cは表示日を問わない（現在時刻を使わず修正後の時刻だけで移動先が定まる）
+  it("過去日のタスクも移動する（ログの訂正が最も起きる場面。FB-87）", async () => {
     const repo = inMemoryTaskRepository([
       task({ id: 1, taskDate: "2026-07-25", sectionId: 1, sortOrder: 1000, startedAt, endedAt }),
     ]);
-    const newStart = new Date("2026-07-26T03:10:00Z");
+    const newStart = new Date("2026-07-26T03:10:00Z"); // JST 12:10
 
     await editPunch(repo, { taskId: 1, startedAt: newStart, endedAt }, sections);
 
-    expect(repo.rows[0].sectionId).toBe(1);
+    expect(repo.rows[0].sectionId).toBe(2);
+  });
+
+  it("過去日のログの中で、修正後の開始時刻順の位置へ入る（FB-87 の実利）", async () => {
+    const yesterday = "2026-07-25";
+    const repo = inMemoryTaskRepository([
+      // 直す対象。午前にいるが、実際は午後の 12:10 だった
+      task({ id: 1, taskDate: yesterday, sectionId: 1, sortOrder: 1000, startedAt, endedAt }),
+      task({
+        id: 2,
+        taskDate: yesterday,
+        sectionId: 2,
+        sortOrder: 1000,
+        startedAt: new Date("2026-07-25T03:00:00Z"), // JST 12:00
+        endedAt,
+      }),
+      task({
+        id: 3,
+        taskDate: yesterday,
+        sectionId: 2,
+        sortOrder: 2000,
+        startedAt: new Date("2026-07-25T05:00:00Z"), // JST 14:00
+        endedAt,
+      }),
+    ]);
+    const newStart = new Date("2026-07-25T03:10:00Z"); // JST 12:10
+
+    await editPunch(repo, { taskId: 1, startedAt: newStart, endedAt }, sections);
+
+    // 12:00 の後・14:00 の前（末尾ではない）
+    expect(repo.rows[0]).toMatchObject({ sectionId: 2, sortOrder: 1500 });
+  });
+
+  it("未来日のタスクも移動する（打刻がある時点で例外的な状態。FB-87）", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, taskDate: "2026-07-27", sectionId: 1, sortOrder: 1000, startedAt, endedAt }),
+    ]);
+    const newStart = new Date("2026-07-26T03:10:00Z"); // JST 12:10
+
+    await editPunch(repo, { taskId: 1, startedAt: newStart, endedAt }, sections);
+
+    expect(repo.rows[0].sectionId).toBe(2);
+  });
+
+  it("移動先では同じ日のタスクとだけ並べ直す（別の日のタスクは巻き込まない）", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, taskDate: "2026-07-25", sectionId: 1, sortOrder: 1000, startedAt, endedAt }),
+      task({ id: 2, taskDate: "2026-07-26", sectionId: 2, sortOrder: 1000, startedAt, endedAt }),
+    ]);
+    const newStart = new Date("2026-07-26T03:10:00Z"); // JST 12:10
+
+    await editPunch(repo, { taskId: 1, startedAt: newStart, endedAt }, sections);
+
+    // 同じセクション（id=2）でも別日の id=2 の並びは書き換わらない
+    expect(repo.rows[0]).toMatchObject({ sectionId: 2, sortOrder: 1000 });
+    expect(repo.rows[1]).toMatchObject({ sectionId: 2, sortOrder: 1000 });
   });
 });

@@ -266,6 +266,51 @@ describe("start の割り込み（F-201: 終了・再開タスク生成・開始
     expect(after.find((t) => t.id === neighbor.id)?.sortOrder).toBe(5000); // ⑤隣を振り直し
   });
 
+  // 移動と振り直しが同じ行を指す経路。ユースケース側は移動後の並びから振り直しを作る
+  // （punch-usecases の startTask）ので、当てる順が逆だと移動が振り直しを上書きする
+  it("移動と振り直しが同じ行を指したら、後から当てる振り直しの値が残る", async () => {
+    const [night] = await db
+      .insert(sections)
+      .values([{ name: "夜", startTime: "18:00" }])
+      .returning();
+    const startedAt = new Date("2026-07-19T08:48:00Z");
+    const endedAt = new Date("2026-07-19T09:00:00Z");
+    const [running, target] = await db
+      .insert(tasks)
+      .values([
+        { taskDate: "2026-07-19", name: "実行中", estimateMinutes: 30, sortOrder: 1000, startedAt },
+        { taskDate: "2026-07-19", name: "開始対象", sortOrder: 2000 },
+      ])
+      .returning();
+
+    await repo.start({
+      taskId: target.id,
+      startedAt: endedAt,
+      interruption: {
+        runningTaskId: running.id,
+        endedAt,
+        resumeTask: {
+          taskDate: "2026-07-19",
+          name: "実行中",
+          estimateMinutes: 18,
+          sectionId: night.id,
+          modeId: null,
+          projectId: null,
+          sortOrder: 3000,
+          splitParentId: running.id,
+        },
+        // 移動先で中間値が尽きて振り直した結果。対象自身を含む（placeSortOrder が moving を含めるため）
+        renumber: [{ taskId: target.id, sortOrder: 2000 }],
+      },
+      relocations: [{ taskId: target.id, sectionId: night.id, sortOrder: 1001 }],
+    });
+
+    const after = await repo.listByDate("2026-07-19");
+    const started = after.find((t) => t.id === target.id);
+    // セクションは移動の値、sort_order は振り直しの値（1001 ではない）
+    expect([started?.sectionId, started?.sortOrder]).toEqual([night.id, 2000]);
+  });
+
   it("再開タスクの生成に失敗したら振り直しと移動も巻き戻る", async () => {
     const [night] = await db
       .insert(sections)
@@ -336,6 +381,7 @@ describe("duplicateAndStart（F-208 / データモデル定義書 §4.6: 複製�
       },
       startedAt: now,
       interruption: null,
+      renumber: [],
     });
 
     expect(created).toEqual(
@@ -345,6 +391,38 @@ describe("duplicateAndStart（F-208 / データモデル定義書 §4.6: 複製�
     expect(after).toHaveLength(2);
     // 複製元は完了のまま
     expect(after.find((t) => t.id === source.id)?.endedAt).toEqual(endedAt);
+  });
+
+  // 割り込みが無くても振り直しがあればトランザクションを張る（`operations.ts` は
+  // 移動先の中間値が尽きたときに実行中タスクの有無によらず振り直しを渡す）
+  it("割り込みなしでも、振り直しは複製の生成と同じトランザクションで反映される", async () => {
+    const now = new Date("2026-07-19T09:00:00Z");
+    const [source, blocking] = await db
+      .insert(tasks)
+      .values([
+        { taskDate: "2026-07-19", name: "複製元", sortOrder: 1000, startedAt: now, endedAt: now },
+        { taskDate: "2026-07-19", name: "詰まっている隣", sortOrder: 1001 },
+      ])
+      .returning();
+
+    await repo.duplicateAndStart({
+      newTask: {
+        taskDate: "2026-07-19",
+        name: source.name,
+        estimateMinutes: 10,
+        sectionId: null,
+        modeId: null,
+        projectId: null,
+        sortOrder: 2000,
+        splitParentId: null,
+      },
+      startedAt: now,
+      interruption: null,
+      renumber: [{ taskId: blocking.id, sortOrder: 3000 }],
+    });
+
+    const after = await repo.listByDate("2026-07-19");
+    expect(after.find((t) => t.id === blocking.id)?.sortOrder).toBe(3000);
   });
 
   it("割り込みありで、終了・再開タスク生成・複製の開始が1トランザクションで反映される", async () => {
@@ -384,6 +462,8 @@ describe("duplicateAndStart（F-208 / データモデル定義書 §4.6: 複製�
           splitParentId: running.id,
         },
       },
+      // 挿入位置に中間値が無かったときの振り直し（§3.5）。挿入より先に当たる
+      renumber: [{ taskId: source.id, sortOrder: 3000 }],
     });
 
     const after = await repo.listByDate("2026-07-19");
@@ -392,12 +472,13 @@ describe("duplicateAndStart（F-208 / データモデル定義書 §4.6: 複製�
     expect(after.find((t) => t.splitParentId === running.id)).toEqual(
       expect.objectContaining({ name: "実行中", estimateMinutes: 18, sortOrder: 7000, startedAt: null })
     );
+    expect(after.find((t) => t.id === source.id)?.sortOrder).toBe(3000); // 振り直しも同じトランザクション
   });
 
   it("再開タスクの生成に失敗したら全体が巻き戻る（トランザクション境界）", async () => {
     const startedAt = new Date("2026-07-19T08:48:00Z");
     const now = new Date("2026-07-19T09:00:00Z");
-    const [, running] = await db
+    const [source, running] = await db
       .insert(tasks)
       .values([
         { taskDate: "2026-07-19", name: "複製元", sortOrder: 1000, startedAt, endedAt: now },
@@ -432,11 +513,13 @@ describe("duplicateAndStart（F-208 / データモデル定義書 §4.6: 複製�
             splitParentId: running.id,
           },
         },
+        renumber: [{ taskId: source.id, sortOrder: 3000 }],
       })
     ).rejects.toThrow();
 
     const after = await repo.listByDate("2026-07-19");
     expect(after.find((t) => t.id === running.id)?.endedAt).toBeNull(); // 終了が巻き戻る
+    expect(after.find((t) => t.id === source.id)?.sortOrder).toBe(1000); // 振り直しも巻き戻る
     expect(after).toHaveLength(2); // 複製も再開も作られない
   });
 });

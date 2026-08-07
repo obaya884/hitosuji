@@ -55,9 +55,7 @@ export function placeSortOrder(
    */
   moving?: Task
 ): SortOrderPlacement {
-  const at = Math.max(0, Math.min(index, siblings.length));
-  const before = at === 0 ? null : siblings[at - 1].sortOrder;
-  const after = at === siblings.length ? null : siblings[at].sortOrder;
+  const { at, before, after } = neighborsAt(siblings, index);
 
   const middle = insertBetween(before, after);
   if (middle.ok) return { sortOrder: middle.value, renumber: [] };
@@ -72,6 +70,69 @@ export function placeSortOrder(
     renumber: inserted.flatMap((task, i) =>
       task === undefined ? [] : [{ taskId: task.id, sortOrder: numbers[i] }]
     ),
+  };
+}
+
+/** 新規2行を連続して差し込むときの採番（`placeNewPair` の結果） */
+export type PairPlacement = Readonly<{
+  /** 先に来る行の sort_order */
+  first: number;
+  /** その直下に来る行の sort_order */
+  second: number;
+  /** 中間値が尽きたときの同一グループの振り直し（空配列＝振り直しなし） */
+  renumber: Renumber;
+}>;
+
+/**
+ * **まだ id を持たない2行**を `index` の位置へ連続して差し込む採番（§3.5 の例外）。
+ * **2行を一度に採番する**——1行ずつ置くと、1行目の振り直しを2行目の採番が見ない。
+ * 席が取れなければ挿入後の並び（既存 + 2）を1000刻みへ振り直す
+ */
+export function placeNewPair(siblings: readonly Task[], index: number): PairPlacement {
+  const { at, before, after } = neighborsAt(siblings, index);
+
+  const seats = seatsBetween(before, after, 2);
+  if (seats.ok) return { first: seats.value[0], second: seats.value[1], renumber: [] };
+
+  // `undefined` は差し込む2行の席——新規作成はまだ id が無いので振り直しに含めない
+  const numbers = renumberSortOrders(siblings.length + 2);
+  const inserted = [...siblings.slice(0, at), undefined, undefined, ...siblings.slice(at)];
+
+  return {
+    first: numbers[at],
+    second: numbers[at + 1],
+    renumber: inserted.flatMap((task, i) =>
+      task === undefined ? [] : [{ taskId: task.id, sortOrder: numbers[i] }]
+    ),
+  };
+}
+
+/**
+ * `before` と `after` の間に `count` 個の席を等間隔で取る（§3.5）。
+ * `after` が無ければ末尾なので1000刻みで続ける。等間隔にできない（隙間が席数に足りない）なら
+ * `needs_renumber`。**先頭（`before` が無い）でも 0 を起点に等分する**ので、後続より前に必ず収まる
+ */
+export function seatsBetween(
+  before: number | null,
+  after: number | null,
+  count: number
+): Result<number[], "needs_renumber"> {
+  const base = before ?? 0;
+  const step = after === null ? SORT_ORDER_STEP : Math.floor((after - base) / (count + 1));
+  if (step < 1) return err("needs_renumber");
+  return ok(Array.from({ length: count }, (_, i) => base + step * (i + 1)));
+}
+
+/** 挿入位置と、その前後にいる既存行の sort_order（範囲外の index は端へ丸める） */
+function neighborsAt(
+  siblings: readonly Task[],
+  index: number
+): Readonly<{ at: number; before: number | null; after: number | null }> {
+  const at = Math.max(0, Math.min(index, siblings.length));
+  return {
+    at,
+    before: at === 0 ? null : siblings[at - 1].sortOrder,
+    after: at === siblings.length ? null : siblings[at].sortOrder,
   };
 }
 

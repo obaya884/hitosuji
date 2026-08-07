@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   appendSortOrder,
+  placeNewPair,
   placeSortOrder,
   renumberSortOrders,
+  seatsBetween,
   sortedBySortOrder,
   tasksInSection,
 } from "./sort-order";
@@ -161,6 +163,87 @@ describe("placeSortOrder（データモデル定義書 §3.5: 挿入位置の採
         { taskId: 2, sortOrder: 3000 },
       ]);
     });
+  });
+});
+
+describe("seatsBetween（データモデル定義書 §3.5: 前後の間に等間隔の席を取る）", () => {
+  it("後ろが無ければ末尾なので1000刻みで続ける", () => {
+    expect(seatsBetween(3000, null, 2)).toEqual({ ok: true, value: [4000, 5000] });
+    expect(seatsBetween(null, null, 1)).toEqual({ ok: true, value: [1000] });
+  });
+
+  it("前後の間を席数+1で等分する", () => {
+    expect(seatsBetween(1000, 4000, 2)).toEqual({ ok: true, value: [2000, 3000] });
+    expect(seatsBetween(1000, 3000, 1)).toEqual({ ok: true, value: [2000] });
+  });
+
+  it("前が無いときは 0 を起点に等分する（後続より前に必ず収まる）", () => {
+    expect(seatsBetween(null, 3000, 2)).toEqual({ ok: true, value: [1000, 2000] });
+  });
+
+  it("隙間が席数に足りなければ needs_renumber", () => {
+    expect(seatsBetween(1000, 1002, 2)).toEqual({ ok: false, error: "needs_renumber" });
+    // 席が1つなら同じ隙間でも収まる
+    expect(seatsBetween(1000, 1002, 1)).toEqual({ ok: true, value: [1001] });
+  });
+});
+
+describe("placeNewPair（データモデル定義書 §3.5 / §4.6: 新規2行を連続して差し込む採番）", () => {
+  it("空のグループへは 1000・2000 を振る", () => {
+    expect(placeNewPair([], 0)).toEqual({ first: 1000, second: 2000, renumber: [] });
+  });
+
+  it("末尾へ差し込むときは最後の値から1000刻みで続ける", () => {
+    const siblings = [task({ id: 1, sortOrder: 3000 })];
+    expect(placeNewPair(siblings, 1)).toEqual({ first: 4000, second: 5000, renumber: [] });
+  });
+
+  it("前後の間を3等分して2つの席を取る（既存行と重ならない）", () => {
+    const siblings = [task({ id: 1, sortOrder: 1000 }), task({ id: 2, sortOrder: 4000 })];
+    expect(placeNewPair(siblings, 1)).toEqual({ first: 2000, second: 3000, renumber: [] });
+  });
+
+  it("先頭へ差し込むときも後続より前に2つ収める", () => {
+    const siblings = [task({ id: 1, sortOrder: 3000 })];
+    expect(placeNewPair(siblings, 0)).toEqual({ first: 1000, second: 2000, renumber: [] });
+  });
+
+  it("前後の差が3なら2席が取れる（振り直しに落ちる境界の内側）", () => {
+    const siblings = [task({ id: 1, sortOrder: 1000 }), task({ id: 2, sortOrder: 1003 })];
+    expect(placeNewPair(siblings, 1)).toEqual({ first: 1001, second: 1002, renumber: [] });
+  });
+
+  it("先頭へ差し込むときに席が取れなければ振り直す", () => {
+    const siblings = [task({ id: 1, sortOrder: 2 })];
+    expect(placeNewPair(siblings, 0)).toEqual({
+      first: 1000,
+      second: 2000,
+      renumber: [{ taskId: 1, sortOrder: 3000 }],
+    });
+  });
+
+  it("2行分の隙間が無ければ、挿入後の並びを1000刻みへ振り直す", () => {
+    const siblings = [
+      task({ id: 1, sortOrder: 1000 }),
+      task({ id: 2, sortOrder: 1002 }),
+      task({ id: 3, sortOrder: 5000 }),
+    ];
+
+    expect(placeNewPair(siblings, 1)).toEqual({
+      first: 2000,
+      second: 3000,
+      renumber: [
+        { taskId: 1, sortOrder: 1000 },
+        { taskId: 2, sortOrder: 4000 },
+        { taskId: 3, sortOrder: 5000 },
+      ],
+    });
+  });
+
+  it("範囲外の index は端へ丸める", () => {
+    const siblings = [task({ id: 1, sortOrder: 3000 })];
+    expect(placeNewPair(siblings, 99)).toEqual({ first: 4000, second: 5000, renumber: [] });
+    expect(placeNewPair(siblings, -1)).toEqual({ first: 1000, second: 2000, renumber: [] });
   });
 });
 

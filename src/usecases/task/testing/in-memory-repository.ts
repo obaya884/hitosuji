@@ -106,13 +106,15 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
 
     start: async (command: StartCommand) => {
       const { taskId, startedAt, interruption } = command;
+      // 自動セクション移動（F-113 / 画面定義書01 §4.2-a）は打刻と同じ操作の中で反映する。
+      // **移動 → 振り直しの順は本物と揃える**——振り直しは移動後の並びから計算されるので、
+      // 逆順にすると移動が振り直しを上書きし、偽物だけ別の並びになる
+      applyRelocations(command.relocations);
       if (interruption !== null) {
         applyRenumber(interruption.renumber);
         patch(interruption.runningTaskId, { endedAt: interruption.endedAt });
         insertRow(interruption.resumeTask);
       }
-      // 自動セクション移動（F-113 / 画面定義書01 §4.2-a）は打刻と同じ操作の中で反映する
-      applyRelocations(command.relocations);
       patch(taskId, { startedAt });
     },
 
@@ -143,11 +145,13 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
     // 複製して開始（F-208 / データモデル定義書 §4.6）。割り込みなら終了・再開タスク生成も伴う
     duplicateAndStart: async (command: DuplicateAndStartCommand) => {
       const { newTask, startedAt, interruption } = command;
-      if (interruption !== null) {
-        patch(interruption.runningTaskId, { endedAt: interruption.endedAt });
-        insertRow(interruption.resumeTask);
-      }
-      return insertRow(newTask, startedAt);
+      // 振り直しは挿入位置を空ける処理なので、本物と同じくどの挿入よりも先に当てる（§3.5）
+      applyRenumber(command.renumber);
+      if (interruption !== null) patch(interruption.runningTaskId, { endedAt: interruption.endedAt });
+      // **複製 → 再開タスクの順に挿入する**（本物と同じ順。逆にすると id の採番順が入れ替わる）
+      const created = insertRow(newTask, startedAt);
+      if (interruption !== null) insertRow(interruption.resumeTask);
+      return created;
     },
 
     suspend: async (command: SuspendCommand) => {
