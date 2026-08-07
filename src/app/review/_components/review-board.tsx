@@ -60,7 +60,7 @@ export function ReviewBoard({
           basePath={REVIEW_PATH}
         />
         {/* サマリ（§3.2） */}
-        <p className="text-sm tabular-nums">
+        <p className="tabular-nums">
           実行 {log.length}件
           <span className="ml-3">実績 {formatDuration(totalMinutes)}</span>
           {postponed !== null && <span className="ml-3">先送り {postponed.length}件</span>}
@@ -107,9 +107,9 @@ function ExecutionLog({
       {log.length === 0 ? (
         <p className="mt-3 text-sm text-ink-muted">実行したタスクはありません</p>
       ) : (
-        <table className="mt-2 w-full text-sm">
+        <table className="mt-2 w-full">
           <thead>
-            <tr className="border-b border-line-strong text-left text-xs text-ink-muted">
+            <tr className="border-b border-line-strong text-left text-sm text-ink-muted">
               <th className="w-32 py-2 font-normal">時刻</th>
               <th className="py-2 font-normal">タスク名</th>
               <th className="w-28 py-2 font-normal">モード</th>
@@ -167,7 +167,7 @@ function LogRow({
         className={`${hasComment ? "" : "border-b border-line"} ${dimmedClass}`}
         style={colorStyle}
       >
-        <td className="py-2 font-mono text-xs tabular-nums">
+        <td className="py-2 font-mono tabular-nums">
           {task.startedAt === null ? "--:--" : formatClock(task.startedAt)}-
           {task.endedAt === null ? "--:--" : formatClock(task.endedAt)}
         </td>
@@ -196,8 +196,8 @@ function LogRow({
             </Link>
           </div>
         </td>
-        <td className="py-2 text-xs">{mode?.name ?? <UnsetMark />}</td>
-        <td className="py-2 text-xs">{project?.name ?? <UnsetMark />}</td>
+        <td className="py-2 text-sm">{mode?.name ?? <UnsetMark />}</td>
+        <td className="py-2 text-sm">{project?.name ?? <UnsetMark />}</td>
         {/* 見積もり未設定は薄色（画面定義書00_共通 §2.4「時間の値」。全画面で揃える） */}
         <td
           className={`py-2 pr-4 text-right font-mono tabular-nums ${
@@ -218,7 +218,7 @@ function LogRow({
         <tr className={`border-b border-line ${dimmedClass}`} style={colorStyle}>
           {/* 折り返す幅はタスク名列に揃える（§3.3。S-01 と同じ）。右側は空セルで埋める */}
           <td />
-          <td className="pb-2 text-xs whitespace-pre-wrap opacity-80">{task.comment}</td>
+          <td className="pb-2 text-sm whitespace-pre-wrap opacity-80">{task.comment}</td>
           <td colSpan={5} />
         </tr>
       )}
@@ -234,7 +234,7 @@ function Postponed({ tasks }: Readonly<{ tasks: readonly Task[] }>) {
       {tasks.length === 0 ? (
         <p className="mt-2 text-sm text-ink-muted">先送りはありません</p>
       ) : (
-        <ul className="mt-2 space-y-1 text-sm">
+        <ul className="mt-2 space-y-1">
           {tasks.map((task) => (
             <li key={task.id}>{task.name}</li>
           ))}
@@ -262,7 +262,7 @@ function ActualTotals({
       {totals.length === 0 ? (
         <p className="mt-2 text-sm text-ink-muted">集計する実績がありません</p>
       ) : (
-        <table className="mt-2 w-full text-sm">
+        <table className="mt-2 w-full">
           <tbody>
             {totals.map((row) => (
               <tr key={row.key ?? "none"} className="border-b border-line">

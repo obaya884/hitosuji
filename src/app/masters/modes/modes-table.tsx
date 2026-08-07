@@ -131,7 +131,7 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
           aria-hidden
         />
       </button>
-      <span className="text-xs text-ink-muted">{modeColorName(mode.color)}</span>
+      <span className="text-sm text-ink-muted">{modeColorName(mode.color)}</span>
       {colorPickerId === mode.id && (
         <ColorPickerPopover
           selected={mode.color}
@@ -163,7 +163,7 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
           aria-hidden
         />
       </button>
-      <span className="text-xs text-ink-muted">{modeColorName(newColor)}</span>
+      <span className="text-sm text-ink-muted">{modeColorName(newColor)}</span>
       {colorPickerId === "new" && (
         <ColorPickerPopover
           selected={newColor}
@@ -208,9 +208,9 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
         setEditingId("new");
       }}
     >
-      <table className="mt-2 w-full text-sm">
+      <table className="mt-2 w-full">
         <thead>
-          <tr className="border-b border-line-strong text-left text-xs text-ink-muted">
+          <tr className="border-b border-line-strong text-left text-sm text-ink-muted">
             <th className="w-48 py-2 font-normal">色</th>
             <th className="py-2 font-normal">名前</th>
             <th className="w-32 py-2" />
@@ -249,7 +249,7 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
                   className="inline-block h-3 w-10 shrink-0 rounded-control opacity-50"
                   aria-hidden
                 />
-                <span className="text-xs">{modeColorName(mode.color)}</span>
+                <span className="text-sm">{modeColorName(mode.color)}</span>
               </span>
             </td>
             <td className="py-2">{mode.name}</td>

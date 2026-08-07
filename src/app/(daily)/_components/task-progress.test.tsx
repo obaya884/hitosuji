@@ -63,7 +63,7 @@ describe("TaskProgress（F-114: タスク消化の進捗。画面定義書01 §3
     expect(fill.style.width).toBe("0px");
   });
 
-  it("既定のバー幅と文字サイズを持つ（§3.2 のセクション見出し用）", () => {
+  it("既定のバー幅と文字サイズを持つ（§3.2 のセクション見出しはメタ段。00_共通 §1.1）", () => {
     const { container } = render(<TaskProgress tasks={[todo(1)]} />);
 
     const { track, label } = parts(container);
@@ -71,16 +71,16 @@ describe("TaskProgress（F-114: タスク消化の進捗。画面定義書01 §3
     expect(hasClass(label, "text-xs")).toBe(true);
   });
 
-  it("バー幅と文字サイズは呼び出し側が差し替えられる（§3.1 のサマリ行は1段大きい）", () => {
+  it("バー幅と文字サイズは呼び出し側が差し替えられる（§3.1 のサマリ行の数値は主段）", () => {
     const { container } = render(
-      <TaskProgress tasks={[todo(1)]} barWidth="w-40" textSize="text-sm" />
+      <TaskProgress tasks={[todo(1)]} barWidth="w-40" textSize="text-base" />
     );
 
     const { track, label } = parts(container);
     // 差し替え先がバーと文字それぞれに効いていること（取り違えを検出する）
     expect(hasClass(track, "w-40")).toBe(true);
     expect(hasClass(track, "w-20")).toBe(false);
-    expect(hasClass(label, "text-sm")).toBe(true);
+    expect(hasClass(label, "text-base")).toBe(true);
     expect(hasClass(label, "text-xs")).toBe(false);
   });
 });

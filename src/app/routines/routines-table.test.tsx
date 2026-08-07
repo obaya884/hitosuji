@@ -55,8 +55,8 @@ const COL = {
   name: 0,
   mode: 1,
   project: 2,
-  estimate: 3,
-  recurrence: 4,
+  recurrence: 3,
+  estimate: 4,
   scheduledStart: 5,
   active: 6,
 } as const;
@@ -99,7 +99,7 @@ describe("RoutinesTable（画面定義書02 §3: 一覧の列と表記）", () =
     expect(screen.getByText(/自動で展開されます（当日以降のみ）/)).not.toBeNull();
   });
 
-  it("列は左から 名前/モード/プロジェクト/見積/繰り返し/開始想定/有効/操作 の順に並べる", () => {
+  it("列は左から 名前/モード/プロジェクト/繰り返し/見積/開始想定/有効/操作 の順に並べる", () => {
     const { container } = renderTable([routine({ id: 1 })]);
 
     const labels = [...container.querySelectorAll("thead th")].map((th) =>
@@ -110,8 +110,8 @@ describe("RoutinesTable（画面定義書02 §3: 一覧の列と表記）", () =
       "名前",
       "モード",
       "プロジェクト",
-      "見積",
       "繰り返し",
+      "見積",
       "開始想定",
       "有効",
       "",

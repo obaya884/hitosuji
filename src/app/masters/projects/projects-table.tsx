@@ -77,9 +77,9 @@ export function ProjectsTable({ active, archived, deletableIds }: Props) {
         setEditingId("new");
       }}
     >
-      <table className="mt-2 w-full text-sm">
+      <table className="mt-2 w-full">
         <thead>
-          <tr className="border-b border-line-strong text-left text-xs text-ink-muted">
+          <tr className="border-b border-line-strong text-left text-sm text-ink-muted">
             <th className="py-2 font-normal">名前</th>
             <th className="w-32 py-2" />
           </tr>

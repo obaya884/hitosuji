@@ -8,7 +8,7 @@ import { taskProgress } from "@/domain/task/daily-list";
 export function TaskProgress({
   tasks,
   barWidth = "w-20",
-  /** サマリ行（§3.1）は本文より1段階大きく、セクション見出し（§3.2）は補助表記のまま */
+  /** サマリ行（§3.1）の数値は主、セクション見出し（§3.2）はメタ（00_共通 §1.1） */
   textSize = "text-xs",
 }: Readonly<{ tasks: readonly Task[]; barWidth?: string; textSize?: string }>) {
   const { done, total } = taskProgress(tasks);

@@ -136,9 +136,9 @@ export function SectionsTable({ ranges, archived, deletableIds }: Props) {
         setEditing({ id: "new" });
       }}
     >
-      <table className="mt-2 w-full text-sm">
+      <table className="mt-2 w-full">
         <thead>
-          <tr className="border-b border-line-strong text-left text-xs text-ink-muted">
+          <tr className="border-b border-line-strong text-left text-sm text-ink-muted">
             <th className="w-16 py-2 font-normal">日界</th>
             <th className="py-2 font-normal">名前</th>
             <th className="w-40 py-2 font-normal">時間帯</th>

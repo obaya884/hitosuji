@@ -88,7 +88,7 @@ export function DailyList({
   return (
     // table-fixed + colgroup で列幅を1箇所に集約する。**table-auto にしない**——colSpan の行
     // （セクション見出し・空セクション）の内容量で列幅が動き、見出しと本文の列境界が揃わなくなる（FB-14）
-    <table className="mt-4 w-full table-fixed text-base">
+    <table className="mt-4 w-full table-fixed">
       <colgroup>
         <col className="w-10" />
         <col />
@@ -103,7 +103,7 @@ export function DailyList({
       </colgroup>
       {/* 列見出しは画面トップに1つだけ置く（セクションごとに繰り返さない） */}
       <thead>
-        <tr className="border-b border-line-strong text-left text-xs text-ink-muted">
+        <tr className="border-b border-line-strong text-left text-sm text-ink-muted">
           <th className="py-2 font-normal" />
           <th className="py-2 font-normal">タスク</th>
           <th className="py-2 font-normal">プロジェクト</th>
