@@ -20,6 +20,9 @@ export const router = {
   prefetch: vi.fn(),
   back: vi.fn(),
   forward: vi.fn(),
+  // メソッドではなく値のプロパティ（React の `key` に渡して遷移時に状態を捨てるための識別子）。
+  // 本物は遷移のたびに変わるが、この偽物は遷移しないので固定値でよい
+  bfcacheId: "test-bfcache-id",
 } satisfies ReturnType<typeof useRouter>;
 
 /**
