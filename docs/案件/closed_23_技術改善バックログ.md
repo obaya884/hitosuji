@@ -72,6 +72,7 @@
 | T-94 | マスタ管理3表から寄せた表の枠が、ルーチン管理では4本目の逐語コピーのまま残る | 内部設計 | 低 | 完了 | [詳細](#t-94) |
 | T-106 | ID 型エイリアスの適用が domain の外で素の `number` に戻っている | 型安全 | 低 | 完了 | [詳細](#t-106) |
 | T-116 | Dependabot 依存追随（next 16.3.0 グループ）と `next dev` の CLAUDE.md 自動追記 | 依存追随 | 中 | 完了（2026-08-07）→ #110 をマージ。ルータの偽物に `bfcacheId` を足し、Next の管理ブロックは AGENTS.md へ隔離 | [詳細](#t-116) |
+| T-117 | セキュリティアラート2件（postcss・js-yaml）を overrides で根治する | 依存追随 | 中 | 完了（2026-08-08）→ どちらも上流にパッチ版があり dismiss 不要 | [詳細](#t-117) |
 
 ## 詳細
 
@@ -709,6 +710,14 @@
 - 対応（同上）: `AGENTS.md` を新設してブロックをそちらへ隔離し、CLAUDE.md には `@AGENTS.md` の import を1行置いた。`writeAgentFiles` は「AGENTS.md があり、かつ CLAUDE.md がブロックを持たない」なら AGENTS.md だけを更新する。**順序が肝で**、CLAUDE.md からブロックを外さずに AGENTS.md を足すだけでは第1分岐が false になり CLAUDE.md 側の更新が続く。import が要るのは Claude Code が AGENTS.md を単体では読まないため（公式ドキュメント「Claude Code reads `CLAUDE.md`, not `AGENTS.md`」。推奨の引き取り方がこの import）。ブロック本文は Next が上げ得るので AGENTS.md は手で書かない
 - 結果: 挙動変更なし（lockfile・テストダブル・エージェント向け指示のみ）。`next dev` を立て直して CLAUDE.md が汚れないことを実測。オープン Dependabot PR 0件・セキュリティアラート 0件
 - 関連: [T-90](#t-90)・本書 T-15（旧書式の記録。いずれも同種の依存追随）/ [.claude/skills/dependabot-triage](../../.claude/skills/dependabot-triage/SKILL.md)
+
+### T-117
+
+- 背景: Dependabot セキュリティアラート2件。どちらも [T-116](#t-116) のマージ直後に**新規公開された advisory**で、bump が持ち込んだものではない。①`postcss`（medium・runtime、GHSA-fxqj-rqcc-2cmp、`<= 8.5.22`）——`from` が未指定のとき攻撃者が仕込んだ `sourceMappingURL` から任意の `.map` を読む。本書 T-04 で塞いだ GHSA-6g55-p6wh-862q の修正が不完全だった件 ②`js-yaml`（high・development、GHSA-5p4m-2wfm-xmqj、`>= 4.0.0, < 4.3.1`）——`!!omap` の解決が二次計算量になり CPU を食い潰す
+- 到達可能性: ①の postcss は Tailwind がビルド時に**自前の CSS だけ**を処理する経路にしかおらず、外部入力の `sourceMappingURL` は通らない ②の js-yaml は `eslint@9 → @eslint/eslintrc` 経由のみ。設定は `eslint.config.mjs`（フラット設定）で YAML を読ませておらず、悪意ある YAML を食わせる経路が無い。**どちらも実質到達不能**
+- 対応: ただし**上流に両方ともクリーンなパッチ版がある**ため dismiss ではなく根治を選んだ（T-04・T-23 と同じ判断）。`overrides` の `postcss` を `^8.5.10` → `^8.5.23` へ引き上げ、`js-yaml: ^4.3.1` を追加。解決結果は postcss 8.5.26 / js-yaml 4.3.1
+- 検証: `npm run lint`（js-yaml が効く経路）・`typecheck`・`build`（postcss が効く経路）・`npm test` 1931本、すべて緑
+- 関連: 本書 T-04（postcss を overrides で固定した先例）・本書 T-23（sharp の同型対応）/ [T-116](#t-116)（直前の依存追随）/ [.claude/skills/dependabot-triage](../../.claude/skills/dependabot-triage/SKILL.md) §6
 
 ## 旧書式の記録（2026-07-26 以前）
 
