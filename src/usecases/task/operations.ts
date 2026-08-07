@@ -10,10 +10,11 @@ import type { PunchUsecaseError } from "@/usecases/task/punch-usecases";
 import { newTaskFromDraft } from "@/usecases/task/from-draft";
 import { taskStatus } from "@/domain/task/status";
 import { orderTasksForDisplay } from "@/domain/task/daily-list";
+import { startOrderIndex } from "@/domain/task/relocation";
 import {
   appendSortOrder,
+  placeNewPair,
   placeSortOrder,
-  SORT_ORDER_STEP,
   tasksInSection,
 } from "@/domain/task/sort-order";
 import type { Task, TaskId } from "@/domain/task/task";
@@ -101,8 +102,8 @@ export async function duplicateTask(
 /**
  * 複製して開始（F-208 / 画面定義書01 O-14 / データモデル定義書 §4.6）。
  * 完了タスクを複製し、その複製タスクをすぐ開始する「もう一回」。複製元は完了のまま残す。
- * 複製タスクは開始済みで作るため画面定義書01 §4.2-a に従い現在時刻を含むセクションの末尾へ置く
- * （表示日が今日でないときは同書 §4.2-a を適用せず複製元と同じセクションへ置く）。
+ * 複製タスクは開始済みで作るため、画面定義書01 §4.2-a に従い現在時刻を含むセクションの
+ * 開始時刻順の位置へ置く（表示日が今日でないときは同書 §4.2-a を適用せず複製元と同じセクションへ置く）。
  * 他に実行中タスクがあれば F-201 の割り込み（終了＋再開タスク生成）をそのまま伴う。
  * 現在時刻はクライアントから受け取る（サーバ時刻を使わない）
  */
@@ -128,24 +129,27 @@ export async function duplicateAndStartTask(
       ? sectionAt(sections, input.nowClock)?.id ?? target.sectionId
       : target.sectionId;
 
-  // セクション内の並びは常に tasksInSection で取り出す（末尾採番なので使うのは最大値だけ）
-  const startedSortOrder = appendSortOrder(
-    tasksInSection(sameDay, destinationSectionId).map((t) => t.sortOrder)
-  );
+  // 複製行は開始済みで作るので、規則a と同じ「開始時刻順の位置」へ入る
+  // （画面定義書01 §4.2 / データモデル定義書 §4.6）
+  const siblings = tasksInSection(sameDay, destinationSectionId);
+  const index = startOrderIndex(siblings, input.now);
 
   const draft = duplicateDraft(target);
-  const newTask = newTaskFromDraft(draft, {
-    taskDate: target.taskDate,
-    sectionId: destinationSectionId,
-    sortOrder: startedSortOrder,
-  });
+  const newDuplicate = (sortOrder: number) =>
+    newTaskFromDraft(draft, {
+      taskDate: target.taskDate,
+      sectionId: destinationSectionId,
+      sortOrder,
+    });
 
   const running = await repos.tasks.findRunning();
   if (running === null) {
+    const single = placeSortOrder(siblings, index);
     const created = await repos.tasks.duplicateAndStart({
-      newTask,
+      newTask: newDuplicate(single.sortOrder),
       startedAt: input.now,
       interruption: null,
+      renumber: single.renumber,
     });
     return ok(created);
   }
@@ -153,18 +157,21 @@ export async function duplicateAndStartTask(
   const finishable = canFinish(running, input.now);
   if (!finishable.ok) return finishable;
 
-  // 割り込み: 実行中タスクを終了し、その再開タスクを複製タスクの直下（同セクション末尾のさらに後ろ）へ置く
+  // 割り込み: 実行中タスクを終了し、その再開タスクを複製タスクの直下へ置く。
+  // 2行を同時に作るので採番も一度に決める（データモデル定義書 §3.5 の例外）
+  const pair = placeNewPair(siblings, index);
   const resume = resumeTaskDraft(running, input.now);
   const resumeTask = newTaskFromDraft(resume, {
     taskDate: target.taskDate,
     sectionId: destinationSectionId,
-    sortOrder: startedSortOrder + SORT_ORDER_STEP,
+    sortOrder: pair.second,
   });
 
   const created = await repos.tasks.duplicateAndStart({
-    newTask,
+    newTask: newDuplicate(pair.first),
     startedAt: input.now,
     interruption: { runningTaskId: running.id, endedAt: input.now, resumeTask },
+    renumber: pair.renumber,
   });
   return ok(created);
 }

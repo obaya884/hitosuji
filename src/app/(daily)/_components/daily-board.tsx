@@ -361,10 +361,9 @@ export function DailyBoard({
         ? { startedAt: edited.value, endedAt: task.endedAt }
         : { startedAt: task.startedAt, endedAt: edited.value };
 
-    // 移動先セクションの判定に使う HH:MM は、運用タイムゾーンで整形して送る（§4.2-c）。
-    // 「今日」の判定に使う現在時刻も、他の打刻と同じくクライアントのものを送る
+    // 移動先セクションの判定に使う HH:MM は、運用タイムゾーンで整形して送る（§4.2-c）
     run(
-      () => updateTaskPunchAction(task.id, punch, formatClock(punch.startedAt), new Date()),
+      () => updateTaskPunchAction(task.id, punch, formatClock(punch.startedAt)),
       { type: "punch", id: task.id, ...punch }
     );
   }

@@ -158,8 +158,10 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
 
       await db.transaction(async (tx) => {
         const now = new Date();
-        await applyRenumber(tx, interruption.renumber);
+        // 移動 → 振り直しの順に当てる。再開タスクの位置と振り直しは
+        // 移動後の並びから計算されている（punch-usecases の startTask）ので、逆順だと移動が振り直しを上書きする
         await applyRelocations(tx, relocations);
+        await applyRenumber(tx, interruption.renumber);
         await tx
           .update(tasks)
           .set({ endedAt: interruption.endedAt, updatedAt: now })
@@ -196,21 +198,25 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
     // 複製して開始は「（割り込みなら）終了 → 再開タスク生成 → 複製タスクを開始済みで生成」を
     // 1トランザクションで行う（F-208 / データモデル定義書 §4.6）
     async duplicateAndStart(command: DuplicateAndStartCommand) {
-      const { newTask, startedAt, interruption } = command;
+      const { newTask, startedAt, interruption, renumber } = command;
 
-      if (interruption === null) {
+      if (interruption === null && renumber.length === 0) {
         const [row] = await db.insert(tasks).values({ ...newTask, startedAt }).returning();
         return toDomain(row);
       }
 
       return await db.transaction(async (tx) => {
         const now = new Date();
-        await tx
-          .update(tasks)
-          .set({ endedAt: interruption.endedAt, updatedAt: now })
-          .where(eq(tasks.id, interruption.runningTaskId));
+        // 振り直しは挿入位置を空ける処理なので、どの INSERT よりも先に当てる（データモデル定義書 §3.5）
+        await applyRenumber(tx, renumber);
+        if (interruption !== null) {
+          await tx
+            .update(tasks)
+            .set({ endedAt: interruption.endedAt, updatedAt: now })
+            .where(eq(tasks.id, interruption.runningTaskId));
+        }
         const [row] = await tx.insert(tasks).values({ ...newTask, startedAt }).returning();
-        await tx.insert(tasks).values(interruption.resumeTask);
+        if (interruption !== null) await tx.insert(tasks).values(interruption.resumeTask);
         return toDomain(row);
       });
     },

@@ -1,12 +1,13 @@
 // タスクの自動セクション移動（F-113）
-// 挙動の契約は画面定義書01 §4.2、書き換わる列と採番は データモデル定義書 §4.4 が正
+// 挙動の契約は画面定義書01 §4.2、書き換わる列と採番は データモデル定義書 §4.4 が正。
+// §4.2 が定める2つの位置（現在位置・開始時刻順の位置）もここが持つ——
+// 開始時刻順の位置は複製して開始（F-208 / O-14）からも引かれる
 import { groupTasksBySection, orderTasksForDisplay } from "./daily-list";
 import { sectionAt, type Section, type SectionId } from "../section/section";
 import {
-  appendSortOrder,
   placeSortOrder,
   renumberSortOrders,
-  SORT_ORDER_STEP,
+  seatsBetween,
   tasksInSection,
 } from "./sort-order";
 import { taskStatus } from "./status";
@@ -20,41 +21,74 @@ export type Relocation = Readonly<{
 }>;
 
 /**
- * 規則a（画面定義書01 §4.2-a）: 開始したタスク自身を、開始時刻を含むセクションの末尾へ移す。
- * 移動が不要なら null（既にそのセクションにいる／該当セクションが無い場合）
+ * 「開始時刻順の位置」（画面定義書01 §4.2）: `startedAt` に打刻したタスクが `siblings` の
+ * 何番目に入るかを返す。自分より遅い開始時刻の打刻済みタスク、または最初の未実行タスクの直前。
+ * `siblings` は**セクション内を sort_order 昇順に並べたもの**（`tasksInSection` が保証する）
+ */
+export function startOrderIndex(siblings: readonly Task[], startedAt: Date): number {
+  const at = siblings.findIndex(
+    (t) => t.startedAt === null || t.startedAt.getTime() > startedAt.getTime()
+  );
+  return at === -1 ? siblings.length : at;
+}
+
+/** 移動計画を当てた新しいタスク列を返す（入力は変更しない。順序も入力のまま） */
+export function withRelocations(
+  tasks: readonly Task[],
+  relocations: readonly Relocation[]
+): Task[] {
+  const moved = new Map(relocations.map((r) => [r.taskId, r]));
+  return tasks.map((task) => {
+    const to = moved.get(task.id);
+    return to === undefined ? task : { ...task, sectionId: to.sectionId, sortOrder: to.sortOrder };
+  });
+}
+
+/**
+ * 規則a（画面定義書01 §4.2-a）: 開始したタスク自身を、開始時刻を含むセクションへ移す。
+ * 既にそのセクションにいる場合もセクション内で置き直す。移動が不要なら空配列
  */
 export function relocationOnStart(
   task: Task,
   sameDayTasks: readonly Task[],
   sections: readonly Section[],
+  startedAt: Date,
   startClock: string
-): Relocation | null {
-  const destination = sectionAt(sections, startClock);
-  if (destination === undefined) return null;
-  if (task.sectionId === destination.id) return null;
-
-  const siblings = tasksInSection(
-    sameDayTasks.filter((t) => t.id !== task.id),
-    destination.id
-  );
-
-  return {
-    taskId: task.id,
-    sectionId: destination.id,
-    sortOrder: appendSortOrder(siblings.map((t) => t.sortOrder)),
-  };
+): Relocation[] {
+  return relocationInStartOrder(task, sameDayTasks, sections, startedAt, startClock);
 }
 
 /**
  * 規則c（画面定義書01 §4.2-c）: 開始時刻を修正したタスク自身を、修正後の時刻を含むセクションへ移す。
- * 規則aと違い、移動先での位置は**開始時刻順**にする（ログの訂正であり、
- * 打刻済みタスクと時刻順に並んでいないと記録として読めないため）。移動が不要なら空配列
+ * 規則aとの差は基準にする時刻だけ（打刻の実時刻か、修正後の値か）。移動が不要なら空配列
  */
 export function relocationOnPunchEdit(
   task: Task,
   sameDayTasks: readonly Task[],
   sections: readonly Section[],
   editedStartedAt: Date,
+  startClock: string
+): Relocation[] {
+  return relocationInStartOrder(task, sameDayTasks, sections, editedStartedAt, startClock);
+}
+
+/**
+ * 規則a / c 共通（画面定義書01 §4.2「開始時刻順の位置」）: `startClock` を含むセクションの
+ * 開始時刻順の位置へ `task` を移す。打刻済みタスクとは `startedAt` の昇順で並び、
+ * 未実行タスクよりは前に入る（＝上から実行順のログとして読める）。
+ *
+ * 規則a / c を1本にまとめず名前付きの入口を2つ残すのは、条項と関数の対応を保つため
+ * （アーキテクチャ定義書 §1「迷ったら仕様書と対応が取れる方」）。
+ *
+ * `startedAt` と `startClock` は**同じ時刻の2表現**——前者は並び順の判定に、後者は
+ * 移動先セクションの判定に使う。`task.startedAt` 自身は見ない（規則aでは打刻の書き込み前で
+ * まだ null。`task` は siblings から除く）
+ */
+function relocationInStartOrder(
+  task: Task,
+  sameDayTasks: readonly Task[],
+  sections: readonly Section[],
+  startedAt: Date,
   startClock: string
 ): Relocation[] {
   const destination = sectionAt(sections, startClock);
@@ -65,13 +99,7 @@ export function relocationOnPunchEdit(
     destination.id
   );
 
-  // 自分より遅い開始時刻の打刻済みタスク、または最初の未実行タスクの直前に入る
-  const insertAt = siblings.findIndex(
-    (t) => t.startedAt === null || t.startedAt.getTime() > editedStartedAt.getTime()
-  );
-  const index = insertAt === -1 ? siblings.length : insertAt;
-
-  return relocationsFor(task, siblings, index, destination.id);
+  return relocationsFor(task, siblings, startOrderIndex(siblings, startedAt), destination.id);
 }
 
 /**
@@ -117,15 +145,14 @@ export function planCarryOver(
 
   // 繰り下げ対象は「現在位置より前の行」と「元からあった残りの行」の間に、間隔採番で差し込む
   // （データモデル定義書 §3.5・§4.4。対象外の行＝完了・実行中タスクの sort_order は書き換えない）
-  const previousOrder = stayBeforeInDestination.at(-1)?.sortOrder ?? 0;
-  const nextTask = remainInDestination[0];
-  const step =
-    nextTask === undefined
-      ? SORT_ORDER_STEP
-      : Math.floor((nextTask.sortOrder - previousOrder) / (carryOverTargets.length + 1));
+  const seats = seatsBetween(
+    stayBeforeInDestination.at(-1)?.sortOrder ?? null,
+    remainInDestination[0]?.sortOrder ?? null,
+    carryOverTargets.length
+  );
 
   // 中間値が尽きたら移動先セクション全体を振り直す（データモデル定義書 §3.5 の再採番）
-  if (step < 1) {
+  if (!seats.ok) {
     const reordered = [...stayBeforeInDestination, ...carryOverTargets, ...remainInDestination];
     const sortOrders = renumberSortOrders(reordered.length);
     return changedOnly(
@@ -135,7 +162,7 @@ export function planCarryOver(
   }
 
   return changedOnly(
-    carryOverTargets.map((task, i) => ({ task, sortOrder: previousOrder + step * (i + 1) })),
+    carryOverTargets.map((task, i) => ({ task, sortOrder: seats.value[i] })),
     destinationSectionId
   );
 }

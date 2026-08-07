@@ -93,6 +93,8 @@ export type DuplicateAndStartCommand = Readonly<{
     endedAt: Date;
     resumeTask: NewTask;
   }> | null;
+  /** 挿入位置に中間値が無かったときの、移動先セクションの振り直し（§3.5） */
+  renumber: Renumber;
 }>;
 
 export type TaskRepository = Readonly<{

@@ -260,7 +260,7 @@ describe("duplicateAndStartTask（F-208: 複製して開始）", () => {
   // 現在時刻 09:30（午前）を含むセクションへ複製タスクを置く
   const input = { now, nowClock: "09:30", today: TEST_DATE };
 
-  it("完了タスクを複製し、開始済みで現在時刻を含むセクションの末尾へ置く（複製元は完了のまま）", async () => {
+  it("完了タスクを複製し、開始済みで現在時刻を含むセクションの開始時刻順の位置へ置く（複製元は完了のまま）", async () => {
     const repo = inMemoryTaskRepository([
       // 朝・完了
       task({
@@ -283,7 +283,7 @@ describe("duplicateAndStartTask（F-208: 複製して開始）", () => {
         modeId: 2, // モードを引き継ぐ
         projectId: 3, // プロジェクトを引き継ぐ
         sectionId: 2, // 現在時刻（09:30）を含む午前へ
-        sortOrder: 6000, // 午前の末尾（5000 の次）
+        sortOrder: 4000, // 打刻済みなので未実行タスク（5000）の前（画面定義書01 §4.2 の開始時刻順の位置）
         estimateMinutes: 45, // 満額を引き継ぐ
         startedAt: now, // 開始済み
         endedAt: null,
@@ -325,9 +325,54 @@ describe("duplicateAndStartTask（F-208: 複製して開始）", () => {
     expect(repo.rows.filter((t) => taskStatus(t) === "running")).toHaveLength(1);
   });
 
+  it("移動先に未実行タスクがあれば、複製タスクと再開タスクはその前へ連続して入る（§4.6 / C-7）", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }), // 完了（複製元）
+      // 午前: 打刻済み（1000）→ 未実行（2000）。複製と再開はこの間に入る
+      task({ id: 2, sectionId: 2, estimateMinutes: 30, startedAt, sortOrder: 1000 }), // 実行中
+      task({ id: 3, sectionId: 2, sortOrder: 2000 }), // 未実行
+    ]);
+
+    const result = await duplicateAndStartTask(repos(repo), { taskId: 1, ...input });
+
+    expect(result.ok && result.value.sortOrder).toBe(1333); // 打刻済みの後
+    expect(repo.rows.find((t) => t.splitParentId === 2)?.sortOrder).toBe(1666); // その直下
+    expect(repo.rows.find((t) => t.id === 3)?.sortOrder).toBe(2000); // 未実行は動かない
+  });
+
+  it("実行中タスクが無くても、中間値が尽きたら移動先セクションを振り直す（§3.5）", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }), // 完了（複製元）
+      task({ id: 2, sectionId: 2, sortOrder: 1000, startedAt, endedAt: now }), // 午前・打刻済み
+      task({ id: 3, sectionId: 2, sortOrder: 1001 }), // 午前・未実行（隙間が無い）
+    ]);
+
+    const result = await duplicateAndStartTask(repos(repo), { taskId: 1, ...input });
+
+    expect(repo.rows.find((t) => t.id === 2)?.sortOrder).toBe(1000);
+    expect(result.ok && result.value.sortOrder).toBe(2000); // 打刻済みの後・未実行の前
+    expect(repo.rows.find((t) => t.id === 3)?.sortOrder).toBe(3000); // 振り直された
+  });
+
+  it("2行分の中間値が尽きたら移動先セクションを振り直す（§3.5）", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }), // 完了（複製元）
+      task({ id: 2, sectionId: 2, estimateMinutes: 30, startedAt, sortOrder: 1000 }), // 実行中
+      task({ id: 3, sectionId: 2, sortOrder: 1002 }), // 未実行（隙間が2つ分に足りない）
+    ]);
+
+    const result = await duplicateAndStartTask(repos(repo), { taskId: 1, ...input });
+
+    expect(repo.rows.find((t) => t.id === 2)?.sortOrder).toBe(1000);
+    expect(result.ok && result.value.sortOrder).toBe(2000);
+    expect(repo.rows.find((t) => t.splitParentId === 2)?.sortOrder).toBe(3000);
+    expect(repo.rows.find((t) => t.id === 3)?.sortOrder).toBe(4000); // 振り直された
+  });
+
   it("表示日が今日でないときは複製元と同じセクションへ置く（画面定義書01 §4.2-a を適用しない）", async () => {
     const repo = inMemoryTaskRepository([
       task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }), // 朝・完了
+      task({ id: 2, sectionId: 1, sortOrder: 2000 }), // 朝・未実行
     ]);
 
     const result = await duplicateAndStartTask(repos(repo), {
@@ -336,7 +381,9 @@ describe("duplicateAndStartTask（F-208: 複製して開始）", () => {
       today: "2026-07-27", // 表示日は過去日（今日ではない）
     });
     expect(result.ok && result.value.sectionId).toBe(1); // 現在時刻の午前ではなく複製元の朝
-    expect(result.ok && result.value.sortOrder).toBe(2000); // 朝の末尾
+    // 今日限定なのは移動先セクションの決め方だけで、セクション内の位置は開始時刻順のまま
+    // （＝未実行の前。データモデル定義書 §4.6）
+    expect(result.ok && result.value.sortOrder).toBe(1500);
   });
 
   it("有効なセクションが1つも無いときは複製元と同じセクションへ置く（データモデル定義書 §4.6 の退避）", async () => {

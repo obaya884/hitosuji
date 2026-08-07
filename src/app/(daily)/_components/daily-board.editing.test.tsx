@@ -29,7 +29,6 @@ import {
   FORENOON,
   hold,
   NOT_STARTED,
-  NOW,
   OK,
   press,
   quickAddInput,
@@ -402,7 +401,7 @@ describe("DailyBoard のインライン編集の検証（§8 / 00_共通 §2.3�
     expect(call[2]).toBe(formatClock(atJst("09:00")));
   });
 
-  it("開始時刻の修正はセクション判定用の HH:MM とクライアントの現在時刻を添えて送る（§4.2-c）", () => {
+  it("開始時刻の修正はセクション判定用の HH:MM を添えて送る（§4.2-c）", () => {
     renderBoard();
     selectRow(RUNNING);
 
@@ -414,6 +413,8 @@ describe("DailyBoard のインライン編集の検証（§8 / 00_共通 §2.3�
     // HH:MM は運用タイムゾーンの壁時計として解釈する（実行環境の TZ に依らない。T-47）
     expect(call[1].startedAt).toEqual(atJst("09:15"));
     expect(call[1].endedAt).toBeNull();
-    expect(call[3]).toEqual(NOW);
+    expect(call[2]).toBe(formatClock(atJst("09:15")));
+    // 規則cは表示日を問わないので、「今日」の判定に使う現在時刻は送らない（§4.2）
+    expect(call).toHaveLength(3);
   });
 });
