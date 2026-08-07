@@ -7,6 +7,7 @@ import { formatProjectedStart, projectedStartTimes, sectionSlacks } from "@/doma
 import type { SectionId } from "@/domain/section/section";
 import type { TaskId } from "@/domain/task/task";
 import { showsCommentRow, type EditingCell } from "../_lib/editing";
+import { tableHeadRow } from "@/app/_lib/ui";
 import { toSectionOptions } from "../_lib/section-options";
 import { CommentRow, type CommentRowProps } from "./comment-row";
 import { GroupHeading, type GroupHeadingProps } from "./group-heading";
@@ -103,7 +104,7 @@ export function DailyList({
       </colgroup>
       {/* 列見出しは画面トップに1つだけ置く（セクションごとに繰り返さない） */}
       <thead>
-        <tr className="border-b border-line-strong text-left text-sm text-ink-muted">
+        <tr className={tableHeadRow}>
           <th className="py-2 font-normal" />
           <th className="py-2 font-normal">タスク</th>
           <th className="py-2 font-normal">プロジェクト</th>

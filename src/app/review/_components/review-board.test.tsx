@@ -72,6 +72,11 @@ function logRow(index = 0): HTMLTableRowElement {
 /** 集計の列（§3.5: 名前 / 実績 / 割合） */
 const TOTAL = { name: 0, minutes: 1, share: 2 } as const;
 
+/** サマリ（§3.2）はラベルと数値が別要素なので、まとめている親を返す */
+function summaryOf(): HTMLElement {
+  return screen.getByText("実行").parentElement as HTMLElement;
+}
+
 describe("ReviewBoard（画面定義書04 §3.1: 日付ナビ。§3.2: サマリ）", () => {
   // §3.1「S-01 と S-04 の表示日は連動させない」／O-1「URL のクエリに表示日を持つ」。
   // ナビの移動先が S-01（/）になっていないことは、リンクの href でしか判らない
@@ -94,14 +99,15 @@ describe("ReviewBoard（画面定義書04 §3.1: 日付ナビ。§3.2: サマリ
     });
 
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("レビュー");
-    const summary = screen.getByText(/実行 2件/);
+    // ラベルと数値は別要素（ラベルは従・数値は主。00_共通 §1.1）なので親の textContent で読む
+    const summary = summaryOf();
     expect(summary.textContent).toBe("実行 2件実績 0:48先送り 1件");
   });
 
   it("表示日が今日以降なら先送りを出さない（まだ確定していないため。§3.4）", () => {
     renderBoard({ log: [], totalMinutes: 0, postponed: null }, true);
 
-    expect(screen.getByText(/実行 0件/).textContent).toBe("実行 0件実績 0:00");
+    expect(summaryOf().textContent).toBe("実行 0件実績 0:00");
     expect(screen.queryByText(/^先送り（/)).toBeNull();
   });
 });

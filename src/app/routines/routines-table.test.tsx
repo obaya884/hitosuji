@@ -116,6 +116,8 @@ describe("RoutinesTable（画面定義書02 §3: 一覧の列と表記）", () =
       "有効",
       "",
     ]);
+    // 行のセル数も見出しに合わせる（末尾に列を足しても上の期待値だけでは検出できない）
+    expect(rows(container)[0].cells).toHaveLength(labels.length);
   });
 
   it("各列に対応する値を出す（見積は H:MM・開始想定はセクション名を併記）", () => {

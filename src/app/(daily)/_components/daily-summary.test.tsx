@@ -153,4 +153,20 @@ describe("DailySummary（画面定義書01 §3.1 / F-104・F-114: 終了予定�
     // 次の日界（07-27 06:00）は越えないので警告色にしない
     expect(value?.classList.contains("text-danger")).toBe(false);
   });
+
+  it("進捗の件数は主段で出す（00_共通 §1.1。セクション見出しの既定＝メタに落ちない）", () => {
+    render(
+      <DailySummary
+        groups={[unclassifiedGroup([task({ id: 1, startedAt: atJst("09:00"), endedAt: atJst("09:30") })])]}
+        now={atJst("10:00")}
+        isToday
+        dayStartMinutes={0}
+      />
+    );
+
+    // TaskProgress の既定はメタ（text-xs）なので、サマリ側が主段を渡していないと落ちる
+    const progress = screen.getByText("1/1");
+    expect(progress.classList.contains("text-base")).toBe(true);
+    expect(progress.classList.contains("text-xs")).toBe(false);
+  });
 });

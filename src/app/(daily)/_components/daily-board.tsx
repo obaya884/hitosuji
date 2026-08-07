@@ -560,7 +560,7 @@ export function DailyBoard({
             onChange={(e) => setName(e.target.value)}
             onKeyDown={onQuickAddKeyDown}
             placeholder="タスク名を入力して Enter で追加"
-            className={`w-full text-sm ${inputBase}`}
+            className={`w-full ${inputBase}`}
           />
         </div>
       </div>

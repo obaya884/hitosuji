@@ -13,7 +13,7 @@ import {
 import { sectionAt, type Section } from "@/domain/section/section";
 import { formatEstimate } from "@/app/_lib/format";
 import { useServerAction } from "@/app/_lib/use-server-action";
-import { linkAccent, linkMuted } from "@/app/_lib/ui";
+import { linkAccent, linkMuted, tableHeadRow } from "@/app/_lib/ui";
 import { TableFrame } from "@/app/_components/table-frame";
 import { UnsetMark } from "@/app/_components/unset-mark";
 import {
@@ -142,7 +142,7 @@ export function RoutinesTable({
 
       <table className="mt-3 w-full">
         <thead>
-          <tr className="border-b border-line-strong text-left text-sm text-ink-muted">
+          <tr className={tableHeadRow}>
             <SortableHeader label="名前" sortKey="name" sort={sort} onSort={toggleSort} />
             <SortableHeader
               label="モード"
@@ -209,8 +209,9 @@ export function RoutinesTable({
                 </td>
                 <td className="py-2 tabular-nums">
                   <span className="font-mono">{routine.scheduledStartTime}</span>
+                  {/* 併記するセクション名は従（00_共通 §1.1。S-01 のタスク名に添えるセクション名と同じ） */}
                   {section !== undefined && (
-                    <span className="ml-1 text-ink-muted">({section.name})</span>
+                    <span className="ml-1 text-sm text-ink-muted">({section.name})</span>
                   )}
                 </td>
                 <td className="py-2">

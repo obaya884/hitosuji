@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useDismiss } from "@/app/_lib/use-dismiss";
 import { useServerAction } from "@/app/_lib/use-server-action";
-import { floatPanel, linkMuted } from "@/app/_lib/ui";
+import { floatPanel, linkMuted, tableHeadRow } from "@/app/_lib/ui";
 import { MODE_COLOR_PRESETS, modeColorName, type Mode, type ModeId } from "@/domain/mode/mode";
 import { TableFrame } from "@/app/_components/table-frame";
 import { ArchivedMasterSection } from "../_components/archived-master-section";
@@ -210,7 +210,7 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
     >
       <table className="mt-2 w-full">
         <thead>
-          <tr className="border-b border-line-strong text-left text-sm text-ink-muted">
+          <tr className={tableHeadRow}>
             <th className="w-48 py-2 font-normal">色</th>
             <th className="py-2 font-normal">名前</th>
             <th className="w-32 py-2" />

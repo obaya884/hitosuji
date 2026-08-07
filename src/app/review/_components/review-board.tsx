@@ -19,6 +19,7 @@ import {
 } from "@/app/_lib/format";
 import { isGlobalShortcutEvent } from "@/app/_lib/keyboard";
 import { modeAppearance } from "@/app/_lib/mode-appearance";
+import { tableHeadRow } from "@/app/_lib/ui";
 
 /**
  * レビュー画面（S-04 / 画面定義書04）。読み取り専用のため更新操作を持たず、
@@ -59,11 +60,18 @@ export function ReviewBoard({
           isToday={isToday}
           basePath={REVIEW_PATH}
         />
-        {/* サマリ（§3.2） */}
+        {/* サマリ（§3.2）。数値が主・ラベルは従（00_共通 §1.1。S-01 のサマリと揃える） */}
         <p className="tabular-nums">
-          実行 {log.length}件
-          <span className="ml-3">実績 {formatDuration(totalMinutes)}</span>
-          {postponed !== null && <span className="ml-3">先送り {postponed.length}件</span>}
+          <span className="text-sm text-ink-muted">実行 </span>
+          {log.length}件
+          <span className="ml-3 text-sm text-ink-muted">実績 </span>
+          {formatDuration(totalMinutes)}
+          {postponed !== null && (
+            <>
+              <span className="ml-3 text-sm text-ink-muted">先送り </span>
+              {postponed.length}件
+            </>
+          )}
         </p>
       </div>
 
@@ -109,7 +117,7 @@ function ExecutionLog({
       ) : (
         <table className="mt-2 w-full">
           <thead>
-            <tr className="border-b border-line-strong text-left text-sm text-ink-muted">
+            <tr className={tableHeadRow}>
               <th className="w-32 py-2 font-normal">時刻</th>
               <th className="py-2 font-normal">タスク名</th>
               <th className="w-28 py-2 font-normal">モード</th>

@@ -96,6 +96,15 @@ describe("GroupHeading（画面定義書01 §3.2: セクション見出し行）
     expect(within(headingOf("朝")).queryByText("1/3")).not.toBeNull();
   });
 
+  it("進捗の件数はメタ段で出す（00_共通 §1.1。見出しの数値はサマリより1段引く）", () => {
+    renderHeading({
+      group: morning([task({ id: 1, name: "朝食", startedAt: atJst("06:30"), endedAt: atJst("06:48") })]),
+    });
+
+    const progress = within(headingOf("朝")).getByText("1/1");
+    expect(progress.classList.contains("text-xs")).toBe(true);
+  });
+
   it("0件のグループは見出しだけを置き、進捗・時間合計・残り時間を出さない（FB-25/FB-26）", () => {
     // 空のセクションにも `sectionSlacks` は枠いっぱいの余裕を返すので、0件のガードが
     // 効いていることを見るには値を渡したうえで「出ない」を確かめる必要がある

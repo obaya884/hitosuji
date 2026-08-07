@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useServerAction } from "@/app/_lib/use-server-action";
 import { formatDuration } from "@/app/_lib/format";
-import { linkMuted } from "@/app/_lib/ui";
+import { linkMuted, tableHeadRow } from "@/app/_lib/ui";
 import { sectionCapacityMinutes, type Section, type SectionId } from "@/domain/section/section";
 import { TableFrame } from "@/app/_components/table-frame";
 import { ArchivedMasterSection } from "../_components/archived-master-section";
@@ -138,7 +138,7 @@ export function SectionsTable({ ranges, archived, deletableIds }: Props) {
     >
       <table className="mt-2 w-full">
         <thead>
-          <tr className="border-b border-line-strong text-left text-sm text-ink-muted">
+          <tr className={tableHeadRow}>
             <th className="w-16 py-2 font-normal">日界</th>
             <th className="py-2 font-normal">名前</th>
             <th className="w-40 py-2 font-normal">時間帯</th>

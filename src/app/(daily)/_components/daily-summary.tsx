@@ -31,7 +31,7 @@ export function DailySummary({ groups, now, isToday, dayStartMinutes }: Props) {
   const overMidnight = isOverMidnight(end, now, APP_TIME_ZONE, dayStartMinutes);
 
   return (
-    // 本文より1段階大きい文字で、日付ナビの直後に左寄せで並べる（§3.1）
+    // 数値は主段（00_共通 §1.1）。日付ナビの直後に左寄せで並べる（§3.1）
     <div className="flex items-center gap-4 font-mono text-base tabular-nums">
       {/* 1日全体の進捗は表示日によらず出す（過去日の振り返りでも見たいため。§3.1） */}
       <span className="flex items-center gap-2">
