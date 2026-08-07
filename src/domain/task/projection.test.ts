@@ -10,7 +10,6 @@ import {
   projectedEndTime,
   projectedStartTimes,
   remainingMinutes,
-  sectionCapacityMinutes,
   sectionSlacks,
 } from "./projection";
 import type { Task } from "./task";
@@ -324,20 +323,6 @@ describe("F-116: 折返し表記・超過警告を日界（論理日）基準で
     const nextDayStart = atJst("06:00", "2026-07-27"); // 07-26 の論理日の終わり = 翌 06:00
     expect(isOverMidnight(nextDayStart, atJst("23:00"), APP_TIME_ZONE, DAY_START)).toBe(true);
     expect(formatProjectedEnd(nextDayStart, atJst("23:00"), APP_TIME_ZONE, DAY_START)).toBe("30:00");
-  });
-});
-
-describe("sectionCapacityMinutes（F-110: セクション枠の長さ）", () => {
-  it("開始から終了までの分数を返す", () => {
-    expect(sectionCapacityMinutes("06:00", "09:00")).toBe(180);
-  });
-
-  it("日をまたぐ枠（夜 18:00–00:00）も正しく求める", () => {
-    expect(sectionCapacityMinutes("18:00", "00:00")).toBe(360);
-  });
-
-  it("有効セクションが1件で先頭へ折り返す場合は24時間", () => {
-    expect(sectionCapacityMinutes("06:00", "06:00")).toBe(24 * 60);
   });
 });
 

@@ -73,6 +73,7 @@
 | T-106 | ID 型エイリアスの適用が domain の外で素の `number` に戻っている | 型安全 | 低 | 完了 | [詳細](#t-106) |
 | T-116 | Dependabot 依存追随（next 16.3.0 グループ）と `next dev` の CLAUDE.md 自動追記 | 依存追随 | 中 | 完了（2026-08-07）→ #110 をマージ。ルータの偽物に `bfcacheId` を足し、Next の管理ブロックは AGENTS.md へ隔離 | [詳細](#t-116) |
 | T-117 | セキュリティアラート2件（postcss・js-yaml）を overrides で根治する | 依存追随 | 中 | 完了（2026-08-08）→ どちらも上流にパッチ版があり dismiss 不要 | [詳細](#t-117) |
+| T-119 | セクション枠の長さを求める関数がタスクの導出（`task/projection`）側に置かれている | 内部設計 | 低 | 完了（2026-08-08）→ `domain/section/section.ts` へ移設。テストも `section.test.ts` へ移した | [詳細](#t-119) |
 
 ## 詳細
 
@@ -718,6 +719,12 @@
 - 対応: ただし**上流に両方ともクリーンなパッチ版がある**ため dismiss ではなく根治を選んだ（T-04・T-23 と同じ判断）。`overrides` の `postcss` を `^8.5.10` → `^8.5.23` へ引き上げ、`js-yaml: ^4.3.1` を追加。解決結果は postcss 8.5.26 / js-yaml 4.3.1
 - 検証: `npm run lint`（js-yaml が効く経路）・`typecheck`・`build`（postcss が効く経路）・`npm test` 1931本、すべて緑
 - 関連: 本書 T-04（postcss を overrides で固定した先例）・本書 T-23（sharp の同型対応）/ [T-116](#t-116)（直前の依存追随）/ [.claude/skills/dependabot-triage](../../.claude/skills/dependabot-triage/SKILL.md) §6
+
+### T-119
+
+- 背景: セクション枠の長さ（終了時刻 − start_time。[データモデル定義書](../仕様/14_データモデル定義書.md) §3.1）を求める `sectionCapacityMinutes` が `domain/task/projection.ts` に置かれていた。同ファイルの関心は終了予定時刻・残り時間（F-104 / F-110）で、枠の長さはセクション集約の性質そのもの。F-110 の分母としてしか使い道が無いうちは同居していても気づきにくかったが、マスタ管理の「長さ」列（FB-90）が2つ目の利用者になり、画面が `task/projection` を経由してセクションの性質を読む形になった
+- 対応方針: `domain/section/section.ts` へ移し、`sectionRanges`（終了時刻の導出）の隣に置く。同ファイルの `startMinutes` を使えるので独自の分解と `24 * 60` が消える（**挙動は不変**——旧実装も `split(":")` の先頭2要素だけを見るので `"HH:MM:SS"` の解釈は同じ）。テストも `section.test.ts` へ移す
+- 関連: [FB-90](./closed_21_ユーザーフィードバック.md#fb-90)（移設の契機。マスタ管理の「長さ」列）/ [アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md)（domain 内の集約の分け方）
 
 ## 旧書式の記録（2026-07-26 以前）
 

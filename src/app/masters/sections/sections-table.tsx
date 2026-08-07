@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useServerAction } from "@/app/_lib/use-server-action";
+import { formatDuration } from "@/app/_lib/format";
 import { linkMuted } from "@/app/_lib/ui";
-import type { Section, SectionId } from "@/domain/section/section";
+import { sectionCapacityMinutes, type Section, type SectionId } from "@/domain/section/section";
 import { TableFrame } from "@/app/_components/table-frame";
 import { ArchivedMasterSection } from "../_components/archived-master-section";
 import { MasterEditableCell } from "../_components/master-editable-cell";
@@ -112,6 +113,8 @@ export function SectionsTable({ ranges, archived, deletableIds }: Props) {
               {derivedEndTime("自動")}
             </span>
           </td>
+          {/* 長さは枠が定まってから決まる（保存後に出る） */}
+          <td className="py-1" />
         </>
       )}
     />
@@ -139,6 +142,7 @@ export function SectionsTable({ ranges, archived, deletableIds }: Props) {
             <th className="w-16 py-2 font-normal">日界</th>
             <th className="py-2 font-normal">名前</th>
             <th className="w-40 py-2 font-normal">時間帯</th>
+            <th className="w-20 py-2 font-normal">長さ</th>
             <th className="w-32 py-2" />
           </tr>
         </thead>
@@ -158,6 +162,9 @@ export function SectionsTable({ ranges, archived, deletableIds }: Props) {
               </td>
               <td className="py-2">{nameCell(row)}</td>
               <td className="py-2">{startTimeCell(row)}</td>
+              <td className="py-2 font-mono tabular-nums text-ink-muted">
+                {formatDuration(sectionCapacityMinutes(row.startTime, row.endTime))}
+              </td>
               <td className="py-2 text-right whitespace-nowrap">
                 <button
                   onClick={() => run(() => archiveSectionAction(row.id))}

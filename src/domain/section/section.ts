@@ -91,6 +91,15 @@ export function sectionRanges(sections: readonly Section[]): SectionRange[] {
 }
 
 /**
+ * セクション枠の長さ（分）＝ 導出した終了時刻 − 開始時刻（データモデル定義書 §3.1 / F-110）。
+ * 有効セクションが1件だけのときは終了時刻が自分の開始へ折り返す（`sectionRanges`）ので24時間になる
+ */
+export function sectionCapacityMinutes(startTime: string, endTime: string): number {
+  const span = startMinutes(endTime) - startMinutes(startTime);
+  return span > 0 ? span : span + 1440;
+}
+
+/**
  * 指定時刻 "HH:MM" を含む有効セクションを求める（ルーチン展開のセクション導出。F-302）。
  * 有効セクションは24時間を敷き詰めるため必ず一意に定まる（データモデル定義書 §3.1）。
  * 先頭セクションの開始より前の時刻は、日をまたいで続く最後のセクションに属する
