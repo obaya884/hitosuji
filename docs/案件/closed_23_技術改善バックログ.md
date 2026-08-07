@@ -71,6 +71,7 @@
 | T-103 | 日付移動の URL 組み立てとキー処理が3か所に分かれている | 内部設計 | 低 | 完了 | [詳細](#t-103) |
 | T-94 | マスタ管理3表から寄せた表の枠が、ルーチン管理では4本目の逐語コピーのまま残る | 内部設計 | 低 | 完了 | [詳細](#t-94) |
 | T-106 | ID 型エイリアスの適用が domain の外で素の `number` に戻っている | 型安全 | 低 | 完了 | [詳細](#t-106) |
+| T-116 | Dependabot 依存追随（next 16.3.0 グループ）と `next dev` の CLAUDE.md 自動追記 | 依存追随 | 中 | 完了（2026-08-07）→ #110 をマージ。ルータの偽物に `bfcacheId` を足し、Next の管理ブロックは AGENTS.md へ隔離 | [詳細](#t-116) |
 
 ## 詳細
 
@@ -699,6 +700,15 @@
 - 関連: [T-51](./closed_23_技術改善バックログ.md#t-51)（Port の型を正規化した案件）/ [アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md) §4
 - 結果（2026-08-03）: オーナー裁定は **(a) 全層でエイリアスを通す**。domain・usecases・Port・infrastructure・presentation の全層で素の `number` の ID をエイリアスへ置き換え、背景が挙げた `Task.routineId` の不揃いも直した。方針は[アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md) §4「ID型」の行に明記した。**例外は ID の種類が静的に決まらない箇所**（`field` で種類が決まる割り当てハンドラ、マスタ種別を跨いで共通化した部品＝選択ポップオーバー・アーカイブ済み一覧・名前の引き当て）で、理由は共通部品側（`select-popover.tsx`）に1か所だけ書いた
 - 経過（2026-08-03）: 最初の実装は presentation だけを直して §4 に「全層」と書いたため、**規則と実装が逆向きに食い違った**（domain・usecases・Port に36箇所が残り、同じ入力オブジェクトが層をまたぐと流儀が変わる状態）。`code-quality-reviewer` と `spec-reviewer` が独立に同じ指摘をしたため、同じコミットで下層まで揃えた。`daily-board` の `useState<number | null>`（選択行 ID の供給元）とマスタ3表の `deletableIds` / `editingId` も取りこぼしていた。**さらに `(number | null)[]` と `Map<number | null, …>` の形が grep の網から漏れており**、再検証で5箇所（Port の `updateClassification` とそのインメモリ実装・`reorder.ts` の `sectionOrder` 2本・`displaySectionOrder` の戻り値・展開の採番 Map）を追加で潰した。**`testing/` 配下でも Port 実装は対象**という線引きはこのとき決まった（本物と偽物で契約の書き方が割れるため。§4 に明記）
+
+### T-116
+
+- 背景: Dependabot の version-update PR 1件（#110、minor-and-patch グループ6件）。`next` / `eslint-config-next` 16.2.12→16.3.0、`@types/pg` `@types/react` `@types/react-dom` `tsx` は patch。next 16.3.0 は同梱 lodash の CVE-2025-13465 を塞ぐセキュリティリリース。セキュリティアラート（Dependabot・code-scanning）は open 0件だった
+- 対応: **CI 赤の原因は型エラー1件**——next 16.3.0 が `AppRouterInstance` に必須プロパティ `bfcacheId: string`（React の `key` に渡して遷移時に状態を捨てる識別子）を**追加**したため、`src/app/_testing/next-navigation.ts` のルータの偽物が `satisfies` の過不足検査で落ちていた。破壊的変更ではなくアプリのコードは無傷で、**偽物の過不足を型で縛る仕掛けが設計どおり働いた形**。遷移しない偽物なので固定値を置いた。この修正は main へ先行させられない（16.2.12 の型に `bfcacheId` が無く、今度は余剰プロパティで落ちる）ため bump と同じ枝に乗せてマージした。`verify` は前回1分で型エラー落ちしていたのが3分21秒＝テストまで走り切って緑
+- 派生（`next dev` が CLAUDE.md を書き換える）: 16.3.0 から `next dev` が**AI コーディングエージェントを検出したとき**に管理ブロック（`<!-- BEGIN:nextjs-agent-rules -->`）を CLAUDE.md へ自動追記するようになった（`server/lib/generate-agent-files.js`、呼び出しは `app-info-log.js` の `ensureAgentRulesForDev()`）。無効化フラグは無く、消しても次の `next dev` で復活する。**手書きの契約書である CLAUDE.md が機械の都合で書き換わる**のは docs の作法（一次情報は1か所・管理主体を混ぜない）に反し、並行開発では worktree の数だけ差分が湧く
+- 対応（同上）: `AGENTS.md` を新設してブロックをそちらへ隔離し、CLAUDE.md には `@AGENTS.md` の import を1行置いた。`writeAgentFiles` は「AGENTS.md があり、かつ CLAUDE.md がブロックを持たない」なら AGENTS.md だけを更新する。**順序が肝で**、CLAUDE.md からブロックを外さずに AGENTS.md を足すだけでは第1分岐が false になり CLAUDE.md 側の更新が続く。import が要るのは Claude Code が AGENTS.md を単体では読まないため（公式ドキュメント「Claude Code reads `CLAUDE.md`, not `AGENTS.md`」。推奨の引き取り方がこの import）。ブロック本文は Next が上げ得るので AGENTS.md は手で書かない
+- 結果: 挙動変更なし（lockfile・テストダブル・エージェント向け指示のみ）。`next dev` を立て直して CLAUDE.md が汚れないことを実測。オープン Dependabot PR 0件・セキュリティアラート 0件
+- 関連: [T-90](#t-90)・本書 T-15（旧書式の記録。いずれも同種の依存追随）/ [.claude/skills/dependabot-triage](../../.claude/skills/dependabot-triage/SKILL.md)
 
 ## 旧書式の記録（2026-07-26 以前）
 

@@ -36,6 +36,12 @@ Next.js 16 (App Router) + TypeScript / Tailwind CSS 4 / Drizzle ORM + node-postg
 
 ランタイム（Node）とDB（PostgreSQL）の版は**本番（Vercel / Neon）が決めた版に他をそろえる**。追随関係と「追い越さない」「Dependabot は最新しか出さないので中間版は手動」の規則は `docs/仕様/15_アーキテクチャ定義書.md` §11 が正。
 
+@AGENTS.md
+
+<!-- AGENTS.md は `next dev` が自動生成・自動更新する Next.js 管理ブロックの置き場。手で書かない。
+     この import が無いと Claude Code は AGENTS.md を読まない（CLAUDE.md しか読まないため）。
+     一方 CLAUDE.md からブロックを外しておくと Next は AGENTS.md 側だけを更新する（T-116）。 -->
+
 ## アーキテクチャ
 
 クリーンアーキテクチャ＋関数型DDD。**コード配置・依存方向の契約は `docs/仕様/15_アーキテクチャ定義書.md`、テスト戦略の契約は `docs/仕様/17_テスト戦略定義書.md` が正**。要点:
