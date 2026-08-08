@@ -3,7 +3,7 @@ import type { SectionRepository } from "@/usecases/ports/section-repository";
 import type { Section } from "@/domain/section/section";
 import { TEST_DATE } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
-import { moveTaskByOneStep, moveTaskTo, setTaskSection } from "./reorder-usecases";
+import { moveTaskByOneStep, setTaskSection } from "./reorder-usecases";
 import { inMemoryTaskRepository } from "./testing/in-memory-repository";
 
 const sections: Section[] = [
@@ -21,62 +21,6 @@ const sectionRepo: SectionRepository = {
   remove: async () => {},
 };
 
-describe("moveTaskTo（O-5/O-6: 指定位置への移動）", () => {
-  it("同じセクション内で位置を変える", async () => {
-    const repo = inMemoryTaskRepository([
-      task({ id: 1, sectionId: 1, sortOrder: 1000 }),
-      task({ id: 2, sectionId: 1, sortOrder: 2000 }),
-      task({ id: 3, sectionId: 1, sortOrder: 3000 }),
-    ]);
-
-    expect(
-      (await moveTaskTo(repo, { taskId: 3, date: TEST_DATE, sectionId: 1, index: 0 })).ok
-    ).toBe(true);
-    expect(repo.rows.find((t) => t.id === 3)?.sortOrder).toBe(0);
-  });
-
-  it("セクションをまたぐ移動で section_id が変わる", async () => {
-    const repo = inMemoryTaskRepository([
-      task({ id: 1, sectionId: 1, sortOrder: 1000 }),
-      task({ id: 2, sectionId: 2, sortOrder: 1000 }),
-    ]);
-
-    await moveTaskTo(repo, { taskId: 1, date: TEST_DATE, sectionId: 2, index: 1 });
-
-    const moved = repo.rows.find((t) => t.id === 1);
-    expect([moved?.sectionId, moved?.sortOrder]).toEqual([2, 2000]);
-  });
-
-  it("他の日付のタスクは採番に影響しない（sort_order は task_date ごとに独立）", async () => {
-    const repo = inMemoryTaskRepository([
-      task({ id: 1, taskDate: "2026-07-25", sectionId: 1, sortOrder: 5000 }),
-      task({ id: 2, taskDate: TEST_DATE, sectionId: 1, sortOrder: 1000 }),
-      task({ id: 3, taskDate: TEST_DATE, sectionId: 1, sortOrder: 2000 }),
-    ]);
-
-    // 表示日のグループ（id:2, id:3）だけを見て採番する。前日の 5000 は無関係
-    await moveTaskTo(repo, { taskId: 2, date: TEST_DATE, sectionId: 1, index: 1 });
-    expect(repo.rows.find((t) => t.id === 2)?.sortOrder).toBe(3000);
-    expect(repo.rows.find((t) => t.id === 1)?.sortOrder).toBe(5000); // 他日付は不変
-  });
-
-  it("中間値が尽きたら同一グループを振り直す", async () => {
-    const repo = inMemoryTaskRepository([
-      task({ id: 1, sectionId: 1, sortOrder: 1000 }),
-      task({ id: 2, sectionId: 1, sortOrder: 1001 }),
-      task({ id: 3, sectionId: 1, sortOrder: 5000 }),
-    ]);
-
-    await moveTaskTo(repo, { taskId: 3, date: TEST_DATE, sectionId: 1, index: 1 });
-
-    expect(repo.rows.map((t) => [t.id, t.sortOrder])).toEqual([
-      [1, 1000],
-      [2, 3000],
-      [3, 2000],
-    ]);
-  });
-});
-
 describe("moveTaskByOneStep（画面定義書01 §6: Shift+J/K）", () => {
   it("下へ1つ移動する", async () => {
     const repo = inMemoryTaskRepository([
@@ -85,11 +29,37 @@ describe("moveTaskByOneStep（画面定義書01 §6: Shift+J/K）", () => {
       task({ id: 3, sectionId: 1, sortOrder: 3000 }),
     ]);
 
+    // 成功を成功として返すこと自体も主張する——呼び出し元（`(daily)/actions.ts`）はこの `ok` で
+    // 取り直しに行くかエラーを出すかを分けており、その分岐を測れる段は他に無い
+    expect(
+      await moveTaskByOneStep(
+        { tasks: repo, sections: sectionRepo },
+        { taskId: 1, date: TEST_DATE, step: 1 }
+      )
+    ).toEqual({ ok: true, value: 1 });
+    expect(repo.rows.find((t) => t.id === 1)?.sortOrder).toBe(2500);
+  });
+
+  // 振り直しの計算そのものは domain（`reorder.test.ts`）が持つ。ここで見るのは**配線**——
+  // 中間値が尽きたときに算出された振り直しをリポジトリへ渡していること（渡し忘れると
+  // 移動したタスクだけが動いて周りが元の値のまま残る）
+  it("中間値が尽きたときは振り直しもリポジトリへ渡す", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 1, sortOrder: 1000 }),
+      task({ id: 2, sectionId: 1, sortOrder: 1001 }),
+      task({ id: 3, sectionId: 1, sortOrder: 1002 }),
+    ]);
+
     await moveTaskByOneStep(
       { tasks: repo, sections: sectionRepo },
-      { taskId: 1, date: TEST_DATE, step: 1 }
+      { taskId: 3, date: TEST_DATE, step: -1 }
     );
-    expect(repo.rows.find((t) => t.id === 1)?.sortOrder).toBe(2500);
+
+    expect(repo.rows.map((t) => [t.id, t.sortOrder])).toEqual([
+      [1, 1000],
+      [2, 3000],
+      [3, 2000],
+    ]);
   });
 
   it("グループ末尾から下へ動かすと次のセクションへ移る", async () => {
@@ -241,7 +211,10 @@ describe("setTaskSection（O-5: セクションの割り当て）", () => {
       task({ id: 3, sectionId: 1, sortOrder: 2000 }),
     ]);
 
-    await setTaskSection(repo, { taskId: 1, date: TEST_DATE, sectionId: 1 });
+    expect(await setTaskSection(repo, { taskId: 1, date: TEST_DATE, sectionId: 1 })).toEqual({
+      ok: true,
+      value: 1,
+    });
 
     const moved = repo.rows.find((t) => t.id === 1);
     expect([moved?.sectionId, moved?.sortOrder]).toEqual([1, 3000]);
@@ -267,9 +240,35 @@ describe("setTaskSection（O-5: セクションの割り当て）", () => {
 
     await setTaskSection(repo, { taskId: 1, date: TEST_DATE, sectionId: 1 });
 
-    // 移動先の件数は自分を除いて数えるため、末尾（2000 の次）へ採番される
+    // 末尾（2000 の次）へ採番される。なお件数を自分ごと数えても `neighborsAt` が index を
+    // 丸めるので結果は変わらない——自分を除く条件はここでは観測できない防御
     const moved = repo.rows.find((t) => t.id === 1);
     expect([moved?.sectionId, moved?.sortOrder]).toEqual([1, 3000]);
+  });
+
+  // 採番規則そのものは domain（`reorder.test.ts` / `sort-order.test.ts`）が持つ。ここで見るのは
+  // ユースケースの手順——表示日1日分だけをリポジトリから引いて採番の材料にすること
+  it("他の日付のタスクは採番に影響しない（sort_order は task_date ごとに独立）", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, taskDate: "2026-07-25", sectionId: 1, sortOrder: 5000 }),
+      task({ id: 2, taskDate: TEST_DATE, sectionId: 1, sortOrder: 1000 }),
+      task({ id: 3, taskDate: TEST_DATE, sectionId: null, sortOrder: 1000 }),
+    ]);
+
+    await setTaskSection(repo, { taskId: 3, date: TEST_DATE, sectionId: 1 });
+
+    // 表示日のセクション1は id:2 だけ。前日の 5000 を数えていれば末尾は 6000 になる
+    expect(repo.rows.find((t) => t.id === 3)?.sortOrder).toBe(2000);
+    expect(repo.rows.find((t) => t.id === 1)?.sortOrder).toBe(5000); // 他日付は不変
+  });
+
+  it("存在しないタスクはエラー", async () => {
+    const repo = inMemoryTaskRepository([task({ id: 1, sectionId: null, sortOrder: 1000 })]);
+
+    expect(await setTaskSection(repo, { taskId: 99, date: TEST_DATE, sectionId: 1 })).toEqual({
+      ok: false,
+      error: "task_not_found",
+    });
   });
 
   it("空のセクションへ割り当てられる", async () => {

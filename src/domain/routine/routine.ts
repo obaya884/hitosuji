@@ -89,7 +89,7 @@ export const WEEKDAY_PRESETS = [
  * `weekdays` がプリセットと**ちょうど一致**するときだけその名前を返す（画面定義書02 §3）。
  * 余分な曜日を含む場合（例: 月火水木金土）は null を返し、呼び出し側は曜日を列挙する
  */
-export function weekdayPresetLabel(weekdays: number): string | null {
+function weekdayPresetLabel(weekdays: number): string | null {
   return WEEKDAY_PRESETS.find((preset) => preset.mask === weekdays)?.label ?? null;
 }
 

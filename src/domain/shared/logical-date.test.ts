@@ -1,14 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   addDays,
-  applyDayStart,
   atLogicalDayClock,
   isValidLogicalDate,
-  parseLogicalDate,
   todayLogicalDate,
   weekdayIndex,
 } from "./logical-date";
-import { APP_TIME_ZONE, zonedParts } from "./time-zone";
+import { APP_TIME_ZONE } from "./time-zone";
 
 describe("isValidLogicalDate（データモデル定義書 §1: task_date は YYYY-MM-DD の論理日付）", () => {
   it("形式と実在日を検証する", () => {
@@ -24,40 +22,12 @@ describe("isValidLogicalDate（データモデル定義書 §1: task_date は YY
   });
 });
 
-describe("parseLogicalDate", () => {
-  it("不正な日付は Result のエラーで返す", () => {
-    expect(parseLogicalDate("2026-13-01")).toEqual({ ok: false, error: "invalid_date" });
-    expect(parseLogicalDate("2026-07-19")).toEqual({ ok: true, value: "2026-07-19" });
-  });
-});
-
 describe("addDays（F-106: 前日・翌日への移動）", () => {
   it("月末・年末をまたいで加減算できる", () => {
     expect(addDays("2026-07-19", 1)).toBe("2026-07-20");
     expect(addDays("2026-07-01", -1)).toBe("2026-06-30");
     expect(addDays("2026-12-31", 1)).toBe("2027-01-01");
     expect(addDays("2028-02-28", 1)).toBe("2028-02-29");
-  });
-});
-
-describe("applyDayStart（F-116: 日界を踏まえて論理日付を決める）", () => {
-  it("壁時計分が日界より前なら前の暦日", () => {
-    // 日界 06:00（=360分）で 05:59（=359分）は前日
-    expect(applyDayStart("2026-07-21", 359, 360)).toBe("2026-07-20");
-  });
-
-  it("深夜0時ちょうど（壁時計 00:00）も日界前なら前の暦日", () => {
-    expect(applyDayStart("2026-07-21", 0, 360)).toBe("2026-07-20");
-  });
-
-  it("壁時計分が日界以上ならその暦日のまま", () => {
-    expect(applyDayStart("2026-07-21", 360, 360)).toBe("2026-07-21");
-    expect(applyDayStart("2026-07-21", 1000, 360)).toBe("2026-07-21");
-  });
-
-  it("日界 0 なら常に暦日と一致する", () => {
-    expect(applyDayStart("2026-07-21", 0, 0)).toBe("2026-07-21");
-    expect(applyDayStart("2026-07-21", 5, 0)).toBe("2026-07-21");
   });
 });
 
@@ -71,7 +41,7 @@ describe("atLogicalDayClock（F-116 / 画面定義書01 §3.3: 論理日の中�
     ).toBe("2026-07-21T14:40:00.000Z");
   });
 
-  it("日界より前の時刻は論理日の翌暦日に落ちる（applyDayStart の逆向き）", () => {
+  it("日界より前の時刻は論理日の翌暦日に落ちる（todayLogicalDate の逆向き）", () => {
     // JST 2026-07-22 01:00 = 07-21T16:00Z
     expect(atLogicalDayClock("2026-07-21", 60, APP_TIME_ZONE, DAY_START_0600).toISOString()).toBe(
       "2026-07-21T16:00:00.000Z"
@@ -102,13 +72,11 @@ describe("atLogicalDayClock（F-116 / 画面定義書01 §3.3: 論理日の中�
     );
   });
 
-  it("日界を戻すと元の論理日に一致する（applyDayStart との往復）", () => {
-    const minuteOfDay = 60;
-    const at = atLogicalDayClock("2026-07-21", minuteOfDay, APP_TIME_ZONE, DAY_START_0600);
-    const { hours, minutes } = zonedParts(at, APP_TIME_ZONE);
-    expect(
-      applyDayStart(todayLogicalDate(at, APP_TIME_ZONE, 0), hours * 60 + minutes, DAY_START_0600)
-    ).toBe("2026-07-21");
+  // 日界より前の壁時計は翌暦日へ送られる（上のケース）ので、同じ日界で読み戻して初めて
+  // 元の論理日に戻る。`todayLogicalDate` が逆向きの唯一の入口
+  it("同じ日界で読み戻すと元の論理日に一致する（todayLogicalDate との往復）", () => {
+    const at = atLogicalDayClock("2026-07-21", 60, APP_TIME_ZONE, DAY_START_0600);
+    expect(todayLogicalDate(at, APP_TIME_ZONE, DAY_START_0600)).toBe("2026-07-21");
   });
 });
 
@@ -139,9 +107,23 @@ describe("todayLogicalDate（F-116: 日界を指定すると解決がずれる�
     );
   });
 
+  it("深夜0時ちょうど（JST 00:00）も日界前なら前の暦日", () => {
+    // 2026-07-20T15:00:00Z → JST 2026-07-21 00:00 → 日界06:00前なので 07-20
+    expect(todayLogicalDate(new Date("2026-07-20T15:00:00Z"), APP_TIME_ZONE, DAY_START)).toBe(
+      "2026-07-20"
+    );
+  });
+
   it("日界 06:00 ちょうどはその暦日の今日", () => {
     // 2026-07-20T21:00:00Z → JST 2026-07-21 06:00 → 07-21
     expect(todayLogicalDate(new Date("2026-07-20T21:00:00Z"), APP_TIME_ZONE, DAY_START)).toBe(
+      "2026-07-21"
+    );
+  });
+
+  it("日界より後の時間帯はその暦日のまま", () => {
+    // 2026-07-21T07:40:00Z → JST 2026-07-21 16:40 → 07-21
+    expect(todayLogicalDate(new Date("2026-07-21T07:40:00Z"), APP_TIME_ZONE, DAY_START)).toBe(
       "2026-07-21"
     );
   });

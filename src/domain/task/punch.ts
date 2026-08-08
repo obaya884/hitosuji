@@ -15,7 +15,7 @@ export type PunchError =
  * 再開タスクの見積もり（データモデル定義書 §4.2）。
  * 元が未設定（0分）なら未設定のまま引き継ぐ。設定済みなら max(見積 − 実績, 1分)
  */
-export function resumeEstimateMinutes(original: Task, actual: number): number {
+function resumeEstimateMinutes(original: Task, actual: number): number {
   if (original.estimateMinutes <= 0) return 0;
   return Math.max(original.estimateMinutes - actual, 1);
 }

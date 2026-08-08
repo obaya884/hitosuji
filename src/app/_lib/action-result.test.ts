@@ -4,7 +4,6 @@ import {
   callAction,
   failure,
   handleActionFailure,
-  isUnreachable,
   type ActionResult,
 } from "./action-result";
 import { SAVE_FAILED } from "./error-messages";
@@ -62,28 +61,12 @@ describe("callAction（00_共通 §4.1: 拒否を失敗の結果へ落とす）"
   });
 });
 
-describe("isUnreachable（00_共通 §4.1: 取り直しに行くかの判断）", () => {
-  it("サーバが返した失敗は false（＝取り直しに行く）", () => {
-    expect(isUnreachable({ ok: false, message: "タスクが見つかりませんでした" })).toBe(false);
-  });
-
-  it("届かなかった失敗は true（＝取り直しに行かない）", () => {
-    expect(isUnreachable({ ok: false, message: SAVE_FAILED, unreachable: true })).toBe(true);
-  });
-});
-
 describe("failure（00_共通 §4.1: サーバが返した失敗）", () => {
   it("渡された文言だけを持つ失敗を作る", () => {
     expect(failure("タスクが見つかりませんでした")).toEqual({
       ok: false,
       message: "タスクが見つかりませんでした",
     });
-  });
-
-  // すべての Server Action の失敗はここを通るので、届かなかった印が紛れ込むと全画面が
-  // 取り直しをやめる。作る側と判定する側を1本で結んでおく
-  it("届かなかった印は付けない（＝取り直しに行く側）", () => {
-    expect(isUnreachable(failure("タスクが見つかりませんでした"))).toBe(false);
   });
 });
 
@@ -94,19 +77,29 @@ describe("handleActionFailure（00_共通 §4.1: 失敗の表示と後始末）"
     return { setError: vi.fn(), refresh: vi.fn() };
   }
 
+  /** 呼び出しが拒否されたときの失敗を生成元（`callAction` の catch）から得る */
+  async function unreachableFailure() {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    return callAction(async () => {
+      throw new Error("Failed to fetch");
+    });
+  }
+
+  // 2本とも失敗を**生成元から**受け取る。届かなかった印をリテラルで書くと、印の名前が
+  // 変わったときに生成側と判定側のずれに気づけない（取り直しの向きを全画面が間違える）
   it("サーバが返した失敗は、文言を出したうえで表示中のデータを取り直す", () => {
     const handlers = spies();
 
-    handleActionFailure({ ok: false, message: "タスクが見つかりませんでした" }, handlers);
+    handleActionFailure(failure("タスクが見つかりませんでした"), handlers);
 
     expect(handlers.setError).toHaveBeenCalledExactlyOnceWith("タスクが見つかりませんでした");
     expect(handlers.refresh).toHaveBeenCalledOnce();
   });
 
-  it("届かなかった失敗は文言だけ出し、取り直しに行かない（また失敗するだけのため）", () => {
+  it("届かなかった失敗は文言だけ出し、取り直しに行かない（また失敗するだけのため）", async () => {
     const handlers = spies();
 
-    handleActionFailure({ ok: false, message: SAVE_FAILED, unreachable: true }, handlers);
+    handleActionFailure(await unreachableFailure(), handlers);
 
     expect(handlers.setError).toHaveBeenCalledExactlyOnceWith(SAVE_FAILED);
     expect(handlers.refresh).not.toHaveBeenCalled();

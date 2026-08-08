@@ -49,7 +49,7 @@ export function failure(message: string): FailedActionResult {
 }
 
 /** 結果が届かなかった失敗か（`UnreachableFailure` の doc のとおり、これだけは取り直しに行かない） */
-export function isUnreachable(result: ActionFailure): result is UnreachableFailure {
+function isUnreachable(result: ActionFailure): result is UnreachableFailure {
   return result.unreachable === true;
 }
 

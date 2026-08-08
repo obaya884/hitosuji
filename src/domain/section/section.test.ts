@@ -4,8 +4,8 @@ import {
   byDayStartOrder,
   canArchive,
   currentSectionId,
-  dayStartOffset,
   dayStartTimeOf,
+  offsetFromDayStart,
   sectionAt,
   sectionCapacityMinutes,
   sectionRanges,
@@ -190,7 +190,7 @@ describe("canArchive（画面定義書03 §3.1: 有効なセクションは最�
   });
 });
 
-describe("dayStartTimeOf / byDayStartOrder（F-116: 日界セクション起点の回転）", () => {
+describe("dayStartTimeOf / offsetFromDayStart / byDayStartOrder（F-116: 日界セクション起点の回転）", () => {
   const dayStartMorning = section({ id: 1, name: "朝", startTime: "06:00", isDayStart: true });
   const order = (sections: Section[], dayStart: string) =>
     [...sections].sort(byDayStartOrder(dayStart)).map((s) => s.startTime);
@@ -211,9 +211,10 @@ describe("dayStartTimeOf / byDayStartOrder（F-116: 日界セクション起点�
     expect(dayStartTimeOf([archivedDayStart, forenoon])).toBe("00:00");
   });
 
-  it("dayStartOffset は日界からの巡回距離（分）を返す", () => {
-    expect(dayStartOffset("06:00", "06:00")).toBe(0);
-    expect(dayStartOffset("00:00", "06:00")).toBe(1080); // 06:00 から見て 00:00 は 18時間後
+  // 並びの基準になる巡回距離そのもの（`byDayStartOrder` と `projection` の枠導出が共有する）
+  it("offsetFromDayStart は日界からの巡回距離（分）を返す", () => {
+    expect(offsetFromDayStart(6 * 60, 6 * 60)).toBe(0);
+    expect(offsetFromDayStart(0, 6 * 60)).toBe(18 * 60);
   });
 
   it("日界を先頭に (start − 日界 + 24h) % 24h 昇順で並べる", () => {

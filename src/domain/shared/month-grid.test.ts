@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { addDays } from "./logical-date";
-import { addMonths, dayOf, monthGrid, monthOf, shiftMonthKeepingDay } from "./month-grid";
+import { dayOf, monthGrid, monthOf, shiftMonthKeepingDay } from "./month-grid";
 
 describe("monthOf（F-117 / 画面定義書01 §3.1: 論理日付の属する年月）", () => {
   it("YYYY-MM-DD から年月を取り出す", () => {
@@ -11,20 +11,6 @@ describe("monthOf（F-117 / 画面定義書01 §3.1: 論理日付の属する年
 describe("dayOf（F-117: 論理日付の日）", () => {
   it("YYYY-MM-DD から日を取り出す", () => {
     expect(dayOf("2026-07-05")).toBe(5);
-  });
-});
-
-describe("addMonths（F-117: 前月/翌月への移動）", () => {
-  it("翌月へ進める", () => {
-    expect(addMonths({ year: 2026, month: 7 }, 1)).toEqual({ year: 2026, month: 8 });
-  });
-
-  it("12月から翌月で年をまたぐ", () => {
-    expect(addMonths({ year: 2026, month: 12 }, 1)).toEqual({ year: 2027, month: 1 });
-  });
-
-  it("1月から前月で年をまたいで戻る", () => {
-    expect(addMonths({ year: 2026, month: 1 }, -1)).toEqual({ year: 2025, month: 12 });
   });
 });
 
@@ -45,8 +31,9 @@ describe("shiftMonthKeepingDay（F-117 / 画面定義書01 §3.1: ◀/▶ は同
     expect(shiftMonthKeepingDay("2024-01-31", 1)).toBe("2024-02-29");
   });
 
-  it("年をまたいで移動する（1月の前月 → 前年12月）", () => {
+  it("年をまたいで移動する（1月の前月 → 前年12月 / 12月の翌月 → 翌年1月）", () => {
     expect(shiftMonthKeepingDay("2026-01-15", -1)).toBe("2025-12-15");
+    expect(shiftMonthKeepingDay("2026-12-15", 1)).toBe("2027-01-15");
   });
 });
 

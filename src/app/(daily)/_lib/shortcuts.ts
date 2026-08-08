@@ -93,5 +93,8 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { label: "?", keys: shift("?"), description: "この一覧の表示・非表示" },
 ];
 
-/** 表が割り当てている全キー（表示順）。ディスパッチャとの突き合わせが使う */
+/**
+ * 表が割り当てている全キー（表示順）。**本番の呼び出し元は無く、公開しているのはテストが
+ * 走査するため**（表内のキー重複の検査と、ディスパッチャとの両方向の突き合わせ）
+ */
 export const SHORTCUT_KEYS: readonly KeyStroke[] = SHORTCUTS.flatMap((shortcut) => shortcut.keys);

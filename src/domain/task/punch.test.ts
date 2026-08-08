@@ -4,29 +4,42 @@ import {
   canStart,
   canUndoComplete,
   canUndoStart,
-  resumeEstimateMinutes,
   resumeTaskDraft,
 } from "./punch";
 import { task } from "./testing/task";
 
 const startedAt = new Date("2026-07-26T08:00:00Z");
 
-describe("resumeEstimateMinutes（データモデル定義書 §4.2: 再開タスクの見積もり）", () => {
-  it("見積もり − 実績 を残り見積もりにする", () => {
-    expect(resumeEstimateMinutes(task({ id: 1, estimateMinutes: 30 }), 12)).toBe(18);
-  });
-
-  it("実績が見積もりを超えていても最低1分は残す", () => {
-    expect(resumeEstimateMinutes(task({ id: 1, estimateMinutes: 30 }), 45)).toBe(1);
-    expect(resumeEstimateMinutes(task({ id: 1, estimateMinutes: 30 }), 30)).toBe(1);
-  });
-
-  it("元が未設定（0分）なら未設定のまま引き継ぐ（2026-07-19 オーナー判断）", () => {
-    expect(resumeEstimateMinutes(task({ id: 1, estimateMinutes: 0 }), 20)).toBe(0);
-  });
-});
-
 describe("resumeTaskDraft（F-204: 同名・同属性の再開タスクを生成）", () => {
+  describe("残り見積もり（データモデル定義書 §4.2）", () => {
+    /** 見積もり `estimate` 分のタスクを `actual` 分やって中断したときの、再開タスクの見積もり */
+    const remainingEstimate = (estimate: number, actual: number) =>
+      resumeTaskDraft(
+        task({ id: 1, estimateMinutes: estimate, startedAt }),
+        new Date(startedAt.getTime() + actual * 60_000)
+      ).estimateMinutes;
+
+    it("見積もり − 実績 を残り見積もりにする", () => {
+      expect(remainingEstimate(30, 12)).toBe(18);
+    });
+
+    it("実績が見積もりを超えていても最低1分は残す", () => {
+      expect(remainingEstimate(30, 45)).toBe(1);
+      expect(remainingEstimate(30, 30)).toBe(1);
+    });
+
+    it("元が未設定（0分）なら未設定のまま引き継ぐ（2026-07-19 オーナー判断）", () => {
+      expect(remainingEstimate(0, 20)).toBe(0);
+    });
+
+    // 実際には実行中タスクしか渡らない（実績が算出できない枝の防御）。引くものが無いので
+    // 見積もりがそのまま残る
+    it("開始していないタスクからは見積もりをそのまま引き継ぐ", () => {
+      const notStarted = task({ id: 1, estimateMinutes: 30 });
+      expect(resumeTaskDraft(notStarted, startedAt).estimateMinutes).toBe(30);
+    });
+  });
+
   it("名前・モード・プロジェクトを引き継ぎ、split_parent_id で元タスクへ紐づける", () => {
     const original = task({
       id: 7,
