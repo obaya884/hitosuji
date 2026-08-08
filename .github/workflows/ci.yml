@@ -18,6 +18,18 @@ permissions:
   contents: read
 
 jobs:
+  # docs の機械検査（T-86）。npm も DB も要らないので verify とは別ジョブにして並列で回す。
+  # チェックアウトは既定の浅いクローンのままでよい（更新日の警告は履歴が要るぶんだけ自動で飛ぶ）
+  docs:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v7
+      - run: sh scripts/docs-check.sh
+
   verify:
     runs-on: ubuntu-latest
 
