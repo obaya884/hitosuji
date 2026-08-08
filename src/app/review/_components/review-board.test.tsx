@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { hasClass, rgbOf } from "@/app/_testing/dom";
+import { faintTextOf, hasClass, rgbOf } from "@/app/_testing/dom";
 import { otherRouterCalls, router } from "@/app/_testing/next-navigation";
 import { MODE_COLOR_PRESETS, type Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
@@ -191,13 +191,16 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
     expect(hasClass(diff, "text-danger")).toBe(false);
   });
 
-  it("実行中の行は終了時刻と実績を `--:--` にし、差異だけを空にする（実績が確定していない）", () => {
+  it("実行中の行は終了時刻と実績を薄色の `--:--` にし、差異だけを空にする（実績が確定していない）", () => {
     renderBoard({ log: [task({ id: 1, estimateMinutes: 20, startedAt: atJst("09:00") })] });
 
     const cells = logRow().cells;
     expect(cells[LOG.clock].textContent).toBe("09:00---:--");
     expect(cells[LOG.actual].textContent).toBe("--:--");
     expect(cells[LOG.diff].textContent).toBe("");
+    // 開始–終了は確定値と同居するので、薄いのは記号側だけ（00_共通 §2.4）
+    expect(faintTextOf(cells[LOG.clock])).toBe("--:--");
+    expect(faintTextOf(cells[LOG.actual])).toBe("--:--");
   });
 
   it("見積もり未設定（0分）は薄色の `--:--` にし、差異は出さない（比べる相手がない）", () => {
@@ -208,9 +211,22 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
 
     const cells = logRow().cells;
     expect(cells[LOG.estimate].textContent).toBe("--:--");
-    expect(hasClass(cells[LOG.estimate], "text-ink-faint")).toBe(true);
+    expect(faintTextOf(cells[LOG.estimate])).toBe("--:--");
     expect(cells[LOG.actual].textContent).toBe("0:30");
     expect(cells[LOG.diff].textContent).toBe("");
+  });
+
+  // 実績の0分は確定値なので `--:--` にしない（§3.3 / 00_共通 §2.4）。見積もりと同じ機構へ
+  // 寄せる整理を止める段（見積もりの0は未設定、実績の0は値、で意味が違う）
+  it("同分内に開始終了した実績（0分）は `0:00` と出し、薄色にしない", () => {
+    renderBoard({
+      log: [done({ id: 1, estimateMinutes: 20, startedAt: atJst("09:00"), endedAt: atJst("09:00") })],
+      totalMinutes: 0,
+    });
+
+    const cells = logRow().cells;
+    expect(cells[LOG.actual].textContent).toBe("0:00");
+    expect(faintTextOf(cells[LOG.actual])).toBeUndefined();
   });
 
   it("モード・プロジェクトが未設定なら薄色の `-` を出す（00_共通 §2.4）", () => {

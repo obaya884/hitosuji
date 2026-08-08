@@ -7,8 +7,9 @@ import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
 import type { Section, SectionId } from "@/domain/section/section";
 import { taskStatus } from "@/domain/task/status";
 import { actualMinutes, elapsedMinutes, type Task, type TaskId } from "@/domain/task/task";
+import { DurationValue } from "@/app/_components/duration-value";
 import { CheckIcon, CommentIcon, PlayIcon, StarIcon, StopIcon } from "@/app/_components/icons";
-import { formatClock, formatDuration, formatEstimate } from "@/app/_lib/format";
+import { formatClock, formatDuration } from "@/app/_lib/format";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { modeAppearance } from "@/app/_lib/mode-appearance";
 import { inputBase } from "@/app/_lib/ui";
@@ -269,9 +270,9 @@ export function TaskRow({
           <button
             type="button"
             onClick={() => onBeginEdit(task, "estimate")}
-            className={`hover:underline ${task.estimateMinutes <= 0 ? "text-ink-faint" : ""}`}
+            className="hover:underline"
           >
-            {formatEstimate(task.estimateMinutes)}
+            <DurationValue minutes={task.estimateMinutes} />
           </button>
         )}
       </td>

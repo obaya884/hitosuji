@@ -8,19 +8,15 @@ import { weekdayIndex } from "@/domain/shared/logical-date";
 import { estimateDiffMinutes, sharePercent, type ActualTotal } from "@/domain/task/review";
 import { actualMinutes, type Task } from "@/domain/task/task";
 import { DateNav } from "@/app/_components/date-nav";
+import { DurationValue } from "@/app/_components/duration-value";
 import { StarIcon } from "@/app/_components/icons";
-import { UnsetMark } from "@/app/_components/unset-mark";
+import { UnsetMark, UnsetTimeMark } from "@/app/_components/unset-mark";
 import { dateHref, DAILY_PATH, REVIEW_PATH } from "@/app/_lib/date-href";
-import {
-  formatClock,
-  formatDuration,
-  formatEstimate,
-  formatSignedDuration,
-} from "@/app/_lib/format";
+import { formatClock, formatDuration, formatSignedDuration } from "@/app/_lib/format";
 import { isGlobalShortcutEvent } from "@/app/_lib/keyboard";
 import { modeAppearance } from "@/app/_lib/mode-appearance";
 import { tableHeadRow } from "@/app/_lib/ui";
-import { UNSET_GROUP_LABEL, UNSET_TIME_MARK } from "@/app/_lib/unset";
+import { UNSET_GROUP_LABEL } from "@/app/_lib/unset";
 
 /**
  * レビュー画面（S-04 / 画面定義書04）。読み取り専用のため更新操作を持たず、
@@ -145,6 +141,11 @@ function ExecutionLog({
   );
 }
 
+/** 打刻時刻。未確定（実行中の終了時刻）は薄色の `--:--`（§3.3）。開始側の null は型の都合（T-121） */
+function clockOrUnset(at: Date | null) {
+  return at === null ? <UnsetTimeMark /> : formatClock(at);
+}
+
 /** 実績ログの1タスク。コメント（F-206）を持つタスクは行が2つになる（§3.3） */
 function LogRow({
   task,
@@ -177,8 +178,7 @@ function LogRow({
         style={colorStyle}
       >
         <td className="py-2 font-mono tabular-nums">
-          {task.startedAt === null ? UNSET_TIME_MARK : formatClock(task.startedAt)}-
-          {task.endedAt === null ? UNSET_TIME_MARK : formatClock(task.endedAt)}
+          {clockOrUnset(task.startedAt)}-{clockOrUnset(task.endedAt)}
         </td>
         <td className="py-2">
           {/* ⭐と名前は flex で縦中央に揃える（`align-middle` だと 16px のアイコンが文字に対して
@@ -207,16 +207,11 @@ function LogRow({
         </td>
         <td className="py-2 text-sm">{mode?.name ?? <UnsetMark />}</td>
         <td className="py-2 text-sm">{project?.name ?? <UnsetMark />}</td>
-        {/* 見積もり未設定は薄色（画面定義書00_共通 §2.4「時間の値」。全画面で揃える） */}
-        <td
-          className={`py-2 pr-4 text-right font-mono tabular-nums ${
-            task.estimateMinutes <= 0 ? "text-ink-faint" : ""
-          }`}
-        >
-          {formatEstimate(task.estimateMinutes)}
+        <td className="py-2 pr-4 text-right font-mono tabular-nums">
+          <DurationValue minutes={task.estimateMinutes} />
         </td>
         <td className="py-2 pr-4 text-right font-mono tabular-nums">
-          {actual === null ? UNSET_TIME_MARK : formatDuration(actual)}
+          {actual === null ? <UnsetTimeMark /> : formatDuration(actual)}
         </td>
         <td className={`py-2 text-right font-mono tabular-nums ${isOver ? "text-danger" : ""}`}>
           {diff === null ? "" : formatSignedDuration(diff)}

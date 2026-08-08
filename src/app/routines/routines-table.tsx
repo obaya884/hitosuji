@@ -11,9 +11,9 @@ import {
   type RoutineSortKey,
 } from "@/domain/routine/order";
 import { sectionAt, type Section } from "@/domain/section/section";
-import { formatEstimate } from "@/app/_lib/format";
 import { useServerAction } from "@/app/_lib/use-server-action";
 import { linkAccent, linkMuted, tableHeadRow } from "@/app/_lib/ui";
+import { DurationValue } from "@/app/_components/duration-value";
 import { TableFrame } from "@/app/_components/table-frame";
 import { UnsetMark } from "@/app/_components/unset-mark";
 import {
@@ -205,7 +205,8 @@ export function RoutinesTable({
                 <td className="py-2 text-sm">{project?.name ?? <UnsetMark />}</td>
                 <td className="py-2 text-sm">{describeRecurrence(routine)}</td>
                 <td className="py-2 pr-4 text-right font-mono tabular-nums">
-                  {formatEstimate(routine.estimateMinutes)}
+                  {/* 1分以上が必須（画面定義書02 §5）なので `--:--` は出ないが、同じ部品を通す */}
+                  <DurationValue minutes={routine.estimateMinutes} />
                 </td>
                 <td className="py-2 tabular-nums">
                   <span className="font-mono">{routine.scheduledStartTime}</span>

@@ -1,23 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  formatClock,
-  formatDuration,
-  formatEstimate,
-  formatLogicalDate,
-  formatSignedDuration,
-} from "./format";
-
-describe("formatEstimate（画面定義書01 §3.3: 見積もり未設定は --:--）", () => {
-  it("未設定（0分）は --:-- で表す", () => {
-    expect(formatEstimate(0)).toBe("--:--");
-  });
-
-  it("分を H:MM へ整形する", () => {
-    expect(formatEstimate(30)).toBe("0:30");
-    expect(formatEstimate(90)).toBe("1:30");
-    expect(formatEstimate(600)).toBe("10:00");
-  });
-});
+import { formatClock, formatDuration, formatLogicalDate, formatSignedDuration } from "./format";
 
 describe("formatDuration（画面定義書01 §3.3: 1分未満の実績は 0:00）", () => {
   it("0分の実績は --:-- ではなく 0:00 と表示する", () => {
@@ -27,6 +9,8 @@ describe("formatDuration（画面定義書01 §3.3: 1分未満の実績は 0:00�
   it("分を H:MM へ整形する", () => {
     expect(formatDuration(18)).toBe("0:18");
     expect(formatDuration(125)).toBe("2:05");
+    // 時は2桁でもゼロ埋めしない（分だけ padStart する）
+    expect(formatDuration(600)).toBe("10:00");
   });
 });
 
