@@ -16,12 +16,13 @@ model: sonnet
 3. `npm run build`
 4. `npm run test:unit`
 5. `npm run test:int`（`docker compose up -d db-test` で :5433 のテスト用DBを起動してから）
-6. スキーマ変更（`src/infrastructure/db/schema.ts` / `migrations/` の差分）がある場合のみ:
+6. `npm run docs:check`（`docs/` / CLAUDE.md / README に差分があるときのみ。CI の `docs` ジョブと同じ検査で、リンク切れ・台帳の構造・完了エントリの残留を見る。**警告行は落ちないが報告に含める**）
+7. スキーマ変更（`src/infrastructure/db/schema.ts` / `migrations/` の差分）がある場合のみ:
    - `docker compose up -d` でローカルDBの起動を確認
    - `npm run db:migrate`
    - `npm run db:seed`（冪等なので再実行してよい）
    - 必要なら `psql postgresql://hitosuji:hitosuji@localhost:5432/hitosuji` で制約・データを直接確認
-7. 疎通確認を指示された場合のみ: `npm run dev` をバックグラウンドで起動し、対象ページの HTTP ステータスと表示内容を curl で確認。**確認後は起動したプロセスを必ず停止する**
+8. 疎通確認を指示された場合のみ: `npm run dev` をバックグラウンドで起動し、対象ページの HTTP ステータスと表示内容を curl で確認。**確認後は起動したプロセスを必ず停止する**
 
 ## 制約
 

@@ -11,7 +11,13 @@
 # 「domain は高く app は意図的に低い」という実態が読めないため（テスト戦略定義書 §7）。
 set -eu
 
-cd "$(git rev-parse --show-toplevel)"
+# 素の `cd "$(git rev-parse --show-toplevel)"` はリポジトリ外で空文字列の cd になり、
+# 失敗扱いにならないままカレントディレクトリで走り出す（読めない理由で落ちて原因が分かりにくい）
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || {
+  echo "hitosuji リポジトリの中で実行してください" >&2
+  exit 1
+}
+cd "$repo_root"
 
 exec python3 - "$@" <<'PY'
 import json

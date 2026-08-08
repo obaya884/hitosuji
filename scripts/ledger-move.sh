@@ -14,10 +14,16 @@
 # 両方を移さないと索引と本文が離れる。手編集で片方を置き忘れる事故を防ぐための道具。
 # 行の切り出しは ID の完全一致で行い部分文字列をアンカーにしない／挿入はテーブルの内側
 # （最終行の直後）に限る、の2点も機械で守る。
-# 22 はチェックリストで構造が違い1行が短く手編集で壊れにくいため、検査（ledger:check）だけを掛ける。
+# 22 はチェックリストで構造が違い1行が短く手編集で壊れにくいため、検査（docs:check）だけを掛ける。
 set -eu
 
-cd "$(git rev-parse --show-toplevel)"
+# 素の `cd "$(git rev-parse --show-toplevel)"` はリポジトリ外で空文字列の cd になり、
+# 失敗扱いにならないままカレントディレクトリで走り出す（読めない理由で落ちて原因が分かりにくい）
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || {
+  echo "hitosuji リポジトリの中で実行してください" >&2
+  exit 1
+}
+cd "$repo_root"
 
 exec python3 - "$@" <<'PY'
 import re
@@ -183,5 +189,6 @@ where = f"「{section}」から " if section else ""
 print(f"{entry_id} を {where}{CLOSED} へ移しました（一覧の行と詳細節の2か所）")
 if new_status is not None:
     print("状態列を差し替えました")
-print("npm run ledger:check で構造を確認してください")
+# 移送は移した側しか直さないので、検査までを1つの手順として案内する
+print(f"npm run docs:check で構造と、{entry_id} を指す既存リンクの向き先を確認してください")
 PY
