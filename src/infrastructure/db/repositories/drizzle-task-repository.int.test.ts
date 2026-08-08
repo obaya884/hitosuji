@@ -670,8 +670,7 @@ describe("postpone（F-107: 先送り）", () => {
   });
 });
 
-// 単文 UPDATE で終わる編集経路。付帯更新を持つ側（move・start の割り込み）ばかりを厚く検証していて、
-// 日常操作で最も通るこちらが実DBに一度も当たっていなかった（T-60）
+// 付帯更新を持たない編集経路（rename / updateEstimate は単文 UPDATE のまま）
 describe("rename / updateEstimate（O-5: タスク名・見積もりのインライン編集）", () => {
   it("対象行の値だけを書き換える（隣の行は動かさない）", async () => {
     const [target, other] = await db
@@ -1339,7 +1338,8 @@ describe("undoComplete（F-212 / データモデル定義書 §4.7: 完了の取
     expect(after.sortOrder).toBe(500);
   });
 
-  // 上の undoStart と同じく、空配列の確認（「今日以外」の判断はユースケース側）
+  // 上の undoStart と同じく、並べ直しが空の入力でも打刻を戻せることの確認
+  // （「今日以外は並べ直さない」の判断はユースケース側）
   it("並べ直しが空なら打刻2列のクリアだけを行う", async () => {
     const [morning] = await db
       .insert(sections)

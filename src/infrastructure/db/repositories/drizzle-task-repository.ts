@@ -41,7 +41,7 @@ async function applyRelocations(tx: Pick<Database, "update">, relocations: Reloc
 /**
  * 打刻列の書き込み（修正 F-203 / 画面定義書01 §4.2-c、開始の取り消し F-210 / データモデル定義書 §4.5、
  * 完了の取り消し F-212 / 同書 §4.7）。
- * 渡された列だけを更新し、伴う並べ直し・戻し位置があれば同一トランザクションで反映する
+ * 渡された列だけを更新し、伴う並べ直し・戻し位置を同時に反映する
  */
 async function writePunch(
   db: Database,
@@ -49,8 +49,8 @@ async function writePunch(
   punch: Readonly<Partial<Pick<Task, "startedAt" | "endedAt">>>,
   relocations: Relocations
 ): Promise<void> {
-  const now = new Date();
   await db.transaction(async (tx) => {
+    const now = new Date();
     await tx.update(tasks).set({ ...punch, updatedAt: now }).where(eq(tasks.id, id));
     await applyRelocations(tx, relocations);
   });
@@ -124,15 +124,15 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
       return row === undefined ? null : toDomain(row);
     },
 
-    // 割り込みは「終了 → 再開タスク生成 → 開始」を1トランザクションで行う（アーキテクチャ定義書 §7）
+    // 開始打刻（F-201）。割り込みなら「終了 → 再開タスク生成 → 開始」の順に当てる
     async start(command: StartCommand) {
       const { taskId, startedAt, interruption, relocations } = command;
 
       await db.transaction(async (tx) => {
         const now = new Date();
-        // 自動セクション移動（F-113 / 画面定義書01 §4.2-a）は打刻と同一トランザクションで反映する。
-        // 移動 → 振り直しの順に当てる。再開タスクの位置と振り直しは
-        // 移動後の並びから計算されている（punch-usecases の startTask）ので、逆順だと移動が振り直しを上書きする
+        // 自動セクション移動（F-113 / 画面定義書01 §4.2-a）は移動 → 振り直しの順に当てる。
+        // 再開タスクの位置と振り直しは移動後の並びから計算されている
+        // （punch-usecases の startTask）ので、逆順だと移動が振り直しを上書きする
         await applyRelocations(tx, relocations);
         if (interruption !== null) {
           await applyRenumber(tx, interruption.renumber);
@@ -146,8 +146,7 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
       });
     },
 
-    // 打刻の修正と、それに伴うセクション移動（画面定義書01 §4.2-c）・完了への復帰（データモデル定義書 §4.7）を
-    // 1トランザクションで反映する
+    // 打刻の修正と、それに伴うセクション移動（画面定義書01 §4.2-c）・完了への復帰（データモデル定義書 §4.7）
     async updatePunch(
       id: TaskId,
       punch: Readonly<{ startedAt: Date; endedAt: Date | null }>,
@@ -170,8 +169,7 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
       await writePunch(db, id, { startedAt: null, endedAt: null }, relocations);
     },
 
-    // 複製して開始は「（割り込みなら）終了 → 再開タスク生成 → 複製タスクを開始済みで生成」を
-    // 1トランザクションで行う（F-208 / データモデル定義書 §4.6）
+    // 複製して開始（F-208 / データモデル定義書 §4.6）。割り込みなら終了・再開タスク生成も伴う
     async duplicateAndStart(command: DuplicateAndStartCommand) {
       const { newTask, startedAt, interruption, renumber } = command;
 
@@ -185,6 +183,8 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
             .set({ endedAt: interruption.endedAt, updatedAt: now })
             .where(eq(tasks.id, interruption.runningTaskId));
         }
+        // 複製 → 再開タスクの順に挿入するため、割り込みの分岐は終了ぶんと挿入ぶんに分かれる。
+        // 1つに寄せると id の採番順が入れ替わり、偽物（in-memory-repository）と食い違う
         const [row] = await tx.insert(tasks).values({ ...newTask, startedAt }).returning();
         if (interruption !== null) await tx.insert(tasks).values(interruption.resumeTask);
         return toDomain(row);
@@ -253,12 +253,12 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
         .where(eq(tasks.id, id));
     },
 
-    // 振り直しを伴う場合も含め、並びの更新は1トランザクションで反映する
     async move(command: MoveCommand) {
       const { taskId, sectionId, sortOrder, renumber } = command;
-      const now = new Date();
 
       await db.transaction(async (tx) => {
+        const now = new Date();
+        // 振り直しは移動先を空ける処理なので、本体の更新より先に当てる（データモデル定義書 §3.5）
         await applyRenumber(tx, renumber);
         await tx
           .update(tasks)
