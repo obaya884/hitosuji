@@ -23,8 +23,7 @@ jobs:
   docs:
     runs-on: ubuntu-latest
 
-    permissions:
-      contents: read
+    # permissions はトップレベルの contents: read のまま（verify のように書き込みを足さないので再掲しない）
 
     steps:
       - uses: actions/checkout@v7

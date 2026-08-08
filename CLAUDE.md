@@ -157,7 +157,7 @@ Next.js 16 (App Router) + TypeScript / Tailwind CSS 4 / Drizzle ORM + node-postg
 - `npm run wt:rm -- <ブランチ名>` — worktree の後片付け（worktree・ローカルブランチ・テストDBの削除）
 - `npm run wt:overlap` — 稼働中ブランチの変更ファイルが重なっていないかを機械判定する（重なりありなら終了コード 1。仕様/16 §1.3）
 - `npm run ledger:move -- <FB-XX|T-XX>` — 台帳21・23 のエントリ（§一覧の行と §詳細の節）を完了記録へ移す（手編集で壊さないための道具。仕様/16 §3.4）
-- `npm run docs:check` — docs の機械検査（旧 `ledger:check`。CI の `docs` ジョブでも回る）。エラー＝表の列あふれ・テーブル内の空行・台帳21/23 の一覧と詳細の対応・台帳22 の熟度タグとトリガの記入・台帳23 の語彙・**ライブ台帳への完了エントリの残留**・**相対リンクとアンカーの実在**（`closed_` への移送で切れた被参照リンクはここで出る）。警告＝Phase 表記の残存・ヘッダ更新日の乖離
+- `npm run docs:check` — docs・CLAUDE.md・README・`.claude/` の機械検査（旧 `ledger:check`。表構造・台帳の書式・リンクとアンカーの実在を見る。CI の `docs` ジョブが同じものを回す）。**検査項目はスクリプト冒頭の一覧が正**で、使いどころは仕様/16 §3.4
 
 ## このリポジトリは public
 

@@ -183,7 +183,6 @@ where = f"「{section}」から " if section else ""
 print(f"{entry_id} を {where}{CLOSED} へ移しました（一覧の行と詳細節の2か所）")
 if new_status is not None:
     print("状態列を差し替えました")
-# 移送で切れるのは移した側だけではない。**この ID を指していた他所のリンクが軒並みライブ台帳を
-# 向いたまま**になるので、検査まで込みで1つの手順として案内する（T-86 の背景そのもの）
+# 移送は移した側しか直さないので、検査までを1つの手順として案内する
 print(f"npm run docs:check で構造と、{entry_id} を指す既存リンクの向き先を確認してください")
 PY
