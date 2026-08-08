@@ -2,8 +2,7 @@
 // クライアント（daily-board.tsx の入力検証・打刻修正）とサーバ（各 actions.ts）が同じ辞書を参照する（T-49）。
 // 置き場は画面配下と共有で分けず、文言辞書はすべてここに集める——同じコードの文言を画面をまたいで
 // 流用するため、境界を引くと1つの文言を追うのに複数ファイルを行き来することになる（T-75）。
-// ルーチン化を除く各辞書は `Record<エラーコード, string>` で閉じているので、コードを足すと型エラーで
-// 気づける（ルーチン化だけ `Partial` にしている理由は当該辞書の doc を参照）。
+// 各辞書は `Record<エラーコード, string>` で閉じているので、コードを足すと型エラーで気づける。
 // 共有／専用の切り分けと2辞書を畳まない判断の経緯は、技術改善バックログの `log_` / `closed_`
 // （T-74 / T-76 / T-78）にある
 import type { MasterDeletionError } from "@/domain/shared/master-deletion";
@@ -161,7 +160,6 @@ export function taskActionErrorMessage<E extends TaskOperationError>(
  */
 export const ROUTINE_MESSAGES: Record<RoutineUsecaseError, string> = {
   name_required: "名前を入力してください",
-  name_too_long: "名前は50文字以内で入力してください",
   invalid_estimate: "見積もりは1分以上の整数で入力してください",
   invalid_start_time: "開始想定時刻を HH:MM 形式で入力してください",
   invalid_start_date: "開始日を正しく入力してください",
@@ -186,7 +184,7 @@ export type MasterError =
 /**
  * マスタ管理の入力検証・アーカイブ・物理削除（画面定義書03 §3.1 / §3.2 / §4.1）。
  *
- * `ROUTINE_MESSAGES` と `name_required` / `name_too_long` の文言が一致するのは偶然ではなく、
+ * `ROUTINE_MESSAGES` と `name_required` の文言が一致するのは偶然ではなく、
  * どちらも `domain/shared/master-name.ts` の `NameError`（マスタ共通の名前検証）に由来する。
  * それでも**2つの辞書は畳まない**——検証規則が同じでも、**どう言うかは画面ごとの裁量**に置く。
  * 同名の `invalid_start_time` をマスタは「開始時刻」・ルーチンは「開始想定時刻」と**意図的に
@@ -194,7 +192,6 @@ export type MasterError =
  */
 export const MASTER_MESSAGES: Record<MasterError, string> = {
   name_required: "名前を入力してください",
-  name_too_long: "名前は50文字以内で入力してください",
   invalid_start_time: "開始時刻を HH:MM 形式で入力してください",
   duplicate_start_time: "同じ開始時刻の有効なセクションがあります",
   last_active_section: "有効なセクションは最低1件必要です",
@@ -208,14 +205,11 @@ export const MASTER_MESSAGES: Record<MasterError, string> = {
 };
 
 /**
- * ルーチン化の失敗（F-305 / 画面定義書01 §4.1）。ユースケースの `CreateRoutineFromTaskError` は
- * ここに無いコードも型上は許容し、それらは既定文言へ落ちる（内訳は `error-messages.test.ts` の
- * 対応表が正）。文言自体は `ROUTINE_MESSAGES` にあるが、**ルーチン化経路でその文言を
- * 流用してよいか**は表示が変わる＝挙動変更の判断（オーナー判断）が要るため、埋めずに `Partial`
- * で不足を型に残す。対応方針は FB-71 で追跡する（`name_too_long` はタスク名が50文字を超えると
- * 実際に到達する。タスク名は文字数無制限だがルーチン名は50文字までのため）
+ * ルーチン化の失敗（F-305 / 画面定義書01 §4.1）。**全コードに文言がある**——
+ * ユースケースの `CreateRoutineFromTaskError` が実際に起こる失敗だけを持つ型になったため、
+ * 既定文言へ落ちる経路そのものが無い（FB-71）。コードが増えたらここが型エラーになる
  */
-const ROUTINE_FROM_TASK_MESSAGES: Partial<Record<CreateRoutineFromTaskError, string>> = {
+const ROUTINE_FROM_TASK_MESSAGES: Record<CreateRoutineFromTaskError, string> = {
   task_not_found: TASK_NOT_FOUND,
   estimate_required: "見積もりを入力してからルーチン化してください",
   routine_derived_task: "ルーチン由来のタスクはルーチン化できません（ルーチン画面で編集してください）",
@@ -227,10 +221,7 @@ const ROUTINE_FROM_TASK_MESSAGES: Partial<Record<CreateRoutineFromTaskError, str
   invalid_month_day: ROUTINE_MESSAGES.invalid_month_day,
 };
 
-/** 上の辞書に無いコードの既定文言（理由を告げられない代わりに失敗自体は伝える） */
-const ROUTINE_FROM_TASK_FALLBACK = "ルーチン化に失敗しました";
-
 export function routineFromTaskErrorMessage(error: CreateRoutineFromTaskError): string {
-  return ROUTINE_FROM_TASK_MESSAGES[error] ?? ROUTINE_FROM_TASK_FALLBACK;
+  return ROUTINE_FROM_TASK_MESSAGES[error];
 }
 

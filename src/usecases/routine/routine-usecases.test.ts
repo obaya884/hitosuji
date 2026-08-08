@@ -6,6 +6,7 @@ import { routine } from "@/domain/routine/testing/routine";
 import { task } from "@/domain/task/testing/task";
 import { inMemoryTaskRepository } from "@/usecases/task/testing/in-memory-repository";
 import {
+  createRoutine,
   createRoutineFromTask,
   deleteRoutine,
   listRoutines,
@@ -41,7 +42,43 @@ const choice: RoutineFromTaskChoice = {
   scheduledStartTime: "08:05",
 };
 
+describe("createRoutine（画面定義書02 O-1: フォーム入力→保存）", () => {
+  it("検証を通れば永続化し、作られたルーチンを返す", async () => {
+    const routines = inMemoryRoutineRepository();
+
+    const result = await createRoutine(routines, input({ name: "朝の散歩" }));
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value).toMatchObject({ name: "朝の散歩", isActive: true });
+    expect(routines.rows).toHaveLength(1);
+  });
+
+  it("入力が不正なら検証エラーを返し、永続化しない", async () => {
+    const routines = inMemoryRoutineRepository();
+
+    const result = await createRoutine(
+      routines,
+      input({ recurrenceType: "weekly", weekdays: 0, weekInterval: 1 })
+    );
+
+    expect(result).toEqual({ ok: false, error: "weekdays_required" });
+    expect(routines.rows).toHaveLength(0);
+  });
+});
+
 describe("createRoutineFromTask（F-305 / 画面定義書01 §4.1）", () => {
+  // FB-71: ルーチン名の文字数上限を撤廃した。上限が戻るとこの経路が汎用文言で失敗する
+  it("名前が長いタスクからもルーチンを作り、名前をそのまま保存する", async () => {
+    const name = "あ".repeat(200);
+    const tasks = inMemoryTaskRepository([task({ id: 1, name, estimateMinutes: 30 })]);
+    const routines = inMemoryRoutineRepository();
+
+    const result = await createRoutineFromTask({ routines, tasks }, 1, choice);
+
+    expect(result.ok).toBe(true);
+    expect(routines.rows[0]).toMatchObject({ name });
+  });
+
   it("タスクの名前・見積もり・モード・プロジェクトを引き継ぎ、開始日は翌日にする", async () => {
     const tasks = inMemoryTaskRepository([
       task({ id: 1, name: "メールチェック", estimateMinutes: 30, modeId: 2, projectId: 3 }),

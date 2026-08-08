@@ -30,17 +30,24 @@ export type Routine = Readonly<{
   isActive: boolean;
 }>;
 
-export type RoutineError =
-  | NameError
-  | "invalid_estimate"
+/**
+ * 開始想定時刻と繰り返しの検証エラー。**ルーチン化（画面定義書01 §4.1）でも入力させる値**なので、
+ * ルーチンフォーム全体の失敗（`RoutineError`）から切り出してある
+ */
+export type RoutineScheduleError =
   | "invalid_start_time"
-  | "invalid_start_date"
-  | "invalid_end_date"
-  | "end_date_before_start_date"
   | "weekdays_required"
   | "invalid_week_interval"
   | "invalid_month_day"
   | "invalid_interval_days";
+
+export type RoutineError =
+  | NameError
+  | RoutineScheduleError
+  | "invalid_estimate"
+  | "invalid_start_date"
+  | "invalid_end_date"
+  | "end_date_before_start_date";
 
 /** 曜日ビットマスク（bit0=月 … bit6=日）。Date の getUTCDay（0=日）とは並びが違う */
 export const WEEKDAY_BITS = [

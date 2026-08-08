@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { Task } from "../task/task";
 import { task } from "../task/testing/task";
-import {
-  defaultChoiceFromTask,
-  routineEstimateFromTask,
-  routineInputFromTask,
-  type RoutineFromTaskChoice,
-} from "./from-task";
+import { defaultChoiceFromTask, routineInputFromTask, type RoutineFromTaskChoice } from "./from-task";
 
 const choice: RoutineFromTaskChoice = {
   recurrenceType: "daily",
@@ -16,11 +12,15 @@ const choice: RoutineFromTaskChoice = {
   scheduledStartTime: "06:30",
 };
 
-describe("routineEstimateFromTask（画面定義書01 §4.1: 見積もり0分（未設定）の扱い）", () => {
+/** ルーチンに載る見積もり分数だけを取り出す（他の引き継ぎ項目は下の describe が見る） */
+function estimateOf(t: Task): number | undefined {
+  const result = routineInputFromTask(t, choice);
+  return result.ok ? result.value.estimateMinutes : undefined;
+}
+
+describe("ルーチン化の見積もり（画面定義書01 §4.1: 見積もり0分（未設定）の扱い）", () => {
   it("見積もりが設定済みならそれを使う", () => {
-    const t = task({ id: 1, estimateMinutes: 45 });
-    const result = routineEstimateFromTask(t);
-    expect(result).toEqual({ ok: true, value: 45 });
+    expect(estimateOf(task({ id: 1, estimateMinutes: 45 }))).toBe(45);
   });
 
   it("見積もり0分のタスクは実績を見積もりに転用する", () => {
@@ -30,8 +30,7 @@ describe("routineEstimateFromTask（画面定義書01 §4.1: 見積もり0分（
       startedAt: new Date("2026-07-26T08:00:00Z"),
       endedAt: new Date("2026-07-26T08:15:00Z"),
     });
-    const result = routineEstimateFromTask(t);
-    expect(result).toEqual({ ok: true, value: 15 });
+    expect(estimateOf(t)).toBe(15);
   });
 
   it("実績が1分未満に丸まる場合は最低1分にする（ルーチンは1分以上必須）", () => {
@@ -41,24 +40,17 @@ describe("routineEstimateFromTask（画面定義書01 §4.1: 見積もり0分（
       startedAt: new Date("2026-07-26T08:00:00Z"),
       endedAt: new Date("2026-07-26T08:00:30Z"), // 実績30秒
     });
-    const result = routineEstimateFromTask(t);
-    expect(result).toEqual({ ok: true, value: 1 });
+    expect(estimateOf(t)).toBe(1);
   });
 
   it("未実行かつ見積もり0分（実績もない）場合はエラー", () => {
-    const t = task({ id: 1, estimateMinutes: 0 });
-    const result = routineEstimateFromTask(t);
+    const result = routineInputFromTask(task({ id: 1, estimateMinutes: 0 }), choice);
     expect(result).toEqual({ ok: false, error: "estimate_required" });
   });
 
   it("実行中（未終了）かつ見積もり0分の場合も実績が確定していないためエラー", () => {
-    const t = task({
-      id: 1,
-      estimateMinutes: 0,
-      startedAt: new Date("2026-07-26T08:00:00Z"),
-    });
-    const result = routineEstimateFromTask(t);
-    expect(result).toEqual({ ok: false, error: "estimate_required" });
+    const t = task({ id: 1, estimateMinutes: 0, startedAt: new Date("2026-07-26T08:00:00Z") });
+    expect(routineInputFromTask(t, choice)).toEqual({ ok: false, error: "estimate_required" });
   });
 });
 
@@ -121,6 +113,20 @@ describe("routineInputFromTask（画面定義書01 §4.1: 引き継ぐ値・開�
     const t = task({ id: 1, routineId: 5, estimateMinutes: 0 });
     const result = routineInputFromTask(t, choice);
     expect(result).toEqual({ ok: false, error: "routine_derived_task" });
+  });
+
+  // 名前は検証せず素通しする（長さも空白も見ない）。タスク名は上流で trim 済み・非空である
+  // ことに依存した契約で、ここに検証が持ち込まれると落ちる
+  it("名前はタスク名をそのまま写す（前後の空白も落とさない）", () => {
+    const t = task({ id: 1, name: " 朝食 ", estimateMinutes: 30 });
+    const result = routineInputFromTask(t, choice);
+    expect(result).toEqual({ ok: true, value: expect.objectContaining({ name: " 朝食 " }) });
+  });
+
+  it("開始想定時刻が不正なら作成できない（予定の検証を通している）", () => {
+    const t = task({ id: 1, estimateMinutes: 30 });
+    const result = routineInputFromTask(t, { ...choice, scheduledStartTime: "25:00" });
+    expect(result).toEqual({ ok: false, error: "invalid_start_time" });
   });
 
   it("ポップオーバーで選んだ繰り返し設定（週次の曜日など）をそのまま使う", () => {

@@ -127,7 +127,6 @@ const asOperationError = (code: TaskOperationError): TaskOperationError => code;
 /** ルーチン管理の入力検証（画面定義書02 §4） */
 const EXPECTED_ROUTINE: Record<RoutineUsecaseError, string> = {
   name_required: "名前を入力してください",
-  name_too_long: "名前は50文字以内で入力してください",
   invalid_estimate: "見積もりは1分以上の整数で入力してください",
   invalid_start_time: "開始想定時刻を HH:MM 形式で入力してください",
   invalid_start_date: "開始日を正しく入力してください",
@@ -140,12 +139,9 @@ const EXPECTED_ROUTINE: Record<RoutineUsecaseError, string> = {
   routine_not_found: "ルーチンが見つかりませんでした",
 };
 
-/** 辞書に無いコードが落ちる既定文言 */
-const ROUTINE_FROM_TASK_FALLBACK = "ルーチン化に失敗しました";
-
 /**
- * ルーチン化（F-305 / 画面定義書01 §4.1）。辞書に無いコードは既定文言へ落ちるので、
- * 「どのコードが既定文言のままか」もここで固定する（埋めるかどうかの判断は FB-71）
+ * ルーチン化（F-305 / 画面定義書01 §4.1）。**全コードに文言がある**——既定文言へ落ちる
+ * 経路は無い（FB-71 で型を実際に起こる失敗だけに絞った）
  */
 const EXPECTED_ROUTINE_FROM_TASK: Record<CreateRoutineFromTaskError, string> = {
   task_not_found: "タスクが見つかりませんでした",
@@ -157,14 +153,6 @@ const EXPECTED_ROUTINE_FROM_TASK: Record<CreateRoutineFromTaskError, string> = {
   invalid_start_time: "開始想定時刻を HH:MM 形式で入力してください",
   invalid_interval_days: "間隔は1日以上で入力してください",
   invalid_month_day: "日は1〜31で入力してください",
-  // ここから下は辞書に無く、理由を告げられないまま既定文言になる（FB-71）
-  name_required: ROUTINE_FROM_TASK_FALLBACK,
-  name_too_long: ROUTINE_FROM_TASK_FALLBACK,
-  invalid_estimate: ROUTINE_FROM_TASK_FALLBACK,
-  invalid_start_date: ROUTINE_FROM_TASK_FALLBACK,
-  invalid_end_date: ROUTINE_FROM_TASK_FALLBACK,
-  end_date_before_start_date: ROUTINE_FROM_TASK_FALLBACK,
-  routine_not_found: ROUTINE_FROM_TASK_FALLBACK,
 };
 
 /**
@@ -174,7 +162,6 @@ const EXPECTED_ROUTINE_FROM_TASK: Record<CreateRoutineFromTaskError, string> = {
  */
 const EXPECTED_MASTER: Record<MasterError, string> = {
   name_required: "名前を入力してください",
-  name_too_long: "名前は50文字以内で入力してください",
   invalid_start_time: "開始時刻を HH:MM 形式で入力してください",
   duplicate_start_time: "同じ開始時刻の有効なセクションがあります",
   last_active_section: "有効なセクションは最低1件必要です",
@@ -221,7 +208,7 @@ describe("エラー文言辞書（T-49: クライアントとサーバが同じ�
     expect(MASTER_MESSAGES.has_references).not.toMatch(/タスク|ルーチン/);
   });
 
-  it("ルーチン化（F-305 / 画面定義書01 §4.1）の対応表が期待どおり（辞書に無いコードは既定文言）", () => {
+  it("ルーチン化（F-305 / 画面定義書01 §4.1）の対応表が期待どおり（コードの過不足も固定する）", () => {
     for (const [code, message] of Object.entries(EXPECTED_ROUTINE_FROM_TASK) as ReadonlyArray<
       [CreateRoutineFromTaskError, string]
     >) {
@@ -236,16 +223,14 @@ describe("同じコードは経路が違っても同じ文言を出す（FB-72: 
   });
 
   /**
-   * ルーチン化の辞書に埋めてあるコードのうち、ルーチン管理と共有するものを全走査する。
-   * コードを列挙しないので、FB-71 で不足コードを埋めたときも自動でこの不変条件の網に入る
+   * ルーチン化とルーチン管理の両方が持つコードを全走査する。
+   * コードを列挙しないので、どちらかに新しい共通コードが増えても自動でこの不変条件の網に入る
    */
   it("ルーチン入力の検証エラーはルーチン管理画面と同じ（FB-72 ②）", () => {
     const shared = (
       Object.keys(EXPECTED_ROUTINE_FROM_TASK) as CreateRoutineFromTaskError[]
     ).filter(
-      (code): code is RoutineUsecaseError =>
-        code in ROUTINE_MESSAGES &&
-        routineFromTaskErrorMessage(code) !== ROUTINE_FROM_TASK_FALLBACK
+      (code): code is CreateRoutineFromTaskError & RoutineUsecaseError => code in ROUTINE_MESSAGES
     );
 
     expect(shared.length).toBeGreaterThan(0); // 走査が空振りしていないこと
