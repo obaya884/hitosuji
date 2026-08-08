@@ -1,6 +1,7 @@
 // セクション選択ポップオーバー（画面定義書01 O-5 / §4.3）の候補づくり。
 // 固定項目の有無・表記・並びが仕様条項そのものなので、コンポーネントから切り出して純関数にする。
 import { sectionRanges, type Section, type SectionId } from "@/domain/section/section";
+import { UNCATEGORIZED_LABEL } from "@/app/_lib/unset";
 import type { PopoverOption } from "../_components/select-popover";
 
 /**
@@ -20,7 +21,7 @@ export function toSectionOptions(
   // 必ず載る。get の undefined は Map の戻り型都合のみで、下のフォールバックは実際には描画されない
   const endTimeById = new Map(sectionRanges(sections).map((r) => [r.section.id, r.endTime]));
   const options: PopoverOption[] = [
-    { id: null, label: "未分類" },
+    { id: null, label: UNCATEGORIZED_LABEL },
     ...sections
       .filter((s) => !s.isArchived)
       .map((s) => {

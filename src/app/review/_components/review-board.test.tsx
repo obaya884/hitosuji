@@ -191,7 +191,7 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
     expect(hasClass(diff, "text-danger")).toBe(false);
   });
 
-  it("実行中の行は終了時刻を `--:--` にし、実績と差異を空にする（実績が確定していない）", () => {
+  it("実行中の行は終了時刻と実績を `--:--` にし、差異だけを空にする（実績が確定していない）", () => {
     renderBoard({ log: [task({ id: 1, estimateMinutes: 20, startedAt: atJst("09:00") })] });
 
     const cells = logRow().cells;

@@ -12,6 +12,7 @@ import { formatClock, formatDuration, formatEstimate } from "@/app/_lib/format";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { modeAppearance } from "@/app/_lib/mode-appearance";
 import { inputBase } from "@/app/_lib/ui";
+import { UNCATEGORIZED_LABEL } from "@/app/_lib/unset";
 import { showsCommentRow, type EditField } from "../_lib/editing";
 import { toModeOptions, toProjectOptions } from "../_lib/master-options";
 import { rowBackgroundClass } from "../_lib/row-background";
@@ -196,7 +197,7 @@ export function TaskRow({
                 onClick={() => onBeginEdit(task, "section")}
                 className={`hover:underline ${dimmedClass} opacity-80`}
               >
-                {sections.find((s) => s.id === task.sectionId)?.name ?? "未分類"}
+                {sections.find((s) => s.id === task.sectionId)?.name ?? UNCATEGORIZED_LABEL}
               </button>
               {editing === "section" && (
                 <SelectPopover

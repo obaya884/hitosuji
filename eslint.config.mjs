@@ -76,10 +76,80 @@ const layerRules = [
   },
 ];
 
+// 未設定・未分類の語彙を1か所（`src/app/_lib/unset.ts`）に閉じる（画面定義書00_共通 §2.4）。
+// FB-55・FB-57 の壊れ方はどちらも「**新しい箇所が自分で語を書いた**」なので、既存の使用箇所を
+// テストで固定するだけでは同じ乖離が戻る。定数を経由させることを機械で強制する。
+// **記号 `-` と空欄は対象外**——`"-"` を禁止語にはできず（時刻の範囲など無関係なハイフンが多い）、
+// 「空欄にしない」も構文では表せない。そこを守るのは `UnsetMark` を使うことだけなので、
+// 「lint があるから記号側も安全」と読まないこと（記号側の割れは FB-93 が扱う）。
+// テスト・テストヘルパーは、表示される語をリテラルで主張するのが正（定数で照合すると
+// 書き換えを検出できない）ので除く。**語を足すときは `_lib/unset.ts` と両方を更新する。**
+const UNSET_VOCABULARY_MESSAGE =
+  "未設定・未分類の語彙は src/app/_lib/unset.ts の定数を使ってください（画面定義書00_共通 §2.4。直書きは FB-57 の再発）";
+
+/** 現語彙。**部分一致で見る**——`aria-label="モード（未設定）"` のように合成済みの1文字列でも捕まえる */
+const UNSET_WORDS_LOOSE = ["未設定", "未分類", "--:--"];
+/**
+ * 廃語（FB-57 で「未設定」へ統一）。**完全一致で見る**——部分一致にすると「該当なしのため…」の
+ * ような無関係な文まで止まる。単独の「なし」を未設定と無関係な選択肢（「繰り返し: なし」等）で
+ * 使いたくなったら、禁止語から外すのではなく §2.4 の条項ごと見直す
+ */
+const UNSET_WORDS_EXACT = ["なし", "モードなし", "プロジェクトなし"];
+
+/** 現語彙にメタ文字は無いが、足したときに黙って壊れないよう畳んでおく */
+const toPattern = (words) =>
+  words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+const LOOSE = toPattern(UNSET_WORDS_LOOSE);
+const EXACT = toPattern(UNSET_WORDS_EXACT);
+
+const unsetVocabularyConfig = {
+  files: ["src/app/**/*.ts", "src/app/**/*.tsx"],
+  ignores: [
+    "src/app/_lib/unset.ts",
+    "src/app/**/*.test.ts",
+    "src/app/**/*.test.tsx",
+    "src/app/**/_testing/**",
+  ],
+  // ESLint は rule options をマージせず上書きするので、`src/app` の no-restricted-syntax は
+  // ここが占有する。別の構文規制を足すときはこの配列へ足す（別 config を重ねると消える）
+  rules: {
+    "no-restricted-syntax": [
+      "error",
+      // 文字列として書いた場合（`label: "未設定"` / `aria-label="モード（未設定）"` 等）。
+      // 正規表現の属性マッチは文字列値にしか当たらないので、数値リテラルには誤爆しない
+      { selector: `Literal[value=/${LOOSE}/]`, message: UNSET_VOCABULARY_MESSAGE },
+      { selector: `Literal[value=/^(${EXACT})$/]`, message: UNSET_VOCABULARY_MESSAGE },
+      // JSX の子として書いた場合（`<option value="">なし</option>`＝FB-57 の実際の犯人）。
+      // 文字列リテラルではないので上のセレクタでは捕まらない
+      { selector: `JSXText[value=/${LOOSE}/]`, message: UNSET_VOCABULARY_MESSAGE },
+      { selector: `JSXText[value=/^\\s*(${EXACT})\\s*$/]`, message: UNSET_VOCABULARY_MESSAGE },
+      // テンプレートリテラルに埋め込んだ場合（`` `${label}（未設定）` ``＝読み上げ語の組み立て。
+      // FB-57 の現場そのものの形なので、ここをコピーした新しいセルが最も踏みやすい）
+      { selector: `TemplateElement[value.raw=/${LOOSE}/]`, message: UNSET_VOCABULARY_MESSAGE },
+
+      // 以下は**語ではなく形**で縛る。FB-57 の実際の壊れ方は既存の語のコピーではなく
+      // **その場での発明**（「なし」「モードなし」「プロジェクトなし」が別々に生えた）で、
+      // 語のリストではリストに無い語（「設定なし」等）を止められないため。
+      {
+        selector:
+          'ObjectExpression:has(Property[key.name="id"][value.raw="null"]) > Property[key.name="label"] > Literal',
+        message: `未設定の候補（id: null）のラベルは直書きせず ${"src/app/_lib/unset.ts"} の定数を使ってください（画面定義書00_共通 §2.4）`,
+      },
+      {
+        selector:
+          'JSXElement[openingElement.name.name="option"]:has(JSXAttribute[name.name="value"][value.value=""]) > JSXText',
+        message:
+          "未設定へ戻す <option> のラベルは直書きせず src/app/_lib/unset.ts の定数を使ってください（画面定義書00_共通 §2.4）",
+      },
+    ],
+  },
+};
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   ...layerRules,
+  unsetVocabularyConfig,
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

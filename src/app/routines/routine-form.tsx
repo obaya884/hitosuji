@@ -12,6 +12,7 @@ import {
 } from "@/domain/routine/routine";
 import type { RoutineInput } from "@/domain/routine/input";
 import { btnPrimary, btnSecondary, inputBase, linkMuted } from "@/app/_lib/ui";
+import { UNSET_LABEL } from "@/app/_lib/unset";
 
 type Props = Readonly<{
   routine: Routine | null;
@@ -243,7 +244,7 @@ export function RoutineForm({
               onChange={(e) => setModeId(e.target.value === "" ? null : Number(e.target.value))}
               className={`mt-1 w-full ${inputBase}`}
             >
-              <option value="">なし</option>
+              <option value="">{UNSET_LABEL}</option>
               {modes.map((mode) => (
                 <option key={mode.id} value={mode.id}>
                   {mode.name}
@@ -261,7 +262,7 @@ export function RoutineForm({
               }
               className={`mt-1 w-full ${inputBase}`}
             >
-              <option value="">なし</option>
+              <option value="">{UNSET_LABEL}</option>
               {projects.map((project) => (
                 <option key={project.id} value={project.id}>
                   {project.name}

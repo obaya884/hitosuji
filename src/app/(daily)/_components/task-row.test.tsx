@@ -125,7 +125,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
       expect((actual.firstElementChild as HTMLElement).classList.contains("text-danger")).toBe(false);
     });
 
-    it("1分未満の実績は `0:00` と表示する（§3.3 / 00_共通 §2.4: `--:--` は見積もり未設定専用）", () => {
+    it("1分未満の実績は `0:00` と表示する（§3.3 / 00_共通 §2.4: 値が確定しているものは `--:--` にしない）", () => {
       renderRow({
         // 開始と終了が同じ＝実績0分。値は確定しているので `--:--` にはしない
         task: task({ id: 1, name: "朝食", estimateMinutes: 20, startedAt: atJst("06:30"), endedAt: atJst("06:30") }),
@@ -711,14 +711,14 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
   });
 
   describe("モード・プロジェクトの選択（O-5）", () => {
-    it("モードの候補は「モードなし」＋有効モードのみ（アーカイブ済みは出さない。画面定義書03 §4）", () => {
+    it("モードの候補は「未設定」＋有効モードのみ（アーカイブ済みは出さない。画面定義書03 §4）", () => {
       const { onAssign } = renderRow({
         editing: "mode",
         task: task({ id: 1, name: "朝食", modeId: 1 }),
         mode: modeOf("仕事"),
       });
 
-      expect(popoverLabels()).toEqual(["モードなし", "仕事", "生活"]);
+      expect(popoverLabels()).toEqual(["未設定", "仕事", "生活"]);
       // 現在値として渡すのは `task.modeId`（プロジェクトの id と取り違えていない）
       expect(checkedPopoverLabels()).toEqual(["仕事"]);
 
@@ -726,7 +726,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
       expect(onAssign).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), "mode", 2);
     });
 
-    it("プロジェクトの候補は「プロジェクトなし」＋有効プロジェクトのみ", () => {
+    it("プロジェクトの候補は「未設定」＋有効プロジェクトのみ", () => {
       const { onAssign } = renderRow({
         editing: "project",
         // モードとは別の id を持たせ、現在値として渡す id を取り違えていないことも見る
@@ -734,21 +734,21 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
         mode: modeOf("仕事"),
       });
 
-      expect(popoverLabels()).toEqual(["プロジェクトなし", "サイト改善"]);
+      expect(popoverLabels()).toEqual(["未設定", "サイト改善"]);
       expect(checkedPopoverLabels()).toEqual(["サイト改善"]);
 
       fireEvent.click(screen.getByText("サイト改善"));
       expect(onAssign).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), "project", 11);
     });
 
-    it("「モードなし」を選ぶと割り当てを外す", () => {
+    it("「未設定」を選ぶと割り当てを外す", () => {
       const { onAssign } = renderRow({
         editing: "mode",
         task: task({ id: 1, name: "朝食", modeId: 1 }),
         mode: modeOf("仕事"),
       });
 
-      fireEvent.click(screen.getByText("モードなし"));
+      fireEvent.click(screen.getByText("未設定"));
 
       expect(onAssign).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), "mode", null);
     });
