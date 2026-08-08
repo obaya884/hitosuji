@@ -212,12 +212,12 @@ describe("DailyBoard の打刻（F-201 / F-211 / §7: クライアントの現�
     expect(within(taskRow(COMPLETED)).getByLabelText("完了済み")).toHaveProperty("disabled", true);
   });
 
-  it("割り込み（O-2 / F-201）で既存の実行中タスクを終える処理はサーバの1トランザクションに委ねる", async () => {
+  it("割り込み（O-2 / F-201）を画面側で2アクションに分解せず、開始の1操作だけをサーバへ送る", async () => {
     renderBoard();
 
     await click(within(taskRow(NOT_STARTED)).getByLabelText("開始"));
 
-    // 画面側で2アクションに分解しない（終了・再開タスク生成は startTaskAction の中で起きる）
+    // 相手の終了は表示だけ先取りし（optimistic.ts）、永続化は startTaskAction の1トランザクション
     expect(vi.mocked(startTaskAction)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(finishTaskAction)).not.toHaveBeenCalled();
     expect(vi.mocked(suspendTaskAction)).not.toHaveBeenCalled();
