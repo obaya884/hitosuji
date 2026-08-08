@@ -1346,8 +1346,8 @@ describe("undoStart（F-210 / データモデル定義書 §4.5: 開始打刻の
     expect(after.sortOrder).toBe(500);
   });
 
-  // 空の並べ直しを渡せることの確認（Port の契約）。「今日以外は並べ直さない」という規則そのものは
-  // ユースケース側の責務（punch-usecases の relocationsForUndoPunch）で、リポジトリは today を知らない
+  // 並べ直しが空＝単文で書く枝。「今日以外は並べ直さない」という規則そのものはユースケース側の
+  // 責務（punch-usecases の relocationsForUndoPunch）で、リポジトリは today を知らない
   it("並べ直しが空でも started_at をクリアできる", async () => {
     const [morning] = await db
       .insert(sections)
@@ -1409,7 +1409,7 @@ describe("undoComplete（F-212 / データモデル定義書 §4.7: 完了の取
     expect(after.sortOrder).toBe(500);
   });
 
-  // 上の undoStart と同じく、空の並べ直しを渡せることの確認（「今日以外」の判断はユースケース側）
+  // 上の undoStart と同じく単文で書く枝（「今日以外」の判断はユースケース側）
   it("並べ直しが空でも打刻2列をクリアできる", async () => {
     const [morning] = await db
       .insert(sections)
