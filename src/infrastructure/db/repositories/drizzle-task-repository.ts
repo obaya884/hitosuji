@@ -50,11 +50,6 @@ async function writePunch(
   relocations: Relocations
 ): Promise<void> {
   const now = new Date();
-  if (relocations.length === 0) {
-    await db.update(tasks).set({ ...punch, updatedAt: now }).where(eq(tasks.id, id));
-    return;
-  }
-
   await db.transaction(async (tx) => {
     await tx.update(tasks).set({ ...punch, updatedAt: now }).where(eq(tasks.id, id));
     await applyRelocations(tx, relocations);
@@ -89,11 +84,6 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
     },
 
     async create(input: NewTask, renumber: Renumber) {
-      if (renumber.length === 0) {
-        const [row] = await db.insert(tasks).values(input).returning();
-        return toDomain(row);
-      }
-
       // 振り直しと挿入は同じトランザクションで反映する（データモデル定義書 §3.5）
       return await db.transaction(async (tx) => {
         await applyRenumber(tx, renumber);
@@ -138,35 +128,20 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
     async start(command: StartCommand) {
       const { taskId, startedAt, interruption, relocations } = command;
 
-      if (interruption === null && relocations.length === 0) {
-        await db
-          .update(tasks)
-          .set({ startedAt, updatedAt: new Date() })
-          .where(eq(tasks.id, taskId));
-        return;
-      }
-
-      if (interruption === null) {
-        // 自動セクション移動（F-113 / 画面定義書01 §4.2-a）は打刻と同一トランザクションで反映する
-        await db.transaction(async (tx) => {
-          const now = new Date();
-          await applyRelocations(tx, relocations);
-          await tx.update(tasks).set({ startedAt, updatedAt: now }).where(eq(tasks.id, taskId));
-        });
-        return;
-      }
-
       await db.transaction(async (tx) => {
         const now = new Date();
+        // 自動セクション移動（F-113 / 画面定義書01 §4.2-a）は打刻と同一トランザクションで反映する。
         // 移動 → 振り直しの順に当てる。再開タスクの位置と振り直しは
         // 移動後の並びから計算されている（punch-usecases の startTask）ので、逆順だと移動が振り直しを上書きする
         await applyRelocations(tx, relocations);
-        await applyRenumber(tx, interruption.renumber);
-        await tx
-          .update(tasks)
-          .set({ endedAt: interruption.endedAt, updatedAt: now })
-          .where(eq(tasks.id, interruption.runningTaskId));
-        await tx.insert(tasks).values(interruption.resumeTask);
+        if (interruption !== null) {
+          await applyRenumber(tx, interruption.renumber);
+          await tx
+            .update(tasks)
+            .set({ endedAt: interruption.endedAt, updatedAt: now })
+            .where(eq(tasks.id, interruption.runningTaskId));
+          await tx.insert(tasks).values(interruption.resumeTask);
+        }
         await tx.update(tasks).set({ startedAt, updatedAt: now }).where(eq(tasks.id, taskId));
       });
     },
@@ -200,11 +175,6 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
     async duplicateAndStart(command: DuplicateAndStartCommand) {
       const { newTask, startedAt, interruption, renumber } = command;
 
-      if (interruption === null && renumber.length === 0) {
-        const [row] = await db.insert(tasks).values({ ...newTask, startedAt }).returning();
-        return toDomain(row);
-      }
-
       return await db.transaction(async (tx) => {
         const now = new Date();
         // 振り直しは挿入位置を空ける処理なので、どの INSERT よりも先に当てる（データモデル定義書 §3.5）
@@ -236,34 +206,26 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
 
     // ルーチン由来のタスクは削除とスキップ記録を1トランザクションで行う（F-301）
     async delete(id: TaskId, skip: RoutineSkip | null) {
-      if (skip === null) {
-        await db.delete(tasks).where(eq(tasks.id, id));
-        return;
-      }
-
       await db.transaction(async (tx) => {
         await tx.delete(tasks).where(eq(tasks.id, id));
         // 同じ日に何度削除しても記録は1件（uq_routine_skips）
-        await tx.insert(routineSkips).values(skip).onConflictDoNothing();
+        if (skip !== null) await tx.insert(routineSkips).values(skip).onConflictDoNothing();
       });
     },
 
     async restore(restored: Omit<Task, "id">, skip: RoutineSkip | null) {
-      if (skip === null) {
-        const [row] = await db.insert(tasks).values(restored).returning();
-        return toDomain(row);
-      }
-
-      // 復元するならスキップも解除する（解除しないと次の表示で重複展開を試みる）
       return await db.transaction(async (tx) => {
-        await tx
-          .delete(routineSkips)
-          .where(
-            and(
-              eq(routineSkips.routineId, skip.routineId),
-              eq(routineSkips.taskDate, skip.taskDate)
-            )
-          );
+        // 復元するならスキップも解除する（解除しないと次の表示で重複展開を試みる）
+        if (skip !== null) {
+          await tx
+            .delete(routineSkips)
+            .where(
+              and(
+                eq(routineSkips.routineId, skip.routineId),
+                eq(routineSkips.taskDate, skip.taskDate)
+              )
+            );
+        }
         const [row] = await tx.insert(tasks).values(restored).returning();
         return toDomain(row);
       });
@@ -296,14 +258,6 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
       const { taskId, sectionId, sortOrder, renumber } = command;
       const now = new Date();
 
-      if (renumber.length === 0) {
-        await db
-          .update(tasks)
-          .set({ sectionId, sortOrder, updatedAt: now })
-          .where(eq(tasks.id, taskId));
-        return;
-      }
-
       await db.transaction(async (tx) => {
         await applyRenumber(tx, renumber);
         await tx
@@ -314,7 +268,6 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
     },
 
     async relocate(relocations: Relocations) {
-      if (relocations.length === 0) return;
       // 途中まで移動した状態を残さない（データモデル定義書 §4.4）
       await db.transaction(async (tx) => {
         await applyRelocations(tx, relocations);

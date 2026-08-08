@@ -393,8 +393,7 @@ describe("duplicateAndStart（F-208 / データモデル定義書 §4.6: 複製�
     expect(after.find((t) => t.id === source.id)?.endedAt).toEqual(endedAt);
   });
 
-  // 割り込みが無くても振り直しがあればトランザクションを張る（`operations.ts` は
-  // 移動先の中間値が尽きたときに実行中タスクの有無によらず振り直しを渡す）
+  // `operations.ts` は移動先の中間値が尽きたときに実行中タスクの有無によらず振り直しを渡す
   it("割り込みなしでも、振り直しは複製の生成と同じトランザクションで反映される", async () => {
     const now = new Date("2026-07-19T09:00:00Z");
     const [source, blocking] = await db
@@ -982,7 +981,7 @@ describe("ルーチン由来タスクの削除とスキップ（F-301 / デー�
 });
 
 describe("create の振り直し（データモデル定義書 §3.5: 中間値が尽きたとき）", () => {
-  it("振り直しなし（空配列）は単文で挿入し、挿入行をドメイン表現で返す", async () => {
+  it("振り直しなし（空配列）でも挿入し、挿入行をドメイン表現で返す", async () => {
     const created = await repo.create(
       {
         taskDate: "2026-07-19",
@@ -1077,7 +1076,7 @@ describe("create の振り直し（データモデル定義書 §3.5: 中間値�
 });
 
 describe("move（画面定義書01 O-6 / データモデル定義書 §3.5: 並び替え）", () => {
-  it("振り直しなし（空配列）は section_id と sort_order を単文で更新する", async () => {
+  it("振り直しなし（空配列）でも section_id と sort_order を更新する", async () => {
     const [morning, forenoon] = await db
       .insert(sections)
       .values([
@@ -1277,9 +1276,9 @@ describe("undoStart（F-210 / データモデル定義書 §4.5: 開始打刻の
     expect(after.sortOrder).toBe(500);
   });
 
-  // 並べ直しが空＝単文経路。「今日以外は並べ直さない」という規則そのものはユースケース側の
+  // 「今日以外は並べ直さない」という規則そのものはユースケース側の
   // 責務（punch-usecases の relocationsForUndoPunch）で、リポジトリは today を知らない
-  it("並べ直しが空なら started_at のクリアだけを単文で行う", async () => {
+  it("並べ直しが空なら started_at のクリアだけを行う", async () => {
     const [morning] = await db
       .insert(sections)
       .values([{ name: "朝", startTime: "06:00" }])
@@ -1340,8 +1339,8 @@ describe("undoComplete（F-212 / データモデル定義書 §4.7: 完了の取
     expect(after.sortOrder).toBe(500);
   });
 
-  // 上の undoStart と同じく、空配列＝単文経路の確認（「今日以外」の判断はユースケース側）
-  it("並べ直しが空なら打刻2列のクリアだけを単文で行う", async () => {
+  // 上の undoStart と同じく、空配列の確認（「今日以外」の判断はユースケース側）
+  it("並べ直しが空なら打刻2列のクリアだけを行う", async () => {
     const [morning] = await db
       .insert(sections)
       .values([{ name: "朝", startTime: "06:00" }])
