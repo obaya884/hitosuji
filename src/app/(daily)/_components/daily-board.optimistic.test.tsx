@@ -64,6 +64,24 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
     expect(within(taskRow(NOT_STARTED)).queryByLabelText("終了")).not.toBeNull();
   });
 
+  // FB-69: 確定を待つあいだ実行中に見える行が2件並んでいた。相手の終了まで先取りして解消する（O-2）
+  it("割り込みの開始打刻は相手の実行中タスクも確定を待たずに完了へ変える（O-2 / FB-69）", async () => {
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(startTaskAction).mockReturnValue(gate.promise);
+    renderBoard();
+
+    await click(within(taskRow(NOT_STARTED)).getByLabelText("開始"));
+
+    // 実行中に見える行は開始した1件だけ＝相手はもう終了できない
+    expect(within(taskRow(RUNNING)).queryByLabelText("終了")).toBeNull();
+    expect(within(taskRow(RUNNING)).queryByLabelText("完了済み")).not.toBeNull();
+
+    await gate.resolve({ ok: false, message: "保存に失敗しました" });
+
+    // 拒否されたら相手も実行中へ戻る（先取りした分まで巻き戻す）
+    expect(within(taskRow(RUNNING)).queryByLabelText("終了")).not.toBeNull();
+  });
+
   it("開始打刻の失敗はエラートーストを出して未実行へ巻き戻す", async () => {
     const gate = hold<DailyActionResult>(OK);
     vi.mocked(startTaskAction).mockReturnValue(gate.promise);

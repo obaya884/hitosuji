@@ -92,14 +92,49 @@ describe("applyOptimisticAction の即時反映（N-01 / 00_共通 §4）", () =
     expect(find(cleared, 11)).toEqual({ ...NOT_STARTED, highlighted: false });
   });
 
-  it("start は開始打刻を入れる（割り込みの終了・再開タスク生成はサーバ確定後 / O-2）", () => {
+  it("start は開始打刻と割り込み相手の終了を同時に入れる（再開タスク生成はサーバ確定後 / O-2）", () => {
     const applied = apply({ type: "start", id: 11, at: atJst("10:00") });
 
     expect(find(applied, 11)).toEqual({ ...NOT_STARTED, startedAt: atJst("10:00") });
-    // 既存の実行中タスクには触れない（割り込みの終了はサーバの1トランザクション）
-    expect(find(applied, 12)).toEqual(RUNNING);
-    // 現在位置への自動セクション移動（§4.2-a / F-113 規則a）もサーバ確定後。まだ未分類に留まる
+    // 割り込み相手は開始と同じ時刻で終了する（サーバの確定結果と一致する）
+    expect(find(applied, 12)).toEqual({ ...RUNNING, endedAt: atJst("10:00") });
+    // この段で言えるのは「グループの並びに触れていない」ことまで
+    // （完了タスクが動かないこと自体は画面定義書01 §4.2 のサーバ側の規則）
+    expect(applied[1].tasks.map((t) => t.id)).toEqual([12, 13]);
+    // 再開タスクの生成と、現在位置への自動セクション移動（§4.2-a / F-113 規則a）はサーバ確定後。
+    // まだ未分類に1件だけ留まる
+    expect(applied.flatMap((g) => g.tasks)).toHaveLength(3);
     expect(applied[0].tasks.map((t) => t.id)).toEqual([11]);
+  });
+
+  // 画面は未実行の行にしか start を出さない（`daily-board.tsx` の `punch`）が、
+  // 公開型 `OptimisticAction` としては受け取りうるので、自分自身を割り込み相手にしない
+  it("start は対象自身を割り込み相手と見なさない（自分を完了に化けさせない）", () => {
+    const applied = apply({ type: "start", id: 12, at: atJst("10:00") });
+
+    expect(find(applied, 12)).toEqual({ ...RUNNING, startedAt: atJst("10:00") });
+  });
+
+  it("start は実行中タスクが無ければ開始打刻だけを入れる（割り込みでない O-2）", () => {
+    const applied = applyOptimisticAction(
+      [unclassifiedGroup([NOT_STARTED]), sectionGroup(MORNING, "12:00", [COMPLETED])],
+      { type: "start", id: 11, at: atJst("10:00") }
+    );
+
+    expect(find(applied, 11)).toEqual({ ...NOT_STARTED, startedAt: atJst("10:00") });
+    // 完了タスクを終了させてしまわない（対象は実行中だけ）
+    expect(find(applied, 13)).toEqual(COMPLETED);
+  });
+
+  it("start は表示日に実行中タスクが居ない割り込み（前日以前・F-209）でも開始打刻だけを入れる", () => {
+    // 前日の実行中タスクは当日のグループに現れないので、先取りする相手が画面上に無い
+    const applied = applyOptimisticAction([unclassifiedGroup([NOT_STARTED])], {
+      type: "start",
+      id: 11,
+      at: atJst("10:00"),
+    });
+
+    expect(applied.flatMap((g) => g.tasks)).toEqual([{ ...NOT_STARTED, startedAt: atJst("10:00") }]);
   });
 
   it("unstart は開始打刻だけ消す（未実行への並べ直しはサーバ確定後 / O-13）", () => {
