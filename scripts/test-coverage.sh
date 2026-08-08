@@ -14,7 +14,13 @@
 set -eu
 
 # ロックはワークツリー単位（worktree ごとに coverage/ も node_modules/ も別）
-cd "$(git rev-parse --show-toplevel)"
+# 素の `cd "$(git rev-parse --show-toplevel)"` はリポジトリ外で空文字列の cd になり、
+# 失敗扱いにならないままカレントディレクトリで走り出す（読めない理由で落ちて原因が分かりにくい）
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || {
+  echo "hitosuji リポジトリの中で実行してください" >&2
+  exit 1
+}
+cd "$repo_root"
 
 lock="node_modules/.cache/hitosuji-coverage.lock"
 mkdir -p "$(dirname "$lock")"

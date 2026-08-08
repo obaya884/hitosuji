@@ -29,7 +29,13 @@
 #   - ヘッダの更新日が古い（未コミットの編集なら「今日でない」、コミット済みなら git の最終更新と比較）
 set -eu
 
-cd "$(git rev-parse --show-toplevel)"
+# 素の `cd "$(git rev-parse --show-toplevel)"` はリポジトリ外で空文字列の cd になり、
+# 失敗扱いにならないままカレントディレクトリで走り出す（読めない理由で落ちて原因が分かりにくい）
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || {
+  echo "hitosuji リポジトリの中で実行してください" >&2
+  exit 1
+}
+cd "$repo_root"
 
 exec python3 - "$@" <<'PY'
 import datetime

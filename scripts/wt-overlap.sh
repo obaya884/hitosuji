@@ -18,7 +18,13 @@ set -f  # ブランチ名の語分割でパス名グロブが働かないよう�
 # 日本語メッセージ中の変数は ${name} で囲む。bash 3.2 では変数の直後に非ASCII（全角括弧など）が
 # 続くとそこまでが変数名と読まれるため（仕様/16 の決定。2026-07-25 に実測）
 
-cd "$(git rev-parse --show-toplevel)"
+# 素の `cd "$(git rev-parse --show-toplevel)"` はリポジトリ外で空文字列の cd になり、
+# 失敗扱いにならないままカレントディレクトリで走り出す（読めない理由で落ちて原因が分かりにくい）
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || {
+  echo "hitosuji リポジトリの中で実行してください" >&2
+  exit 1
+}
+cd "$repo_root"
 
 usage() {
   sed -n '/^# 使い方:/,/^set /p' "$0" | grep '^#' | sed 's/^# \{0,1\}//'
