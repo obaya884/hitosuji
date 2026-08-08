@@ -22,6 +22,7 @@
 #   - 相対リンクの参照先ファイルが無い
 #   - リンクのアンカーが参照先の見出しに無い（`ledger:move` は移す側しか直さないので、
 #     closed_* への移送のたびに被参照リンクが構造的に切れる。それを捕まえるのが本検査の要）
+#   - 台帳3冊とその完了記録のいずれかが見つからない（検査対象そのものの欠落）
 #
 # 警告（終了コードは 0 のまま。誤検知がありうるので落とさない）:
 #   - ライブ文書に Phase 表記が残っている（履歴を残す log_/closed_/archive_ は対象外）
@@ -76,23 +77,9 @@ LEDGERS = {
 LEDGER_FILES = {p for l in LEDGERS.values() for p in (l["live"], l["closed"])}
 
 
-def ledger(key, side="live"):
-    """台帳のパス。存在しなければ None（欠落は呼び出し側が1行で報告する）"""
-    path = LEDGERS[key][side]
-    return path if os.path.exists(path) else None
-
-
 # ---- 読み込み ---------------------------------------------------------------
 
 _docs = {}
-
-
-def read(path):
-    """(行, コードフェンス内フラグ) を返す。同じファイルは1度しか読まない"""
-    if path not in _docs:
-        lines = Path(path).read_text(encoding="utf-8").split("\n")
-        _docs[path] = (lines, fence_mask(lines))
-    return _docs[path]
 
 
 def fence_mask(lines):
@@ -112,6 +99,20 @@ def fence_mask(lines):
         else:
             mask.append(opened is not None)
     return mask
+
+
+def read(path):
+    """(行, コードフェンス内フラグ) を返す。**ファイルを開く入口はここだけ**にして、
+    同じファイルを何度も読み直さない（検査が9つあり、大半が同じ母集団を舐める）"""
+    if path not in _docs:
+        lines = Path(path).read_text(encoding="utf-8").split("\n")
+        _docs[path] = (lines, fence_mask(lines))
+    return _docs[path]
+
+
+def text(path):
+    """全文が要る検査（正規表現を行にまたがって当てる側）のための read() の別口"""
+    return "\n".join(read(path)[0])
 
 
 # セル数は素直に数える。前提は「セル内に `|` を書かない」（エスケープ `\|`・インラインコード内の
@@ -149,7 +150,10 @@ def check_tables(path):
 
         expected_cols = cell_count(lines[i])
         sep_cols = cell_count(lines[i + 1])
-        if sep_cols != expected_cols:
+        # 区切り行が合わないと表そのものが描画されないので、**本体行の列数はもう論じる意味がない**。
+        # 照合を続けると根本原因1件に対して全行が鳴き、直すべき1行が埋もれる
+        rendered = sep_cols == expected_cols
+        if not rendered:
             out.append((path, i + 2, f"区切り行の列数が {sep_cols}（ヘッダは {expected_cols}）。表として描画されない"))
         i += 2
 
@@ -179,9 +183,9 @@ def check_tables(path):
             # あふれ側は GitHub が内容を落とすので docs 全体で、不足側は全列必須の台帳だけで落とす
             # （log_* の理由列のように、書くことが無ければ空のままで良い表がある）
             cols = cell_count(line)
-            if cols > expected_cols:
+            if rendered and cols > expected_cols:
                 out.append((path, i + 1, f"列数が {cols}（この表は {expected_cols}）。あふれた分は表示されない"))
-            elif cols < expected_cols and strict:
+            elif rendered and cols < expected_cols and strict:
                 out.append((path, i + 1, f"列数が {cols}（この表は {expected_cols}）。台帳は全列必須"))
             i += 1
     return out
@@ -248,14 +252,14 @@ def check_index_and_detail(path):
 MATURITY = {"仕様済", "設計済", "列済", "未詰め", "-"}
 
 
-def check_backlog_columns(path):
+def check_requirement_backlog(path):
     out = []
     # 「仕様済」を名乗れるのは参照先に操作仕様の実体があるときだけ。`（未実装 / F-XXX）` が付いた
     # 条項は要求文の言い換えなので該当しない（guide_21 の完了チェック3 が付ける印）。実績として、
     # 起票時から仕様済だった F-117 が着手時に UI をまるごと決め直しており、この過大申告は静かに起きる
     stub_ids = set()
-    for spec in glob.glob("docs/仕様/**/*.md", recursive=True):
-        stub_ids |= set(re.findall(r"（未実装 / ((?:F|N)-\d+)", Path(spec).read_text(encoding="utf-8")))
+    for spec_doc in glob.glob("docs/仕様/**/*.md", recursive=True):
+        stub_ids |= set(re.findall(r"（未実装 / ((?:F|N)-\d+)", text(spec_doc)))
 
     lines, _ = read(path)
     for line_no, line in enumerate(lines, start=1):
@@ -283,7 +287,7 @@ KINDS = {"内部設計", "型安全", "テスト", "ツール整備", "依存追
 PRIORITIES = {"高", "中", "低", "様子見"}
 
 
-def check_tech_backlog_vocabulary(path):
+def check_tech_backlog(path):
     out = []
     lines, _ = read(path)
     for line_no, line in enumerate(lines, start=1):
@@ -420,11 +424,9 @@ def check_phase_wording(path):
 
 
 def git(*args, strip=True):
-    """git の標準出力。`--porcelain` の状態欄は行頭の空白に意味があるので strip=False で取る"""
-    try:
-        out = subprocess.run(["git", *args], capture_output=True, text=True).stdout
-    except OSError:
-        return ""
+    """git の標準出力。`--porcelain` の状態欄は行頭の空白に意味があるので strip=False で取る
+    （git が居ないケースは考えない——sh ラッパが `git rev-parse` を通ってここまで来ている）"""
+    out = subprocess.run(["git", *args], capture_output=True, text=True).stdout
     return out.strip() if strip else out
 
 
@@ -443,7 +445,7 @@ def check_updated_dates():
     shallow = git("rev-parse", "--is-shallow-repository") == "true"
 
     for path in DOCS:
-        m = re.search(r"^- 更新日: (\d{4}-\d{2}-\d{2})", Path(path).read_text(encoding="utf-8"), re.M)
+        m = re.search(r"^- 更新日: (\d{4}-\d{2}-\d{2})", text(path), re.M)
         if not m:
             continue
         if path in dirty:
@@ -468,22 +470,23 @@ for path in TARGETS:
     failures += check_links(path)
     warnings += check_phase_wording(path)
 
-for key, spec in LEDGERS.items():
-    for side in ("live", "closed"):
-        path = ledger(key, side)
-        if path is None:
-            failures.append((spec[side], 1, "台帳が見つからない"))
-            continue
-        if spec["paired"]:
-            failures += check_index_and_detail(path)
-    live = ledger(key)
-    if live and spec["closed_status"]:
-        failures += check_live_status(live, spec["closed_status"])
+# ライブ側だけが持つ固有の検査（列の記入・語彙）。LEDGERS に併記できないのは、
+# 辞書を組み立てる時点でこれらの関数がまだ定義されていないため
+LEDGER_CHECKS = {"22": (check_requirement_backlog,), "23": (check_tech_backlog,)}
 
-if ledger("22"):
-    failures += check_backlog_columns(ledger("22"))
-if ledger("23"):
-    failures += check_tech_backlog_vocabulary(ledger("23"))
+for key, entry in LEDGERS.items():
+    for side in ("live", "closed"):
+        path = entry[side]
+        if not os.path.exists(path):
+            failures.append((path, 1, "台帳が見つからない"))
+            continue
+        if entry["paired"]:
+            failures += check_index_and_detail(path)
+        if side != "live":
+            continue
+        failures += check_live_status(path, entry["closed_status"])
+        for check in LEDGER_CHECKS.get(key, ()):
+            failures += check(path)
 
 warnings += check_updated_dates()
 
