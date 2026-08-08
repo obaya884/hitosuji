@@ -1,8 +1,10 @@
+import { UNSET_MARK } from "@/app/_lib/unset";
+
 /**
- * 属性（モード・プロジェクト等、マスタを参照する値）が未設定であることを示す薄色の `-`。
- * 空欄にすると「表示する余地がない」と読めてしまうため、記号で不在を示す（画面定義書00 §2.4）。
- * 時間の値の未設定・未確定は `--:--` で、こちらは使わない。
+ * 属性の未設定を一覧のセルに示す薄色の記号（画面定義書00_共通 §2.4）。空欄にすると
+ * 「表示する余地がない」と読めてしまうため、記号で不在を示す。
+ * 語彙は `_lib/unset.ts` が持ち、ここは描き方だけを持つ
  */
 export function UnsetMark() {
-  return <span className="text-ink-faint">-</span>;
+  return <span className="text-ink-faint">{UNSET_MARK}</span>;
 }

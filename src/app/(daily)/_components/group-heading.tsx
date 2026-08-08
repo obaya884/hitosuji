@@ -1,6 +1,7 @@
 import { sectionCapacityMinutes, type SectionId } from "@/domain/section/section";
 import { sectionTotalMinutes, type DailyGroup } from "@/domain/task/daily-list";
 import { formatDuration, formatEstimate, formatSignedDuration } from "@/app/_lib/format";
+import { UNCATEGORIZED_LABEL } from "@/app/_lib/unset";
 import { TaskProgress } from "./task-progress";
 
 export type GroupHeadingProps = Readonly<{
@@ -37,7 +38,7 @@ export function GroupHeading({
       <td colSpan={8} className="py-2 pl-2">
         <span className="flex items-center gap-2">
           <span className="text-sm font-bold tracking-wide">
-            {group.section === null ? "未分類" : group.section.name}
+            {group.section === null ? UNCATEGORIZED_LABEL : group.section.name}
           </span>
           {group.section !== null && (
             <span className="font-mono text-xs text-ink-muted tabular-nums">

@@ -12,7 +12,7 @@ function project(over: Partial<Project> & { id: number; name: string }): Project
 }
 
 describe("toModeOptions（画面定義書01 O-5 / F-401: モード選択の候補）", () => {
-  it("「モードなし」を先頭に置き、渡された順のまま色付きで並べる", () => {
+  it("「未設定」を先頭に置き、渡された順のまま色付きで並べる（語は画面定義書00 §2.4）", () => {
     // 並び順はマスタ取得側の責務（データモデル定義書 §1）なので、ここでは並べ替えないことを見る。
     // id 昇順とも名前順とも一致しない並びを渡し、どちらの sort が紛れ込んでも落ちるようにする
     const options = toModeOptions([
@@ -21,7 +21,7 @@ describe("toModeOptions（画面定義書01 O-5 / F-401: モード選択の候�
     ]);
 
     expect(options).toStrictEqual([
-      { id: null, label: "モードなし" },
+      { id: null, label: "未設定" },
       { id: 2, label: "生活", color: "#22c55e" },
       { id: 1, label: "仕事", color: "#ef4444" },
     ]);
@@ -36,21 +36,21 @@ describe("toModeOptions（画面定義書01 O-5 / F-401: モード選択の候�
     expect(options.map((o) => o.id)).toEqual([null, 1]);
   });
 
-  it("有効なモードが0件でも「モードなし」だけは残す（未設定へ戻せる）", () => {
+  it("有効なモードが0件でも「未設定」だけは残す（未設定へ戻せる）", () => {
     expect(toModeOptions([mode({ id: 9, name: "旧", isArchived: true })])).toStrictEqual([
-      { id: null, label: "モードなし" },
+      { id: null, label: "未設定" },
     ]);
   });
 });
 
 describe("toProjectOptions（画面定義書01 O-5: プロジェクト選択の候補）", () => {
-  it("「プロジェクトなし」を先頭に置き、渡された順のまま並べる。色は付けない", () => {
+  it("「未設定」を先頭に置き、渡された順のまま並べる。色は付けない", () => {
     // モード側と同じく、id 昇順とも名前順とも一致しない並びで渡す。
     // toStrictEqual なので `color: undefined` が紛れ込んでも落ちる（候補に色を持たせない）
     const options = toProjectOptions([project({ id: 4, name: "開発" }), project({ id: 3, name: "家事" })]);
 
     expect(options).toStrictEqual([
-      { id: null, label: "プロジェクトなし" },
+      { id: null, label: "未設定" },
       { id: 4, label: "開発" },
       { id: 3, label: "家事" },
     ]);
@@ -65,7 +65,7 @@ describe("toProjectOptions（画面定義書01 O-5: プロジェクト選択の�
     expect(options.map((o) => o.id)).toEqual([null, 3]);
   });
 
-  it("有効なプロジェクトが0件でも「プロジェクトなし」だけは残す（未設定へ戻せる）", () => {
-    expect(toProjectOptions([])).toStrictEqual([{ id: null, label: "プロジェクトなし" }]);
+  it("有効なプロジェクトが0件でも「未設定」だけは残す（未設定へ戻せる）", () => {
+    expect(toProjectOptions([])).toStrictEqual([{ id: null, label: "未設定" }]);
   });
 });

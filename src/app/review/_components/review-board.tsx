@@ -20,6 +20,7 @@ import {
 import { isGlobalShortcutEvent } from "@/app/_lib/keyboard";
 import { modeAppearance } from "@/app/_lib/mode-appearance";
 import { tableHeadRow } from "@/app/_lib/ui";
+import { UNSET_GROUP_LABEL, UNSET_TIME_MARK } from "@/app/_lib/unset";
 
 /**
  * レビュー画面（S-04 / 画面定義書04）。読み取り専用のため更新操作を持たず、
@@ -176,8 +177,8 @@ function LogRow({
         style={colorStyle}
       >
         <td className="py-2 font-mono tabular-nums">
-          {task.startedAt === null ? "--:--" : formatClock(task.startedAt)}-
-          {task.endedAt === null ? "--:--" : formatClock(task.endedAt)}
+          {task.startedAt === null ? UNSET_TIME_MARK : formatClock(task.startedAt)}-
+          {task.endedAt === null ? UNSET_TIME_MARK : formatClock(task.endedAt)}
         </td>
         <td className="py-2">
           {/* ⭐と名前は flex で縦中央に揃える（`align-middle` だと 16px のアイコンが文字に対して
@@ -215,7 +216,7 @@ function LogRow({
           {formatEstimate(task.estimateMinutes)}
         </td>
         <td className="py-2 pr-4 text-right font-mono tabular-nums">
-          {actual === null ? "--:--" : formatDuration(actual)}
+          {actual === null ? UNSET_TIME_MARK : formatDuration(actual)}
         </td>
         <td className={`py-2 text-right font-mono tabular-nums ${isOver ? "text-danger" : ""}`}>
           {diff === null ? "" : formatSignedDuration(diff)}
@@ -275,7 +276,7 @@ function ActualTotals({
             {totals.map((row) => (
               <tr key={row.key ?? "none"} className="border-b border-line">
                 <td className="py-2">
-                  {row.key === null ? "（未設定）" : (nameOf(row.key) ?? "")}
+                  {row.key === null ? UNSET_GROUP_LABEL : (nameOf(row.key) ?? "")}
                 </td>
                 <td className="w-16 py-2 pr-4 text-right font-mono tabular-nums">
                   {formatDuration(row.minutes)}

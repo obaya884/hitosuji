@@ -5,7 +5,7 @@ import { checkedPopoverLabels, popoverLabels } from "../_testing/table-helpers";
 import { AssignCell, type AssignCellProps } from "./assign-cell";
 
 const OPTIONS = [
-  { id: null, label: "モードなし" },
+  { id: null, label: "未設定" },
   { id: 1, label: "仕事" },
   { id: 2, label: "生活" },
 ];
@@ -67,10 +67,17 @@ describe("AssignCell（画面定義書01 §3.3 / O-5: 割り当ての入口に�
     expect(screen.getByLabelText("プロジェクト（サイト改善）").textContent).toBe("サイト改善");
   });
 
+  // 上の対。記号 `-` は読み上げに向かないので語を当てる（§2.4）。2列への配線は task-row.test.tsx
+  it("未設定は名前の位置に語を載せる（読み上げは記号ではなく「〈項目名〉（未設定）」。00_共通 §2.4）", () => {
+    renderCell({ label: "モード" });
+
+    expect(screen.getByLabelText("モード（未設定）").textContent).toBe("-");
+  });
+
   it("編集中は候補を出し、現在値にチェックを付ける（O-5 / F-112）", () => {
     renderCell({ name: "生活", selectedId: 2, isEditing: true });
 
-    expect(popoverLabels()).toEqual(["モードなし", "仕事", "生活"]);
+    expect(popoverLabels()).toEqual(["未設定", "仕事", "生活"]);
     // 現在値（selectedId）だけにチェックが付く。渡す id を取り違えると別の候補に付く
     expect(checkedPopoverLabels()).toEqual(["生活"]);
   });

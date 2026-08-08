@@ -9,7 +9,7 @@ import { SelectPopover, type PopoverOption } from "./select-popover";
 const WORK_COLOR = "#123456";
 
 const MODE_OPTIONS: readonly PopoverOption[] = [
-  { id: null, label: "モードなし" },
+  { id: null, label: "未設定" },
   { id: 1, label: "仕事", color: WORK_COLOR },
   { id: 2, label: "生活" },
   { id: 3, label: "学習" },
@@ -67,7 +67,7 @@ describe("SelectPopover（画面定義書01 O-5 / F-112: 候補をクリック�
     const { container } = renderPopover();
 
     expect(optionButtons(container).map((b) => b.textContent)).toEqual([
-      "モードなし",
+      "未設定",
       "仕事",
       "生活",
       "学習",
@@ -95,7 +95,7 @@ describe("SelectPopover（画面定義書01 O-5 / F-112: 候補をクリック�
   it("現在値が候補に無ければ先頭をハイライトする", () => {
     const { container } = renderPopover({ selectedId: 999 });
 
-    expect(activeLabel(container)).toBe("モードなし");
+    expect(activeLabel(container)).toBe("未設定");
   });
 
   it("J で次の候補・K で前の候補へ移り、Enter でその候補を確定して閉じる（F-112）", () => {
@@ -117,7 +117,7 @@ describe("SelectPopover（画面定義書01 O-5 / F-112: 候補をクリック�
     const { container } = renderPopover({ selectedId: null });
 
     fireEvent.keyDown(document, { key: "k" });
-    expect(activeLabel(container)).toBe("モードなし");
+    expect(activeLabel(container)).toBe("未設定");
 
     for (let i = 0; i < 10; i += 1) fireEvent.keyDown(document, { key: "j" });
     expect(activeLabel(container)).toBe("学習");
@@ -162,7 +162,7 @@ describe("SelectPopover（画面定義書01 O-5 / F-112: 候補をクリック�
   it("「未設定」を選ぶと null を渡す（割り当ての解除）", () => {
     const { onSelect } = renderPopover({ selectedId: 1 });
 
-    fireEvent.click(screen.getByText("モードなし"));
+    fireEvent.click(screen.getByText("未設定"));
 
     expect(onSelect).toHaveBeenCalledWith(null);
   });
@@ -182,7 +182,7 @@ describe("SelectPopover（画面定義書01 O-5 / F-112: 候補をクリック�
     fireEvent.keyDown(document, { key: "Enter", isComposing: true });
     fireEvent.keyDown(document, { key: "Escape", isComposing: true });
 
-    expect(activeLabel(container)).toBe("モードなし");
+    expect(activeLabel(container)).toBe("未設定");
     expect(onSelect).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
   });
@@ -193,7 +193,7 @@ describe("SelectPopover（画面定義書01 O-5 / F-112: 候補をクリック�
     fireEvent.keyDown(document, { key: "j", metaKey: true });
     fireEvent.keyDown(document, { key: "j", ctrlKey: true });
     fireEvent.keyDown(document, { key: "j", altKey: true });
-    expect(activeLabel(container)).toBe("モードなし");
+    expect(activeLabel(container)).toBe("未設定");
 
     fireEvent.keyDown(document, { key: "Enter", metaKey: true });
     expect(onSelect).not.toHaveBeenCalled();
@@ -207,10 +207,13 @@ describe("SelectPopover（画面定義書01 O-5 / F-112: 候補をクリック�
     const input = container.appendChild(document.createElement("input"));
 
     fireEvent.keyDown(input, { key: "j" });
-    expect(activeLabel(container)).not.toBe("モードなし");
+    // 移動先を名指しする（`not.toBe` だと `activeLabel` が undefined を返す
+    // 「ハイライトが消えた」ケースと区別できず、偽の緑になる）
+    expect(activeLabel(container)).toBe("仕事");
 
     fireEvent.keyDown(input, { key: "Enter" });
-    expect(onSelect).toHaveBeenCalled();
+    // 確定先まで見る（呼ばれたことだけでは、移動先と別の候補を確定しても緑になる）
+    expect(onSelect).toHaveBeenCalledWith(1);
   });
 
   it("モードの色はカラーバーで示す（候補の見分け）", () => {

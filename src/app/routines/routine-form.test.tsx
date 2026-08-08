@@ -366,13 +366,14 @@ describe("RoutineForm（画面定義書02 §4: 繰り返し種別に応じて入
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ endDate: null }));
   });
 
-  it("モード・プロジェクトは選択肢に「なし」を持ち、選ぶと id で送る", () => {
+  it("モード・プロジェクトは選択肢に「未設定」を持ち、選ぶと id で送る", () => {
     const { onSubmit } = setup();
 
     const mode = screen.getByLabelText<HTMLSelectElement>("モード");
     const project = screen.getByLabelText<HTMLSelectElement>("プロジェクト");
-    expect([...mode.options].map((o) => o.textContent)).toEqual(["なし", "モードA", "モードB"]);
-    expect([...project.options].map((o) => o.textContent)).toEqual(["なし", "案件A", "案件B"]);
+    // 語は全画面共通（画面定義書00 §2.4）。直上の項目ラベルと重ねないため属性名を冠さない
+    expect([...mode.options].map((o) => o.textContent)).toEqual(["未設定", "モードA", "モードB"]);
+    expect([...project.options].map((o) => o.textContent)).toEqual(["未設定", "案件A", "案件B"]);
 
     fireEvent.change(mode, { target: { value: "1" } });
     fireEvent.change(project, { target: { value: "12" } });
@@ -384,7 +385,7 @@ describe("RoutineForm（画面定義書02 §4: 繰り返し種別に応じて入
     );
   });
 
-  it("モード・プロジェクトは「なし」に戻せる（未設定可）", () => {
+  it("モード・プロジェクトは「未設定」に戻せる", () => {
     const { onSubmit } = setup(routine({ id: 1, modeId: 1, projectId: 11 }));
 
     fireEvent.change(screen.getByLabelText("モード"), { target: { value: "" } });
