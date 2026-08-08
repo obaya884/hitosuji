@@ -227,26 +227,6 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
   });
 
   describe("インライン編集（画面定義書03 §4「編集方式」/ 00_共通 §2.3）", () => {
-    it("名前セルをクリックするとその場が入力欄になる", async () => {
-      renderTable();
-
-      const input = startEditingCell("モードA");
-
-      expect(input.tagName).toBe("INPUT");
-    });
-
-    it("変更なしの確定は何も送信せず閉じる", async () => {
-      renderTable();
-      const input = startEditingCell("モードA");
-
-      fireEvent.blur(input);
-
-      await waitFor(() => {
-        expect(screen.getByRole("button", { name: "モードA" })).not.toBeNull();
-      });
-      expect(updateModeAction).not.toHaveBeenCalled();
-    });
-
     it("フォーカスが外れたときに確定し、色は現在値のまま送る（§4「行の全項目をまとめて送る」）", async () => {
       renderTable();
       const input = startEditingCell("モードB");
@@ -262,32 +242,9 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       });
     });
 
-    it("Enter でも確定する（入力欄を抜けて blur の経路に合流する）", async () => {
-      renderTable();
-      const input = startEditingCell("モードA");
-
-      fireEvent.change(input, { target: { value: "改名後" } });
-      fireEvent.keyDown(input, { key: "Enter" });
-
-      await waitFor(() => {
-        expect(updateModeAction).toHaveBeenCalledExactlyOnceWith(1, { name: "改名後", color: RED });
-      });
-    });
-
-    it("Esc は元の値に戻して閉じる（送信しない）", async () => {
-      renderTable();
-      const input = startEditingCell("モードA");
-      fireEvent.change(input, { target: { value: "書きかけ" } });
-
-      fireEvent.keyDown(input, { key: "Escape" });
-
-      await waitFor(() => {
-        expect(screen.getByRole("button", { name: "モードA" })).not.toBeNull();
-      });
-      expect(updateModeAction).not.toHaveBeenCalled();
-    });
-
-    it("保存中は同じ行の他のセル（名前・色）を触らせない", async () => {
+    // 抑止そのものは部品（MasterEditableCell）が持つ。ここで見るのは表が `isPending` を
+    // セルへ渡していることと、表の JSX が持つカラーバー・操作ボタン側の抑止（§6 の②）
+    it("保存中は行の編集セル・カラーバー・操作ボタンを押せない", async () => {
       const pending = deferredAction();
       vi.mocked(setModeArchivedAction).mockReturnValue(pending.promise);
       renderTable();
@@ -295,16 +252,19 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       await click(within(rowOf("モードA")).getByRole("button", { name: "アーカイブ" }));
 
       const row = rowOf("モードA");
-      expect(within(row).getByRole("button", { name: "モードA" })).toHaveProperty("disabled", true);
+      const nameCell = within(row).getByRole("button", { name: "モードA" });
+      expect(nameCell).toHaveProperty("disabled", true);
       expect(within(row).getByRole("button", { name: "色を変更（現在: 赤）" })).toHaveProperty(
         "disabled",
         true
       );
-      // 行の操作ボタンも送信中は押せない（多重送信を防ぐ）
       expect(within(row).getByRole("button", { name: "アーカイブ" })).toHaveProperty(
         "disabled",
         true
       );
+      // 押しても開かない（古い値を再送しうる経路が閉じている）
+      await click(nameCell);
+      expect(screen.queryByDisplayValue("モードA")).toBeNull();
 
       await act(async () => {
         pending.resolve({ ok: true });
@@ -315,29 +275,19 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       );
     });
 
-    // 応答を待つ間も入力欄は開いたままなので、そこから確定できると2件目の UPDATE が飛ぶ
-    it("保存中に値を変えて確定し直しても2件目を送らない（00_共通 §2.3「保存中」）", async () => {
-      const pending = deferredAction();
-      vi.mocked(updateModeAction).mockReturnValue(pending.promise);
+    // onClose が表の editingId を落としているか（§6 の②「部品のコールバック → 画面の状態」）。
+    // Esc の挙動そのものは master-editable-cell.test.tsx が持つ
+    it("Esc でセルが閉じ、元の表示に戻る", async () => {
       renderTable();
       const input = startEditingCell("モードA");
+      fireEvent.change(input, { target: { value: "書きかけ" } });
 
-      fireEvent.change(input, { target: { value: "改名後" } });
-      fireEvent.blur(input);
+      fireEvent.keyDown(input, { key: "Escape" });
+
       await waitFor(() => {
-        expect(updateModeAction).toHaveBeenCalledOnce();
+        expect(screen.getByRole("button", { name: "モードA" })).not.toBeNull();
       });
-
-      // まだ応答が返っていない状態での再確定（値を変えて blur・Enter）
-      fireEvent.change(input, { target: { value: "さらに改名" } });
-      fireEvent.blur(input);
-      fireEvent.keyDown(input, { key: "Enter" });
-
-      expect(updateModeAction).toHaveBeenCalledExactlyOnceWith(1, { name: "改名後", color: RED });
-
-      await act(async () => {
-        pending.resolve({ ok: true });
-      });
+      expect(updateModeAction).not.toHaveBeenCalled();
     });
 
     it("失敗したらメッセージを出し、編集状態のまま残す（入力し直せる）", async () => {
@@ -442,20 +392,9 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       expect(screen.queryByPlaceholderText("モード名")).toBeNull();
     });
 
-    it("Enter でも追加を送る（新規行は blur 経路を通らない）", async () => {
-      renderTable();
-      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
-      const input = screen.getByPlaceholderText("モード名");
-
-      fireEvent.change(input, { target: { value: "新モード" } });
-      fireEvent.keyDown(input, { key: "Enter" });
-
-      await waitFor(() => {
-        expect(createModeAction).toHaveBeenCalledExactlyOnceWith({ name: "新モード", color: RED });
-      });
-    });
-
-    it("「取消」で新規行を捨てる（送信しない）", async () => {
+    // onCancel が表の editing を落としているか（§6 の②）。取消・Esc の挙動そのものは
+    // master-new-row.test.tsx が持つので、ここは行が消えることだけを見る
+    it("「取消」で新規行が消える（送信しない）", async () => {
       renderTable();
       clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
       fireEvent.change(screen.getByPlaceholderText("モード名"), { target: { value: "書きかけ" } });
@@ -464,24 +403,6 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
 
       expect(screen.queryByPlaceholderText("モード名")).toBeNull();
       expect(createModeAction).not.toHaveBeenCalled();
-    });
-
-    it("Esc でも新規行を捨てる", async () => {
-      renderTable();
-      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
-
-      fireEvent.keyDown(screen.getByPlaceholderText("モード名"), { key: "Escape" });
-
-      expect(screen.queryByPlaceholderText("モード名")).toBeNull();
-      expect(createModeAction).not.toHaveBeenCalled();
-    });
-
-    it("「保存」の押下は入力欄の blur より先に拾う（mousedown の既定動作を抑止して二重送信を防ぐ）", async () => {
-      renderTable();
-      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
-
-      // preventDefault されると fireEvent は false を返す（＝入力欄はフォーカスを失わない）
-      expect(fireEvent.mouseDown(screen.getByRole("button", { name: "保存" }))).toBe(false);
     });
 
     // 応答を自分で解くのは、抑止が解けたことを見るため——即解決のモックだと抑止が掛かった
@@ -509,8 +430,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       expect(screen.getByRole("button", { name: "取消" })).toHaveProperty("disabled", false);
     });
 
-    // 「保存中に始める操作」も止める（§2.3）——押すと開いていたセルが閉じてしまう。
-    // 抑止そのものは TableFrame が持つが、isPending を渡す配線は表ごとなのでここで見る
+    // 表が `isPending` を TableFrame へ渡しているか（§6 の②）。押せると開いていたセルが閉じる
     it("保存中は「新規追加」を押せない", async () => {
       const pending = deferredAction();
       vi.mocked(setModeArchivedAction).mockReturnValue(pending.promise);
@@ -545,25 +465,6 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       expect(screen.queryByRole("button", { name: "色 青" })).toBeNull();
 
       // 成功すると新規行ごと閉じるので、他のテストと違い解除側は主張できない（act 警告を避けて終える）
-      await act(async () => {
-        pending.resolve({ ok: true });
-      });
-    });
-
-    // 新規行の保存中の抑止（§2.3「新規追加行の保存中」）は部品が持つが、
-    // isPending を渡す配線は表ごとなのでここで見る
-    it("保存中は新規行の「保存」「取消」を押せない", async () => {
-      const pending = deferredAction();
-      vi.mocked(createModeAction).mockReturnValue(pending.promise);
-      renderTable();
-      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
-      fireEvent.change(screen.getByPlaceholderText("モード名"), { target: { value: "新モード" } });
-
-      await click(screen.getByRole("button", { name: "保存" }));
-
-      expect(screen.getByRole("button", { name: "保存" })).toHaveProperty("disabled", true);
-      expect(screen.getByRole("button", { name: "取消" })).toHaveProperty("disabled", true);
-
       await act(async () => {
         pending.resolve({ ok: true });
       });

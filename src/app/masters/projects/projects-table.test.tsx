@@ -86,27 +86,6 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
   });
 
   describe("インライン編集（画面定義書03 §4「編集方式」/ 00_共通 §2.3）", () => {
-    it("名前セルをクリックするとその場が入力欄になる", async () => {
-      renderTable();
-
-      const input = startEditingCell("プロジェクトA");
-
-      expect(input.tagName).toBe("INPUT");
-      expect(within(rowOf("プロジェクトB")).getByRole("button", { name: "プロジェクトB" })).not.toBeNull();
-    });
-
-    it("変更なしの確定は何も送信せず閉じる", async () => {
-      renderTable();
-      const input = startEditingCell("プロジェクトA");
-
-      fireEvent.blur(input);
-
-      await waitFor(() => {
-        expect(screen.getByRole("button", { name: "プロジェクトA" })).not.toBeNull();
-      });
-      expect(updateProjectAction).not.toHaveBeenCalled();
-    });
-
     it("フォーカスが外れたときに変更を確定する", async () => {
       renderTable();
       const input = startEditingCell("プロジェクトA");
@@ -119,19 +98,37 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
       });
     });
 
-    it("Enter でも確定する（入力欄を抜けて blur の経路に合流する）", async () => {
+    // 抑止そのものは部品（MasterEditableCell）が持つ。ここで見るのは表が `isPending` を
+    // セルへ渡していることと、表の JSX が持つ操作ボタン側の抑止（§6 の②）。
+    // 行内に編集できるセルが1つ（名前）だけの表でも一様に止まる（FB-63）
+    it("保存中は行の編集セル・操作ボタンを押せない", async () => {
+      const pending = deferredAction();
+      vi.mocked(setProjectArchivedAction).mockReturnValue(pending.promise);
       renderTable();
-      const input = startEditingCell("プロジェクトB");
 
-      fireEvent.change(input, { target: { value: "改名後" } });
-      fireEvent.keyDown(input, { key: "Enter" });
+      await click(within(rowOf("プロジェクトA")).getByRole("button", { name: "アーカイブ" }));
 
-      await waitFor(() => {
-        expect(updateProjectAction).toHaveBeenCalledExactlyOnceWith(2, { name: "改名後" });
+      const row = rowOf("プロジェクトA");
+      const nameCell = within(row).getByRole("button", { name: "プロジェクトA" });
+      expect(nameCell).toHaveProperty("disabled", true);
+      expect(within(row).getByRole("button", { name: "アーカイブ" })).toHaveProperty(
+        "disabled",
+        true
+      );
+      // 押しても開かない（古い値を再送しうる経路が閉じている）
+      await click(nameCell);
+      expect(screen.queryByDisplayValue("プロジェクトA")).toBeNull();
+
+      await act(async () => {
+        pending.resolve({ ok: true });
       });
+      expect(
+        within(rowOf("プロジェクトA")).getByRole("button", { name: "プロジェクトA" })
+      ).toHaveProperty("disabled", false);
     });
 
-    it("Esc は元の値に戻して閉じる（送信しない）", async () => {
+    // onClose が表の editing を落としているか（§6 の②）。Esc の挙動そのものは部品段が持つ
+    it("Esc でセルが閉じ、元の表示に戻る", async () => {
       renderTable();
       const input = startEditingCell("プロジェクトA");
       fireEvent.change(input, { target: { value: "書きかけ" } });
@@ -142,37 +139,6 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
         expect(screen.getByRole("button", { name: "プロジェクトA" })).not.toBeNull();
       });
       expect(updateProjectAction).not.toHaveBeenCalled();
-    });
-
-    // 行内に編集可能なセルが1つ（名前）だけでも保存中は開かせない（00_共通 §2.3「保存中」）。
-    // modes/sections と同じ部品（MasterEditableCell）を使うことで揃った（T-44 / FB-63）
-    it("保存中は名前セルを開けない（古い値での上書きを防ぐ）", async () => {
-      const pending = deferredAction();
-      vi.mocked(setProjectArchivedAction).mockReturnValue(pending.promise);
-      renderTable();
-
-      await click(within(rowOf("プロジェクトA")).getByRole("button", { name: "アーカイブ" }));
-
-      const row = rowOf("プロジェクトA");
-      const nameCell = within(row).getByRole("button", { name: "プロジェクトA" });
-      expect(nameCell).toHaveProperty("disabled", true);
-      // 行の操作ボタンも送信中は押せない（多重送信を防ぐ）
-      expect(within(row).getByRole("button", { name: "アーカイブ" })).toHaveProperty(
-        "disabled",
-        true
-      );
-
-      // 送信中に開こうとしても入力欄にならない（古い値を再送しうる経路が閉じている）
-      await click(nameCell);
-      expect(screen.queryByDisplayValue("プロジェクトA")).toBeNull();
-
-      await act(async () => {
-        pending.resolve({ ok: true });
-      });
-      // 保存が返れば再び編集できる
-      expect(
-        within(rowOf("プロジェクトA")).getByRole("button", { name: "プロジェクトA" })
-      ).toHaveProperty("disabled", false);
     });
 
     it("失敗したらメッセージを出し、編集状態のまま残す（入力し直せる）", async () => {
@@ -265,20 +231,8 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
       expect(screen.queryByPlaceholderText("プロジェクト名")).toBeNull();
     });
 
-    it("Enter でも追加を送る（新規行は blur 経路を通らない）", async () => {
-      renderTable();
-      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
-      const input = screen.getByPlaceholderText("プロジェクト名");
-
-      fireEvent.change(input, { target: { value: "新しいプロジェクト" } });
-      fireEvent.keyDown(input, { key: "Enter" });
-
-      await waitFor(() => {
-        expect(createProjectAction).toHaveBeenCalledExactlyOnceWith({ name: "新しいプロジェクト" });
-      });
-    });
-
-    it("「取消」で新規行を捨てる（送信しない）", async () => {
+    // onCancel が表の editing を落としているか（§6 の②）。取消・Esc の挙動そのものは部品段が持つ
+    it("「取消」で新規行が消える（送信しない）", async () => {
       renderTable();
       clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
       fireEvent.change(screen.getByPlaceholderText("プロジェクト名"), {
@@ -286,24 +240,6 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
       });
 
       clickWithoutServer(screen.getByRole("button", { name: "取消" }));
-
-      expect(screen.queryByPlaceholderText("プロジェクト名")).toBeNull();
-      expect(createProjectAction).not.toHaveBeenCalled();
-    });
-
-    it("「保存」の押下は入力欄の blur より先に拾う（mousedown の既定動作を抑止して二重送信を防ぐ）", async () => {
-      renderTable();
-      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
-
-      // preventDefault されると fireEvent は false を返す（＝入力欄はフォーカスを失わない）
-      expect(fireEvent.mouseDown(screen.getByRole("button", { name: "保存" }))).toBe(false);
-    });
-
-    it("Esc でも新規行を捨てる", async () => {
-      renderTable();
-      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
-
-      fireEvent.keyDown(screen.getByPlaceholderText("プロジェクト名"), { key: "Escape" });
 
       expect(screen.queryByPlaceholderText("プロジェクト名")).toBeNull();
       expect(createProjectAction).not.toHaveBeenCalled();
@@ -338,10 +274,9 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
       expect(screen.getByRole("button", { name: "取消" })).toHaveProperty("disabled", false);
     });
 
-    // 「保存中に始める操作」も止める（§2.3）——押すと開いていたセルが閉じ、
-    // 失敗が返っても入力し直せなくなる。守りたいのは「開いている入力欄が残る」こと。
-    // 抑止そのものは TableFrame が持つが、isPending を渡す配線は表ごとなのでここで見る
-    it("保存中の「新規追加」は開いている編集セルを閉じない", async () => {
+    // 表が `isPending` を TableFrame へ渡しているか（§6 の②）。押せると開いていたセルが閉じ、
+    // 失敗が返っても入力し直せなくなる
+    it("保存中は「新規追加」を押せない", async () => {
       const pending = deferredAction();
       vi.mocked(setProjectArchivedAction).mockReturnValue(pending.promise);
       renderTable();
@@ -360,53 +295,6 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
         pending.resolve({ ok: true });
       });
       expect(screen.getByRole("button", { name: "新規追加" })).toHaveProperty("disabled", false);
-    });
-
-    // 00_共通 §2.3「新規追加行の保存中」——確定と取消をどちらも止める
-    it("保存中の Enter 連打でも追加は1回だけ送る", async () => {
-      const pending = deferredAction();
-      vi.mocked(createProjectAction).mockReturnValue(pending.promise);
-      renderTable();
-      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
-      const input = screen.getByPlaceholderText("プロジェクト名");
-      fireEvent.change(input, { target: { value: "新しいプロジェクト" } });
-
-      fireEvent.keyDown(input, { key: "Enter" });
-      await waitFor(() => {
-        expect(createProjectAction).toHaveBeenCalledOnce();
-      });
-      fireEvent.keyDown(input, { key: "Enter" });
-      fireEvent.keyDown(input, { key: "Enter" });
-
-      expect(createProjectAction).toHaveBeenCalledExactlyOnceWith({ name: "新しいプロジェクト" });
-
-      await act(async () => {
-        pending.resolve({ ok: true });
-      });
-    });
-
-    it("保存中は取消で新規行を閉じない（失敗のメッセージだけが残るのを防ぐ）", async () => {
-      const pending = deferredAction();
-      vi.mocked(createProjectAction).mockReturnValue(pending.promise);
-      renderTable();
-      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
-      fireEvent.change(screen.getByPlaceholderText("プロジェクト名"), {
-        target: { value: "新しいプロジェクト" },
-      });
-      await click(screen.getByRole("button", { name: "保存" }));
-
-      const cancel = screen.getByRole("button", { name: "取消" });
-      expect(cancel).toHaveProperty("disabled", true);
-      await click(cancel);
-      fireEvent.keyDown(screen.getByPlaceholderText("プロジェクト名"), { key: "Escape" });
-
-      expect(screen.getByPlaceholderText("プロジェクト名")).not.toBeNull();
-
-      // 失敗が返ってはじめて入力し直せる状態になる（§2.3「失敗時」の詳細は上のテストが持つ）
-      await act(async () => {
-        pending.resolve({ ok: false, message: "名前を入力してください" });
-      });
-      expect(screen.getByPlaceholderText("プロジェクト名")).not.toBeNull();
     });
   });
 
