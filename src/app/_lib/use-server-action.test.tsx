@@ -123,7 +123,7 @@ describe("useServerAction（画面定義書02 §1・03 §1: 保存の完了を�
   it("setError で呼び出し側からエラーを消せる（セル編集を始めるときに使う）", async () => {
     const { result } = renderHook(() => useServerAction());
     await act(async () => {
-      result.current.run(async () => failure("名前は50文字以内で入力してください"));
+      result.current.run(async () => failure("名前を入力してください"));
     });
 
     act(() => {

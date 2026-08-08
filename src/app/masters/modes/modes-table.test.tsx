@@ -291,20 +291,19 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
     });
 
     it("失敗したらメッセージを出し、編集状態のまま残す（入力し直せる）", async () => {
-      vi.mocked(updateModeAction).mockResolvedValue({
-        ok: false,
-        message: "名前は50文字以内で入力してください",
-      });
+      const message = "対象が見つかりません（すでに削除されている可能性があります）";
+      vi.mocked(updateModeAction).mockResolvedValue({ ok: false, message });
       renderTable();
       const input = startEditingCell("モードA");
 
-      fireEvent.change(input, { target: { value: "あ".repeat(51) } });
+      // フィクスチャの別行と同名にしない（行を文言で引く契約なので、静かに別行を掴む）
+      fireEvent.change(input, { target: { value: "モードA改" } });
       fireEvent.blur(input);
 
       await waitFor(() => {
-        expect(screen.getByText("名前は50文字以内で入力してください")).not.toBeNull();
+        expect(screen.getByText(message)).not.toBeNull();
       });
-      expect(screen.getByDisplayValue("あ".repeat(51))).toBe(input);
+      expect(screen.getByDisplayValue("モードA改")).toBe(input);
       expect(screen.queryByRole("button", { name: "モードA" })).toBeNull();
     });
 

@@ -53,6 +53,13 @@ describe("validateRoutineInput（画面定義書02 §4: 必須項目）", () => 
     });
   });
 
+  // 表示は1件ずつ（共通 §4.1）なので、どれを先に返すかで画面に出る文言が決まる
+  it("複数の項目が不正なら、フォームで先に来る項目のエラーを返す（§4 の項目順）", () => {
+    expect(
+      validateRoutineInput(input({ scheduledStartTime: "25:00", startDate: "2026-02-30" }))
+    ).toEqual({ ok: false, error: "invalid_start_time" });
+  });
+
   it("終了日は開始日以降であること（省略可）", () => {
     expect(validateRoutineInput(input({ endDate: "2026-07-18" }))).toEqual({
       ok: false,

@@ -14,10 +14,11 @@ import type { TaskId } from "@/domain/task/task";
 
 export type RoutineUsecaseError = RoutineError | "routine_not_found";
 
-export type CreateRoutineFromTaskError =
-  | RoutineUsecaseError
-  | RoutineFromTaskError
-  | "task_not_found";
+/**
+ * ルーチン化の失敗（F-305）。`createRoutine` の失敗（`RoutineUsecaseError`）は含まない——
+ * `routineInputFromTask` が検証済みの入力を作るので、リポジトリへ直接渡せる
+ */
+export type CreateRoutineFromTaskError = RoutineFromTaskError | "task_not_found";
 
 /**
  * 一覧（画面定義書02 §3）。
@@ -83,7 +84,7 @@ export async function createRoutineFromTask(
   const input = routineInputFromTask(task, choice);
   if (!input.ok) return input;
 
-  return createRoutine(deps.routines, input.value);
+  return ok(await deps.routines.create(input.value));
 }
 
 /** 削除（O-4）。展開済みタスクは routine_id を NULL にして残る（ログ保全） */

@@ -5,45 +5,74 @@ import { isValidLogicalDate, type LogicalDate } from "../shared/logical-date";
 import { validateName } from "../shared/master-name";
 import { err, ok, type Result } from "../shared/result";
 import { isValidStartTime, normalizeStartTime } from "../section/section";
-import { ALL_WEEKDAYS, type RecurrenceType, type RoutineError } from "./routine";
+import {
+  ALL_WEEKDAYS,
+  type RecurrenceType,
+  type RoutineError,
+  type RoutineScheduleError,
+} from "./routine";
+
+/** いつ・どの周期で展開するかの入力（未検証の生値）。ルーチン化（画面定義書01 §4.1）もこれを入れる */
+export type RoutineScheduleInput = Readonly<{
+  scheduledStartTime: string;
+  recurrenceType: RecurrenceType;
+  weekdays: number | null;
+  weekInterval: number | null;
+  monthDay: number | null;
+  intervalDays: number | null;
+}>;
 
 /** フォームからの入力（未検証の生値） */
-export type RoutineInput = Readonly<{
-  name: string;
-  estimateMinutes: number;
-  scheduledStartTime: string;
-  modeId: ModeId | null;
-  projectId: ProjectId | null;
+export type RoutineInput = RoutineScheduleInput &
+  Readonly<{
+    name: string;
+    estimateMinutes: number;
+    modeId: ModeId | null;
+    projectId: ProjectId | null;
+    startDate: string;
+    endDate: string | null;
+  }>;
+
+/** 保存する繰り返しの値。正規化で種別自体が変わりうるため recurrenceType も含む */
+type RecurrenceFields = Readonly<{
   recurrenceType: RecurrenceType;
   weekdays: number | null;
   weekInterval: number | null;
   monthDay: number | null;
   intervalDays: number | null;
-  startDate: string;
-  endDate: string | null;
 }>;
+
+/** 検証済みの予定（開始想定時刻は正規化済み、繰り返しは §3.4 の正規化を経た保存値） */
+export type ValidRoutineSchedule = Readonly<{ scheduledStartTime: string }> & RecurrenceFields;
 
 /** 検証済みの入力（永続化に渡せる形） */
-export type ValidRoutineInput = Readonly<{
-  name: string;
-  estimateMinutes: number;
-  scheduledStartTime: string;
-  modeId: ModeId | null;
-  projectId: ProjectId | null;
-  recurrenceType: RecurrenceType;
-  weekdays: number | null;
-  weekInterval: number | null;
-  monthDay: number | null;
-  intervalDays: number | null;
-  startDate: LogicalDate;
-  endDate: LogicalDate | null;
-}>;
+export type ValidRoutineInput = ValidRoutineSchedule &
+  Readonly<{
+    name: string;
+    estimateMinutes: number;
+    modeId: ModeId | null;
+    projectId: ProjectId | null;
+    startDate: LogicalDate;
+    endDate: LogicalDate | null;
+  }>;
 
 /**
- * 繰り返し種別ごとに必要な項目を検証する（画面定義書02 §4）。
- * 種別に関係しない項目は null に落として保存する（週次を月次に変えた際の残骸を防ぐ）。
- * 週次で全曜日かつ週間隔1の入力は「毎日」へ正規化する（データモデル定義書 §3.4）
+ * 開始想定時刻と繰り返しを検証する（画面定義書02 §4 / 01 §4.1）。
+ * ルーチンフォームとルーチン化ポップオーバーが同じ規則で通る唯一の入口
  */
+export function validateRoutineSchedule(
+  input: RoutineScheduleInput
+): Result<ValidRoutineSchedule, RoutineScheduleError> {
+  const scheduledStartTime = normalizeStartTime(input.scheduledStartTime);
+  if (!isValidStartTime(scheduledStartTime)) return err("invalid_start_time");
+
+  const recurrence = validateRecurrence(input);
+  if (!recurrence.ok) return recurrence;
+
+  return ok({ scheduledStartTime, ...recurrence.value });
+}
+
+/** フォーム全体を検証する（画面定義書02 §4）。予定の部分は `validateRoutineSchedule` に委ねる */
 export function validateRoutineInput(
   input: RoutineInput
 ): Result<ValidRoutineInput, RoutineError> {
@@ -55,8 +84,10 @@ export function validateRoutineInput(
     return err("invalid_estimate");
   }
 
-  const scheduledStartTime = normalizeStartTime(input.scheduledStartTime);
-  if (!isValidStartTime(scheduledStartTime)) return err("invalid_start_time");
+  // 検証はフォームの項目順（画面定義書02 §4）に沿う。複数が不正なとき、先に直すべき欄の
+  // エラーから出す（表示は1件ずつ。共通 §4.1）
+  const schedule = validateRoutineSchedule(input);
+  if (!schedule.ok) return schedule;
 
   if (!isValidLogicalDate(input.startDate)) return err("invalid_start_date");
   if (input.endDate !== null && input.endDate !== "") {
@@ -65,29 +96,16 @@ export function validateRoutineInput(
   }
   const endDate = input.endDate === null || input.endDate === "" ? null : input.endDate;
 
-  const recurrence = validateRecurrence(input);
-  if (!recurrence.ok) return recurrence;
-
   return ok({
     name: name.value,
     estimateMinutes: input.estimateMinutes,
-    scheduledStartTime,
     modeId: input.modeId,
     projectId: input.projectId,
-    ...recurrence.value,
+    ...schedule.value,
     startDate: input.startDate,
     endDate,
   });
 }
-
-/** 保存する繰り返しの値。正規化で種別自体が変わりうるため recurrenceType も含む */
-type RecurrenceFields = Readonly<{
-  recurrenceType: RecurrenceType;
-  weekdays: number | null;
-  weekInterval: number | null;
-  monthDay: number | null;
-  intervalDays: number | null;
-}>;
 
 /** 毎日の保存値（週次・月次・n日ごとの項目はすべて null。データモデル定義書 §3.4） */
 const DAILY_RECURRENCE: RecurrenceFields = {
@@ -98,7 +116,14 @@ const DAILY_RECURRENCE: RecurrenceFields = {
   intervalDays: null,
 };
 
-function validateRecurrence(input: RoutineInput): Result<RecurrenceFields, RoutineError> {
+/**
+ * 繰り返し種別ごとに必要な項目を検証する（画面定義書02 §4）。
+ * 種別に関係しない項目は null に落として保存する（週次を月次に変えた際の残骸を防ぐ）。
+ * 週次で全曜日かつ週間隔1の入力は「毎日」へ正規化する（データモデル定義書 §3.4）
+ */
+function validateRecurrence(
+  input: RoutineScheduleInput
+): Result<RecurrenceFields, RoutineScheduleError> {
   switch (input.recurrenceType) {
     case "daily":
       return ok(DAILY_RECURRENCE);
