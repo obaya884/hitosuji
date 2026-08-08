@@ -927,6 +927,22 @@ describe("ルーチン由来タスクの削除とスキップ（F-301 / デー�
     ]);
   });
 
+  it("スキップの記録に失敗したらタスクの削除も巻き戻る", async () => {
+    const routine = await createRoutine();
+    const [target] = await db
+      .insert(tasks)
+      .values({ taskDate: "2026-07-19", name: "朝食", sortOrder: 1000, routineId: routine.id })
+      .returning();
+
+    await expect(
+      // 存在しないルーチン → FK違反（onConflictDoNothing が吸うのは unique 衝突だけ）
+      repo.delete(target.id, { routineId: 999999, taskDate: "2026-07-19" })
+    ).rejects.toThrow();
+
+    // 記録できないままタスクだけ消えると、次の表示で同じタスクが再展開される
+    expect(await repo.listByDate("2026-07-19")).toHaveLength(1);
+  });
+
   it("復元するとスキップが解除される（再展開できる状態に戻る）", async () => {
     const routine = await createRoutine();
     const [target] = await db
@@ -947,6 +963,26 @@ describe("ルーチン由来タスクの削除とスキップ（F-301 / デー�
 
     expect(await repo.listByDate("2026-07-19")).toHaveLength(1);
     expect(await db.select().from(routineSkips)).toHaveLength(0);
+  });
+
+  it("復元に失敗したらスキップの解除も巻き戻る", async () => {
+    const routine = await createRoutine();
+    const [target] = await db
+      .insert(tasks)
+      .values({ taskDate: "2026-07-19", name: "朝食", sortOrder: 1000, routineId: routine.id })
+      .returning();
+    const skip = { routineId: routine.id, taskDate: "2026-07-19" };
+
+    await repo.delete(target.id, skip);
+    const { id, ...rest } = { ...target, taskDate: "2026-07-19" };
+    void id;
+
+    await expect(
+      repo.restore({ ...rest, sectionId: 999999 }, skip) // 存在しないセクション → FK違反
+    ).rejects.toThrow();
+
+    // 解除だけ残ると、復元できていないルーチンが次の表示で重複展開される
+    expect(await db.select().from(routineSkips)).toHaveLength(1);
   });
 
   it("同じ日に複数回スキップを記録しても1件（記録も冪等）", async () => {
@@ -980,7 +1016,7 @@ describe("ルーチン由来タスクの削除とスキップ（F-301 / デー�
 });
 
 describe("create の振り直し（データモデル定義書 §3.5: 中間値が尽きたとき）", () => {
-  it("振り直しなし（空配列）でも挿入し、挿入行をドメイン表現で返す", async () => {
+  it("振り直しが無いときは既定値のまま挿入し、挿入行をドメイン表現で返す", async () => {
     const created = await repo.create(
       {
         taskDate: "2026-07-19",
@@ -1075,7 +1111,8 @@ describe("create の振り直し（データモデル定義書 §3.5: 中間値�
 });
 
 describe("move（画面定義書01 O-6 / データモデル定義書 §3.5: 並び替え）", () => {
-  it("振り直しなし（空配列）でも section_id と sort_order を更新する", async () => {
+  // 振り直しを伴う移動（下2件）はいずれも未分類の中の移動なので、section_id の変更はここだけが見ている
+  it("振り直しが無ければ別セクションへ移し替える（section_id と sort_order）", async () => {
     const [morning, forenoon] = await db
       .insert(sections)
       .values([
@@ -1116,6 +1153,40 @@ describe("move（画面定義書01 O-6 / データモデル定義書 §3.5: 並�
       sortOrder: 2000,
       renumber: [
         { taskId: byName["A"], sortOrder: 1000 },
+        { taskId: byName["B"], sortOrder: 3000 },
+      ],
+    });
+
+    const after = (await repo.listByDate("2026-07-19")).sort((x, y) => x.sortOrder - y.sortOrder);
+    expect(after.map((t) => [t.name, t.sortOrder])).toEqual([
+      ["A", 1000],
+      ["移動対象", 2000],
+      ["B", 3000],
+    ]);
+  });
+
+  // reorderTask は `placeSortOrder(others, index, target)` と移動対象自身を渡すので、
+  // 中間値が尽きたときの振り直しには**必ず移動対象が含まれる**（domain/task/reorder.ts）。
+  // 本体の更新と振り直しの両方が同じ行を指す形
+  it("振り直しが移動対象自身を含んでいても、本体の更新と食い違わない", async () => {
+    await db
+      .insert(tasks)
+      .values([
+        { taskDate: "2026-07-19", name: "A", sortOrder: 1000 },
+        { taskDate: "2026-07-19", name: "B", sortOrder: 1001 },
+        { taskDate: "2026-07-19", name: "移動対象", sortOrder: 5000 },
+      ]);
+    const byName = Object.fromEntries(
+      (await repo.listByDate("2026-07-19")).map((t) => [t.name, t.id])
+    );
+
+    await repo.move({
+      taskId: byName["移動対象"],
+      sectionId: null,
+      sortOrder: 2000,
+      renumber: [
+        { taskId: byName["A"], sortOrder: 1000 },
+        { taskId: byName["移動対象"], sortOrder: 2000 },
         { taskId: byName["B"], sortOrder: 3000 },
       ],
     });
@@ -1275,9 +1346,9 @@ describe("undoStart（F-210 / データモデル定義書 §4.5: 開始打刻の
     expect(after.sortOrder).toBe(500);
   });
 
-  // 「今日以外は並べ直さない」という規則そのものはユースケース側の
-  // 責務（punch-usecases の relocationsForUndoPunch）で、リポジトリは today を知らない
-  it("並べ直しが空なら started_at のクリアだけを行う", async () => {
+  // 空の並べ直しを渡せることの確認（Port の契約）。「今日以外は並べ直さない」という規則そのものは
+  // ユースケース側の責務（punch-usecases の relocationsForUndoPunch）で、リポジトリは today を知らない
+  it("並べ直しが空でも started_at をクリアできる", async () => {
     const [morning] = await db
       .insert(sections)
       .values([{ name: "朝", startTime: "06:00" }])
@@ -1338,9 +1409,8 @@ describe("undoComplete（F-212 / データモデル定義書 §4.7: 完了の取
     expect(after.sortOrder).toBe(500);
   });
 
-  // 上の undoStart と同じく、並べ直しが空の入力でも打刻を戻せることの確認
-  // （「今日以外は並べ直さない」の判断はユースケース側）
-  it("並べ直しが空なら打刻2列のクリアだけを行う", async () => {
+  // 上の undoStart と同じく、空の並べ直しを渡せることの確認（「今日以外」の判断はユースケース側）
+  it("並べ直しが空でも打刻2列をクリアできる", async () => {
     const [morning] = await db
       .insert(sections)
       .values([{ name: "朝", startTime: "06:00" }])
