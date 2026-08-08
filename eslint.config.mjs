@@ -80,8 +80,8 @@ const layerRules = [
 // FB-55・FB-57 の壊れ方はどちらも「**新しい箇所が自分で語を書いた**」なので、既存の使用箇所を
 // テストで固定するだけでは同じ乖離が戻る。定数を経由させることを機械で強制する。
 // **記号 `-` と空欄は対象外**——`"-"` を禁止語にはできず（時刻の範囲など無関係なハイフンが多い）、
-// 「空欄にしない」も構文では表せない。そこを守るのは `UnsetMark` を使うことだけなので、
-// 「lint があるから記号側も安全」と読まないこと（記号側の割れは FB-93 が扱う）。
+// 「空欄にしない」も構文では表せない。そこを守るのは `UnsetMark` / `UnsetTimeMark` を使うこと
+// だけなので、「lint があるから記号側も安全」と読まないこと（薄色は部品が保証する。FB-93）。
 // テスト・テストヘルパーは、表示される語をリテラルで主張するのが正（定数で照合すると
 // 書き換えを検出できない）ので除く。**語を足すときは `_lib/unset.ts` と両方を更新する。**
 const UNSET_VOCABULARY_MESSAGE =
@@ -145,11 +145,35 @@ const unsetVocabularyConfig = {
   },
 };
 
+// 記号（`-` / `--:--`）は「必ず薄色」が対になる（画面定義書00_共通 §2.4）。定数を直に import して
+// 自前で描くと薄色を付け忘れられるので、描画は `_components/unset-mark.tsx` に閉じる（FB-93）。
+// 語（「未設定」等）は色を伴わないため対象外——各画面が定数を直に使ってよい。
+const unsetMarkRenderingConfig = {
+  files: ["src/app/**/*.ts", "src/app/**/*.tsx"],
+  ignores: ["src/app/_components/unset-mark.tsx", "src/app/_lib/unset.test.ts"],
+  rules: {
+    "no-restricted-imports": [
+      "error",
+      {
+        paths: [
+          {
+            name: "@/app/_lib/unset",
+            importNames: ["UNSET_MARK", "UNSET_TIME_MARK"],
+            message:
+              "記号は `_components/unset-mark.tsx` の UnsetMark / UnsetTimeMark（0分の値は DurationValue）経由で描いてください（画面定義書00_共通 §2.4）",
+          },
+        ],
+      },
+    ],
+  },
+};
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   ...layerRules,
   unsetVocabularyConfig,
+  unsetMarkRenderingConfig,
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

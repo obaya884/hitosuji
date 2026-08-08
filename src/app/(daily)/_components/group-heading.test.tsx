@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { Section } from "@/domain/section/section";
 import { atJst } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
+import { faintTextOf } from "@/app/_testing/dom";
 import { morning, sectionGroup, unclassifiedGroup } from "../_testing/factories";
 import { headingOf } from "../_testing/table-helpers";
 import { GroupHeading, type GroupHeadingProps } from "./group-heading";
@@ -78,10 +79,16 @@ describe("GroupHeading（画面定義書01 §3.2: セクション見出し行）
     expect(within(headingOf("朝")).queryByText("/3:00")).not.toBeNull();
   });
 
-  it("時間合計が0のときは `--:--`（00_共通 §2.4）", () => {
+  // 見出しはメタ段だが、記号はその中でさらに薄くする（00_共通 §2.4）
+  it("時間合計が0のときは薄色の `--:--`。確定している分母はメタ段のまま（00_共通 §2.4）", () => {
     renderHeading({ group: morning([task({ id: 1, name: "朝食", estimateMinutes: 0 })]) });
 
-    expect(within(headingOf("朝")).queryByText("--:--")).not.toBeNull();
+    const heading = headingOf("朝");
+    expect(within(heading).getByText(/^合計/).textContent).toBe("合計 --:--/3:00");
+    expect(faintTextOf(heading)).toBe("--:--");
+    // 分母は確定値なので薄くしない。`faintTextOf` は最初の薄色要素を返すため、
+    // 見出し全体で見るだけでは分母が薄くなっても記号側が先に当たって通ってしまう
+    expect(faintTextOf(within(heading).getByText("/3:00"))).toBeUndefined();
   });
 
   it("タスク進捗（実施済み/全件）を出す。実行中は実施済みに含めない（F-114）", () => {

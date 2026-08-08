@@ -1,6 +1,5 @@
 // 表示フォーマット（画面定義書01 §3.3）
 import { APP_TIME_ZONE, zonedParts } from "@/domain/shared/time-zone";
-import { UNSET_TIME_MARK } from "./unset";
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"] as const;
 
@@ -19,14 +18,6 @@ export function formatDuration(minutes: number): string {
 export function formatSignedDuration(minutes: number): string {
   const sign = minutes > 0 ? "+" : minutes < 0 ? "-" : "";
   return `${sign}${formatDuration(Math.abs(minutes))}`;
-}
-
-/**
- * 見積もりの表示。未設定（0分）は `--:--`（終了予定時刻の計算に含まれないことを示す）。
- * 実績には使わない（1分未満の実績は 0:00 と表示する。画面定義書01 §3.3）
- */
-export function formatEstimate(minutes: number): string {
-  return minutes <= 0 ? UNSET_TIME_MARK : formatDuration(minutes);
 }
 
 /** 打刻時刻を `HH:MM` へ（表示は運用タイムゾーン＝日本時間。解釈・導出と同じ基準。T-47） */

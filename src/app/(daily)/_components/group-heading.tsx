@@ -1,6 +1,7 @@
 import { sectionCapacityMinutes, type SectionId } from "@/domain/section/section";
 import { sectionTotalMinutes, type DailyGroup } from "@/domain/task/daily-list";
-import { formatDuration, formatEstimate, formatSignedDuration } from "@/app/_lib/format";
+import { DurationValue } from "@/app/_components/duration-value";
+import { formatDuration, formatSignedDuration } from "@/app/_lib/format";
 import { UNCATEGORIZED_LABEL } from "@/app/_lib/unset";
 import { TaskProgress } from "./task-progress";
 
@@ -55,7 +56,10 @@ export function GroupHeading({
               </span>
               {/* 時間合計（完了は実績・未完了は見積もり） / セクション枠（F-110。日付・時刻に依らず表示する） */}
               <span className="ml-1 text-xs text-ink-muted tabular-nums">
-                合計 <span className="font-mono">{formatEstimate(total)}</span>
+                合計{" "}
+                <span className="font-mono">
+                  <DurationValue minutes={total} />
+                </span>
                 {capacity !== null && <span className="font-mono">/{formatDuration(capacity)}</span>}
               </span>
               {/* 残り時間（F-110 / FB-34）: 溢れていると警告色（FB-31 / FB-32） */}

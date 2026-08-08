@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { hasClass } from "@/app/_testing/dom";
+import { faintTextOf, hasClass } from "@/app/_testing/dom";
 import { atJst } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
 import { colorOf, modeOf, MODES, PROJECTS, SECTIONS } from "../_testing/factories";
@@ -154,7 +154,8 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
       expect((actual.firstElementChild as HTMLElement).classList.contains("text-danger")).toBe(true);
     });
 
-    it("未実行は実績も経過も出さない", () => {
+    // 実績は打刻の結果なので空欄でよい（00_共通 §2.4「記録・導出のセル」）
+    it("未実行は実績も経過も出さない（空欄。§3.3 / 00_共通 §2.4）", () => {
       renderRow({ task: task({ id: 1, name: "日次プラン" }) });
 
       expect(cellsOf(taskRow("日次プラン")).actual.textContent).toBe("");
@@ -168,14 +169,14 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
       expect(cellsOf(taskRow("朝食")).time.textContent).toBe("06:30–06:48");
     });
 
-    it("実行中は開始だけを出す（F-203）", () => {
+    it("実行中は開始だけを出す（F-203。終了側は空欄で `--:--` を出さない）", () => {
       renderRow({ task: task({ id: 1, name: "メール", startedAt: atJst("08:05") }) });
 
       expect(cellsOf(taskRow("メール")).time.textContent).toBe("08:05–");
     });
   });
 
-  describe("未設定の表記（00_共通 §2.4: 空欄にしない）", () => {
+  describe("未設定の表記（00_共通 §2.4: 設定できるセルは空欄にしない）", () => {
     it("未設定でも列の用途が読める aria-label を付ける（列の並びは §3.3）", () => {
       renderRow({ task: task({ id: 1, name: "日次プラン" }) });
 
@@ -190,7 +191,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
 
       const button = within(cellsOf(taskRow("買い出しメモ")).estimate).getByRole("button");
       expect(button.textContent).toBe("--:--");
-      expect(button.classList.contains("text-ink-faint")).toBe(true);
+      expect(faintTextOf(button)).toBe("--:--");
     });
 
     it("見積もり設定済みは H:MM を通常色で出す", () => {
@@ -198,7 +199,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
 
       const button = within(cellsOf(taskRow("日次プラン")).estimate).getByRole("button");
       expect(button.textContent).toBe("0:15");
-      expect(button.classList.contains("text-ink-faint")).toBe(false);
+      expect(faintTextOf(button)).toBeUndefined();
     });
   });
 
