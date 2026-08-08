@@ -250,30 +250,6 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
       expect(derived.tagName).not.toBe("INPUT");
     });
 
-    it("名前の変更なしは何も送信せず閉じる", async () => {
-      renderTable();
-      const input = startEditingCell("セクションA");
-
-      fireEvent.blur(input);
-
-      await waitFor(() => {
-        expect(screen.getByRole("button", { name: "セクションA" })).not.toBeNull();
-      });
-      expect(updateSectionAction).not.toHaveBeenCalled();
-    });
-
-    it("開始時刻の変更なしは何も送信せず閉じる", async () => {
-      renderTable();
-      const input = startEditingStartTime("セクションA", "06:00", "12:00");
-
-      fireEvent.blur(input);
-
-      await waitFor(() => {
-        expect(within(rowOf("セクションA")).getByRole("button", { name: "06:00–12:00" })).not.toBeNull();
-      });
-      expect(updateSectionAction).not.toHaveBeenCalled();
-    });
-
     it("名前を変えると開始時刻は現在値のまま送る（§4「行の全項目をまとめて送る」）", async () => {
       renderTable();
       const input = startEditingCell("セクションB");
@@ -304,48 +280,9 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
       });
     });
 
-    it("Enter でも確定する（入力欄を抜けて blur の経路に合流する）", async () => {
-      renderTable();
-      const input = startEditingCell("セクションA");
-
-      fireEvent.change(input, { target: { value: "改名後" } });
-      fireEvent.keyDown(input, { key: "Enter" });
-
-      await waitFor(() => {
-        expect(updateSectionAction).toHaveBeenCalledExactlyOnceWith(1, {
-          name: "改名後",
-          startTime: "06:00",
-        });
-      });
-    });
-
-    it("Esc は元の値に戻して閉じる（送信しない）", async () => {
-      renderTable();
-      const input = startEditingStartTime("セクションA", "06:00", "12:00");
-      fireEvent.change(input, { target: { value: "23:45" } });
-
-      fireEvent.keyDown(input, { key: "Escape" });
-
-      await waitFor(() => {
-        expect(within(rowOf("セクションA")).getByRole("button", { name: "06:00–12:00" })).not.toBeNull();
-      });
-      expect(updateSectionAction).not.toHaveBeenCalled();
-    });
-
-    it("名前の Esc も元の値に戻して閉じる", async () => {
-      renderTable();
-      const input = startEditingCell("セクションB");
-      fireEvent.change(input, { target: { value: "書きかけ" } });
-
-      fireEvent.keyDown(input, { key: "Escape" });
-
-      await waitFor(() => {
-        expect(screen.getByRole("button", { name: "セクションB" })).not.toBeNull();
-      });
-      expect(updateSectionAction).not.toHaveBeenCalled();
-    });
-
-    it("保存中は同じ行の他のセル（開始時刻・日界）を触らせない", async () => {
+    // 抑止そのものは部品（MasterEditableCell）が持つ。ここで見るのは表が `isPending` を
+    // **2つのセルそれぞれへ**渡していることと、表の JSX が持つ日界ラジオ・操作ボタンの抑止（§6 の②）
+    it("保存中は行の両方のセル・日界ラジオ・操作ボタンを押せない", async () => {
       const pending = deferredAction();
       vi.mocked(updateSectionAction).mockReturnValue(pending.promise);
       renderTable();
@@ -365,8 +302,12 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
         "disabled",
         true
       );
-      // 行の操作ボタンも送信中は押せない（多重送信を防ぐ）。日界セクションなので元から押せないが、
-      // ここで見たいのは保存中の抑止なので非日界の行で見る
+      // 名前セルは確定して閉じたあとなので、別行（セクションB）の名前セルで抑止を見る
+      expect(within(rowOf("セクションB")).getByRole("button", { name: "セクションB" })).toHaveProperty(
+        "disabled",
+        true
+      );
+      // 日界セクションなので元から押せない。保存中の抑止を見たいので非日界の行で見る
       expect(
         within(rowOf("セクションB")).getByRole("button", { name: "アーカイブ" })
       ).toHaveProperty("disabled", true);
@@ -374,9 +315,38 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
       await act(async () => {
         pending.resolve({ ok: true });
       });
+      // 保存が返ると名前セルが入力欄からボタンへ戻るので、ここからは名前で引ける
       expect(
-        within(rowOf("セクションA")).getByRole("button", { name: "06:00–12:00" })
+        within(rowOf("セクションA")).getByLabelText("セクションAを1日の開始にする")
       ).toHaveProperty("disabled", false);
+    });
+
+    // onClose が表の editing を落としているか（§6 の②）。開始時刻セルは display 付き
+    // （`06:00–12:00` の枠表示）なので、閉じたときに枠表示へ戻ることまで見る
+    it("Esc で開始時刻セルが閉じ、導出込みの枠表示に戻る", async () => {
+      renderTable();
+      const input = startEditingStartTime("セクションA", "06:00", "12:00");
+      fireEvent.change(input, { target: { value: "23:45" } });
+
+      fireEvent.keyDown(input, { key: "Escape" });
+
+      await waitFor(() => {
+        expect(within(rowOf("セクションA")).getByRole("button", { name: "06:00–12:00" })).not.toBeNull();
+      });
+      expect(updateSectionAction).not.toHaveBeenCalled();
+    });
+
+    it("Esc で名前セルも閉じる（セルごとに別の onClose を配線している）", async () => {
+      renderTable();
+      const input = startEditingCell("セクションB");
+      fireEvent.change(input, { target: { value: "書きかけ" } });
+
+      fireEvent.keyDown(input, { key: "Escape" });
+
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "セクションB" })).not.toBeNull();
+      });
+      expect(updateSectionAction).not.toHaveBeenCalled();
     });
 
     it("失敗したらメッセージを出し、編集状態のまま残す（入力し直せる）", async () => {
@@ -497,53 +467,6 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
       expect(screen.queryByPlaceholderText("セクション名")).toBeNull();
     });
 
-    it("Enter でも追加を送る（新規行は blur 経路を通らない）", async () => {
-      renderTable();
-      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
-      const name = screen.getByPlaceholderText("セクション名");
-
-      fireEvent.change(name, { target: { value: "新セクション" } });
-      fireEvent.keyDown(name, { key: "Enter" });
-
-      await waitFor(() => {
-        expect(createSectionAction).toHaveBeenCalledExactlyOnceWith({
-          name: "新セクション",
-          startTime: "",
-        });
-      });
-    });
-
-    it("「取消」で新規行を捨てる（送信しない）", async () => {
-      renderTable();
-      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
-      fireEvent.change(screen.getByPlaceholderText("セクション名"), {
-        target: { value: "書きかけ" },
-      });
-
-      clickWithoutServer(screen.getByRole("button", { name: "取消" }));
-
-      expect(screen.queryByPlaceholderText("セクション名")).toBeNull();
-      expect(createSectionAction).not.toHaveBeenCalled();
-    });
-
-    it("「保存」の押下は入力欄の blur より先に拾う（mousedown の既定動作を抑止して二重送信を防ぐ）", async () => {
-      renderTable();
-      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
-
-      // preventDefault されると fireEvent は false を返す（＝入力欄はフォーカスを失わない）
-      expect(fireEvent.mouseDown(screen.getByRole("button", { name: "保存" }))).toBe(false);
-    });
-
-    it("Esc でも新規行を捨てる", async () => {
-      renderTable();
-      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
-
-      fireEvent.keyDown(screen.getByPlaceholderText("セクション名"), { key: "Escape" });
-
-      expect(screen.queryByPlaceholderText("セクション名")).toBeNull();
-      expect(createSectionAction).not.toHaveBeenCalled();
-    });
-
     // 応答を自分で解くのは、抑止が解けたことを見るため——即解決のモックだと抑止が掛かった
     // 瞬間を観測できず、「解けた」と「そもそも抑止されなかった」を区別できない
     it("追加の失敗はメッセージで知らせ、新規行を残す（00_共通 §2.3「失敗時」）", async () => {
@@ -571,8 +494,21 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
       expect(screen.getByRole("button", { name: "取消" })).toHaveProperty("disabled", false);
     });
 
-    // 「保存中に始める操作」も止める（§2.3）——押すと開いていたセルが閉じてしまう。
-    // 抑止そのものは TableFrame が持つが、isPending を渡す配線は表ごとなのでここで見る
+    // onCancel が表の editing を落としているか（§6 の②）。取消・Esc の挙動そのものは部品段が持つ
+    it("「取消」で新規行が消える（送信しない）", async () => {
+      renderTable();
+      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
+      fireEvent.change(screen.getByPlaceholderText("セクション名"), {
+        target: { value: "書きかけ" },
+      });
+
+      clickWithoutServer(screen.getByRole("button", { name: "取消" }));
+
+      expect(screen.queryByPlaceholderText("セクション名")).toBeNull();
+      expect(createSectionAction).not.toHaveBeenCalled();
+    });
+
+    // 表が `isPending` を TableFrame へ渡しているか（§6 の②）。押せると開いていたセルが閉じる
     it("保存中は「新規追加」を押せない", async () => {
       const pending = deferredAction();
       vi.mocked(archiveSectionAction).mockReturnValue(pending.promise);
@@ -589,27 +525,6 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
         pending.resolve({ ok: true });
       });
       expect(screen.getByRole("button", { name: "新規追加" })).toHaveProperty("disabled", false);
-    });
-
-    // 新規行の保存中の抑止（§2.3「新規追加行の保存中」）は部品が持つが、
-    // isPending を渡す配線は表ごとなのでここで見る
-    it("保存中は新規行の「保存」「取消」を押せない", async () => {
-      const pending = deferredAction();
-      vi.mocked(createSectionAction).mockReturnValue(pending.promise);
-      renderTable();
-      clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
-      fireEvent.change(screen.getByPlaceholderText("セクション名"), {
-        target: { value: "新セクション" },
-      });
-
-      await click(screen.getByRole("button", { name: "保存" }));
-
-      expect(screen.getByRole("button", { name: "保存" })).toHaveProperty("disabled", true);
-      expect(screen.getByRole("button", { name: "取消" })).toHaveProperty("disabled", true);
-
-      await act(async () => {
-        pending.resolve({ ok: true });
-      });
     });
   });
 
