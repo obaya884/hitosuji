@@ -4,7 +4,7 @@ import type { SectionId } from "../section/section";
 import { err, ok, type Result } from "../shared/result";
 import type { Task, TaskId } from "./task";
 
-export const SORT_ORDER_STEP = 1000;
+const SORT_ORDER_STEP = 1000;
 
 /**
  * 採番の振り直し。挿入・移動と同じトランザクションで反映する（§3.5）。

@@ -65,7 +65,7 @@ export function offsetFromDayStart(minutes: number, dayStartMinutes: number): nu
 }
 
 /** セクション開始時刻の日界からの巡回オフセット（分）。`offsetFromDayStart` の "HH:MM" 版 */
-export function dayStartOffset(startTime: string, dayStartTime: string): number {
+function dayStartOffset(startTime: string, dayStartTime: string): number {
   return offsetFromDayStart(startMinutes(startTime), startMinutes(dayStartTime));
 }
 

@@ -35,7 +35,11 @@ export const MODE_COLOR_PRESETS = [
 
 type ModeColorName = (typeof MODE_COLOR_PRESETS)[number]["name"];
 
-/** プリセットの色値だけを並べたもの（並びは画面定義書03 §3.2 の表と同じ） */
+/**
+ * プリセットの色値だけを並べたもの（並びは画面定義書03 §3.2 の表と同じ）。
+ * **本番の呼び出し元は同ファイル内の `isPresetColor` だけで、公開しているのは
+ * テストがプリセット集合を走査するため**（シードの色がプリセットに収まっているかの検査）
+ */
 export const MODE_COLORS: readonly string[] = MODE_COLOR_PRESETS.map((p) => p.value);
 
 /**
@@ -47,7 +51,7 @@ export const MODE_COLOR_BY_NAME = Object.fromEntries(
   MODE_COLOR_PRESETS.map((p) => [p.name, p.value] as const)
 ) as Readonly<Record<ModeColorName, string>>;
 
-export function isPresetColor(color: string): boolean {
+function isPresetColor(color: string): boolean {
   return MODE_COLORS.includes(color);
 }
 

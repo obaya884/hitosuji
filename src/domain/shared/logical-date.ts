@@ -2,7 +2,6 @@
 // 日界（F-116）次第で打刻時刻の暦日と一致しない（既定の 00:00 なら一致する）。**論理日付の決定と、
 // その逆向き（論理日の中の壁時計 → 絶対時刻）**はこの純関数群に閉じる——日界を起点にした時計の
 // 折返し・セクション枠の起点は `domain/task/projection.ts` と `domain/section/section.ts` が持つ
-import { err, ok, type Result } from "./result";
 import { fromZonedClock, zonedParts } from "./time-zone";
 
 export type LogicalDate = string;
@@ -16,10 +15,6 @@ export function isValidLogicalDate(value: string): boolean {
   return (
     date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d
   );
-}
-
-export function parseLogicalDate(value: string): Result<LogicalDate, "invalid_date"> {
-  return isValidLogicalDate(value) ? ok(value) : err("invalid_date");
 }
 
 /** 前日・翌日（F-106）。UTC 基準で計算するのでサマータイムの影響を受けない */
@@ -42,7 +37,7 @@ export function toLogicalDate(date: Date): LogicalDate {
  * 現在時刻の壁時計分（0時からの分）が日界より前なら、論理日付は前の暦日になる。
  * 日界が 0（既定の 00:00）なら常に暦日と一致する。
  */
-export function applyDayStart(
+function applyDayStart(
   calendarDate: LogicalDate,
   minuteOfDay: number,
   dayStartMinutes: number

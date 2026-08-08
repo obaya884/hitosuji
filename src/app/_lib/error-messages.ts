@@ -46,7 +46,9 @@ export const TASK_EDIT_MESSAGES: Record<TaskEditUsecaseError, string> = {
 
 /**
  * 打刻とその取り消し（F-201 / F-210 / F-212 / F-203）。
- * **アクションからは直接引かず `taskActionErrorMessage` を通す**（直接の import は下の表とテストだけ）
+ * **アクションからは直接引かず `taskActionErrorMessage` を通す**。
+ * **本番の呼び出し元は同ファイル内の表だけで、公開しているのはテストが走査するため**
+ * （打刻と操作で共有するコードの文言が一致することの検査）
  */
 export const PUNCH_MESSAGES: Record<PunchUsecaseError, string> = {
   task_not_found: TASK_NOT_FOUND,
@@ -75,7 +77,8 @@ export const REORDER_MESSAGES: Record<ReorderUsecaseError, string> = {
  * `TaskOperationError ⊇ PunchUsecaseError` なので `PUNCH_MESSAGES` を広げた形になるが、
  * **共有するコードの文言は打刻と完全に一致させる**（一致は `error-messages.test.ts` の不変条件
  * テストが守る）。「複製して開始」だけが違う文言を出すため、その差は下の専用辞書へ隔離してある。
- * **アクションからは直接引かず `taskActionErrorMessage` を通す**（`PUNCH_MESSAGES` と同じ）
+ * **アクションからは直接引かず `taskActionErrorMessage` を通す**。公開の理由も `PUNCH_MESSAGES` と同じ
+ * （本番の呼び出し元は同ファイル内の表だけで、テストが走査するための公開）
  */
 export const OPERATION_MESSAGES: Record<TaskOperationError, string> = {
   ...PUNCH_MESSAGES,
@@ -122,7 +125,10 @@ type TaskActionMessageDicts = typeof TASK_ACTION_MESSAGE_DICTS;
 /** 表のキー＝打刻・タスク操作のアクション種別 */
 export type TaskActionKind = keyof TaskActionMessageDicts;
 
-/** 種別の一覧（テストが走査に使う。辞書そのものは非公開のまま） */
+/**
+ * 種別の一覧。**本番の呼び出し元は無く、公開しているのはテストが走査するため**
+ * （アクションと辞書の対応表に取り違えが無いことの検査。辞書そのものは非公開のまま）
+ */
 export const TASK_ACTION_KINDS = Object.keys(
   TASK_ACTION_MESSAGE_DICTS
 ) as readonly TaskActionKind[];

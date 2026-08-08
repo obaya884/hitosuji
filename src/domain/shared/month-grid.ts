@@ -19,7 +19,7 @@ export function dayOf(date: LogicalDate): number {
 }
 
 /** 年月に delta か月を足す（負で過去へ）。月の桁上がり・桁下がりを吸収する */
-export function addMonths({ year, month }: YearMonth, delta: number): YearMonth {
+function addMonths({ year, month }: YearMonth, delta: number): YearMonth {
   const index = year * 12 + (month - 1) + delta;
   return { year: Math.floor(index / 12), month: (index % 12) + 1 };
 }

@@ -5,7 +5,6 @@ import {
   hasWeekday,
   toggleWeekday,
   weekdayBitOf,
-  weekdayPresetLabel,
   WEEKDAY_BITS,
   WEEKDAY_PRESETS,
 } from "./routine";
@@ -65,9 +64,14 @@ describe("describeRecurrence（画面定義書02 §3: 繰り返しルールの�
     ).toBe("週次(平日) 〜2026-12-31");
   });
 
-  it("プリセットとちょうど一致しない曜日は列挙にフォールバックする（境界の網羅は weekdayPresetLabel 側）（FB-53）", () => {
-    const withSaturday = routine({ id: 1, recurrenceType: "weekly", weekdays: 0b0111111 }); // 月〜土
-    expect(describeRecurrence(withSaturday)).toBe("週次(月・火・水・木・金・土)");
+  // プリセット名に置き換わるのは**ちょうど一致**するときだけ。余分な曜日を含む場合も、
+  // プリセットの一部しか立っていない場合も列挙へ戻る（FB-53）
+  it("プリセットとちょうど一致しない曜日は列挙にフォールバックする（FB-53）", () => {
+    const weeklyOn = (weekdays: number) => routine({ id: 1, recurrenceType: "weekly", weekdays });
+    expect(describeRecurrence(weeklyOn(0b0111111))).toBe("週次(月・火・水・木・金・土)"); // 平日＋土
+    expect(describeRecurrence(weeklyOn(0b1100001))).toBe("週次(月・土・日)"); // 土日＋月
+    expect(describeRecurrence(weeklyOn(0b0001111))).toBe("週次(月・火・水・木)"); // 平日の一部
+    expect(describeRecurrence(weeklyOn(0b0100000))).toBe("週次(土)"); // 土日の一部
   });
 
   it("週間隔2以上の全曜日は列挙する（正規化の対象外。画面定義書02 §3）", () => {
@@ -201,21 +205,5 @@ describe("WEEKDAY_PRESETS（画面定義書02 §4: 曜日プリセット。bit0=
     expect(hasWeekday(weekend, 0)).toBe(true); // 日曜(index0)
     expect(hasWeekday(weekend, 6)).toBe(true); // 土曜(index6)
     expect(hasWeekday(weekend, 1)).toBe(false); // 月曜(index1)
-  });
-});
-
-describe("weekdayPresetLabel（画面定義書02 §3: プリセットとちょうど一致するときだけ名前を返す）", () => {
-  it("ちょうど一致すればプリセット名を返す", () => {
-    expect(weekdayPresetLabel(0b0011111)).toBe("平日"); // 月〜金
-    expect(weekdayPresetLabel(0b1100000)).toBe("土日"); // 土・日
-  });
-
-  it("余分な曜日を含む・一部しか立っていない場合は null", () => {
-    expect(weekdayPresetLabel(0b0111111)).toBeNull(); // 月〜土（平日＋土）
-    expect(weekdayPresetLabel(0b1100001)).toBeNull(); // 土日＋月
-    expect(weekdayPresetLabel(0b0001111)).toBeNull(); // 月〜木（平日の一部）
-    expect(weekdayPresetLabel(0b0100000)).toBeNull(); // 土のみ
-    expect(weekdayPresetLabel(ALL_WEEKDAYS)).toBeNull(); // 全曜日
-    expect(weekdayPresetLabel(0)).toBeNull(); // 未選択
   });
 });
