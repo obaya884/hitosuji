@@ -97,7 +97,7 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
         return toDomain(row);
       }
 
-      // 中間値が尽きてグループ全体を振り直す挿入。振り直しの途中の並びを見せない（§3.5）
+      // 中間値が尽きてグループ全体を振り直す挿入。振り直しの途中の並びを見せない（同書 §3.5）
       return await db.transaction(async (tx) => {
         await applyRenumber(tx, renumber);
         const [row] = await tx.insert(tasks).values(input).returning();
@@ -161,7 +161,7 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
         return;
       }
 
-      // 割り込み（要件定義書 §5.1）。「実行中を終了 → 再開タスク生成 → 開始」は**操作として不可分**で、
+      // 割り込み（要件定義書 §5.2 F-201）。「実行中を終了 → 再開タスク生成 → 開始」は**操作として不可分**で、
       // 途中で切れると実行中が0件や2件になる（実行中は全体で最大1件）
       await db.transaction(async (tx) => {
         const now = new Date();
@@ -211,7 +211,7 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
         return toDomain(row);
       }
 
-      // 割り込み（要件定義書 §5.1）を伴うなら実行中の終了と再開タスク生成が、
+      // 割り込み（要件定義書 §5.2 F-201）を伴うなら実行中の終了と再開タスク生成が、
       // 振り直しを伴うなら挿入位置の確保が、複製の生成と不可分になる
       return await db.transaction(async (tx) => {
         const now = new Date();
@@ -231,7 +231,8 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
       });
     },
 
-    // 中断は「終了 → 再開タスク生成」を1トランザクションで行う（データモデル定義書 §4.2）
+    // 中断（F-204 / データモデル定義書 §4.2）。付帯更新の有無によらず「実行中を終了 → 再開タスク生成」の
+    // 2行を書くので分岐は無い。途中で切れると実行中が消えたまま再開タスクも無い状態が残る
     async suspend(command: SuspendCommand) {
       await db.transaction(async (tx) => {
         const now = new Date();
@@ -317,7 +318,7 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
         return;
       }
 
-      // 中間値が尽きてグループ全体を振り直す並び替え。振り直しの途中の並びを見せない（§3.5）
+      // 中間値が尽きてグループ全体を振り直す並び替え。振り直しの途中の並びを見せない（同書 §3.5）
       await db.transaction(async (tx) => {
         // 振り直しは移動先を空ける処理なので、本体の更新より先に当てる
         await applyRenumber(tx, renumber);

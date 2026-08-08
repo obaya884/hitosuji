@@ -393,7 +393,8 @@ describe("duplicateAndStart（F-208 / データモデル定義書 §4.6: 複製�
     expect(after.find((t) => t.id === source.id)?.endedAt).toEqual(endedAt);
   });
 
-  // `operations.ts` は移動先の中間値が尽きたときに実行中タスクの有無によらず振り直しを渡す
+  // 割り込みが無くても振り直しがあればトランザクションの枝を通る（`operations.ts` は
+  // 移動先の中間値が尽きたときに実行中タスクの有無によらず振り直しを渡す）
   it("割り込みなしでも、振り直しは複製の生成と同じトランザクションで反映される", async () => {
     const now = new Date("2026-07-19T09:00:00Z");
     const [source, blocking] = await db
@@ -869,26 +870,69 @@ describe("存在しない id への更新・削除（0行で静かに終わる�
 });
 
 describe("delete / restore（O-8: 削除と取り消し）", () => {
-  it("削除したタスクを打刻ごと復元できる", async () => {
+  // restore は Task の全列を書き戻す唯一の経路なので、既定値では埋まらない値を全列に置いて往復させる
+  // （一部の列を落としても既定値と区別が付かないため）。id だけは採番し直される
+  it("削除したタスクを全列そのままで復元し、復元行をドメイン表現で返す", async () => {
     const startedAt = new Date("2026-07-19T08:00:00Z");
     const endedAt = new Date("2026-07-19T08:30:00Z");
+    const [section] = await db
+      .insert(sections)
+      .values({ name: "朝", startTime: "06:00" })
+      .returning();
+    const [mode] = await db
+      .insert(modes)
+      .values({ name: "集中", color: MODE_COLOR_BY_NAME["青"] })
+      .returning();
+    const [project] = await db.insert(projects).values({ name: "資料整備" }).returning();
+    const [parent] = await db
+      .insert(tasks)
+      .values({ taskDate: "2026-07-19", name: "分割元", sortOrder: 500 })
+      .returning();
     const [target] = await db
       .insert(tasks)
-      .values({ taskDate: "2026-07-19", name: "消すタスク", sortOrder: 1000, startedAt, endedAt })
+      .values({
+        taskDate: "2026-07-19",
+        name: "消すタスク",
+        estimateMinutes: 25,
+        sectionId: section.id,
+        modeId: mode.id,
+        projectId: project.id,
+        sortOrder: 1000,
+        startedAt,
+        endedAt,
+        comment: "続きは明日",
+        highlighted: true,
+        splitParentId: parent.id,
+        postponedCount: 2,
+      })
       .returning();
 
     await repo.delete(target.id, null);
-    expect(await repo.listByDate("2026-07-19")).toHaveLength(0);
+    expect(await repo.listByDate("2026-07-19")).toHaveLength(1); // 分割元だけが残る
 
-    const { id, ...rest } = { ...target, taskDate: "2026-07-19" };
-    void id;
-    await repo.restore({ ...rest, startedAt, endedAt }, null);
+    const { id, ...rest } = target;
+    const restored = await repo.restore(rest, null);
 
-    const restored = await repo.listByDate("2026-07-19");
-    expect(restored).toHaveLength(1);
-    expect(restored[0]).toEqual(
-      expect.objectContaining({ name: "消すタスク", startedAt, endedAt })
-    );
+    // ルーチン由来（routine_id）の復元はスキップ解除を伴うので下の describe が持つ
+    expect(restored).toEqual({
+      id: expect.any(Number),
+      taskDate: "2026-07-19",
+      name: "消すタスク",
+      estimateMinutes: 25,
+      sectionId: section.id,
+      modeId: mode.id,
+      projectId: project.id,
+      sortOrder: 1000,
+      startedAt,
+      endedAt,
+      comment: "続きは明日",
+      highlighted: true,
+      routineId: null,
+      splitParentId: parent.id,
+      postponedCount: 2,
+    });
+    expect(restored.id).not.toBe(id); // 復元は新しい行なので採番し直される
+    expect(await repo.listByDate("2026-07-19")).toContainEqual(restored);
   });
 });
 
@@ -941,6 +985,7 @@ describe("ルーチン由来タスクの削除とスキップ（F-301 / デー�
 
     // 記録できないままタスクだけ消えると、次の表示で同じタスクが再展開される
     expect(await repo.listByDate("2026-07-19")).toHaveLength(1);
+    expect(await db.select().from(routineSkips)).toHaveLength(0);
   });
 
   it("復元するとスキップが解除される（再展開できる状態に戻る）", async () => {
@@ -983,6 +1028,7 @@ describe("ルーチン由来タスクの削除とスキップ（F-301 / デー�
 
     // 解除だけ残ると、復元できていないルーチンが次の表示で重複展開される
     expect(await db.select().from(routineSkips)).toHaveLength(1);
+    expect(await repo.listByDate("2026-07-19")).toHaveLength(0);
   });
 
   it("同じ日に複数回スキップを記録しても1件（記録も冪等）", async () => {
@@ -1167,22 +1213,31 @@ describe("move（画面定義書01 O-6 / データモデル定義書 §3.5: 並�
 
   // reorderTask は `placeSortOrder(others, index, target)` と移動対象自身を渡すので、
   // 中間値が尽きたときの振り直しには**必ず移動対象が含まれる**（domain/task/reorder.ts）。
-  // 本体の更新と振り直しの両方が同じ行を指す形
-  it("振り直しが移動対象自身を含んでいても、本体の更新と食い違わない", async () => {
+  // セクションをまたぐ形にしているのは、`applyRenumber` が sort_order しか書かないため
+  // **section_id を書けるのは本体の更新だけ**になり、本体の更新も同時に固定できるから
+  it("振り直しが移動対象自身を含む、セクションをまたぐ移動", async () => {
+    const [morning, forenoon] = await db
+      .insert(sections)
+      .values([
+        { name: "朝", startTime: "06:00" },
+        { name: "午前", startTime: "09:00" },
+      ])
+      .returning();
     await db
       .insert(tasks)
       .values([
-        { taskDate: "2026-07-19", name: "A", sortOrder: 1000 },
-        { taskDate: "2026-07-19", name: "B", sortOrder: 1001 },
-        { taskDate: "2026-07-19", name: "移動対象", sortOrder: 5000 },
+        { taskDate: "2026-07-19", name: "A", sortOrder: 1000, sectionId: forenoon.id },
+        { taskDate: "2026-07-19", name: "B", sortOrder: 1001, sectionId: forenoon.id },
+        { taskDate: "2026-07-19", name: "移動対象", sortOrder: 1000, sectionId: morning.id },
       ]);
     const byName = Object.fromEntries(
       (await repo.listByDate("2026-07-19")).map((t) => [t.name, t.id])
     );
 
+    // 朝の対象を、午前の A と B の間へ。移動先の中間値が尽きているのでグループ全体を振り直す
     await repo.move({
       taskId: byName["移動対象"],
-      sectionId: null,
+      sectionId: forenoon.id,
       sortOrder: 2000,
       renumber: [
         { taskId: byName["A"], sortOrder: 1000 },
@@ -1192,10 +1247,10 @@ describe("move（画面定義書01 O-6 / データモデル定義書 §3.5: 並�
     });
 
     const after = (await repo.listByDate("2026-07-19")).sort((x, y) => x.sortOrder - y.sortOrder);
-    expect(after.map((t) => [t.name, t.sortOrder])).toEqual([
-      ["A", 1000],
-      ["移動対象", 2000],
-      ["B", 3000],
+    expect(after.map((t) => [t.name, t.sectionId, t.sortOrder])).toEqual([
+      ["A", forenoon.id, 1000],
+      ["移動対象", forenoon.id, 2000],
+      ["B", forenoon.id, 3000],
     ]);
   });
 
