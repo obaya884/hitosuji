@@ -193,6 +193,37 @@ describe("expand（F-301: 冪等INSERT）", () => {
     expect(await taskRepo.listByDate("2026-07-19")).toHaveLength(2);
   });
 
+  // FB-99: 先送りは紐付けを外して移る（データモデル定義書 §3.5）ので、移動先の日の展開を吸わない。
+  // 紐付けを保ったまま移す実装に戻すと、ここが 0 件展開に落ちる
+  it("先送りされてきたタスクは移動先の日の展開を妨げない", async () => {
+    const created = await repo.create(input());
+    const [postponed] = await db
+      .insert(tasks)
+      .values({ taskDate: "2026-07-19", name: "朝食", sortOrder: 1000, routineId: created.id })
+      .returning();
+    await taskRepo.postpone(
+      postponed.id,
+      { taskDate: "2026-07-20", sortOrder: 1000 },
+      { routineId: created.id, taskDate: "2026-07-19" }
+    );
+
+    expect(
+      await repo.expand([
+        {
+          routineId: created.id,
+          taskDate: "2026-07-20",
+          name: "朝食",
+          estimateMinutes: 20,
+          sectionId: null,
+          modeId: null,
+          projectId: null,
+          sortOrder: 2000,
+        },
+      ])
+    ).toBe(1);
+    expect(await taskRepo.listByDate("2026-07-20")).toHaveLength(2);
+  });
+
   it("空の展開では何もしない", async () => {
     expect(await repo.expand([])).toBe(0);
   });

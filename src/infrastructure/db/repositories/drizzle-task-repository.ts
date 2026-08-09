@@ -283,16 +283,31 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
       });
     },
 
-    async postpone(id: TaskId, input: Readonly<{ taskDate: LogicalDate; sortOrder: number }>) {
-      await db
-        .update(tasks)
-        .set({
-          taskDate: input.taskDate,
-          sortOrder: input.sortOrder,
-          postponedCount: sql`${tasks.postponedCount} + 1`,
-          updatedAt: new Date(),
-        })
-        .where(eq(tasks.id, id));
+    async postpone(
+      id: TaskId,
+      input: Readonly<{ taskDate: LogicalDate; sortOrder: number }>,
+      skip: RoutineSkip | null
+    ) {
+      const moved = {
+        taskDate: input.taskDate,
+        sortOrder: input.sortOrder,
+        routineId: null, // 先送りは紐付けを切って移る（データモデル定義書 §3.5）
+        postponedCount: sql`${tasks.postponedCount} + 1`,
+        updatedAt: new Date(),
+      };
+
+      // ルーチン由来でないタスクの先送り。動く行は1つだけ
+      if (skip === null) {
+        await db.update(tasks).set(moved).where(eq(tasks.id, id));
+        return;
+      }
+
+      // ルーチン由来なら移動と元の日のスキップ記録が不可分（§3.6）。
+      // 記録できないまま移すと、元の日を再表示した時点で同じタスクが再展開される
+      await db.transaction(async (tx) => {
+        await tx.update(tasks).set(moved).where(eq(tasks.id, id));
+        await tx.insert(routineSkips).values(skip).onConflictDoNothing();
+      });
     },
 
     async updateClassification(

@@ -44,6 +44,15 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
     if (i !== -1) rows[i] = { ...rows[i], ...changes };
   };
 
+  /**
+   * その日のスキップを記録する（削除 O-8・先送り O-7）。**同じ日は1件**——本物の
+   * `ON CONFLICT DO NOTHING`（uq_routine_skips）と契約を揃える。**対象の行が無くても記録する**のも
+   * 本物と同じ（記録は別テーブルへの INSERT で、tasks が0行更新かどうかに左右されない）
+   */
+  const recordSkip = (skip: RoutineSkip | null) => {
+    if (skip !== null && !skips.some((s) => sameSkip(s, skip))) skips.push(skip);
+  };
+
   /** section_id・sort_order のまとめ更新（自動セクション移動 F-113・打刻の取り消しの並べ直し） */
   const applyRelocations = (relocations: Relocations) => {
     for (const row of relocations) {
@@ -164,7 +173,7 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
       // 対象が無ければ何も消さない（`splice(-1, 1)` は末尾の行を消してしまう）
       const i = indexOf(id);
       if (i !== -1) rows.splice(i, 1);
-      if (skip !== null && !skips.some((s) => sameSkip(s, skip))) skips.push(skip);
+      recordSkip(skip);
     },
 
     restore: async (restored, skip: RoutineSkip | null) => {
@@ -177,15 +186,18 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
       return created;
     },
 
-    postpone: async (id: TaskId, input) => {
+    postpone: async (id: TaskId, input, skip: RoutineSkip | null) => {
       // 加算があるので現在値が要る（他と違い patch だけでは書けない）
       const target = rows.find((r) => r.id === id);
-      if (target === undefined) return;
-      patch(id, {
-        taskDate: input.taskDate,
-        sortOrder: input.sortOrder,
-        postponedCount: target.postponedCount + 1,
-      });
+      if (target !== undefined) {
+        patch(id, {
+          taskDate: input.taskDate,
+          sortOrder: input.sortOrder,
+          routineId: null,
+          postponedCount: target.postponedCount + 1,
+        });
+      }
+      recordSkip(skip);
     },
 
     updateClassification: async (

@@ -16,6 +16,21 @@ afterAll(async () => {
   await pool.end();
 });
 
+/** ルーチン由来タスクの展開元。ルーチンが絡む describe（先送り・削除とスキップ）が共有する */
+async function createRoutine() {
+  const [row] = await db
+    .insert(routines)
+    .values({
+      name: "朝食",
+      estimateMinutes: 20,
+      scheduledStartTime: "06:30",
+      recurrenceType: "daily",
+      startDate: "2026-07-19",
+    })
+    .returning();
+  return row;
+}
+
 describe("DrizzleTaskRepository.listByDate（画面定義書01 §7: 表示日1日分のみ取得）", () => {
   it("指定した task_date のタスクだけを返す", async () => {
     await db.insert(tasks).values([
@@ -656,17 +671,117 @@ describe("suspend（F-204: 終了と再開タスク生成を1トランザクシ�
 });
 
 describe("postpone（F-107: 先送り）", () => {
-  it("task_date を付け替え postponed_count を加算する", async () => {
+  // ルーチン由来でない先送り。日付・並び・回数の3つだけが動き、持ち物（見積もり・セクション・
+  // コメント・ハイライト）は一緒に移る。ルーチン由来では routine_id も動く（次のテスト）
+  it("task_date・sort_order・postponed_count だけを動かす", async () => {
+    const [section] = await db
+      .insert(sections)
+      .values({ name: "朝", startTime: "06:00" })
+      .returning();
     const [target] = await db
       .insert(tasks)
-      .values({ taskDate: "2026-07-19", name: "先送り対象", sortOrder: 1000, postponedCount: 1 })
+      .values({
+        taskDate: "2026-07-19",
+        name: "先送り対象",
+        estimateMinutes: 25,
+        sectionId: section.id,
+        sortOrder: 1000,
+        comment: "明日やる",
+        highlighted: true,
+        postponedCount: 1,
+      })
       .returning();
 
-    await repo.postpone(target.id, { taskDate: "2026-07-20", sortOrder: 3000 });
+    await repo.postpone(target.id, { taskDate: "2026-07-20", sortOrder: 3000 }, null);
 
     expect(await repo.listByDate("2026-07-19")).toHaveLength(0);
-    expect((await repo.listByDate("2026-07-20"))[0]).toEqual(
-      expect.objectContaining({ taskDate: "2026-07-20", sortOrder: 3000, postponedCount: 2 })
+    expect(await repo.listByDate("2026-07-20")).toEqual([
+      {
+        id: target.id,
+        taskDate: "2026-07-20", // 動く
+        name: "先送り対象",
+        estimateMinutes: 25,
+        sectionId: section.id,
+        modeId: null,
+        projectId: null,
+        sortOrder: 3000, // 動く
+        startedAt: null,
+        endedAt: null,
+        comment: "明日やる",
+        highlighted: true,
+        routineId: null,
+        splitParentId: null,
+        postponedCount: 2, // 動く
+      },
+    ]);
+  });
+
+  // §3.5: 移動先の日にはその日のぶんが改めて展開されるので紐付けを切る。
+  // §3.6: 元の日のスキップを記録しないと、その日を再表示した時点で §4.1 が展開し直す
+  it("ルーチン由来なら紐付けを外し、同じトランザクションで元の日のスキップを記録する", async () => {
+    const routine = await createRoutine();
+    const [target] = await db
+      .insert(tasks)
+      .values({ taskDate: "2026-07-19", name: "朝食", sortOrder: 1000, routineId: routine.id })
+      .returning();
+
+    await repo.postpone(
+      target.id,
+      { taskDate: "2026-07-20", sortOrder: 1000 },
+      { routineId: routine.id, taskDate: "2026-07-19" }
+    );
+
+    expect((await repo.listByDate("2026-07-20"))[0].routineId).toBeNull();
+    expect(await db.select().from(routineSkips)).toEqual([
+      expect.objectContaining({ routineId: routine.id, taskDate: "2026-07-19" }),
+    ]);
+  });
+
+  it("スキップの記録に失敗したら移動も巻き戻る", async () => {
+    const routine = await createRoutine();
+    const [target] = await db
+      .insert(tasks)
+      .values({ taskDate: "2026-07-19", name: "朝食", sortOrder: 1000, routineId: routine.id })
+      .returning();
+
+    await expect(
+      // 存在しないルーチン → FK違反（onConflictDoNothing が吸うのは unique 衝突だけ）
+      repo.postpone(
+        target.id,
+        { taskDate: "2026-07-20", sortOrder: 1000 },
+        { routineId: 999999, taskDate: "2026-07-19" }
+      )
+    ).rejects.toThrow();
+
+    // 記録できないまま移すと、元の日を再表示した時点で同じタスクが再展開される
+    expect(await repo.listByDate("2026-07-19")).toHaveLength(1);
+    expect(await repo.listByDate("2026-07-20")).toHaveLength(0);
+  });
+
+  it("移動先に同じルーチンの展開済みタスクがあっても先送りできる", async () => {
+    const routine = await createRoutine();
+    const [target, expanded] = await db
+      .insert(tasks)
+      .values([
+        { taskDate: "2026-07-19", name: "朝食", sortOrder: 1000, routineId: routine.id },
+        { taskDate: "2026-07-20", name: "朝食", sortOrder: 1000, routineId: routine.id },
+      ])
+      .returning();
+
+    await repo.postpone(
+      target.id,
+      { taskDate: "2026-07-20", sortOrder: 2000 },
+      { routineId: routine.id, taskDate: "2026-07-19" }
+    );
+
+    // 先送り分（紐付けなし）と、移動先の日のぶん（紐付けあり）が並ぶ
+    const moved = await repo.listByDate("2026-07-20");
+    expect(moved).toHaveLength(2);
+    expect(moved).toContainEqual(
+      expect.objectContaining({ id: expanded.id, routineId: routine.id, postponedCount: 0 })
+    );
+    expect(moved).toContainEqual(
+      expect.objectContaining({ id: target.id, routineId: null, postponedCount: 1 })
     );
   });
 });
@@ -937,20 +1052,6 @@ describe("delete / restore（O-8: 削除と取り消し）", () => {
 });
 
 describe("ルーチン由来タスクの削除とスキップ（F-301 / データモデル定義書 §3.6）", () => {
-  async function createRoutine() {
-    const [row] = await db
-      .insert(routines)
-      .values({
-        name: "朝食",
-        estimateMinutes: 20,
-        scheduledStartTime: "06:30",
-        recurrenceType: "daily",
-        startDate: "2026-07-19",
-      })
-      .returning();
-    return row;
-  }
-
   it("削除すると同じトランザクションでスキップが記録される", async () => {
     const routine = await createRoutine();
     const [target] = await db

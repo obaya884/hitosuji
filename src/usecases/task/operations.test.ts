@@ -465,6 +465,33 @@ describe("postponeTask（F-107: 先送り）", () => {
     );
   });
 
+  // データモデル定義書 §3.5: 移動先の日にはその日のぶんが改めて展開されるので紐付けは切る。
+  // §3.6: 元の日はスキップとして記録する（記録しないとその日に再展開されて戻ってくる）
+  it("ルーチン由来なら紐付けが外れ、元の日はスキップになる", async () => {
+    const repo = inMemoryTaskRepository([task({ id: 1, routineId: 10 })]);
+
+    expect((await postponeTask(repo, { taskId: 1 })).ok).toBe(true);
+    expect(repo.rows[0].routineId).toBeNull();
+    expect(repo.skips).toEqual([{ routineId: 10, taskDate: TEST_DATE }]);
+  });
+
+  it("ルーチン由来でなければスキップは記録しない", async () => {
+    const repo = inMemoryTaskRepository([task({ id: 1 })]);
+
+    expect((await postponeTask(repo, { taskId: 1 })).ok).toBe(true);
+    expect(repo.skips).toEqual([]);
+  });
+
+  // 紐付けが外れた以上、移動先で削除してもその日のスキップは記録されない（§3.5）
+  it("先送りしたタスクを削除しても、移動先の日のスキップは増えない", async () => {
+    const repo = inMemoryTaskRepository([task({ id: 1, routineId: 10 })]);
+
+    await postponeTask(repo, { taskId: 1 });
+    await deleteTask(repo, { taskId: 1 });
+
+    expect(repo.skips).toEqual([{ routineId: 10, taskDate: TEST_DATE }]); // 先送り時の1件だけ
+  });
+
   // F-118: 先送りは同じ行の task_date を付け替えるだけなので、ハイライトも一緒に移る
   it("ハイライトは翌日へ持ち越される", async () => {
     const repo = inMemoryTaskRepository([task({ id: 1, highlighted: true })]);
