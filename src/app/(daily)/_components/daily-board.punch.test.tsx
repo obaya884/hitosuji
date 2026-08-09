@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { formatClock, formatDuration } from "@/app/_lib/format";
 import { click } from "@/app/_testing/interactions";
-import { atJst } from "@/domain/shared/testing/clock";
+import { atJst, NEXT_TEST_DATE, TEST_DATE } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
 
 import {
@@ -344,5 +344,88 @@ describe("DailyBoard の U の切り分け（O-13: 保留 → 実行中 → 完�
     expect(screen.queryByText(`「${COMPLETED}」を未実行に戻しました`)).toBeNull();
     expect(screen.queryByText(`「${NOT_STARTED}」を削除しました`)).not.toBeNull();
     expect(screen.getAllByText("取り消す")).toHaveLength(1);
+  });
+});
+
+describe("DailyBoard の未来日（§7: 今日以前の表示日でだけ打刻できる）", () => {
+  /**
+   * 表示日が翌日＝未来日の盤面。行の状態は既定のまま（未実行・実行中・完了を一通り持つ）。
+   * 実行中・完了の行は §7 の下では新たに作れないが、**キー経路のガードを状態ごとに測る**ために置く
+   * （打刻の日付は論理日に合わせて翌日へ寄せる。判定に使うのは props の `date` であってこの値ではない）
+   */
+  function renderFutureBoard() {
+    return renderBoard(
+      [
+        task({ id: 11, name: NOT_STARTED, sectionId: FORENOON.id, sortOrder: 1000 }),
+        task({
+          id: 12,
+          name: RUNNING,
+          sectionId: FORENOON.id,
+          sortOrder: 2000,
+          taskDate: NEXT_TEST_DATE,
+          startedAt: atJst("10:00", NEXT_TEST_DATE),
+        }),
+        task({
+          id: 13,
+          name: COMPLETED,
+          sectionId: AFTERNOON.id,
+          sortOrder: 1000,
+          taskDate: NEXT_TEST_DATE,
+          startedAt: atJst("09:00", NEXT_TEST_DATE),
+          endedAt: atJst("09:20", NEXT_TEST_DATE),
+        }),
+      ],
+      { date: NEXT_TEST_DATE, today: TEST_DATE, isToday: false }
+    );
+  }
+
+  it("打刻ボタンを出さない（board → list → row へ伝わっている。状態ごとの網羅は task-row.test.tsx）", () => {
+    renderFutureBoard();
+
+    expect(within(cellsOf(taskRow(NOT_STARTED)).punch).queryByRole("button")).toBe(null);
+  });
+
+  it.each([NOT_STARTED, RUNNING, COMPLETED])(
+    "%s を選んで Enter を押しても打刻しない（ボタンが無いぶんキーだけが残る経路）",
+    (name) => {
+      renderFutureBoard();
+      selectRow(name);
+
+      press("Enter");
+
+      expect(vi.mocked(startTaskAction)).not.toHaveBeenCalled();
+      expect(vi.mocked(finishTaskAction)).not.toHaveBeenCalled();
+      expect(vi.mocked(duplicateAndStartTaskAction)).not.toHaveBeenCalled();
+    }
+  );
+
+  it("実行中タスクを選んで I を押しても中断しない（中断は終了打刻を含む。O-4 / §7）", () => {
+    renderFutureBoard();
+    selectRow(RUNNING);
+
+    press("i");
+
+    expect(vi.mocked(suspendTaskAction)).not.toHaveBeenCalled();
+  });
+
+  it("打刻を消す側は塞がない（U での開始の取り消しは日付を問わない。O-13）", async () => {
+    renderFutureBoard();
+    selectRow(RUNNING);
+
+    await pressAndSettle("u");
+
+    expect(vi.mocked(undoStartAction)).toHaveBeenCalled();
+  });
+
+  it.each([
+    ["過去日", TEST_DATE, NEXT_TEST_DATE],
+    ["当日", TEST_DATE, TEST_DATE],
+  ])("%s は塞がない（過去日の打刻は深夜作業のために残す）", (_label, date, today) => {
+    renderBoard(defaultTasks(), { date, today, isToday: date === today });
+    selectRow(NOT_STARTED);
+
+    press("Enter");
+
+    expect(vi.mocked(startTaskAction)).toHaveBeenCalledWith(11, NOW);
   });
 });
