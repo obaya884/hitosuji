@@ -1,12 +1,14 @@
 "use client";
 
 // バンドル管理（S-05 / 画面定義書05）。左ペインの一覧・作成・アーカイブ・物理削除と、
-// 右ペインのヘッダ（名前・色の編集・アーカイブ）まで。メンバー表そのものは Task 10 で足す。
+// 右ペインのヘッダ（名前・色の編集・アーカイブ）とメンバー表（Task 10）まで。
 // この画面は N-01（楽観的更新）の対象外で、保存の完了を待って一覧へ反映する（§1）。
 import { useState } from "react";
 import { useServerAction } from "@/app/_lib/use-server-action";
 import { linkMuted } from "@/app/_lib/ui";
 import type { Bundle, BundleId } from "@/domain/bundle/bundle";
+import type { Mode } from "@/domain/mode/mode";
+import type { Routine } from "@/domain/routine/routine";
 import { colorPresetName } from "@/domain/shared/color-presets";
 import type { BundleListView } from "@/usecases/bundle/bundle-usecases";
 import { TableFrame } from "@/app/_components/table-frame";
@@ -14,6 +16,7 @@ import { ColorPickerPopover, DEFAULT_COLOR } from "@/app/_components/color-picke
 import { ArchivedMasterSection } from "@/app/_components/archived-master-section";
 import { MasterEditableCell } from "@/app/_components/master-editable-cell";
 import { MasterNewRow, MasterNewRowInput } from "@/app/_components/master-new-row";
+import { BundleMembersTable } from "./bundle-members-table";
 import {
   createBundleAction,
   deleteBundleAction,
@@ -23,9 +26,12 @@ import {
 
 type Props = Readonly<{
   bundles: BundleListView;
+  routines: readonly Routine[];
+  /** メンバー表の表示用マスタ。アーカイブ済みも含む */
+  modes: readonly Mode[];
 }>;
 
-export function BundlesBoard({ bundles }: Props) {
+export function BundlesBoard({ bundles, routines, modes }: Props) {
   // 選択は id で持ち、描画時に active から解決する（選択中のバンドルがアーカイブ・削除で
   // 消えたときは先頭へ戻る。デイリーの `keepSelection` と同じ発想）
   const [selectedId, setSelectedId] = useState<BundleId | null>(null);
@@ -217,18 +223,28 @@ export function BundlesBoard({ bundles }: Props) {
         {selectedBundle === null ? (
           <p className="text-sm text-ink-muted">バンドルがありません</p>
         ) : (
-          <header className="flex items-center gap-3 border-b border-line pb-3">
-            {headerColorCell(selectedBundle)}
-            <div className="text-base font-medium">{headerNameCell(selectedBundle)}</div>
-            <button
-              type="button"
-              onClick={() => run(() => setBundleArchivedAction(selectedBundle.id, true))}
-              disabled={isPending}
-              className={`ml-auto px-2 ${linkMuted}`}
-            >
-              アーカイブ
-            </button>
-          </header>
+          <>
+            <header className="flex items-center gap-3 border-b border-line pb-3">
+              {headerColorCell(selectedBundle)}
+              <div className="text-base font-medium">{headerNameCell(selectedBundle)}</div>
+              <button
+                type="button"
+                onClick={() => run(() => setBundleArchivedAction(selectedBundle.id, true))}
+                disabled={isPending}
+                className={`ml-auto px-2 ${linkMuted}`}
+              >
+                アーカイブ
+              </button>
+            </header>
+            {/* key でバンドルを切り替えるたびに作り直す（編集中セル・候補一覧の開閉・エラー帯を
+                前のバンドルから持ち越さない。routines-table.tsx の編集フォームと同じ発想） */}
+            <BundleMembersTable
+              key={selectedBundle.id}
+              bundle={selectedBundle}
+              routines={routines}
+              modes={modes}
+            />
+          </>
         )}
       </div>
     </div>

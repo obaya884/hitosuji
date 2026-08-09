@@ -10,8 +10,11 @@ import type { PunchEditError } from "@/domain/task/punch-edit";
 import type { ModeUsecaseError } from "@/usecases/mode/mode-usecases";
 import type { ProjectUsecaseError } from "@/usecases/project/project-usecases";
 import type {
+  AddRoutineToBundleError,
   CreateRoutineFromTaskError,
+  RemoveRoutineFromBundleError,
   RoutineUsecaseError,
+  SetRoutineScheduledStartTimeError,
 } from "@/usecases/routine/routine-usecases";
 import type { SectionUsecaseError } from "@/usecases/section/section-usecases";
 import type { TaskEditUsecaseError } from "@/usecases/task/daily-list-usecases";
@@ -208,6 +211,23 @@ export const MASTER_MESSAGES: Record<MasterError, string> = {
   not_archived: "削除できるのはアーカイブ済みのものだけです",
   // 参照元はマスタごとに違う（画面定義書03 §4.1）ので、種類を挙げずに言い切る
   has_references: "参照しているデータがあるため削除できません",
+};
+
+/**
+ * バンドルのメンバー出し入れ・開始想定時刻の編集（画面定義書05 §4 O-5〜O-7 / §6）。
+ * `not_found` はマスタ管理と同じ「対象が見つかりません」を、`invalid_start_time` は
+ * **ルーチン管理（S-02）と同じ文言**を引く（画面定義書05 §6「検証の規則も文言も S-02 と同じにする」）。
+ * `already_in_bundle` はこの操作だけの専用コード
+ */
+export type BundleMemberError =
+  | AddRoutineToBundleError
+  | RemoveRoutineFromBundleError
+  | SetRoutineScheduledStartTimeError;
+
+export const BUNDLE_MEMBER_MESSAGES: Record<BundleMemberError, string> = {
+  not_found: MASTER_MESSAGES.not_found,
+  already_in_bundle: "このルーチンは別のバンドルに入っています（一覧を取り直してください）",
+  invalid_start_time: ROUTINE_MESSAGES.invalid_start_time,
 };
 
 /**

@@ -1,4 +1,6 @@
-// ルーチン一覧の並べ替え（画面定義書02 §3.1: FB-10）
+// ルーチン一覧の並べ替え（画面定義書02 §3.1: FB-10）と、バンドルのメンバー一覧・追加候補
+// （画面定義書05 §3.2・O-5）の並び。どちらも「開始想定時刻の昇順・同時刻は名前の自然順」を使う
+import type { BundleId } from "../bundle/bundle";
 import type { Mode } from "../mode/mode";
 import type { Project } from "../project/project";
 import { compareByName } from "../shared/name-order";
@@ -29,6 +31,14 @@ function resolveMasterName(
   if (id === null) return null;
   const found = masters.find((m) => m.id === id);
   return found === undefined ? null : found.name;
+}
+
+/**
+ * 開始想定時刻の昇順・同時刻は名前の自然順（展開後のデイリーと同じ並び。`listRoutines` の既定順、
+ * `sortRoutines` の `scheduledStartTime` 軸、バンドルのメンバー一覧・追加候補（下記）が共有する規則）
+ */
+function byScheduledStartTimeAsc(a: Routine, b: Routine): number {
+  return a.scheduledStartTime.localeCompare(b.scheduledStartTime) || compareByName(a, b);
 }
 
 /** 画面定義書02 §3.1 の規則で並べ替える（引数は破壊しない） */
@@ -65,7 +75,9 @@ export function sortRoutines(
       case "recurrence":
         return recurrenceRank(a.recurrenceType) - recurrenceRank(b.recurrenceType);
       case "scheduledStartTime":
-        return a.scheduledStartTime.localeCompare(b.scheduledStartTime);
+        // 名前の自然順まで含む関数だが、外側の compare が同じ第2キーを再度足すだけなので無害
+        // （二重適用しても結果は変わらない。規則の実体をここと下の bundleMembers 等で分けない）
+        return byScheduledStartTimeAsc(a, b);
     }
   };
 
@@ -81,4 +93,20 @@ export function sortRoutines(
   };
 
   return [...routines].sort(compare);
+}
+
+/**
+ * バンドルのメンバー一覧（画面定義書05 §3.2）。開始想定時刻の昇順に固定し、並べ替えは提供しない
+ * ——運用ルール「時刻をバンドル順に昇順で付ける」がそのまま並びとして見えるようにするため
+ */
+export function bundleMembers(routines: readonly Routine[], bundleId: BundleId): Routine[] {
+  return routines.filter((r) => r.bundleId === bundleId).sort(byScheduledStartTimeAsc);
+}
+
+/**
+ * メンバー追加の候補（画面定義書05 O-5）。**どのバンドルにも属していないルーチンだけ**
+ * ——他バンドル所属を出すとそちらから黙ってメンバーが抜けるため
+ */
+export function bundleCandidates(routines: readonly Routine[]): Routine[] {
+  return routines.filter((r) => r.bundleId === null).sort(byScheduledStartTimeAsc);
 }

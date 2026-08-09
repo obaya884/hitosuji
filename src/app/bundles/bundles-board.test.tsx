@@ -2,18 +2,26 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Bundle, BundleId } from "@/domain/bundle/bundle";
+import type { Mode } from "@/domain/mode/mode";
+import type { Routine } from "@/domain/routine/routine";
+import { routine } from "@/domain/routine/testing/routine";
 import type { BundleListView } from "@/usecases/bundle/bundle-usecases";
 
 import { click, clickWithoutServer } from "@/app/_testing/interactions";
 import { rowOf } from "./_testing/table-helpers";
 
 // Server Action の先は実DB接続と revalidatePath に届くため、同じ返り値の契約
-// （ActionResult）を返す偽物へ差し替える（テスト戦略定義書 §2「偽物を置いてよい境界」）
+// （ActionResult）を返す偽物へ差し替える（テスト戦略定義書 §2「偽物を置いてよい境界」）。
+// メンバー表（BundleMembersTable）専用の3本もここで一括して偽物にする——このファイルは
+// 左ペイン・ヘッダの検査に閉じ、メンバー表そのものは bundle-members-table.test.tsx が持つ
 vi.mock("./actions", () => ({
   createBundleAction: vi.fn(),
   updateBundleAction: vi.fn(),
   setBundleArchivedAction: vi.fn(),
   deleteBundleAction: vi.fn(),
+  setRoutineBundleAction: vi.fn(),
+  removeRoutineFromBundleAction: vi.fn(),
+  setRoutineScheduledStartTimeAction: vi.fn(),
 }));
 
 import {
@@ -54,6 +62,8 @@ function renderBoard(
     archived: readonly Bundle[];
     deletableIds: readonly BundleId[];
     memberCounts: Readonly<Record<BundleId, number>>;
+    routines: readonly Routine[];
+    modes: readonly Mode[];
   }> = {}
 ) {
   const bundles: BundleListView = {
@@ -62,7 +72,9 @@ function renderBoard(
     deletableIds: props.deletableIds ?? [],
     memberCounts: props.memberCounts ?? { 1: 4, 2: 0 },
   };
-  return render(<BundlesBoard bundles={bundles} />);
+  return render(
+    <BundlesBoard bundles={bundles} routines={props.routines ?? []} modes={props.modes ?? []} />
+  );
 }
 
 beforeEach(() => {
@@ -101,6 +113,25 @@ describe("BundlesBoard（画面定義書05: 左ペインの一覧・作成・ア
     clickWithoutServer(within(rowOf("週末の整理")).getByRole("button", { name: "週末の整理" }));
 
     expect(screen.getByRole("button", { name: "色を変更（現在: 青）" })).not.toBeNull();
+  });
+
+  // BundleMembersTable への配線（bundle を取り違えていないか）。全ルーチンを渡し、選択中の
+  // バンドルのメンバーだけが表に出ることを見る（画面定義書05 §3.2）
+  it("左ペインでバンドルを切り替えると、そのバンドルのメンバーだけがメンバー表に出る", () => {
+    renderBoard({
+      routines: [
+        routine({ id: 101, name: "朝食", bundleId: 1 }),
+        routine({ id: 102, name: "週次レビュー", bundleId: 2 }),
+      ],
+    });
+
+    expect(screen.getByText("朝食")).not.toBeNull();
+    expect(screen.queryByText("週次レビュー")).toBeNull();
+
+    clickWithoutServer(within(rowOf("週末の整理")).getByRole("button", { name: "週末の整理" }));
+
+    expect(screen.getByText("週次レビュー")).not.toBeNull();
+    expect(screen.queryByText("朝食")).toBeNull();
   });
 
   it("バンドル0件のとき右ペインに「バンドルがありません」を出す（§3.2）", () => {

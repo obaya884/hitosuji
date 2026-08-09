@@ -101,6 +101,8 @@ export async function deleteRoutine(
   return ok(id);
 }
 
+export type AddRoutineToBundleError = "not_found" | "already_in_bundle";
+
 /**
  * メンバーの追加（画面定義書05 O-5）。展開済みタスクには波及しない（データモデル定義書 §4.8）。
  * **すでにどこかのバンドルに入っている相手は受け付けない**——S-05 の候補は未所属だけに絞るが、
@@ -111,7 +113,7 @@ export async function addRoutineToBundle(
   repo: RoutineRepository,
   routineId: RoutineId,
   bundleId: BundleId
-): Promise<Result<RoutineId, "not_found" | "already_in_bundle">> {
+): Promise<Result<RoutineId, AddRoutineToBundleError>> {
   const routine = await repo.findById(routineId);
   if (routine === null) return err("not_found");
   if (routine.bundleId !== null) return err("already_in_bundle");
@@ -120,25 +122,30 @@ export async function addRoutineToBundle(
   return ok(routineId);
 }
 
+export type RemoveRoutineFromBundleError = "not_found";
+
 /** メンバーを外す（画面定義書05 O-6）。すでに未所属でも結果は同じなので成功として返す */
 export async function removeRoutineFromBundle(
   repo: RoutineRepository,
   routineId: RoutineId
-): Promise<Result<RoutineId, "not_found">> {
+): Promise<Result<RoutineId, RemoveRoutineFromBundleError>> {
   if ((await repo.findById(routineId)) === null) return err("not_found");
   await repo.setBundle(routineId, null);
   return ok(routineId);
 }
 
+export type SetRoutineScheduledStartTimeError = "not_found" | "invalid_start_time";
+
 /**
  * 開始想定時刻だけの更新（画面定義書05 O-7）。
- * 書式の規則は S-02 と同じ入口（`normalizeStartTime` / `isValidStartTime`）を通す
+ * 書式の規則は S-02 と同じ入口（`normalizeStartTime` / `isValidStartTime`）を通す——
+ * `HH:MM` 以外は呼び出し元の解釈にかかわらず `invalid_start_time` で弾く
  */
 export async function setRoutineScheduledStartTime(
   repo: RoutineRepository,
   id: RoutineId,
   raw: string
-): Promise<Result<RoutineId, "not_found" | "invalid_start_time">> {
+): Promise<Result<RoutineId, SetRoutineScheduledStartTimeError>> {
   const scheduledStartTime = normalizeStartTime(raw);
   if (!isValidStartTime(scheduledStartTime)) return err("invalid_start_time");
   if ((await repo.findById(id)) === null) return err("not_found");

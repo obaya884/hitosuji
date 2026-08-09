@@ -3,7 +3,7 @@ import type { Mode } from "../mode/mode";
 import type { Project } from "../project/project";
 import { COLOR_PRESETS } from "../shared/color-presets";
 import { compareByName } from "../shared/name-order";
-import { sortRoutines, type RoutineSortMasters } from "./order";
+import { bundleCandidates, bundleMembers, sortRoutines, type RoutineSortMasters } from "./order";
 import type { Routine } from "./routine";
 import { routine } from "./testing/routine";
 
@@ -168,5 +168,68 @@ describe("sortRoutines（画面定義書02 §3.1）", () => {
 
     const result = sortRoutines(input, emptyMasters, "scheduledStartTime", "asc");
     expect(names(result)).toEqual(names(expected));
+  });
+});
+
+describe("bundleMembers（画面定義書05 §3.2）", () => {
+  it("指定バンドルのメンバーだけを開始想定時刻の昇順・同時刻は名前の自然順で返す", () => {
+    const input = [
+      routine({ id: 1, name: "わ", bundleId: 1, scheduledStartTime: "07:00" }),
+      routine({ id: 2, name: "他バンドル", bundleId: 2, scheduledStartTime: "05:00" }),
+      routine({ id: 3, name: "朝食", bundleId: 1, scheduledStartTime: "06:30" }),
+      routine({ id: 4, name: "未所属", bundleId: null, scheduledStartTime: "05:30" }),
+      routine({ id: 5, name: "あ", bundleId: 1, scheduledStartTime: "07:00" }),
+    ];
+
+    const result = bundleMembers(input, 1);
+
+    expect(names(result)).toEqual(["朝食", "あ", "わ"]);
+  });
+
+  it("メンバーが1件も無ければ空配列を返す", () => {
+    const input = [routine({ id: 1, bundleId: 2 })];
+
+    expect(bundleMembers(input, 1)).toEqual([]);
+  });
+
+  it("引数の配列は破壊しない（呼び出し前後で並びが変わらない）", () => {
+    const input = [
+      routine({ id: 1, name: "わ", bundleId: 1, scheduledStartTime: "07:00" }),
+      routine({ id: 2, name: "あ", bundleId: 1, scheduledStartTime: "06:00" }),
+    ];
+    const before = names(input);
+
+    bundleMembers(input, 1);
+
+    expect(names(input)).toEqual(before);
+  });
+});
+
+describe("bundleCandidates（画面定義書05 O-5）", () => {
+  it("未所属（bundleId === null）のルーチンだけを開始想定時刻の昇順で返す", () => {
+    const input = [
+      routine({ id: 1, name: "所属あり", bundleId: 3, scheduledStartTime: "05:00" }),
+      routine({ id: 2, name: "い", bundleId: null, scheduledStartTime: "07:00" }),
+      routine({ id: 3, name: "あ", bundleId: null, scheduledStartTime: "06:00" }),
+    ];
+
+    const result = bundleCandidates(input);
+
+    expect(names(result)).toEqual(["あ", "い"]);
+  });
+
+  it("無効ルーチンも候補に含める（後で有効化しうるため。O-5）", () => {
+    const input = [routine({ id: 1, bundleId: null, isActive: false })];
+
+    expect(bundleCandidates(input)).toHaveLength(1);
+  });
+
+  it("同時刻は名前の自然順（bundleMembers と同じ比較規則を共有する）", () => {
+    const input = [
+      routine({ id: 1, name: "わ", bundleId: null, scheduledStartTime: "07:00" }),
+      routine({ id: 2, name: "あ", bundleId: null, scheduledStartTime: "07:00" }),
+    ];
+
+    expect(names(bundleCandidates(input))).toEqual(["あ", "わ"]);
   });
 });
