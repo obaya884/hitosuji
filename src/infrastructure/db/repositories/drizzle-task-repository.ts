@@ -293,6 +293,7 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
         taskDate: input.taskDate,
         sortOrder: input.sortOrder,
         routineId: null, // 先送りは紐付けを切って移る（データモデル定義書 §3.5）
+        bundleId: null, // 先送りはバンドルからも外す。移動先の日には改めて展開されるため（同書 §4.8）
         postponedCount: sql`${tasks.postponedCount} + 1`,
         updatedAt: new Date(),
       };

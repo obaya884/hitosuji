@@ -58,7 +58,14 @@ describe("resumeTaskDraft（F-204: 「（再開）」を付けた同属性の再
       projectId: 3,
       highlighted: false,
       splitParentId: 7,
+      bundleId: null,
     });
+  });
+
+  // F-119: 中断・割り込みで分割された残りはバンドルから抜けない（データモデル定義書 §4.8）
+  it("バンドルを引き継ぐ（データモデル定義書 §4.8）", () => {
+    const original = task({ id: 7, bundleId: 5, startedAt });
+    expect(resumeTaskDraft(original, new Date("2026-07-26T08:10:00Z")).bundleId).toBe(5);
   });
 
   // データモデル定義書 §4.2: 既に付いていても足す（何度目の再開かは行の並びで読む）
