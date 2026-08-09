@@ -46,7 +46,8 @@ export type TaskRowProps = Readonly<{
   /** ハイライトの付け外し（O-17 / F-118） */
   onToggleHighlight: (task: Task) => void;
   /** ルーチン化（O-12 / §4.1） */
-  onRoutinize: (task: Task, choice: RoutineFromTaskChoice) => void;
+  /** ルーチン化（O-12）。**発火したかを返す**——抑止に当たったときはポップオーバーを閉じない */
+  onRoutinize: (task: Task, choice: RoutineFromTaskChoice) => boolean;
   isSelected: boolean;
   onSelect: (taskId: TaskId) => void;
   editing: EditField | null;
@@ -370,9 +371,10 @@ export function TaskRow({
             task={task}
             sections={sections}
             now={now}
+            // 発火できたときだけ閉じる（確定を待つ操作の応答中は抑止されるため。00_共通 §4.2
+            // 「何も起きない」。閉じてしまうと選んだ繰り返し・開始想定時刻が黙って消える）
             onSubmit={(choice) => {
-              onRoutinize(task, choice);
-              onEndEdit();
+              if (onRoutinize(task, choice)) onEndEdit();
             }}
             onClose={onEndEdit}
           />
