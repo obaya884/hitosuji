@@ -5,9 +5,9 @@ import { useServerAction } from "@/app/_lib/use-server-action";
 import { linkMuted, tableHeadRow } from "@/app/_lib/ui";
 import type { Project, ProjectId } from "@/domain/project/project";
 import { TableFrame } from "@/app/_components/table-frame";
-import { ArchivedMasterSection } from "../_components/archived-master-section";
-import { MasterEditableCell } from "../_components/master-editable-cell";
-import { MasterNewRow, MasterNewRowInput } from "../_components/master-new-row";
+import { ArchivedMasterSection } from "@/app/_components/archived-master-section";
+import { MasterEditableCell } from "@/app/_components/master-editable-cell";
+import { MasterNewRow, MasterNewRowInput } from "@/app/_components/master-new-row";
 import {
   createProjectAction,
   deleteProjectAction,

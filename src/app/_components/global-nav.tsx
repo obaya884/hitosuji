@@ -8,6 +8,7 @@ import { usePathname } from "next/navigation";
 const NAV_ITEMS = [
   { href: "/", label: "デイリー" },
   { href: "/routines", label: "ルーチン" },
+  { href: "/bundles", label: "バンドル" },
   { href: "/masters", label: "マスタ" },
   { href: "/review", label: "レビュー" },
 ] as const;

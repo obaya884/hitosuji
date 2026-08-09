@@ -1,8 +1,8 @@
 "use client";
 
-// マスタ管理3表に共通のインライン編集セル（画面定義書03 §4「編集方式」/ 00_共通 §2.3）。
-// 表ごとに書き分けていた「Enter/Esc の作法・blur 確定・変更なしの判定・保存中の抑止」を
-// ここへ寄せる（T-44）。表に残るのは「何を送るか」の配線だけ。
+// マスタ管理3表・バンドル管理に共通のインライン編集セル（画面定義書03 §4「編集方式」/
+// 05 §4 O-2 / 00_共通 §2.3）。表ごとに書き分けていた「Enter/Esc の作法・blur 確定・
+// 変更なしの判定・保存中の抑止」をここへ寄せる（T-44）。表に残るのは「何を送るか」の配線だけ。
 import type { ReactNode } from "react";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { inputBase } from "@/app/_lib/ui";

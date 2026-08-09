@@ -6,9 +6,9 @@ import { formatDuration } from "@/app/_lib/format";
 import { linkMuted, tableHeadRow } from "@/app/_lib/ui";
 import { sectionCapacityMinutes, type Section, type SectionId } from "@/domain/section/section";
 import { TableFrame } from "@/app/_components/table-frame";
-import { ArchivedMasterSection } from "../_components/archived-master-section";
-import { MasterEditableCell } from "../_components/master-editable-cell";
-import { MasterNewRow, MasterNewRowInput } from "../_components/master-new-row";
+import { ArchivedMasterSection } from "@/app/_components/archived-master-section";
+import { MasterEditableCell } from "@/app/_components/master-editable-cell";
+import { MasterNewRow, MasterNewRowInput } from "@/app/_components/master-new-row";
 import {
   archiveSectionAction,
   createSectionAction,
