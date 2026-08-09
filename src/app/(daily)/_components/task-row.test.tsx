@@ -23,7 +23,8 @@ function renderRow(overrides: Overrides) {
     onAssign: vi.fn(),
     onOperate: vi.fn(),
     onToggleHighlight: vi.fn(),
-    onRoutinize: vi.fn(),
+    // 既定は「発火できた」。抑止に当たった側（false）は盤面テストが持つ（00_共通 §4.2）
+    onRoutinize: vi.fn().mockReturnValue(true),
     onSelect: vi.fn(),
     onBeginEdit: vi.fn(),
     onEndEdit: vi.fn(),

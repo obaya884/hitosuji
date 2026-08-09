@@ -26,6 +26,16 @@ export const floatPanel =
 // 一覧の列見出し行。見出しは従段で、主従は色で示す（00_共通 §1.1）
 export const tableHeadRow = "border-b border-line-strong text-left text-sm text-ink-muted";
 
+// 確定を待つ操作の進行中の合図（00_共通 §4.2）。これは結果ではなく経過なので、
+// トーストの濃い地色は使わず浮遊面＋副次情報の色で結果の通知より弱くする
+export const pendingNotice =
+  "rounded-float border border-line bg-surface px-4 py-2 text-sm text-ink-muted shadow-float";
+
+// 画面下部中央の浮遊置き場。トースト（00_共通 §2.2）と進行中の合図（§4.2）が
+// 同じ場所に出るため、重ならないよう1つの列に積む
+export const bottomCenterStack =
+  "fixed bottom-4 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-2";
+
 // エラー・警告の帯（Server Action の失敗、前日以前の実行中タスク等）
 export const noticeDanger =
   "rounded-control border border-danger-line bg-danger-weak px-3 py-2 text-sm text-danger";

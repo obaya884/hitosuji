@@ -1,8 +1,9 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { hasClass } from "@/app/_testing/dom";
+import { SLOW_PENDING_DELAY_MS } from "@/app/_lib/use-slow-pending";
 import { TableFrame } from "./table-frame";
 
 /**
@@ -140,5 +141,31 @@ describe("TableFrame（画面定義書02 §3 / 画面定義書03 §3・§4: 説�
     fireEvent.click(button);
 
     expect(onAddNew).not.toHaveBeenCalled();
+  });
+
+  // この画面の更新はすべて「確定を待つ操作」なので、応答待ちがそのまま合図の対象になる
+  // （画面定義書02 §1 / 03 §1・00_共通 §4.2）。**猶予そのものの契約は `useSlowPending` 側**で、
+  // ここで見るのは「`isPending` を合図へ配線できているか」と見た目の条項
+  describe("進行中の合図（00_共通 §4.2）", () => {
+    const indicator = () => screen.queryByRole("status");
+
+    it("応答待ちが猶予を超えたら「保存中」を出す", async () => {
+      vi.useFakeTimers();
+      renderFrame({ isPending: true });
+      expect(indicator()).toBeNull();
+
+      await act(async () => {
+        vi.advanceTimersByTime(SLOW_PENDING_DELAY_MS);
+      });
+
+      expect(indicator()?.textContent).toBe("保存中");
+    });
+
+    it("応答待ちでないあいだは出さない", () => {
+      renderFrame({ isPending: false });
+
+      expect(indicator()).toBeNull();
+    });
+
   });
 });

@@ -4,8 +4,10 @@
 // 説明文と新規追加ボタンの見出し行、保存に失敗したときのエラー帯までを持ち、
 // 見出し行より下は `children` に置く。列の並びは表ごとに違うので表側に残す。
 import type { ReactNode } from "react";
-import { btnSecondary, noticeDanger } from "@/app/_lib/ui";
+import { bottomCenterStack, btnSecondary, noticeDanger } from "@/app/_lib/ui";
 import { PlusIcon } from "@/app/_components/icons";
+import { PendingIndicator } from "@/app/_components/pending-indicator";
+import { useSlowPending } from "@/app/_lib/use-slow-pending";
 
 type Props = Readonly<{
   /** 見出し行の説明文（表ごとに違う。編集できる項目・並び順・展開の条件など） */
@@ -33,6 +35,10 @@ export function TableFrame({
   onAddNew,
   children,
 }: Props) {
+  // この画面の更新はすべて「確定を待つ操作」なので、応答待ちがそのまま合図の対象になる
+  // （画面定義書02 §1 / 03 §1・00_共通 §4.2）
+  const slowPending = useSlowPending(isPending);
+
   return (
     <section className="mt-4">
       <div className="flex items-center justify-between">
@@ -51,6 +57,12 @@ export function TableFrame({
       {error !== null && <p className={`mt-2 ${noticeDanger}`}>{error}</p>}
 
       {children}
+
+      {slowPending && (
+        <div className={bottomCenterStack}>
+          <PendingIndicator />
+        </div>
+      )}
     </section>
   );
 }

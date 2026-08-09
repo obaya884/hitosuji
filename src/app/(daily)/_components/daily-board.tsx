@@ -29,10 +29,12 @@ import { normalizeComment, validateEstimateMinutes, validateTaskName } from "@/d
 import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
 import type { Task, TaskId } from "@/domain/task/task";
 import { PlusIcon } from "@/app/_components/icons";
+import { PendingIndicator } from "@/app/_components/pending-indicator";
 import { DAILY_PATH } from "@/app/_lib/date-href";
+import { useSlowPending } from "@/app/_lib/use-slow-pending";
 import { formatClock } from "@/app/_lib/format";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
-import { inputBase } from "@/app/_lib/ui";
+import { bottomCenterStack, inputBase } from "@/app/_lib/ui";
 import { useNow } from "@/app/_lib/use-now";
 import {
   addTaskAction,
@@ -121,6 +123,13 @@ export function DailyBoard({
   const [error, setError] = useState<string | null>(null);
   /** 完了通知（ルーチン化 O-12 など。画面定義書00_共通 §2.2） */
   const [notice, setNotice] = useState<string | null>(null);
+  /**
+   * 確定を待つ操作の応答待ち（画面定義書00_共通 §4.2）。`useTransition` の `isPending` を
+   * 使わないのは、あちらが**楽観的更新の操作でも立つ**ため——打刻のたびに再発火を止めては
+   * N-01 の体感を損なう。立てる・下ろすのは `runGuarded`
+   */
+  const [commitInFlight, setCommitInFlight] = useState(false);
+  const slowPending = useSlowPending(commitInFlight);
   const [, startTransition] = useTransition();
 
   // 実行中タスクの経過（F-205）と終了予定時刻（F-104）のため毎分更新する。
@@ -172,39 +181,63 @@ export function DailyBoard({
    * 成功時の処理は生成 id やスナップショットが要るので内側でよい（削除 O-8・完了の取り消し O-15）——
    * ただし**そこで投げると「保存に失敗しました」として報告される**（サーバは成功しているのに）ので、
    * 投げうる処理は置かない
+   *
+   * 結果の扱いだけが `runSelectingCreated` と違うので、共通部分は `runGuarded` が持つ
    */
   function run(
     action: () => Promise<DailyActionResult>,
     optimistic?: OptimisticAction,
     onFailure?: () => void
-  ) {
-    setError(null);
-    startTransition(async () => {
-      if (optimistic !== undefined) dispatchOptimistic(optimistic);
-      const result = await callAction(action);
-      if (!result.ok) {
-        onFailure?.();
-        showFailure(result);
-      }
+  ): boolean {
+    return runGuarded(action, optimistic, (result) => {
+      if (result.ok) return;
+      onFailure?.();
+      showFailure(result);
     });
   }
 
   /**
    * 生成系（複製・複製して開始・クイック追加）の共通処理。採番をサーバが決めるため
-   * 生成物の選択は確定後に寄せる（O-11）: 成功なら `createdId` へ選択を移し、失敗なら `setError`。
-   * `optimistic` を渡すと確定前に楽観更新を反映する（クイック追加の即時表示用）
+   * 生成物の選択は確定後に寄せる（O-11）: 成功なら `createdId` へ選択を移し、失敗なら `setError`
    */
   function runSelectingCreated(
     action: () => Promise<CreatingActionResult>,
     optimistic?: OptimisticAction
-  ) {
-    setError(null);
-    startTransition(async () => {
-      if (optimistic !== undefined) dispatchOptimistic(optimistic);
-      const result = await callAction(action);
+  ): boolean {
+    return runGuarded(action, optimistic, (result) => {
       if (result.ok) setSelectedId(result.createdId);
       else showFailure(result);
     });
+  }
+
+  /**
+   * 応答待ちの管理（再発火の抑止・進行中の合図。00_共通 §4.2）と楽観更新の適用を
+   * `run` / `runSelectingCreated` で共有する。**片方だけ直すと沈黙で二重発火するので分けない**。
+   *
+   * **`optimistic` の有無がそのまま「確定を待つ操作」の判定になる**——対象の一覧を別に持たない
+   * ので、操作が楽観的更新へ移れば自動的に外れる。
+   *
+   * `commitInFlight` は**失敗でも下ろす**（下ろさないと1度の失敗で盤面が二度と動かなくなる）。
+   *
+   * @returns 発火したか。**抑止に当たって捨てたときは `false`** ——呼び出し側が
+   *   自分の状態を先に進めてよいか（`undoPending` の保留スロット）を確かめる手掛かりになる
+   */
+  function runGuarded<T extends DailyActionResult | CreatingActionResult>(
+    action: () => Promise<T>,
+    optimistic: OptimisticAction | undefined,
+    onSettled: (result: T | ActionFailure) => void
+  ): boolean {
+    const awaitsCommit = optimistic === undefined;
+    if (awaitsCommit && commitInFlight) return false;
+    setError(null);
+    if (awaitsCommit) setCommitInFlight(true);
+    startTransition(async () => {
+      if (optimistic !== undefined) dispatchOptimistic(optimistic);
+      const result = await callAction(action);
+      if (awaitsCommit) setCommitInFlight(false);
+      onSettled(result);
+    });
+    return true;
   }
 
   /** 取り消しの保留を置く（共通の1スロットなので前の保留は置き換わる。O-13） */
@@ -423,10 +456,11 @@ export function DailyBoard({
 
   /**
    * ルーチン化（O-12 / §4.1）。デイリーの表示は変わらないので楽観的更新はせず、
-   * サーバ確定を待って完了トーストを出す
+   * サーバ確定を待って完了トーストを出す。**発火したかを返す**のは、抑止に当たったときに
+   * ポップオーバーを閉じさせないため（閉じると選んだ内容が黙って消える。00_共通 §4.2）
    */
-  function routinize(task: Task, choice: RoutineFromTaskChoice) {
-    run(async () => {
+  function routinize(task: Task, choice: RoutineFromTaskChoice): boolean {
+    return run(async () => {
       const result = await createRoutineFromTaskAction(task.id, choice);
       if (result.ok) setNotice(`「${task.name}」をルーチン化しました（明日から展開）`);
       return result;
@@ -435,17 +469,21 @@ export function DailyBoard({
 
   /**
    * 保留中の取り消しを実行する（削除 O-8 / 完了の取り消し O-15。保留は共通の1スロット。O-13）。
-   * どちらも並びが戻るためサーバ確定を待つ（楽観的更新はしない）
+   * どちらも並びが戻るためサーバ確定を待つ（楽観的更新はしない）。
+   *
+   * **保留を捨てるのは発火できたときだけ**——別の確定待ちの応答中は `runGuarded` が抑止するので、
+   * 先に捨てるとトーストだけ消えて復元も走らず、取り消す手段が無くなる（00_共通 §2.2 の
+   * 「Undo が有効なのはトーストが出ているあいだ」と §4.2 の「何も起きない」の両方に反する）
    */
   function undoPending() {
     if (pendingUndo === null) return;
     const undoing = pendingUndo;
-    setPendingUndo(null);
-    run(() =>
+    const fired = run(() =>
       undoing.type === "delete"
         ? restoreTaskAction(undoing.task)
         : restoreCompletionAction(undoing.snapshot)
     );
+    if (fired) setPendingUndo(null);
   }
 
   /**
@@ -567,9 +605,10 @@ export function DailyBoard({
 
       {showHelp && <ShortcutHelp onClose={() => setShowHelp(false)} />}
 
-      {/* トースト置き場（画面定義書00_共通 §2.2「位置」）。Undo とエラーが同時に出ても重ならないよう1箇所にまとめる */}
-      {(pendingUndo !== null || notice !== null || error !== null) && (
-        <div className="fixed bottom-4 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-2">
+      {/* トーストと進行中の合図の置き場（画面定義書00_共通 §2.2「位置」/ §4.2）。
+          同時に出ても重ならないよう1箇所にまとめる */}
+      {(pendingUndo !== null || notice !== null || error !== null || slowPending) && (
+        <div className={bottomCenterStack}>
           {/* 取り消しの Undo トースト（削除 O-8 / 完了の取り消し O-15）。
               key（連番）で操作のたびに再マウントし、表示時間を毎回リセットする */}
           {pendingUndo !== null && (
@@ -591,6 +630,8 @@ export function DailyBoard({
           {error !== null && (
             <Toast key={error} message={error} variant="error" onClose={() => setError(null)} />
           )}
+          {/* 確定を待つ操作が猶予を超えたときだけ出る進行中の合図（§4.2） */}
+          {slowPending && <PendingIndicator />}
         </div>
       )}
 
