@@ -29,7 +29,7 @@ describe("suspendTask（F-204: 中断）", () => {
     expect(repo.rows[0].endedAt).toEqual(now);
     expect(repo.rows[2]).toEqual(
       expect.objectContaining({
-        name: "T1",
+        name: "T1（再開）", // 元タスク名＋接尾辞（F-204）
         estimateMinutes: 18, // max(30 − 12, 1)
         splitParentId: 1,
         sortOrder: 1500, // 元タスク(1000)と次(2000)の中間 = 直後
@@ -315,6 +315,8 @@ describe("duplicateAndStartTask（F-208: 複製して開始）", () => {
     const resume = repo.rows.find((t) => t.splitParentId === 2);
     expect(resume).toEqual(
       expect.objectContaining({
+        // 割り込み相手（T2）の名前＋接尾辞。複製元（T1）から採らない（F-204）
+        name: "T2（再開）",
         sectionId: 2,
         sortOrder: 7000,
         estimateMinutes: 18, // max(30 − 12, 1)

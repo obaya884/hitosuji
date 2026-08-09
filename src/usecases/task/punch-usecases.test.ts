@@ -179,7 +179,7 @@ describe("startTask の割り込み（F-201 / データモデル定義書 §4.2�
     expect(started.startedAt).toEqual(now); // ③開始
     expect(resumed).toEqual(
       expect.objectContaining({
-        name: "メールチェック",
+        name: "メールチェック（再開）", // 割り込みも中断と同じ生成規則（F-204）
         estimateMinutes: 18, // max(30 − 12, 1)
         splitParentId: 1,
         sortOrder: 2500, // 開始タスク(2000)と後続(3000)の中間 = 直下
