@@ -35,6 +35,7 @@ const DEFAULT_INPUT: RoutineInput = {
   scheduledStartTime: "09:00",
   modeId: null,
   projectId: null,
+  bundleId: null,
   recurrenceType: "daily",
   weekdays: null,
   weekInterval: null,

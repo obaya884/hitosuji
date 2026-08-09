@@ -1,6 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import type { ValidRoutineInput } from "@/domain/routine/input";
-import { routineSkips, routines, tasks } from "@/infrastructure/db/schema";
+import { COLOR_BY_NAME } from "@/domain/shared/color-presets";
+import { bundles, routineSkips, routines, tasks } from "@/infrastructure/db/schema";
 import { createTestDb, truncateAll } from "@/infrastructure/db/testing/test-db";
 import { createRoutineRepository } from "./drizzle-routine-repository";
 import { createTaskRepository } from "./drizzle-task-repository";
@@ -16,6 +17,7 @@ function input(over: Partial<ValidRoutineInput> = {}): ValidRoutineInput {
     scheduledStartTime: "06:30",
     modeId: null,
     projectId: null,
+    bundleId: null,
     recurrenceType: "daily",
     weekdays: null,
     weekInterval: null,
@@ -45,6 +47,7 @@ describe("DrizzleRoutineRepository", () => {
       scheduledStartTime: "06:30",
       modeId: null,
       projectId: null,
+      bundleId: null,
       recurrenceType: "daily",
       weekdays: null,
       weekInterval: null,
@@ -226,6 +229,33 @@ describe("expand（F-301: 冪等INSERT）", () => {
 
   it("空の展開では何もしない", async () => {
     expect(await repo.expand([])).toBe(0);
+  });
+});
+
+describe("setBundle / setScheduledStartTime（画面定義書05 O-5〜O-7）", () => {
+  it("setBundle でバンドルへ入れて外せる", async () => {
+    const [bundle] = await db
+      .insert(bundles)
+      .values({ name: "朝の立上げ", color: COLOR_BY_NAME["インディゴ"] })
+      .returning();
+    const created = await repo.create(input());
+
+    await repo.setBundle(created.id, bundle.id);
+    expect((await repo.findById(created.id))?.bundleId).toBe(bundle.id);
+
+    await repo.setBundle(created.id, null);
+    expect((await repo.findById(created.id))?.bundleId).toBeNull();
+  });
+
+  it("setScheduledStartTime は開始想定時刻だけを更新し、他の列を触らない", async () => {
+    const created = await repo.create(input({ name: "朝食", estimateMinutes: 20 }));
+
+    await repo.setScheduledStartTime(created.id, "08:05");
+
+    const found = await repo.findById(created.id);
+    expect(found?.scheduledStartTime).toBe("08:05");
+    expect(found?.name).toBe("朝食");
+    expect(found?.estimateMinutes).toBe(20);
   });
 });
 

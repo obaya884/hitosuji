@@ -73,6 +73,9 @@ export function RoutineForm({
       scheduledStartTime,
       modeId,
       projectId,
+      // このフォームにバンドルの入力欄はまだ無い（S-02 のバンドル列は別タスク）。
+      // 更新は全項目を送るので、既存の所属をそのまま引き継ぐ（勝手に外さない）
+      bundleId: routine?.bundleId ?? null,
       recurrenceType,
       weekdays: recurrenceType === "weekly" ? weekdays : null,
       weekInterval: recurrenceType === "weekly" ? Number(weekInterval) : null,
