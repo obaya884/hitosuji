@@ -2,9 +2,11 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
+import type { RoutineScheduleError } from "@/domain/routine/routine";
 import type { Section } from "@/domain/section/section";
 import type { Task } from "@/domain/task/task";
 
+import { ROUTINE_MESSAGES } from "@/app/_lib/error-messages";
 import { atJst, TEST_DATE } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
 import { RoutinizePopover } from "./routinize-popover";
@@ -155,6 +157,16 @@ describe("RoutinizePopover（画面定義書01 §4.1 / O-12: 最小の入力で�
     expect(input.value).toBe("08:05");
   });
 
+  it("整形できない入力は blur しても元のまま残す（直せるように。§4.1）", () => {
+    renderPopover();
+    const input = inputFor("開始想定");
+
+    fireEvent.change(input, { target: { value: "99:99" } });
+    fireEvent.blur(input);
+
+    expect(input.value).toBe("99:99");
+  });
+
   it("開始想定時刻から導出されるセクションを付記する（展開先の目安）", () => {
     renderPopover();
     const input = inputFor("開始想定");
@@ -164,14 +176,144 @@ describe("RoutinizePopover（画面定義書01 §4.1 / O-12: 最小の入力で�
     expect(screen.queryByText("(午前)")).not.toBeNull();
   });
 
-  it("不正な時刻は作成せずポップオーバー内にエラーを出す（§4.1）", () => {
-    const { onSubmit } = renderPopover();
-    fireEvent.change(inputFor("開始想定"), { target: { value: "99:99" } });
+  /**
+   * §4.1「入力の検証」: 確定時に予定全体を検証し、不正ならポップオーバーを閉じず中に出す。
+   *
+   * **期待値は文言を書き写さず共有辞書から引く**（FB-75）——写すと「辞書と同じ文字列を
+   * コンポーネントに直書きする」状態がテストからも見えなくなる（＝FB-75 の起票時と同じ形）。
+   * 辞書を引いておけば、辞書だけが改訂されて実装の直書きが取り残された時点で赤くなる。
+   * 文言そのものの正しさは `error-messages.test.ts` が literal で固定している
+   */
+  describe("入力の検証（§4.1: 不正なら確定させずポップオーバー内に出す）", () => {
+    /**
+     * エラーコードごとの「不正な入力を作る手順」。**`Record` で持つのでコードが増えれば
+     * ここが型エラーになる**（配列で持つと部分集合でも型が通り、網羅が保証されない）
+     */
+    const INVALID_INPUTS: Record<
+      RoutineScheduleError,
+      readonly (readonly [string, () => void])[]
+    > = {
+      invalid_start_time: [
+        [
+          "書式が不正",
+          () => fireEvent.change(inputFor("開始想定"), { target: { value: "99:99" } }),
+        ],
+        [
+          // domain 側の正規化は先頭5文字の切り出しなので、素通しすると黙って `09:05` になる
+          "末尾に余剰がある",
+          () => fireEvent.change(inputFor("開始想定"), { target: { value: "09:05x" } }),
+        ],
+        [
+          "秒まで書かれている",
+          () => fireEvent.change(inputFor("開始想定"), { target: { value: "12:34:56" } }),
+        ],
+      ],
+      weekdays_required: [
+        [
+          "週次で曜日を1つも選んでいない",
+          () => {
+            fireEvent.click(screen.getByText("週次"));
+            // 既定で選ばれている元タスクの曜日（日曜）を外す
+            fireEvent.click(screen.getByText("日"));
+          },
+        ],
+      ],
+      invalid_week_interval: [
+        [
+          "週間隔が範囲外",
+          () => {
+            fireEvent.click(screen.getByText("週次"));
+            fireEvent.change(inputFor("週間隔"), { target: { value: "54" } });
+          },
+        ],
+      ],
+      invalid_month_day: [
+        [
+          "月次の日が空（0 扱いで範囲外）",
+          () => {
+            fireEvent.click(screen.getByText("月次"));
+            fireEvent.change(inputFor("日"), { target: { value: "" } });
+          },
+        ],
+      ],
+      invalid_interval_days: [
+        [
+          "n日ごとの間隔が範囲外",
+          () => {
+            fireEvent.click(screen.getByText("n日ごと"));
+            fireEvent.change(inputFor("日ごと"), { target: { value: "0" } });
+          },
+        ],
+      ],
+    };
 
-    fireEvent.click(screen.getByText("作成"));
+    const INVALID_CASES = Object.entries(INVALID_INPUTS).flatMap(([error, cases]) =>
+      cases.map(
+        ([name, makeInvalid]) => [`${error}: ${name}`, makeInvalid, error] as const
+      )
+    );
 
-    expect(onSubmit).not.toHaveBeenCalled();
-    expect(screen.queryByText("開始想定時刻は HH:MM で入力してください")).not.toBeNull();
+    it.each(INVALID_CASES)("%s", (_name, makeInvalid, error) => {
+      // 元タスクの曜日（日曜）が既定で選ばれる日付にそろえる
+      const { onSubmit, onClose } = renderPopover({ task: task({ id: 1, taskDate: TEST_DATE }) });
+      makeInvalid();
+
+      fireEvent.click(screen.getByText("作成"));
+
+      expect(onSubmit).not.toHaveBeenCalled();
+      // 閉じてしまうと親がアンマウントし、出したエラーがユーザーに届かない
+      expect(onClose).not.toHaveBeenCalled();
+      expect(screen.queryByText(ROUTINE_MESSAGES[error as RoutineScheduleError])).not.toBeNull();
+    });
+
+    it("入力を直すとエラーは消える（§4.1: 直した後も古い指摘を残さない）", () => {
+      renderPopover();
+      fireEvent.change(inputFor("開始想定"), { target: { value: "99:99" } });
+      fireEvent.click(screen.getByText("作成"));
+      expect(screen.queryByText(ROUTINE_MESSAGES.invalid_start_time)).not.toBeNull();
+
+      fireEvent.change(inputFor("開始想定"), { target: { value: "09:05" } });
+
+      expect(screen.queryByText(ROUTINE_MESSAGES.invalid_start_time)).toBeNull();
+    });
+
+    it("入力欄以外の入口（曜日の選び直し）でもエラーは消える", () => {
+      renderPopover({ task: task({ id: 1, taskDate: TEST_DATE }) });
+      fireEvent.click(screen.getByText("週次"));
+      fireEvent.click(screen.getByText("日"));
+      fireEvent.click(screen.getByText("作成"));
+      expect(screen.queryByText(ROUTINE_MESSAGES.weekdays_required)).not.toBeNull();
+
+      fireEvent.click(screen.getByText("月"));
+
+      expect(screen.queryByText(ROUTINE_MESSAGES.weekdays_required)).toBeNull();
+    });
+
+    it("値を直さない blur ではエラーは残る（消えるのは直したときだけ）", () => {
+      renderPopover();
+      const input = inputFor("開始想定");
+      fireEvent.change(input, { target: { value: "99:99" } });
+      fireEvent.click(screen.getByText("作成"));
+
+      fireEvent.blur(input);
+
+      expect(screen.queryByText(ROUTINE_MESSAGES.invalid_start_time)).not.toBeNull();
+    });
+
+    it("直してから押し直せば作成できる（エラーが確定を塞ぎ続けない）", () => {
+      const { onSubmit } = renderPopover();
+      fireEvent.change(inputFor("開始想定"), { target: { value: "99:99" } });
+      fireEvent.click(screen.getByText("作成"));
+      expect(onSubmit).not.toHaveBeenCalled();
+
+      fireEvent.change(inputFor("開始想定"), { target: { value: "09:05" } });
+      fireEvent.click(screen.getByText("作成"));
+
+      expect(onSubmit).toHaveBeenCalledOnce();
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ scheduledStartTime: "09:05" })
+      );
+    });
   });
 
   it("作成すると整形済みの時刻と選んだ種別を渡す", () => {

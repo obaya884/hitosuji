@@ -11,10 +11,12 @@ import {
   defaultChoiceFromTask,
   type RoutineFromTaskChoice,
 } from "@/domain/routine/from-task";
+import { validateRoutineSchedule } from "@/domain/routine/input";
 import { sectionAt } from "@/domain/section/section";
 import type { Section } from "@/domain/section/section";
 import { parseClockTime } from "@/domain/task/punch-edit";
 import type { Task } from "@/domain/task/task";
+import { routineFromTaskErrorMessage } from "@/app/_lib/error-messages";
 import { formatClock } from "@/app/_lib/format";
 import { btnPrimary, floatPanel, inputBase } from "@/app/_lib/ui";
 import { useDismiss } from "@/app/_lib/use-dismiss";
@@ -57,26 +59,46 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
   const [choice, setChoice] = useState<RoutineFromTaskChoice>(() =>
     defaultChoiceFromTask(task, defaultStartTime(task, sections, now))
   );
-  const [timeError, setTimeError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   // 外側クリック＋Esc で閉じる
   useDismiss(ref, onClose);
 
-  /** 入力された時刻を `HH:MM` へ整形する（不正なら元の入力のまま返す） */
-  function normalized(current: RoutineFromTaskChoice): string {
-    const parsed = parseClockTime(current.scheduledStartTime);
-    if (!parsed.ok) return current.scheduledStartTime;
+  /** 入力を1項目更新する。**直した時点でエラーは消す**（§4.1「入力の検証」） */
+  function updateChoice(patch: Partial<RoutineFromTaskChoice>) {
+    setChoice((c) => ({ ...c, ...patch }));
+    setError(null);
+  }
+
+  /**
+   * 入力された時刻を `HH:MM` の文字列へ整形する。**解釈できなければ null**——区切りなし入力
+   * （`0805`）を受け付ける（§4.1・F-203）ぶん `09:05x` や `12:34:56` のような余剰もここへ来るが、
+   * domain 側の正規化（`normalizeStartTime`）は DB の `HH:MM:SS` を吸収するための先頭5文字の
+   * 切り出しなので、余剰は黙って切り詰められる。**余剰を判別できるのは解釈を試みるこの関数だけ**
+   */
+  function toClockText(raw: string): string | null {
+    const parsed = parseClockTime(raw);
+    if (!parsed.ok) return null;
     const { hours, minutes } = parsed.value;
     return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
   }
 
+  /**
+   * 「作成」の確定（§4.1「入力の検証」）。検証はルーチン管理と共有の `validateRoutineSchedule`
+   * に通し、文言はサーバのルーチン化アクションと同じ辞書から引く（同じ失敗を経路によって
+   * 違う言い方にしないため。FB-72 ② / FB-75）
+   */
   function submit() {
-    const scheduledStartTime = normalized(choice);
-    if (!parseClockTime(scheduledStartTime).ok) {
-      setTimeError("開始想定時刻は HH:MM で入力してください");
+    // 解釈できない入力は空文字で渡し、検証に `invalid_start_time` を返させる——
+    // 手前で弾くと検証の入口が2つになり、文言を持つ場所も増える
+    const input = { ...choice, scheduledStartTime: toClockText(choice.scheduledStartTime) ?? "" };
+    const validated = validateRoutineSchedule(input);
+    if (!validated.ok) {
+      setError(routineFromTaskErrorMessage(validated.error));
       return;
     }
-    onSubmit({ ...choice, scheduledStartTime });
+    // 繰り返しは生のまま渡す——保存値への正規化（全曜日×毎週 → 毎日）はサーバがやり直す
+    onSubmit(input);
   }
 
   // 開始想定時刻から導出されるセクション（展開先の目安。F-302 と同じ導出）
@@ -94,7 +116,7 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
           <button
             key={type}
             type="button"
-            onClick={() => setChoice((c) => ({ ...c, recurrenceType: type }))}
+            onClick={() => updateChoice({ recurrenceType: type })}
             aria-pressed={choice.recurrenceType === type}
             className={`rounded-control border px-2 py-1 text-xs ${
               choice.recurrenceType === type
@@ -116,7 +138,7 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
               <button
                 key={preset.label}
                 type="button"
-                onClick={() => setChoice((c) => ({ ...c, weekdays: preset.mask }))}
+                onClick={() => updateChoice({ weekdays: preset.mask })}
                 className="rounded-control border border-line px-2 py-1 text-xs hover:bg-accent-weak"
               >
                 {preset.label}
@@ -129,7 +151,7 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
                 key={bit}
                 type="button"
                 onClick={() =>
-                  setChoice((c) => ({ ...c, weekdays: toggleWeekday(c.weekdays ?? 0, bit) }))
+                  updateChoice({ weekdays: toggleWeekday(choice.weekdays ?? 0, bit) })
                 }
                 aria-pressed={((choice.weekdays ?? 0) & (1 << bit)) !== 0}
                 className={`h-6 w-6 rounded-control border text-xs ${
@@ -150,7 +172,7 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
               min={1}
               max={53}
               value={choice.weekInterval ?? 1}
-              onChange={(e) => setChoice((c) => ({ ...c, weekInterval: Number(e.target.value) }))}
+              onChange={(e) => updateChoice({ weekInterval: Number(e.target.value) })}
               className={`w-14 ${inputBase}`}
             />
             <span className="text-xs text-ink-muted">週おき（1=毎週）</span>
@@ -166,7 +188,7 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
             min={1}
             max={31}
             value={choice.monthDay ?? 1}
-            onChange={(e) => setChoice((c) => ({ ...c, monthDay: Number(e.target.value) }))}
+            onChange={(e) => updateChoice({ monthDay: Number(e.target.value) })}
             className={`w-16 ${inputBase}`}
           />
           <span className="text-xs text-ink-muted">月末超過は月末に丸めます</span>
@@ -179,7 +201,7 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
             type="number"
             min={1}
             value={choice.intervalDays ?? 2}
-            onChange={(e) => setChoice((c) => ({ ...c, intervalDays: Number(e.target.value) }))}
+            onChange={(e) => updateChoice({ intervalDays: Number(e.target.value) })}
             className={`w-16 ${inputBase}`}
           />
           <span className="text-ink-muted">日ごと</span>
@@ -190,9 +212,15 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
         <span className="text-ink-muted">開始想定</span>
         <input
           value={choice.scheduledStartTime}
-          onChange={(e) => setChoice((c) => ({ ...c, scheduledStartTime: e.target.value }))}
-          // 区切りなし入力（0805）も受け付けるため、離れた時点で HH:MM へ整形する（§4.1・F-203）
-          onBlur={() => setChoice((c) => ({ ...c, scheduledStartTime: normalized(c) }))}
+          onChange={(e) => updateChoice({ scheduledStartTime: e.target.value })}
+          // 区切りなし入力（0805）も受け付けるため、離れた時点で HH:MM へ整形する（§4.1・F-203）。
+          // 整形できない入力は直せるよう元のまま残す（確定は submit が止める）
+          onBlur={() => {
+            const formatted = toClockText(choice.scheduledStartTime);
+            if (formatted !== null && formatted !== choice.scheduledStartTime) {
+              updateChoice({ scheduledStartTime: formatted });
+            }
+          }}
           className={`w-20 font-mono tabular-nums ${inputBase}`}
         />
         {derivedSection !== undefined && (
@@ -200,7 +228,7 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
         )}
       </label>
 
-      {timeError !== null && <p className="text-xs text-danger">{timeError}</p>}
+      {error !== null && <p className="text-xs text-danger">{error}</p>}
 
       <div className="flex items-center justify-between pt-1">
         {/* 元タスクは今日のリストに既にあるため、展開は翌日から（§4.1） */}
