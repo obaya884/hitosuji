@@ -10,7 +10,7 @@ import { task } from "./testing/task";
 
 const startedAt = new Date("2026-07-26T08:00:00Z");
 
-describe("resumeTaskDraft（F-204: 同名・同属性の再開タスクを生成）", () => {
+describe("resumeTaskDraft（F-204: 「（再開）」を付けた同属性の再開タスクを生成）", () => {
   describe("残り見積もり（データモデル定義書 §4.2）", () => {
     /** 見積もり `estimate` 分のタスクを `actual` 分やって中断したときの、再開タスクの見積もり */
     const remainingEstimate = (estimate: number, actual: number) =>
@@ -40,7 +40,7 @@ describe("resumeTaskDraft（F-204: 同名・同属性の再開タスクを生成
     });
   });
 
-  it("名前・モード・プロジェクトを引き継ぎ、split_parent_id で元タスクへ紐づける", () => {
+  it("名前に「（再開）」を付け、モード・プロジェクトを引き継ぎ、split_parent_id で元タスクへ紐づける", () => {
     const original = task({
       id: 7,
       name: "メールチェック",
@@ -52,13 +52,21 @@ describe("resumeTaskDraft（F-204: 同名・同属性の再開タスクを生成
     const endedAt = new Date("2026-07-26T08:12:00Z"); // 実績12分
 
     expect(resumeTaskDraft(original, endedAt)).toEqual({
-      name: "メールチェック",
+      name: "メールチェック（再開）",
       estimateMinutes: 18,
       modeId: 2,
       projectId: 3,
       highlighted: false,
       splitParentId: 7,
     });
+  });
+
+  // データモデル定義書 §4.2: 既に付いていても足す（何度目の再開かは行の並びで読む）
+  it("再開タスクをさらに中断すると「（再開）」が積み上がる", () => {
+    const resumed = task({ id: 7, name: "メールチェック（再開）", startedAt });
+    expect(resumeTaskDraft(resumed, new Date("2026-07-26T08:12:00Z")).name).toBe(
+      "メールチェック（再開）（再開）"
+    );
   });
 
   // F-118: 再開タスクは「同じ仕事の続き」なのでハイライトを引き継ぐ（データモデル定義書 §4.2）

@@ -12,6 +12,13 @@ export type PunchError =
   | "ended_before_started";
 
 /**
+ * 再開タスクの名前に付ける接尾辞（データモデル定義書 §4.2）。
+ * リスト・レビューで元と再開分を見分けるために**保存値へ含める**（表示で導出しない）。
+ * 既に付いていても足すので、中断を重ねると `〜（再開）（再開）` と積み上がる
+ */
+const RESUME_NAME_SUFFIX = "（再開）";
+
+/**
  * 再開タスクの見積もり（データモデル定義書 §4.2）。
  * 元が未設定（0分）なら未設定のまま引き継ぐ。設定済みなら max(見積 − 実績, 1分)
  */
@@ -32,13 +39,13 @@ export type ResumeTaskDraft = Readonly<{
 
 /**
  * 中断・割り込みで生成する再開タスクの内容を作る。
- * name/mode/project/highlighted は元タスクと同値、split_parent_id で元タスクへ紐づける
+ * mode/project/highlighted は元タスクと同値、split_parent_id で元タスクへ紐づける
  * （F-204 / データモデル定義書 §4.2。ハイライトを引き継ぐ規則は F-118）
  */
 export function resumeTaskDraft(original: Task, endedAt: Date): ResumeTaskDraft {
   const actual = actualMinutes({ ...original, endedAt }) ?? 0;
   return {
-    name: original.name,
+    name: `${original.name}${RESUME_NAME_SUFFIX}`,
     estimateMinutes: resumeEstimateMinutes(original, actual),
     modeId: original.modeId,
     projectId: original.projectId,

@@ -163,7 +163,7 @@ describe("start の割り込み（F-201: 終了・再開タスク生成・開始
         endedAt,
         resumeTask: {
           taskDate: "2026-07-19",
-          name: "メールチェック",
+          name: "メールチェック（再開）",
           estimateMinutes: 18,
           sectionId: null,
           modeId: null,
@@ -184,7 +184,7 @@ describe("start の割り込み（F-201: 終了・再開タスク生成・開始
     expect(after.find((t) => t.id === target.id)?.startedAt).toEqual(endedAt);
     expect(after.find((t) => t.splitParentId === running.id)).toEqual(
       expect.objectContaining({
-        name: "メールチェック",
+        name: "メールチェック（再開）",
         estimateMinutes: 18,
         startedAt: null,
         highlighted: true,
@@ -257,7 +257,7 @@ describe("start の割り込み（F-201: 終了・再開タスク生成・開始
         endedAt,
         resumeTask: {
           taskDate: "2026-07-19",
-          name: "実行中",
+          name: "実行中（再開）",
           estimateMinutes: 18,
           sectionId: night.id,
           modeId: null,
@@ -306,7 +306,7 @@ describe("start の割り込み（F-201: 終了・再開タスク生成・開始
         endedAt,
         resumeTask: {
           taskDate: "2026-07-19",
-          name: "実行中",
+          name: "実行中（再開）",
           estimateMinutes: 18,
           sectionId: night.id,
           modeId: null,
@@ -468,7 +468,7 @@ describe("duplicateAndStart（F-208 / データモデル定義書 §4.6: 複製�
         endedAt: now,
         resumeTask: {
           taskDate: "2026-07-19",
-          name: "実行中",
+          name: "実行中（再開）",
           estimateMinutes: 18,
           sectionId: null,
           modeId: null,
@@ -485,7 +485,12 @@ describe("duplicateAndStart（F-208 / データモデル定義書 §4.6: 複製�
     expect(after.find((t) => t.id === running.id)?.endedAt).toEqual(now); // 実行中を終了
     expect(after.find((t) => t.id === created.id)?.startedAt).toEqual(now); // 複製を開始
     expect(after.find((t) => t.splitParentId === running.id)).toEqual(
-      expect.objectContaining({ name: "実行中", estimateMinutes: 18, sortOrder: 7000, startedAt: null })
+      expect.objectContaining({
+        name: "実行中（再開）",
+        estimateMinutes: 18,
+        sortOrder: 7000,
+        startedAt: null,
+      })
     );
     expect(after.find((t) => t.id === source.id)?.sortOrder).toBe(3000); // 振り直しも同じトランザクション
   });
@@ -569,7 +574,7 @@ describe("suspend（F-204: 終了と再開タスク生成を1トランザクシ�
       endedAt,
       resumeTask: {
         taskDate: "2026-07-19",
-        name: "執筆",
+        name: "執筆（再開）",
         estimateMinutes: 18,
         sectionId: null,
         modeId: null,
@@ -583,7 +588,7 @@ describe("suspend（F-204: 終了と再開タスク生成を1トランザクシ�
     const after = await repo.listByDate("2026-07-19");
     expect(after.find((t) => t.id === running.id)?.endedAt).toEqual(endedAt);
     expect(after.find((t) => t.splitParentId === running.id)).toEqual(
-      expect.objectContaining({ name: "執筆", estimateMinutes: 18, startedAt: null })
+      expect.objectContaining({ name: "執筆（再開）", estimateMinutes: 18, startedAt: null })
     );
   });
 
@@ -606,7 +611,7 @@ describe("suspend（F-204: 終了と再開タスク生成を1トランザクシ�
       endedAt,
       resumeTask: {
         taskDate: "2026-07-19",
-        name: "執筆",
+        name: "執筆（再開）",
         estimateMinutes: 18,
         sectionId: null,
         modeId: null,
@@ -648,7 +653,7 @@ describe("suspend（F-204: 終了と再開タスク生成を1トランザクシ�
         endedAt: new Date("2026-07-19T09:00:00Z"),
         resumeTask: {
           taskDate: "2026-07-19",
-          name: "執筆",
+          name: "執筆（再開）",
           estimateMinutes: 18,
           sectionId: 999999, // 存在しないセクション → FK違反
           modeId: null,
