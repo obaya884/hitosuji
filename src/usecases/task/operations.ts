@@ -194,7 +194,7 @@ export async function postponeTask(
     tasksInSection(destinationTasks, target.sectionId).map((t) => t.sortOrder)
   );
 
-  await repo.postpone(target.id, { taskDate: destination, sortOrder });
+  await repo.postpone(target.id, { taskDate: destination, sortOrder }, skipOf(target));
   return ok(target.id);
 }
 
