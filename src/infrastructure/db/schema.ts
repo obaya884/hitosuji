@@ -63,6 +63,17 @@ export const projects = pgTable("projects", {
   ...timestamps,
 });
 
+// §3.7 bundles — 「一緒に流れるタスク群」の識別子（F-119）。
+// メンバーの定義は持たない（誰が属するかは routines.bundle_id / tasks.bundle_id が持つ）
+export const bundles = pgTable("bundles", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  // デイリーの縦帯に使う色。モードと同じプリセット13色を共有する（domain/shared/color-presets）
+  color: text("color").notNull(),
+  isArchived: boolean("is_archived").notNull().default(false),
+  ...timestamps,
+});
+
 // §3.4 routines — 繰り返しルールでデイリーリストへ展開されるタスクの雛形
 export const routines = pgTable(
   "routines",
@@ -74,6 +85,8 @@ export const routines = pgTable(
     scheduledStartTime: time("scheduled_start_time").notNull(),
     modeId: integer("mode_id").references(() => modes.id),
     projectId: integer("project_id").references(() => projects.id),
+    // 属するバンドル（F-119）。1ルーチン＝最大1バンドル（FK1本で自動的に成立する）
+    bundleId: integer("bundle_id").references(() => bundles.id),
     recurrenceType: text("recurrence_type").notNull(),
     weekdays: integer("weekdays"), // weekly用ビットマスク（bit0=月 … bit6=日）
     weekInterval: integer("week_interval"), // weekly用。n週おき（NULL/1=毎週）
@@ -123,6 +136,8 @@ export const tasks = pgTable(
     sectionId: integer("section_id").references(() => sections.id),
     modeId: integer("mode_id").references(() => modes.id),
     projectId: integer("project_id").references(() => projects.id),
+    // この日このタスクが属するバンドル（F-119）。展開時にルーチンから写す（§4.1）
+    bundleId: integer("bundle_id").references(() => bundles.id),
     sortOrder: integer("sort_order").notNull(), // task_date ごとに独立した間隔採番（1000刻み）
     startedAt: timestamp("started_at", { withTimezone: true }),
     endedAt: timestamp("ended_at", { withTimezone: true }),
