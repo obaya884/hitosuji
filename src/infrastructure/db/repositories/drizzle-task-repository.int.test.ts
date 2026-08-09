@@ -442,13 +442,17 @@ describe("duplicateAndStart（F-208 / データモデル定義書 §4.6: 複製�
   });
 
   it("割り込みありで、終了・再開タスク生成・複製の開始が1トランザクションで反映される", async () => {
+    const [bundle] = await db
+      .insert(bundles)
+      .values({ name: "朝の支度", color: COLOR_BY_NAME["青"] })
+      .returning();
     const startedAt = new Date("2026-07-19T08:48:00Z");
     const now = new Date("2026-07-19T09:00:00Z");
     const [source, running] = await db
       .insert(tasks)
       .values([
         { taskDate: "2026-07-19", name: "もう一回やる", estimateMinutes: 20, sortOrder: 1000, startedAt, endedAt: now },
-        { taskDate: "2026-07-19", name: "実行中", estimateMinutes: 30, sortOrder: 5000, startedAt },
+        { taskDate: "2026-07-19", name: "実行中", estimateMinutes: 30, sortOrder: 5000, startedAt, bundleId: bundle.id },
       ])
       .returning();
 
@@ -476,6 +480,9 @@ describe("duplicateAndStart（F-208 / データモデル定義書 §4.6: 複製�
           projectId: null,
           sortOrder: 7000,
           splitParentId: running.id,
+          // 複製して開始の割り込み側も、中断・割り込みと同じくバンドルを引き継ぐ
+          // （データモデル定義書 §4.8。外すとバンドルが永遠に完了しない）
+          bundleId: bundle.id,
         },
       },
       // 挿入位置に中間値が無かったときの振り直し（§3.5）。挿入より先に当たる
@@ -491,6 +498,7 @@ describe("duplicateAndStart（F-208 / データモデル定義書 §4.6: 複製�
         estimateMinutes: 18,
         sortOrder: 7000,
         startedAt: null,
+        bundleId: bundle.id, // 割り込みの再開タスクはバンドルを引き継ぐ（§4.8）
       })
     );
     expect(after.find((t) => t.id === source.id)?.sortOrder).toBe(3000); // 振り直しも同じトランザクション

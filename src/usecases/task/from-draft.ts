@@ -9,9 +9,10 @@ import type { NewTask } from "@/usecases/ports/task-repository";
 
 /**
  * draft（複製・再開）が共通で持つ内容フィールド。配置は別途決める。
- * `splitParentId`・`highlighted`・`bundleId` は再開 draft のみが持ち、複製 draft は持たない
- * （前者2つは系譜属性、`bundleId` は「同じ仕事の続きにだけ引き継ぐ」印。
- * F-118 / データモデル定義書 §4.2・§4.6・§4.8）
+ * `splitParentId`・`highlighted`・`bundleId` は再開 draft のみが持ち、複製 draft は持たない。
+ * `splitParentId` は系譜属性、`highlighted` は「同じ仕事の続きにだけ引き継ぐ」印（F-118）、
+ * `bundleId` は中断・割り込みの残りにだけ引き継ぐバンドルの所属
+ *（データモデル定義書 §4.2・§4.6・§4.8）
  */
 type TaskContentDraft = Readonly<{
   name: string;
@@ -26,7 +27,7 @@ type TaskContentDraft = Readonly<{
 /**
  * draft の内容フィールドに配置（日付・セクション・並び順）を与えて NewTask を組み立てる（T-18）。
  * `splitParentId`・`highlighted`・`bundleId` は draft から拾う（再開 draft は元タスクの値、
- * 複製 draft は持たないため null / false になる）
+ * 複製 draft は持たないため null / false になる。各フィールドの根拠は上の TaskContentDraft のコメント）
  */
 export function newTaskFromDraft(
   draft: TaskContentDraft,
