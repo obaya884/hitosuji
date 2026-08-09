@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { MODE_COLOR_PRESETS, type Mode } from "../mode/mode";
+import type { Mode } from "../mode/mode";
 import type { Project } from "../project/project";
+import { COLOR_PRESETS } from "../shared/color-presets";
 import { compareByName } from "../shared/name-order";
 import { sortRoutines, type RoutineSortMasters } from "./order";
 import type { Routine } from "./routine";
 import { routine } from "./testing/routine";
 
 function mode(id: number, name: string): Mode {
-  return { id, name, color: MODE_COLOR_PRESETS[8].value, isArchived: false };
+  return { id, name, color: COLOR_PRESETS[8].value, isArchived: false };
 }
 
 function project(id: number, name: string): Project {

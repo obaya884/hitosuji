@@ -4,7 +4,8 @@ import { useRef, useState } from "react";
 import { useDismiss } from "@/app/_lib/use-dismiss";
 import { useServerAction } from "@/app/_lib/use-server-action";
 import { floatPanel, linkMuted, tableHeadRow } from "@/app/_lib/ui";
-import { MODE_COLOR_PRESETS, modeColorName, type Mode, type ModeId } from "@/domain/mode/mode";
+import type { Mode, ModeId } from "@/domain/mode/mode";
+import { COLOR_PRESETS, colorPresetName } from "@/domain/shared/color-presets";
 import { TableFrame } from "@/app/_components/table-frame";
 import { ArchivedMasterSection } from "../_components/archived-master-section";
 import { MasterEditableCell } from "../_components/master-editable-cell";
@@ -23,7 +24,7 @@ type Props = Readonly<{
 }>;
 
 /** 新規モードの既定色（プリセットの先頭＝赤。画面定義書03 §3.2） */
-const DEFAULT_MODE_COLOR = MODE_COLOR_PRESETS[0].value;
+const DEFAULT_COLOR = COLOR_PRESETS[0].value;
 
 /**
  * カラーバーを押すと開くプリセット13色の選択（画面定義書03 §3.2）。
@@ -47,7 +48,7 @@ function ColorPickerPopover({
 
   return (
     <div ref={ref} className={`absolute z-10 mt-1 flex w-56 flex-wrap gap-1.5 p-2 ${floatPanel}`}>
-      {MODE_COLOR_PRESETS.map(({ value, name }) => (
+      {COLOR_PRESETS.map(({ value, name }) => (
         <span key={value} className="relative">
           <button
             type="button"
@@ -84,7 +85,7 @@ function ColorPickerPopover({
 export function ModesTable({ active, archived, deletableIds }: Props) {
   // 編集中のセル（`"new"` は新規追加行）。値は入力欄の DOM が持つ
   const [editingId, setEditingId] = useState<ModeId | "new" | null>(null);
-  const [newColor, setNewColor] = useState<string>(DEFAULT_MODE_COLOR);
+  const [newColor, setNewColor] = useState<string>(DEFAULT_COLOR);
   const [colorPickerId, setColorPickerId] = useState<ModeId | "new" | null>(null);
   const { error, setError, isPending, run } = useServerAction();
 
@@ -123,7 +124,7 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
         // 名前の保存中は色を変えられないようにする（画面定義書00_共通 §2.3「保存中に始める操作」）
         disabled={isPending}
         onClick={() => setColorPickerId(mode.id)}
-        aria-label={`色を変更（現在: ${modeColorName(mode.color)}）`}
+        aria-label={`色を変更（現在: ${colorPresetName(mode.color)}）`}
       >
         <span
           style={{ backgroundColor: mode.color }}
@@ -131,7 +132,7 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
           aria-hidden
         />
       </button>
-      <span className="text-sm text-ink-muted">{modeColorName(mode.color)}</span>
+      <span className="text-sm text-ink-muted">{colorPresetName(mode.color)}</span>
       {colorPickerId === mode.id && (
         <ColorPickerPopover
           selected={mode.color}
@@ -155,7 +156,7 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
         // 送信せず表示だけを変える選択も保存中は止める（送る値と表示が食い違う。00_共通 §2.3）
         disabled={isPending}
         onClick={() => setColorPickerId("new")}
-        aria-label={`色を選択（現在: ${modeColorName(newColor)}）`}
+        aria-label={`色を選択（現在: ${colorPresetName(newColor)}）`}
       >
         <span
           style={{ backgroundColor: newColor }}
@@ -163,7 +164,7 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
           aria-hidden
         />
       </button>
-      <span className="text-sm text-ink-muted">{modeColorName(newColor)}</span>
+      <span className="text-sm text-ink-muted">{colorPresetName(newColor)}</span>
       {colorPickerId === "new" && (
         <ColorPickerPopover
           selected={newColor}
@@ -204,7 +205,7 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
       isPending={isPending}
       onAddNew={() => {
         setError(null);
-        setNewColor(DEFAULT_MODE_COLOR);
+        setNewColor(DEFAULT_COLOR);
         setEditingId("new");
       }}
     >
@@ -249,7 +250,7 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
                   className="inline-block h-3 w-10 shrink-0 rounded-control opacity-50"
                   aria-hidden
                 />
-                <span className="text-sm">{modeColorName(mode.color)}</span>
+                <span className="text-sm">{colorPresetName(mode.color)}</span>
               </span>
             </td>
             <td className="py-2">{mode.name}</td>

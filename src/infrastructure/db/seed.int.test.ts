@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { MODE_COLOR_BY_NAME } from "@/domain/mode/mode";
+import { COLOR_BY_NAME } from "@/domain/shared/color-presets";
 import { modes, sections } from "./schema";
 import { seedMasters } from "./seed";
 import { createTestDb, truncateAll } from "./testing/test-db";
@@ -56,7 +56,7 @@ describe("seedMasters（データモデル定義書 §5: 空テーブルにの�
   // セクションとモードの判定は独立している。まとめて1つの条件で見ていると、
   // 片方を手で作った状態からもう片方が投入されなくなる
   it("片方だけ埋まっているときは、空の側にだけ投入する", async () => {
-    await db.insert(modes).values({ name: "手で作ったモード", color: MODE_COLOR_BY_NAME["青"] });
+    await db.insert(modes).values({ name: "手で作ったモード", color: COLOR_BY_NAME["青"] });
 
     expect(await seedMasters(db)).toEqual({
       sections: "初期データを投入しました",

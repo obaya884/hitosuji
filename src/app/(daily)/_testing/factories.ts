@@ -6,9 +6,10 @@
 // セクションの時間帯は `SECTIONS` の `startTime` だけが持ち、枠の終了時刻は `sectionRanges` で
 // そこから導く（T-82）。**`sectionRanges` から枠を導く実装（`groupTasksBySection`・`toSectionOptions`）の
 // 出力と突き合わせる期待値には、ここの枠を使わずリテラルを書く**（同じ導出なので枠の検証が自明になる）。
-import { MODE_COLOR_PRESETS, type Mode } from "@/domain/mode/mode";
+import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import { sectionRanges, type Section } from "@/domain/section/section";
+import { COLOR_PRESETS } from "@/domain/shared/color-presets";
 import type { DailyGroup } from "@/domain/task/daily-list";
 import type { Task } from "@/domain/task/task";
 import { rgbOf } from "@/app/_testing/dom";
@@ -36,9 +37,9 @@ export function sectionGroup(
 }
 
 export const MODES: readonly Mode[] = [
-  { id: 1, name: "仕事", color: MODE_COLOR_PRESETS[0].value, isArchived: false },
-  { id: 2, name: "生活", color: MODE_COLOR_PRESETS[5].value, isArchived: false },
-  { id: 3, name: "旧モード", color: MODE_COLOR_PRESETS[8].value, isArchived: true },
+  { id: 1, name: "仕事", color: COLOR_PRESETS[0].value, isArchived: false },
+  { id: 2, name: "生活", color: COLOR_PRESETS[5].value, isArchived: false },
+  { id: 3, name: "旧モード", color: COLOR_PRESETS[8].value, isArchived: true },
 ];
 
 export const PROJECTS: readonly Project[] = [

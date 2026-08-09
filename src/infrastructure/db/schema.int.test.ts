@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { MODE_COLOR_BY_NAME } from "@/domain/mode/mode";
+import { COLOR_BY_NAME } from "@/domain/shared/color-presets";
 import { modes, projects, routines, sections, tasks } from "./schema";
 import { createTestDb, truncateAll } from "./testing/test-db";
 
@@ -173,7 +173,7 @@ describe("tasks の外部キー（F-405: 参照されているマスタは DB �
   it("参照されているモードは削除できない", async () => {
     const [mode] = await db
       .insert(modes)
-      .values({ name: "仕事", color: MODE_COLOR_BY_NAME["青"] })
+      .values({ name: "仕事", color: COLOR_BY_NAME["青"] })
       .returning();
     await db
       .insert(tasks)

@@ -5,9 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { deferredAction } from "@/app/_testing/actions";
 import { hasClass, rgbOf } from "@/app/_testing/dom";
 import { click, clickWithoutServer } from "@/app/_testing/interactions";
-import { MODE_COLOR_PRESETS, type Mode } from "@/domain/mode/mode";
+import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { Routine } from "@/domain/routine/routine";
+import { COLOR_PRESETS } from "@/domain/shared/color-presets";
 
 import { routine } from "@/domain/routine/testing/routine";
 import { MODES, PROJECTS, SECTIONS, TODAY } from "./_testing/fixtures";
@@ -156,7 +157,7 @@ describe("RoutinesTable（画面定義書02 §3: 一覧の列と表記）", () =
     const archivedMode: Mode = {
       id: 9,
       name: "旧モード",
-      color: MODE_COLOR_PRESETS[12].value,
+      color: COLOR_PRESETS[12].value,
       isArchived: true,
     };
     const archivedProject: Project = { id: 19, name: "旧案件", isArchived: true };

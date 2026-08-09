@@ -28,7 +28,7 @@ export function faintTextOf(el: Element): string | undefined {
 }
 
 /**
- * hex を jsdom が返す `rgb()` 表記へ変換する（6桁前提。`MODE_COLORS` はすべて6桁）。
+ * hex を jsdom が返す `rgb()` 表記へ変換する（6桁前提。`COLOR_VALUES` はすべて6桁）。
  * **期待値はリテラルで書かずフィクスチャの色から組み立てる**——リテラルだと、
  * フィクスチャの色を変えただけで（挙動は変わっていないのに）テストが赤くなる
  */

@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { MODE_COLOR_BY_NAME } from "@/domain/mode/mode";
+import { COLOR_BY_NAME } from "@/domain/shared/color-presets";
 import { modes, projects, routineSkips, routines, sections, tasks } from "@/infrastructure/db/schema";
 import { createTestDb, truncateAll } from "@/infrastructure/db/testing/test-db";
 import { createTaskRepository } from "./drizzle-task-repository";
@@ -824,8 +824,8 @@ describe("updateClassification（F-401 / F-402 / O-5: モード・プロジェ�
     const [work, life] = await db
       .insert(modes)
       .values([
-        { name: "仕事", color: MODE_COLOR_BY_NAME["青"] },
-        { name: "暮らし", color: MODE_COLOR_BY_NAME["緑"] },
+        { name: "仕事", color: COLOR_BY_NAME["青"] },
+        { name: "暮らし", color: COLOR_BY_NAME["緑"] },
       ])
       .returning();
     const [moving, study] = await db
@@ -1001,7 +1001,7 @@ describe("delete / restore（O-8: 削除と取り消し）", () => {
       .returning();
     const [mode] = await db
       .insert(modes)
-      .values({ name: "集中", color: MODE_COLOR_BY_NAME["青"] })
+      .values({ name: "集中", color: COLOR_BY_NAME["青"] })
       .returning();
     const [project] = await db.insert(projects).values({ name: "資料整備" }).returning();
     const [parent] = await db
