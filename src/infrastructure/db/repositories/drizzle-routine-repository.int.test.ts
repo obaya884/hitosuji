@@ -109,6 +109,7 @@ describe("DrizzleRoutineRepository", () => {
         sectionId: null,
         modeId: null,
         projectId: null,
+        bundleId: null,
         sortOrder: 1000,
       },
     ]);
@@ -133,6 +134,7 @@ describe("expand（F-301: 冪等INSERT）", () => {
       sectionId: null,
       modeId: null,
       projectId: null,
+      bundleId: null,
       sortOrder: 1000,
     };
 
@@ -146,6 +148,31 @@ describe("expand（F-301: 冪等INSERT）", () => {
     expect(all[0].highlighted).toBe(false);
   });
 
+  it("バンドル付きルーチンから生成したタスクに bundle_id が入る（データモデル定義書 §4.1 / F-119）", async () => {
+    const [bundle] = await db
+      .insert(bundles)
+      .values({ name: "朝の立上げ", color: COLOR_BY_NAME["インディゴ"] })
+      .returning();
+    const created = await repo.create(input({ bundleId: bundle.id }));
+
+    await repo.expand([
+      {
+        routineId: created.id,
+        taskDate: "2026-07-19",
+        name: "朝食",
+        estimateMinutes: 20,
+        sectionId: null,
+        modeId: null,
+        projectId: null,
+        bundleId: bundle.id,
+        sortOrder: 1000,
+      },
+    ]);
+
+    const all = await taskRepo.listByDate("2026-07-19");
+    expect(all[0].bundleId).toBe(bundle.id);
+  });
+
   it("日付が違えば同じルーチンでも展開される", async () => {
     const created = await repo.create(input());
     const seed = {
@@ -155,6 +182,7 @@ describe("expand（F-301: 冪等INSERT）", () => {
       sectionId: null,
       modeId: null,
       projectId: null,
+      bundleId: null,
       sortOrder: 1000,
     };
 
@@ -174,6 +202,7 @@ describe("expand（F-301: 冪等INSERT）", () => {
       sectionId: null,
       modeId: null,
       projectId: null,
+      bundleId: null,
     };
 
     await repo.expand([{ ...base, routineId: first.id, name: "朝食", sortOrder: 1000 }]);
@@ -220,6 +249,7 @@ describe("expand（F-301: 冪等INSERT）", () => {
           sectionId: null,
           modeId: null,
           projectId: null,
+          bundleId: null,
           sortOrder: 2000,
         },
       ])

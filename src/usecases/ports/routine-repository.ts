@@ -15,6 +15,8 @@ export type RoutineTaskSeed = Readonly<{
   sectionId: SectionId | null;
   modeId: ModeId | null;
   projectId: ProjectId | null;
+  /** 属するバンドル（F-119）。ルーチンの bundleId をそのまま写す */
+  bundleId: BundleId | null;
   sortOrder: number;
 }>;
 

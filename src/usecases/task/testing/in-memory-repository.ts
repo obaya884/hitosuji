@@ -76,6 +76,7 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
     const created: Task = {
       id: nextId++,
       splitParentId: null,
+      bundleId: null,
       ...input,
       highlighted: input.highlighted ?? false,
       startedAt,

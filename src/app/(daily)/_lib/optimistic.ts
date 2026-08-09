@@ -122,6 +122,7 @@ export function optimisticTask(date: LogicalDate, name: string, seq: number): Ta
     sectionId: null,
     modeId: null,
     projectId: null,
+    bundleId: null,
     sortOrder: Number.MAX_SAFE_INTEGER, // 未分類の末尾（§3.4）
     startedAt: null,
     endedAt: null,

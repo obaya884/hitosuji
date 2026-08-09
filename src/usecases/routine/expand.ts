@@ -59,6 +59,7 @@ export async function expandRoutinesFor(
       sectionId,
       modeId: routine.modeId,
       projectId: routine.projectId,
+      bundleId: routine.bundleId,
       sortOrder,
     };
   });

@@ -72,6 +72,7 @@ function toDomain(row: Row): Task {
     sectionId: row.sectionId,
     modeId: row.modeId,
     projectId: row.projectId,
+    bundleId: row.bundleId,
     sortOrder: row.sortOrder,
     startedAt: row.startedAt,
     endedAt: row.endedAt,
