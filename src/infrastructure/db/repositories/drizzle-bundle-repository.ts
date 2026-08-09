@@ -63,6 +63,23 @@ export function createBundleRepository(db: Database = defaultDb): BundleReposito
       return counts;
     },
 
+    // メンバー件数はルーチンの bundleId だけを数える（タスクは含めない。画面定義書05 §3.1）
+    async memberCounts(ids: readonly BundleId[]) {
+      if (ids.length === 0) return {};
+      const rows = await db
+        .select({ bundleId: routines.bundleId, n: count() })
+        .from(routines)
+        .where(inArray(routines.bundleId, [...ids]))
+        .groupBy(routines.bundleId);
+
+      const counts: Record<BundleId, number> = {};
+      for (const row of rows) {
+        if (row.bundleId === null) continue;
+        counts[row.bundleId] = row.n;
+      }
+      return counts;
+    },
+
     async remove(id: BundleId) {
       await db.delete(bundles).where(eq(bundles.id, id));
     },

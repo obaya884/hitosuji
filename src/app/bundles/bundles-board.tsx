@@ -23,11 +23,9 @@ import {
 
 type Props = Readonly<{
   bundles: BundleListView;
-  /** バンドルごとのメンバー（ルーチン）件数。0件も含め、参照が無いバンドルの id は省略されうる */
-  memberCounts: Readonly<Record<BundleId, number>>;
 }>;
 
-export function BundlesBoard({ bundles, memberCounts }: Props) {
+export function BundlesBoard({ bundles }: Props) {
   // 選択は id で持ち、描画時に active から解決する（選択中のバンドルがアーカイブ・削除で
   // 消えたときは先頭へ戻る。デイリーの `keepSelection` と同じ発想）
   const [selectedId, setSelectedId] = useState<BundleId | null>(null);
@@ -176,11 +174,13 @@ export function BundlesBoard({ bundles, memberCounts }: Props) {
                       <button
                         type="button"
                         onClick={() => setSelectedId(bundle.id)}
-                        className="truncate text-left text-sm hover:underline"
+                        className="truncate text-left hover:underline"
                       >
                         {bundle.name}
                       </button>
-                      <span className="text-sm text-ink-muted">{memberCounts[bundle.id] ?? 0}</span>
+                      <span className="text-sm text-ink-muted">
+                        {bundles.memberCounts[bundle.id] ?? 0}
+                      </span>
                     </span>
                   </td>
                   {/* 新規追加行の保存/取消列と列数を揃える（行ごとの操作は右ペインのヘッダに寄せたのでここは空） */}

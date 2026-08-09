@@ -4,11 +4,13 @@ import type { Bundle, BundleId } from "@/domain/bundle/bundle";
 import type { BundleInput, BundleRepository } from "@/usecases/ports/bundle-repository";
 
 /**
- * `counts` は referenceCounts が返す値を固定するためのもの（削除可否の分岐を作る）
+ * `counts` は referenceCounts が返す値を固定するためのもの（削除可否の分岐を作る）。
+ * `memberCounts` は memberCounts が返す値を固定するためのもの（左ペインのメンバー件数。画面定義書05 §3.1）
  */
 export function createInMemoryBundleRepository(
   seed: readonly Bundle[] = [],
-  counts: Readonly<Record<BundleId, number>> = {}
+  counts: Readonly<Record<BundleId, number>> = {},
+  memberCounts: Readonly<Record<BundleId, number>> = {}
 ): BundleRepository {
   let rows: Bundle[] = seed.map((b) => ({ ...b }));
   let nextId = Math.max(0, ...rows.map((b) => b.id)) + 1;
@@ -32,6 +34,11 @@ export function createInMemoryBundleRepository(
 
     referenceCounts: async (ids: readonly BundleId[]) =>
       Object.fromEntries(ids.filter((id) => counts[id] !== undefined).map((id) => [id, counts[id]])),
+
+    memberCounts: async (ids: readonly BundleId[]) =>
+      Object.fromEntries(
+        ids.filter((id) => memberCounts[id] !== undefined).map((id) => [id, memberCounts[id]])
+      ),
 
     remove: async (id: BundleId) => {
       rows = rows.filter((b) => b.id !== id);

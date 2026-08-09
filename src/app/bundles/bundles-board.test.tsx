@@ -60,10 +60,9 @@ function renderBoard(
     active: props.active ?? ACTIVE,
     archived: props.archived ?? [],
     deletableIds: props.deletableIds ?? [],
+    memberCounts: props.memberCounts ?? { 1: 4, 2: 0 },
   };
-  return render(
-    <BundlesBoard bundles={bundles} memberCounts={props.memberCounts ?? { 1: 4, 2: 0 }} />
-  );
+  return render(<BundlesBoard bundles={bundles} />);
 }
 
 beforeEach(() => {

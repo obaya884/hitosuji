@@ -16,6 +16,7 @@ const green = COLOR_BY_NAME["緑"];
 const morning: Bundle = { id: 1, name: "朝の立上げ", color: indigo, isArchived: false };
 const archivedUsed: Bundle = { id: 2, name: "旧束ね", color: green, isArchived: true };
 const archivedFree: Bundle = { id: 3, name: "誤作成", color: green, isArchived: true };
+const evening: Bundle = { id: 4, name: "夜のまとめ", color: green, isArchived: false };
 
 describe("listBundles（画面定義書05 §3.1）", () => {
   it("有効とアーカイブ済みに分け、名前の自然順に並べる", async () => {
@@ -35,6 +36,34 @@ describe("listBundles（画面定義書05 §3.1）", () => {
     });
     const view = await listBundles(repo);
     expect(view.deletableIds).toEqual([archivedFree.id]);
+  });
+
+  it("有効なバンドルごとにメンバー（ルーチン）件数を返す。0件は省略されるので呼び出し側は ?? 0 で補う", async () => {
+    const repo = createInMemoryBundleRepository(
+      [morning, evening],
+      {},
+      { [morning.id]: 4 } // evening は未指定＝0件
+    );
+    const view = await listBundles(repo);
+    expect(view.memberCounts[morning.id]).toBe(4);
+    expect(view.memberCounts[evening.id] ?? 0).toBe(0);
+  });
+
+  it("複数バンドルのメンバー件数を取り違えない", async () => {
+    const repo = createInMemoryBundleRepository(
+      [morning, evening],
+      {},
+      { [morning.id]: 2, [evening.id]: 7 }
+    );
+    const view = await listBundles(repo);
+    expect(view.memberCounts[morning.id]).toBe(2);
+    expect(view.memberCounts[evening.id]).toBe(7);
+  });
+
+  it("有効なバンドルが0件ならメンバー件数を数えに行かない（無駄な問い合わせをしない）", async () => {
+    const repo = createInMemoryBundleRepository([archivedFree]);
+    const view = await listBundles(repo);
+    expect(view.memberCounts).toEqual({});
   });
 });
 

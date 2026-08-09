@@ -31,18 +31,26 @@ export type BundleListView = Readonly<{
   archived: readonly Bundle[];
   /** 物理削除できる（参照0件の）アーカイブ済みバンドルの id（画面定義書05 §5） */
   deletableIds: readonly BundleId[];
+  /**
+   * 有効なバンドルごとのメンバー（ルーチン）件数（画面定義書05 §3.1）。
+   * 0件のバンドルの id は省略されうる——呼び出し側（左ペインの一覧）は `?? 0` で補う
+   */
+  memberCounts: Readonly<Record<BundleId, number>>;
 }>;
 
 export async function listBundles(repo: BundleRepository): Promise<BundleListView> {
   const all = sortByName(await repo.listAll());
   const archived = all.filter((b) => b.isArchived);
+  const active = all.filter((b) => !b.isArchived);
   const counts =
     archived.length === 0 ? {} : await repo.referenceCounts(archived.map((b) => b.id));
+  const memberCounts = active.length === 0 ? {} : await repo.memberCounts(active.map((b) => b.id));
 
   return {
-    active: all.filter((b) => !b.isArchived),
+    active,
     archived,
     deletableIds: deletableMasterIds(archived, counts),
+    memberCounts,
   };
 }
 
