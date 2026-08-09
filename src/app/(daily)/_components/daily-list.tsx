@@ -26,6 +26,7 @@ export type DailyListProps = Pick<
   | "onRename"
   | "onEstimate"
   | "onPunch"
+  | "isFutureDate"
   | "onEditPunch"
   | "onAssign"
   | "onOperate"
@@ -60,6 +61,7 @@ export function DailyList({
   onEstimate,
   onComment,
   onPunch,
+  isFutureDate,
   onEditPunch,
   sections,
   onAssign,
@@ -154,6 +156,7 @@ export function DailyList({
                   onRename={onRename}
                   onEstimate={onEstimate}
                   onPunch={onPunch}
+                  isFutureDate={isFutureDate}
                   onEditPunch={onEditPunch}
                   now={now}
                   projectedStart={projectedStarts?.get(task.id) ?? null}

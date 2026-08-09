@@ -38,6 +38,8 @@ function listElement(overrides: Overrides, handlers: Handlers) {
       // `APP_TIME_ZONE` 基準なので `atJst` 一本で組める（T-47）
       now={overrides.now ?? atJst("10:00")}
       isToday={overrides.isToday ?? true}
+      // 既定は打刻できる日（今日以前）。行へそのまま流すだけなので、出し分けは task-row.test.tsx が見る（§7）
+      isFutureDate={overrides.isFutureDate ?? false}
       dayStartMinutes={overrides.dayStartMinutes ?? 0}
       // 現在セクションを `sections` と現在時刻から導出するのは board の仕事（§4.3）で、リストは
       // 受け取るだけ。既定は中立の「現在セクションなし」とし、依拠するテストが値を明示する

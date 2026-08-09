@@ -49,6 +49,8 @@ function renderRow(overrides: Overrides) {
           // 実打刻の表示（`formatClock`）は JST 固定なので、時刻を assert するテストは `atJst` で組む
           now={overrides.now ?? atJst("10:00")}
           projectedStart={overrides.projectedStart ?? null}
+          // 既定は打刻できる日（今日以前）。未来日の行は「打刻ボタンを出さない」テストが自分で渡す（§7）
+          isFutureDate={overrides.isFutureDate ?? false}
           stickyHeight={overrides.stickyHeight ?? 0}
           {...handlers}
         />
@@ -96,6 +98,19 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
       const button = within(cellsOf(taskRow("朝食")).punch).getByRole("button");
       expect(button.getAttribute("aria-label")).toBe("完了済み");
       expect((button as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it.each([
+      ["未実行", task({ id: 1, name: "日次プラン" })],
+      ["実行中", task({ id: 1, name: "日次プラン", startedAt: atJst("08:05") })],
+      [
+        "完了",
+        task({ id: 1, name: "日次プラン", startedAt: atJst("06:30"), endedAt: atJst("06:48") }),
+      ],
+    ])("未来日は%s行でも打刻ボタンを出さない（§7: 未来日では打刻を受け付けない）", (_state, t) => {
+      renderRow({ task: t, isFutureDate: true });
+
+      expect(within(cellsOf(taskRow("日次プラン")).punch).queryByRole("button")).toBe(null);
     });
 
     it("完了は実績を出す（F-202）", () => {

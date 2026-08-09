@@ -139,6 +139,9 @@ export function DailyBoard({
   );
   const now = useNow(hasRunning || isToday);
 
+  // 未来日では打刻を受け付けない（§7）。`LogicalDate` は `YYYY-MM-DD` なので辞書順の比較でよい
+  const isFutureDate = date > today;
+
   // 日界（分）。終了予定・セクション残りの起点を論理日の区切りに合わせる（F-116）
   const dayStartMinutes = useMemo(() => startMinutes(dayStartTimeOf(sections)), [sections]);
 
@@ -304,9 +307,13 @@ export function DailyBoard({
 
   /**
    * Enter の打刻（画面定義書01 §6）。未実行=開始 / 実行中=終了 のトグル、
-   * 完了=複製して開始（F-208 / O-14）。打刻時刻はクライアントの現在時刻を送る（§7）
+   * 完了=複製して開始（F-208 / O-14）。打刻時刻はクライアントの現在時刻を送る（§7）。
+   * 未来日では打刻を受け付けない（§7）——行の打刻ボタンは出していないので、ここで止まるのは
+   * `Enter`（§6）の経路だけになる
    */
   function punch(task: Task) {
+    if (isFutureDate) return;
+
     const status = taskStatus(task);
     const now = new Date();
     if (status === "completed") {
@@ -426,6 +433,10 @@ export function DailyBoard({
 
   /** 中断・複製・先送り・削除（F-204 / F-111 / F-107 / O-8） */
   function operate(task: Task, operation: "suspend" | "duplicate" | "postpone" | "delete") {
+    // 中断は現在時刻での終了打刻を含むので、未来日では受け付けない（§7）。行メニューの項目は
+    // 実行中でなければ非活性だが、`I`（§6）は状態を見ずにここへ来るため止めるのはここになる
+    if (operation === "suspend" && isFutureDate) return;
+
     if (operation === "delete") {
       run(
         async () => {
@@ -646,6 +657,7 @@ export function DailyBoard({
         onComment={setComment}
         onToggleHighlight={toggleHighlight}
         onPunch={punch}
+        isFutureDate={isFutureDate}
         onEditPunch={editPunch}
         sections={sections}
         onAssign={assign}

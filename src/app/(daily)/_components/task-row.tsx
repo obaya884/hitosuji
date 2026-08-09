@@ -33,6 +33,8 @@ export type TaskRowProps = Readonly<{
   onRename: (task: Task, name: string) => void;
   onEstimate: (task: Task, rawMinutes: string) => void;
   onPunch: (task: Task) => void;
+  /** 表示日が未来日か（表示日 > 今日）。真なら打刻を受け付けないのでボタンを出さない（§7 / F-201） */
+  isFutureDate: boolean;
   onEditPunch: (task: Task, field: "startedAt" | "endedAt", hhmm: string) => void;
   index: number;
   sectionId: SectionId | null;
@@ -98,6 +100,7 @@ export function TaskRow({
   onRename,
   onEstimate,
   onPunch,
+  isFutureDate,
   onEditPunch,
   now,
   projectedStart,
@@ -146,28 +149,33 @@ export function TaskRow({
       } ${rowBackgroundClass(task, isSelected)}`}
     >
       <td className="py-2.5">
-        {/* 開始 →（実行中なら）終了 のトグル（F-201）。押しやすさのため円形ボタンにする */}
-        <button
-          type="button"
-          onClick={(e) => {
-            // 行クリックの再選択（tr の onClick）が、終了打刻後の選択送り（F-211）を
-            // 上書きしないよう伝播を止める。選択自体はここで明示する（マウス／キーボード等価。§5）
-            e.stopPropagation();
-            onSelect(task.id);
-            onPunch(task);
-          }}
-          disabled={status === "completed"}
-          aria-label={status === "not_started" ? "開始" : status === "running" ? "終了" : "完了済み"}
-          className={`flex h-7 w-7 items-center justify-center rounded-full ${
-            status === "running"
-              ? "bg-accent text-white"
-              : status === "completed"
-                ? "text-ink-faint"
-                : "border border-line text-ink-muted hover:border-accent hover:text-accent"
-          }`}
-        >
-          {STATUS_ICON[status]}
-        </button>
+        {/* 開始 →（実行中なら）終了 のトグル（F-201）。押しやすさのため円形ボタンにする。
+            未来日では打刻を受け付けないのでボタン自体を出さない（§7） */}
+        {!isFutureDate && (
+          <button
+            type="button"
+            onClick={(e) => {
+              // 行クリックの再選択（tr の onClick）が、終了打刻後の選択送り（F-211）を
+              // 上書きしないよう伝播を止める。選択自体はここで明示する（マウス／キーボード等価。§5）
+              e.stopPropagation();
+              onSelect(task.id);
+              onPunch(task);
+            }}
+            disabled={status === "completed"}
+            aria-label={
+              status === "not_started" ? "開始" : status === "running" ? "終了" : "完了済み"
+            }
+            className={`flex h-7 w-7 items-center justify-center rounded-full ${
+              status === "running"
+                ? "bg-accent text-white"
+                : status === "completed"
+                  ? "text-ink-faint"
+                  : "border border-line text-ink-muted hover:border-accent hover:text-accent"
+            }`}
+          >
+            {STATUS_ICON[status]}
+          </button>
+        )}
       </td>
       <td className="py-2.5">
         {editing === "name" ? (
