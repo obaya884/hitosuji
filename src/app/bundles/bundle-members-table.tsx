@@ -14,7 +14,7 @@ import Link from "next/link";
 import type { Bundle } from "@/domain/bundle/bundle";
 import type { Mode } from "@/domain/mode/mode";
 import { describeRecurrence, type Routine, type RoutineId } from "@/domain/routine/routine";
-import { bundleCandidates, bundleMembers } from "@/domain/routine/order";
+import { bundleCandidates, bundleMembers } from "@/domain/bundle/members";
 import { BUNDLE_MEMBER_MESSAGES } from "@/app/_lib/error-messages";
 import { normalizeClockInput } from "@/app/_lib/format";
 import { linkAccent, linkMuted, noticeDanger, tableHeadRow } from "@/app/_lib/ui";

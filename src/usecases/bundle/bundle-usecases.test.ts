@@ -8,7 +8,7 @@ import {
   setBundleArchived,
   updateBundle,
 } from "./bundle-usecases";
-import { createInMemoryBundleRepository } from "./testing/in-memory-repository";
+import { inMemoryBundleRepository } from "./testing/in-memory-repository";
 
 const indigo = COLOR_BY_NAME["インディゴ"];
 const green = COLOR_BY_NAME["緑"];
@@ -20,7 +20,7 @@ const evening: Bundle = { id: 4, name: "夜のまとめ", color: green, isArchiv
 
 describe("listBundles（画面定義書05 §3.1）", () => {
   it("有効とアーカイブ済みに分け、名前の自然順に並べる", async () => {
-    const repo = createInMemoryBundleRepository([
+    const repo = inMemoryBundleRepository([
       { id: 10, name: "10.夜", color: green, isArchived: false },
       { id: 11, name: "2.昼", color: green, isArchived: false },
       morning,
@@ -31,37 +31,33 @@ describe("listBundles（画面定義書05 §3.1）", () => {
   });
 
   it("参照0件のアーカイブ済みだけを削除可能として返す（F-405）", async () => {
-    const repo = createInMemoryBundleRepository([morning, archivedUsed, archivedFree], {
-      [archivedUsed.id]: 3,
+    const repo = inMemoryBundleRepository([morning, archivedUsed, archivedFree], {
+      counts: { [archivedUsed.id]: 3 },
     });
     const view = await listBundles(repo);
     expect(view.deletableIds).toEqual([archivedFree.id]);
   });
 
   it("有効なバンドルごとにメンバー（ルーチン）件数を返す。0件は省略されるので呼び出し側は ?? 0 で補う", async () => {
-    const repo = createInMemoryBundleRepository(
-      [morning, evening],
-      {},
-      { [morning.id]: 4 } // evening は未指定＝0件
-    );
+    const repo = inMemoryBundleRepository([morning, evening], {
+      memberCounts: { [morning.id]: 4 }, // evening は未指定＝0件
+    });
     const view = await listBundles(repo);
     expect(view.memberCounts[morning.id]).toBe(4);
     expect(view.memberCounts[evening.id] ?? 0).toBe(0);
   });
 
   it("複数バンドルのメンバー件数を取り違えない", async () => {
-    const repo = createInMemoryBundleRepository(
-      [morning, evening],
-      {},
-      { [morning.id]: 2, [evening.id]: 7 }
-    );
+    const repo = inMemoryBundleRepository([morning, evening], {
+      memberCounts: { [morning.id]: 2, [evening.id]: 7 },
+    });
     const view = await listBundles(repo);
     expect(view.memberCounts[morning.id]).toBe(2);
     expect(view.memberCounts[evening.id]).toBe(7);
   });
 
   it("有効なバンドルが0件ならメンバー件数を数えに行かない（無駄な問い合わせをしない）", async () => {
-    const repo = createInMemoryBundleRepository([archivedFree]);
+    const repo = inMemoryBundleRepository([archivedFree]);
     const view = await listBundles(repo);
     expect(view.memberCounts).toEqual({});
   });
@@ -69,7 +65,7 @@ describe("listBundles（画面定義書05 §3.1）", () => {
 
 describe("updateBundle / setBundleArchived（画面定義書05 §4 O-2・O-3 / §6）", () => {
   it("名前と色を書き換える（O-2）", async () => {
-    const repo = createInMemoryBundleRepository([morning]);
+    const repo = inMemoryBundleRepository([morning]);
 
     expect(await updateBundle(repo, morning.id, { name: "朝の準備", color: green })).toEqual({
       ok: true,
@@ -79,7 +75,7 @@ describe("updateBundle / setBundleArchived（画面定義書05 §4 O-2・O-3 / �
   });
 
   it("アーカイブと復元の両方向で isArchived が切り替わる（O-3）", async () => {
-    const repo = createInMemoryBundleRepository([morning]);
+    const repo = inMemoryBundleRepository([morning]);
 
     expect(await setBundleArchived(repo, morning.id, true)).toEqual({
       ok: true,
@@ -95,7 +91,7 @@ describe("updateBundle / setBundleArchived（画面定義書05 §4 O-2・O-3 / �
   });
 
   it("対象が無ければ not_found を返す", async () => {
-    const repo = createInMemoryBundleRepository([]);
+    const repo = inMemoryBundleRepository([]);
     expect(await updateBundle(repo, 99, { name: "朝", color: indigo })).toEqual({
       ok: false,
       error: "not_found",
@@ -104,7 +100,7 @@ describe("updateBundle / setBundleArchived（画面定義書05 §4 O-2・O-3 / �
   });
 
   it("検証を通らない入力は永続化しない", async () => {
-    const repo = createInMemoryBundleRepository([morning]);
+    const repo = inMemoryBundleRepository([morning]);
     expect(await updateBundle(repo, morning.id, { name: "", color: indigo })).toEqual({
       ok: false,
       error: "name_required",
@@ -115,33 +111,35 @@ describe("updateBundle / setBundleArchived（画面定義書05 §4 O-2・O-3 / �
 
 describe("deleteBundle（画面定義書05 §5: 削除直前にサーバで再チェックする）", () => {
   it("ボタン表示後に参照が生まれていたら削除しない", async () => {
-    const repo = createInMemoryBundleRepository([archivedFree], { [archivedFree.id]: 1 });
+    const repo = inMemoryBundleRepository([archivedFree], {
+      counts: { [archivedFree.id]: 1 },
+    });
     const result = await deleteBundle(repo, archivedFree.id);
     expect(result.ok).toBe(false);
     expect(await repo.listAll()).toHaveLength(1);
   });
 
   it("アーカイブ済み・参照0件なら削除する", async () => {
-    const repo = createInMemoryBundleRepository([archivedFree]);
+    const repo = inMemoryBundleRepository([archivedFree]);
     expect(await deleteBundle(repo, archivedFree.id)).toEqual({ ok: true, value: archivedFree.id });
     expect(await repo.listAll()).toEqual([]);
   });
 
   it("有効なバンドルは削除しない（アーカイブが先）", async () => {
-    const repo = createInMemoryBundleRepository([morning]);
+    const repo = inMemoryBundleRepository([morning]);
     expect(await deleteBundle(repo, morning.id)).toEqual({ ok: false, error: "not_archived" });
     expect(await repo.listAll()).toHaveLength(1);
   });
 
   it("対象が無ければ not_found を返す", async () => {
-    const repo = createInMemoryBundleRepository([]);
+    const repo = inMemoryBundleRepository([]);
     expect(await deleteBundle(repo, 99)).toEqual({ ok: false, error: "not_found" });
   });
 });
 
 describe("createBundle", () => {
   it("検証を通れば作成する", async () => {
-    const repo = createInMemoryBundleRepository([]);
+    const repo = inMemoryBundleRepository([]);
     const result = await createBundle(repo, { name: "  夕方の締め  ", color: green });
     expect(result).toEqual({
       ok: true,
@@ -150,7 +148,7 @@ describe("createBundle", () => {
   });
 
   it("検証を通らない入力は作成しない", async () => {
-    const repo = createInMemoryBundleRepository([]);
+    const repo = inMemoryBundleRepository([]);
     expect(await createBundle(repo, { name: "  ", color: green })).toEqual({
       ok: false,
       error: "name_required",

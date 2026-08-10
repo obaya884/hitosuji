@@ -11,7 +11,7 @@ import {
   type RoutineSortDirection,
   type RoutineSortKey,
 } from "@/domain/routine/order";
-import { colorPresetName } from "@/domain/shared/color-presets";
+import { ColorSwatch } from "@/app/_components/color-picker";
 import { sectionAt, type Section } from "@/domain/section/section";
 import { useServerAction } from "@/app/_lib/use-server-action";
 import { linkAccent, linkMuted, tableHeadRow } from "@/app/_lib/ui";
@@ -232,12 +232,8 @@ export function RoutinesTable({
                     <UnsetMark />
                   ) : (
                     <span className="inline-flex items-center gap-1.5">
-                      <span
-                        style={{ backgroundColor: bundle.color }}
-                        title={colorPresetName(bundle.color)}
-                        className="inline-block h-3 w-3 shrink-0 rounded-control"
-                        aria-hidden
-                      />
+                      {/* ホバーはバンドル名（デイリーの帯と揃える。色名は S-03 の関心事） */}
+                      <ColorSwatch color={bundle.color} size="dot" title={bundle.name} />
                       {bundle.name}
                     </span>
                   )}

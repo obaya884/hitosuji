@@ -21,10 +21,9 @@ import { useServerActionRunner } from "@/app/_lib/use-server-action";
 import type { Bundle, BundleId } from "@/domain/bundle/bundle";
 import type { Mode } from "@/domain/mode/mode";
 import type { Routine } from "@/domain/routine/routine";
-import { colorPresetName } from "@/domain/shared/color-presets";
 import type { BundleListView } from "@/usecases/bundle/bundle-usecases";
 import { TableFrame } from "@/app/_components/table-frame";
-import { ColorPickerPopover, DEFAULT_COLOR } from "@/app/_components/color-picker";
+import { ColorBarButton, ColorSwatch, DEFAULT_COLOR } from "@/app/_components/color-picker";
 import { ArchivedMasterSection } from "@/app/_components/archived-master-section";
 import { MasterEditableCell } from "@/app/_components/master-editable-cell";
 import { MasterNewRow, MasterNewRowInput } from "@/app/_components/master-new-row";
@@ -103,32 +102,21 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
 
   /** ヘッダの色。カラーバーを押すとプリセット選択がその場に開き、選んだ色を即保存する（O-2） */
   const headerColorCell = (bundle: Bundle) => (
-    <span className="relative inline-flex items-center">
-      <button
-        type="button"
-        disabled={isPending}
-        onClick={() => setColorPickerId(bundle.id)}
-        aria-label={`色を変更（現在: ${colorPresetName(bundle.color)}）`}
-      >
-        <span
-          style={{ backgroundColor: bundle.color }}
-          className="inline-block h-4 w-12 shrink-0 rounded-control"
-          aria-hidden
-        />
-      </button>
-      {colorPickerId === bundle.id && (
-        <ColorPickerPopover
-          selected={bundle.color}
-          onSelect={(color) =>
-            runPanel(
-              () => updateBundleAction(bundle.id, { name: bundle.name, color }),
-              () => setColorPickerId(null)
-            )
-          }
-          onClose={() => setColorPickerId(null)}
-        />
-      )}
-    </span>
+    <ColorBarButton
+      color={bundle.color}
+      action="変更"
+      size="header"
+      isPending={isPending}
+      isOpen={colorPickerId === bundle.id}
+      onOpen={() => setColorPickerId(bundle.id)}
+      onSelect={(color) =>
+        runPanel(
+          () => updateBundleAction(bundle.id, { name: bundle.name, color }),
+          () => setColorPickerId(null)
+        )
+      }
+      onClose={() => setColorPickerId(null)}
+    />
   );
 
   /** ヘッダの名前。クリックでその場編集（O-2）。色は現在値のまま送る */
@@ -153,23 +141,16 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
 
   /** 新規追加行の色セル。選択はまだ送信せずローカルに保持し、保存ボタンでまとめて送る */
   const newColorCell = (
-    <span className="relative inline-flex items-center">
-      <button
-        type="button"
-        disabled={isPending}
-        onClick={() => setColorPickerId("new")}
-        aria-label={`色を選択（現在: ${colorPresetName(newColor)}）`}
-      >
-        <span
-          style={{ backgroundColor: newColor }}
-          className="inline-block h-3 w-6 shrink-0 rounded-control"
-          aria-hidden
-        />
-      </button>
-      {colorPickerId === "new" && (
-        <ColorPickerPopover selected={newColor} onSelect={setNewColor} onClose={() => setColorPickerId(null)} />
-      )}
-    </span>
+    <ColorBarButton
+      color={newColor}
+      action="選択"
+      size="narrow"
+      isPending={isPending}
+      isOpen={colorPickerId === "new"}
+      onOpen={() => setColorPickerId("new")}
+      onSelect={setNewColor}
+      onClose={() => setColorPickerId(null)}
+    />
   );
 
   const newRow = (
@@ -220,11 +201,7 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
                   }`}
                 >
                   <td className="w-10 py-1.5 pl-1">
-                    <span
-                      style={{ backgroundColor: bundle.color }}
-                      className="inline-block h-3 w-6 shrink-0 rounded-control"
-                      aria-hidden
-                    />
+                    <ColorSwatch color={bundle.color} size="narrow" />
                   </td>
                   <td className="py-1.5 pr-1">
                     <span className="flex items-center justify-between gap-2">
@@ -255,11 +232,7 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
             renderCells={(bundle) => (
               <>
                 <td className="w-10 py-1.5 pl-1">
-                  <span
-                    style={{ backgroundColor: bundle.color }}
-                    className="inline-block h-3 w-6 shrink-0 rounded-control opacity-50"
-                    aria-hidden
-                  />
+                  <ColorSwatch color={bundle.color} size="narrow" dimmed />
                 </td>
                 <td className="py-1.5">{bundle.name}</td>
               </>

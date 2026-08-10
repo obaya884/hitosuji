@@ -6,7 +6,7 @@ import { linkMuted, tableHeadRow } from "@/app/_lib/ui";
 import type { Mode, ModeId } from "@/domain/mode/mode";
 import { colorPresetName } from "@/domain/shared/color-presets";
 import { TableFrame } from "@/app/_components/table-frame";
-import { ColorPickerPopover, DEFAULT_COLOR } from "@/app/_components/color-picker";
+import { ColorBarButton, ColorSwatch, DEFAULT_COLOR } from "@/app/_components/color-picker";
 import { ArchivedMasterSection } from "@/app/_components/archived-master-section";
 import { MasterEditableCell } from "@/app/_components/master-editable-cell";
 import { MasterNewRow, MasterNewRowInput } from "@/app/_components/master-new-row";
@@ -59,61 +59,37 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
 
   /** 色セル。カラーバーを押すとプリセット選択がその場に開き、選んだ色を即保存する */
   const colorCell = (mode: Mode) => (
-    <span className="relative inline-flex items-center gap-2">
-      <button
-        type="button"
-        // 名前の保存中は色を変えられないようにする（画面定義書00_共通 §2.3「保存中に始める操作」）
-        disabled={isPending}
-        onClick={() => setColorPickerId(mode.id)}
-        aria-label={`色を変更（現在: ${colorPresetName(mode.color)}）`}
-      >
-        <span
-          style={{ backgroundColor: mode.color }}
-          className="inline-block h-3 w-10 shrink-0 rounded-control"
-          aria-hidden
-        />
-      </button>
-      <span className="text-sm text-ink-muted">{colorPresetName(mode.color)}</span>
-      {colorPickerId === mode.id && (
-        <ColorPickerPopover
-          selected={mode.color}
-          onSelect={(color) =>
-            run(
-              () => updateModeAction(mode.id, { name: mode.name, color }),
-              () => setColorPickerId(null)
-            )
-          }
-          onClose={() => setColorPickerId(null)}
-        />
-      )}
-    </span>
+    <ColorBarButton
+      color={mode.color}
+      action="変更"
+      size="bar"
+      showName
+      isPending={isPending}
+      isOpen={colorPickerId === mode.id}
+      onOpen={() => setColorPickerId(mode.id)}
+      onSelect={(color) =>
+        run(
+          () => updateModeAction(mode.id, { name: mode.name, color }),
+          () => setColorPickerId(null)
+        )
+      }
+      onClose={() => setColorPickerId(null)}
+    />
   );
 
   /** 新規追加行の色セル。選択はまだ送信せずローカルに保持し、保存ボタンでまとめて送る */
   const newColorCell = (
-    <span className="relative inline-flex items-center gap-2">
-      <button
-        type="button"
-        // 送信せず表示だけを変える選択も保存中は止める（送る値と表示が食い違う。00_共通 §2.3）
-        disabled={isPending}
-        onClick={() => setColorPickerId("new")}
-        aria-label={`色を選択（現在: ${colorPresetName(newColor)}）`}
-      >
-        <span
-          style={{ backgroundColor: newColor }}
-          className="inline-block h-3 w-10 shrink-0 rounded-control"
-          aria-hidden
-        />
-      </button>
-      <span className="text-sm text-ink-muted">{colorPresetName(newColor)}</span>
-      {colorPickerId === "new" && (
-        <ColorPickerPopover
-          selected={newColor}
-          onSelect={setNewColor}
-          onClose={() => setColorPickerId(null)}
-        />
-      )}
-    </span>
+    <ColorBarButton
+      color={newColor}
+      action="選択"
+      size="bar"
+      showName
+      isPending={isPending}
+      isOpen={colorPickerId === "new"}
+      onOpen={() => setColorPickerId("new")}
+      onSelect={setNewColor}
+      onClose={() => setColorPickerId(null)}
+    />
   );
 
   const newRow = (
@@ -186,11 +162,7 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
           <>
             <td className="w-48 py-2">
               <span className="inline-flex items-center gap-2">
-                <span
-                  style={{ backgroundColor: mode.color }}
-                  className="inline-block h-3 w-10 shrink-0 rounded-control opacity-50"
-                  aria-hidden
-                />
+                <ColorSwatch color={mode.color} size="bar" dimmed />
                 <span className="text-sm">{colorPresetName(mode.color)}</span>
               </span>
             </td>

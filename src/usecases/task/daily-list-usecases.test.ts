@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { TEST_DATE } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
-import { createInMemoryBundleRepository } from "@/usecases/bundle/testing/in-memory-repository";
+import { inMemoryBundleRepository } from "@/usecases/bundle/testing/in-memory-repository";
 import { inMemoryTaskRepository as inMemoryRepo } from "./testing/in-memory-repository";
 import type { ModeRepository } from "@/usecases/ports/mode-repository";
 import type { ProjectRepository } from "@/usecases/ports/project-repository";
@@ -43,7 +43,7 @@ const emptyProjectRepo: ProjectRepository = {
   referenceCounts: async () => ({}),
   remove: async () => {},
 };
-const emptyBundleRepo = createInMemoryBundleRepository();
+const emptyBundleRepo = inMemoryBundleRepository();
 
 describe("addTask（F-102 / 画面定義書01 §3.4: クイック追加）", () => {
   it("タスク名のみで、見積もり未設定・未実行・未分類のタスクを作る", async () => {
@@ -374,7 +374,7 @@ describe("listDailyList のマスタ一覧（F-401 / F-402 / 画面定義書01 �
   // バンドルの道（F-119 / 画面定義書01 §3.3）はアーカイブ済みバンドルに属する展開済みタスクにも
   // 描き続ける（画面定義書05 O-3）ので、モード・プロジェクトと同じく無条件（listAll）で返す
   it("バンドルはアーカイブ済みも含めて返す（アーカイブ後も展開済みタスクの道を描き続けるため）", async () => {
-    const bundleRepo = createInMemoryBundleRepository([
+    const bundleRepo = inMemoryBundleRepository([
       { id: 1, name: "朝の立上げ", color: "#000000", isArchived: false },
       { id: 2, name: "夜のクローズ", color: "#000000", isArchived: true },
     ]);

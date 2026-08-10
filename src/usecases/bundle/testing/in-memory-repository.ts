@@ -4,15 +4,20 @@ import type { Bundle, BundleId } from "@/domain/bundle/bundle";
 import type { BundleInput, BundleRepository } from "@/usecases/ports/bundle-repository";
 
 /**
- * `counts` は referenceCounts が返す値を固定するためのもの（削除可否の分岐を作る）。
- * `memberCounts` は memberCounts が返す値を固定するためのもの（左ペインのメンバー件数。画面定義書05 §3.1）
+ * 件数を返す2つのメソッドは実DBを持たないので、テストから返り値を固定する。
+ * `counts` は referenceCounts（削除可否の分岐を作る）、`memberCounts` は memberCounts
+ * （左ペインのメンバー件数。画面定義書05 §3.1）。**どちらも本物と同じく0件の id は省く**
  */
-export function createInMemoryBundleRepository(
-  seed: readonly Bundle[] = [],
-  counts: Readonly<Record<BundleId, number>> = {},
-  memberCounts: Readonly<Record<BundleId, number>> = {}
+type Counts = Readonly<{
+  counts?: Readonly<Record<BundleId, number>>;
+  memberCounts?: Readonly<Record<BundleId, number>>;
+}>;
+
+export function inMemoryBundleRepository(
+  initial: readonly Bundle[] = [],
+  { counts = {}, memberCounts = {} }: Counts = {}
 ): BundleRepository {
-  let rows: Bundle[] = seed.map((b) => ({ ...b }));
+  let rows: Bundle[] = initial.map((b) => ({ ...b }));
   let nextId = Math.max(0, ...rows.map((b) => b.id)) + 1;
 
   return {
