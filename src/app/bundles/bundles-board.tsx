@@ -161,7 +161,7 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
           () => createBundleAction({ name: fieldValue("name"), color: newColor }),
           (result) => {
             // 作成したバンドルを選択状態にする（O-1）
-            if (result.ok) setSelectedId(result.id);
+            setSelectedId(result.id);
             closeNewRow();
           }
         )

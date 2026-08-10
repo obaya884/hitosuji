@@ -26,12 +26,15 @@ export function useServerActionRunner(setError: SetActionError) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
-  function run<T extends ActionResult>(action: () => Promise<T>, onSuccess?: (result: T) => void) {
+  function run<T extends ActionResult>(
+    action: () => Promise<T>,
+    onSuccess?: (result: Extract<T, { ok: true }>) => void
+  ) {
     setError(null);
     startTransition(async () => {
       const result = await callAction(action);
       if (result.ok) {
-        onSuccess?.(result);
+        onSuccess?.(result as Extract<T, { ok: true }>);
         return;
       }
       handleActionFailure(result, { setError, refresh: () => router.refresh() });

@@ -16,7 +16,6 @@ afterAll(async () => {
   await pool.end();
 });
 
-/** ルーチン由来タスクの展開元。ルーチンが絡む describe（先送り・削除とスキップ）が共有する */
 /** バンドル1件（bundle_id の伝播を見るテストが共有する。名前・色は主張に関わらない） */
 async function createBundle() {
   const [row] = await db
@@ -26,6 +25,7 @@ async function createBundle() {
   return row;
 }
 
+/** ルーチン由来タスクの展開元。ルーチンが絡む describe（先送り・削除とスキップ）が共有する */
 async function createRoutine() {
   const [row] = await db
     .insert(routines)

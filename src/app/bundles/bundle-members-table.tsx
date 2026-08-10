@@ -29,7 +29,7 @@ import {
   setRoutineScheduledStartTimeAction,
 } from "./actions";
 
-/** 保存境界の型。bundles-board.tsx が `useServerActionRunner()` から受け取ったものを配ってくる */
+/** 保存境界の型。`isPending` は画面全体（2つの runner）の OR、`run` はこの表向けの runner のもの */
 type ServerActionBoundary = ReturnType<typeof useServerActionRunner>;
 
 type Props = Readonly<{
