@@ -5,13 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { deferredAction } from "@/app/_testing/actions";
 import { hasClass, rgbOf } from "@/app/_testing/dom";
 import { click, clickWithoutServer } from "@/app/_testing/interactions";
+import type { Bundle } from "@/domain/bundle/bundle";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { Routine } from "@/domain/routine/routine";
 import { COLOR_PRESETS } from "@/domain/shared/color-presets";
 
 import { routine } from "@/domain/routine/testing/routine";
-import { MODES, PROJECTS, SECTIONS, TODAY } from "./_testing/fixtures";
+import { BUNDLES, MODES, PROJECTS, SECTIONS, TODAY } from "./_testing/fixtures";
 import {
   createRoutineAction,
   deleteRoutineAction,
@@ -40,8 +41,10 @@ function renderTable(
   return render(
     <RoutinesTable
       routines={routines}
+      bundles={BUNDLES}
       modes={MODES}
       projects={PROJECTS}
+      allBundles={BUNDLES}
       allModes={MODES}
       allProjects={PROJECTS}
       sections={SECTIONS}
@@ -54,12 +57,13 @@ function renderTable(
 /** 観測点は構造で取る（列は位置で決まる。§3「列は左から …の順」） */
 const COL = {
   name: 0,
-  mode: 1,
-  project: 2,
-  recurrence: 3,
-  estimate: 4,
-  scheduledStart: 5,
-  active: 6,
+  bundle: 1,
+  mode: 2,
+  project: 3,
+  recurrence: 4,
+  estimate: 5,
+  scheduledStart: 6,
+  active: 7,
 } as const;
 
 function rows(container: HTMLElement): HTMLTableRowElement[] {
@@ -100,7 +104,7 @@ describe("RoutinesTable（画面定義書02 §3: 一覧の列と表記）", () =
     expect(screen.getByText(/自動で展開されます（当日以降のみ）/)).not.toBeNull();
   });
 
-  it("列は左から 名前/モード/プロジェクト/繰り返し/見積/開始想定/有効/操作 の順に並べる", () => {
+  it("列は左から 名前/バンドル/モード/プロジェクト/繰り返し/見積/開始想定/有効/操作 の順に並べる", () => {
     const { container } = renderTable([routine({ id: 1 })]);
 
     const labels = [...container.querySelectorAll("thead th")].map((th) =>
@@ -109,6 +113,7 @@ describe("RoutinesTable（画面定義書02 §3: 一覧の列と表記）", () =
     );
     expect(labels).toEqual([
       "名前",
+      "バンドル",
       "モード",
       "プロジェクト",
       "繰り返し",
@@ -119,6 +124,37 @@ describe("RoutinesTable（画面定義書02 §3: 一覧の列と表記）", () =
     ]);
     // 行のセル数も見出しに合わせる（末尾に列を足しても上の期待値だけでは検出できない）
     expect(rows(container)[0].cells).toHaveLength(labels.length);
+  });
+
+  it("バンドル色の四角と名前を出す", () => {
+    const { container } = renderTable([routine({ id: 1, bundleId: 1 })]);
+
+    const target = cell(container, 0, COL.bundle);
+    expect(target.textContent).toBe(BUNDLES[0].name);
+    const swatch = target.querySelector<HTMLElement>("[aria-hidden]")!;
+    expect(swatch.style.backgroundColor).toBe(rgbOf(BUNDLES[0].color));
+  });
+
+  it("バンドルが未設定なら薄色の `-` を出す（00_共通 §2.4）", () => {
+    const { container } = renderTable([routine({ id: 1, bundleId: null })]);
+
+    const target = cell(container, 0, COL.bundle);
+    expect(target.textContent).toBe("-");
+    expect(hasClass(target.firstElementChild!, "text-ink-faint")).toBe(true);
+  });
+
+  it("アーカイブ済みバンドルも名前をそのまま出す（参照を保つ。モード・プロジェクトと同じ扱い）", () => {
+    const archivedBundle: Bundle = {
+      id: 9,
+      name: "旧バンドル",
+      color: COLOR_PRESETS[7].value,
+      isArchived: true,
+    };
+    const { container } = renderTable([routine({ id: 1, bundleId: 9 })], {
+      allBundles: [...BUNDLES, archivedBundle],
+    });
+
+    expect(cell(container, 0, COL.bundle).textContent).toBe("旧バンドル");
   });
 
   it("各列に対応する値を出す（見積は H:MM・開始想定はセクション名を併記）", () => {
@@ -298,13 +334,52 @@ describe("RoutinesTable（画面定義書02 §3.1: 列見出しのクリック�
     expect(names(container)).toEqual(["い", "う", "あ"]);
   });
 
-  it("並べ替えできるのは 名前/モード/プロジェクト/繰り返し/開始想定 の5列だけ（見積は対象外）", () => {
+  it("並べ替えできるのは 名前/バンドル/モード/プロジェクト/繰り返し/開始想定 の6列だけ（見積は対象外）", () => {
     renderTable(forSort);
 
-    for (const label of ["名前", "モード", "プロジェクト", "繰り返し", "開始想定"]) {
+    for (const label of ["名前", "バンドル", "モード", "プロジェクト", "繰り返し", "開始想定"]) {
       expect(header(label).querySelector("button")).not.toBeNull();
     }
     expect(header("見積").querySelector("button")).toBeNull();
+  });
+
+  it("見出しのクリックでバンドル順に並べ替える（F-306）", () => {
+    const { container } = renderTable([
+      routine({ id: 1, name: "い", scheduledStartTime: "08:00", bundleId: 2 }), // わ
+      routine({ id: 2, name: "あ", scheduledStartTime: "09:00", bundleId: 1 }), // あ
+    ]);
+
+    clickWithoutServer(screen.getByText("バンドル"));
+
+    expect(header("バンドル").getAttribute("aria-sort")).toBe("ascending");
+    expect(names(container)).toEqual(["あ", "い"]);
+  });
+
+  it("バンドルの見出しをもう一度押すと降順になる", () => {
+    const { container } = renderTable([
+      routine({ id: 1, name: "い", scheduledStartTime: "08:00", bundleId: 2 }),
+      routine({ id: 2, name: "あ", scheduledStartTime: "09:00", bundleId: 1 }),
+    ]);
+
+    clickWithoutServer(screen.getByText("バンドル"));
+    clickWithoutServer(screen.getByText("バンドル"));
+
+    expect(header("バンドル").getAttribute("aria-sort")).toBe("descending");
+    expect(names(container)).toEqual(["い", "あ"]);
+  });
+
+  it("バンドル未設定は昇順・降順とも末尾", () => {
+    const { container } = renderTable([
+      routine({ id: 1, name: "い", scheduledStartTime: "08:00", bundleId: 2 }),
+      routine({ id: 2, name: "あ", scheduledStartTime: "09:00", bundleId: 1 }),
+      routine({ id: 3, name: "う", scheduledStartTime: "10:00", bundleId: null }),
+    ]);
+
+    clickWithoutServer(screen.getByText("バンドル"));
+    expect(names(container)).toEqual(["あ", "い", "う"]);
+
+    clickWithoutServer(screen.getByText("バンドル"));
+    expect(names(container)).toEqual(["い", "あ", "う"]);
   });
 
   // 順序規則そのものは domain/routine/order.test.ts が担保済み。
@@ -683,5 +758,28 @@ describe("RoutinesTable（画面定義書02 §4・§5: 新規/編集フォーム
     expect(createRoutineAction).not.toHaveBeenCalled();
     expect(screen.queryByLabelText("名前")).toBeNull();
     expect(screen.queryByText("ルーチンはまだありません。")).not.toBeNull();
+  });
+});
+
+// `?edit=<id>` の受け口（画面定義書05 O-8）。page.tsx が searchParams から読んだ id を
+// initialEditingId として渡す。page.tsx 自体は async Server Component なので描画できず
+// （テスト戦略定義書 §3・§6）、渡された先のこの prop で受け口を固定する
+describe("RoutinesTable（S-05 のメンバー名リンクからの `?edit=<id>` の受け口）", () => {
+  it("initialEditingId に一致するルーチンの編集フォームを開いた状態で描画する", () => {
+    renderTable(
+      [
+        routine({ id: 7, name: "1件目" }),
+        routine({ id: 8, name: "2件目" }),
+      ],
+      { initialEditingId: 8 }
+    );
+
+    expect(screen.getByLabelText<HTMLInputElement>("名前").value).toBe("2件目");
+  });
+
+  it("一致するルーチンが無ければ何も開かない（削除済み等）", () => {
+    renderTable([routine({ id: 7, name: "1件目" })], { initialEditingId: 999 });
+
+    expect(screen.queryByLabelText("名前")).toBeNull();
   });
 });

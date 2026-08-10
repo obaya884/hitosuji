@@ -1,15 +1,17 @@
 "use client";
 
 import { Fragment, useState } from "react";
+import type { Bundle } from "@/domain/bundle/bundle";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
-import { describeRecurrence, type Routine } from "@/domain/routine/routine";
+import { describeRecurrence, type Routine, type RoutineId } from "@/domain/routine/routine";
 import type { RoutineInput } from "@/domain/routine/input";
 import {
   sortRoutines,
   type RoutineSortDirection,
   type RoutineSortKey,
 } from "@/domain/routine/order";
+import { colorPresetName } from "@/domain/shared/color-presets";
 import { sectionAt, type Section } from "@/domain/section/section";
 import { useServerAction } from "@/app/_lib/use-server-action";
 import { linkAccent, linkMuted, tableHeadRow } from "@/app/_lib/ui";
@@ -26,14 +28,18 @@ import { RoutineForm } from "./routine-form";
 
 type Props = Readonly<{
   routines: readonly Routine[];
-  /** 編集フォームの選択肢。アーカイブ済みは含めない（画面定義書03 §4） */
+  /** 編集フォームの選択肢。アーカイブ済みは含めない（画面定義書02 §4） */
+  bundles: readonly Bundle[];
   modes: readonly Mode[];
   projects: readonly Project[];
-  /** 一覧の表示用。参照中であればアーカイブ済みマスタの名前も出す（画面定義書03 §4） */
+  /** 一覧の表示用。参照中であればアーカイブ済みマスタの名前も出す（画面定義書02 §3） */
+  allBundles: readonly Bundle[];
   allModes: readonly Mode[];
   allProjects: readonly Project[];
   sections: readonly Section[];
   today: string;
+  /** S-05 のメンバー名リンク（`/routines?edit=<id>`）の着地点。開いた状態で初期表示する行 */
+  initialEditingId?: RoutineId | null;
 }>;
 
 /**
@@ -73,26 +79,34 @@ function SortableHeader({
 /** 一覧（画面定義書02 §3）。既定の並び順は開始想定時刻の昇順（展開後のデイリーと同じ並び） */
 export function RoutinesTable({
   routines,
+  bundles,
   modes,
   projects,
+  allBundles,
   allModes,
   allProjects,
   sections,
   today,
+  initialEditingId = null,
 }: Props) {
-  const [editing, setEditing] = useState<Routine | "new" | null>(null);
+  // S-05 のメンバー名リンク（`/routines?edit=<id>`）で開いた状態にする（画面定義書05 O-8）。
+  // 見つからない id は静かに無視する（削除済み等。新規/一覧のまま表示すれば十分）
+  const [editing, setEditing] = useState<Routine | "new" | null>(() =>
+    initialEditingId === null ? null : (routines.find((r) => r.id === initialEditingId) ?? null)
+  );
   const [sort, setSort] = useState<Readonly<{ key: RoutineSortKey; direction: RoutineSortDirection }>>(
     { key: "scheduledStartTime", direction: "asc" }
   );
   const { error, setError, isPending, run } = useServerAction();
 
+  const bundleById = new Map(allBundles.map((b) => [b.id, b]));
   const modeById = new Map(allModes.map((m) => [m.id, m]));
   const projectById = new Map(allProjects.map((p) => [p.id, p]));
 
   // 並べ替え（F-306 / 画面定義書02 §3.1）。既定は開始想定の昇順で、選んだ軸は記憶しない
   const sorted = sortRoutines(
     routines,
-    { modes: allModes, projects: allProjects },
+    { bundles: allBundles, modes: allModes, projects: allProjects },
     sort.key,
     sort.direction
   );
@@ -118,6 +132,7 @@ export function RoutinesTable({
   const form = (target: Routine | null) => (
     <RoutineForm
       routine={target}
+      bundles={bundles}
       modes={modes}
       projects={projects}
       today={today}
@@ -144,6 +159,13 @@ export function RoutinesTable({
         <thead>
           <tr className={tableHeadRow}>
             <SortableHeader label="名前" sortKey="name" sort={sort} onSort={toggleSort} />
+            <SortableHeader
+              label="バンドル"
+              sortKey="bundle"
+              sort={sort}
+              onSort={toggleSort}
+              className="w-28"
+            />
             <SortableHeader
               label="モード"
               sortKey="mode"
@@ -180,6 +202,8 @@ export function RoutinesTable({
         </thead>
         <tbody>
           {sorted.map((routine) => {
+            const bundle =
+              routine.bundleId === null ? undefined : bundleById.get(routine.bundleId);
             const mode = routine.modeId === null ? undefined : modeById.get(routine.modeId);
             const project =
               routine.projectId === null ? undefined : projectById.get(routine.projectId);
@@ -200,6 +224,23 @@ export function RoutinesTable({
                   }
                 >
                   {routine.name}
+                </td>
+                <td className="py-2 text-sm">
+                  {/* バンドル色にモード色のような主段の表現は乗せない（画面定義書02 §3。
+                      モード色が乗るのは名前列だけ） */}
+                  {bundle === undefined ? (
+                    <UnsetMark />
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5">
+                      <span
+                        style={{ backgroundColor: bundle.color }}
+                        title={colorPresetName(bundle.color)}
+                        className="inline-block h-3 w-3 shrink-0 rounded-control"
+                        aria-hidden
+                      />
+                      {bundle.name}
+                    </span>
+                  )}
                 </td>
                 <td className="py-2 text-sm">{mode?.name ?? <UnsetMark />}</td>
                 <td className="py-2 text-sm">{project?.name ?? <UnsetMark />}</td>

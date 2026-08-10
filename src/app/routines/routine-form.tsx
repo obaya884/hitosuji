@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { Bundle } from "@/domain/bundle/bundle";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import {
@@ -16,6 +17,9 @@ import { UNSET_LABEL } from "@/app/_lib/unset";
 
 type Props = Readonly<{
   routine: Routine | null;
+  /** 選択肢。アーカイブ済みは含めない（画面定義書02 §4）。すでに別のバンドルに属していても
+   *  ここでは付け替えられる（S-05 O-5 が候補を未所属に絞るのとは非対称。§4 に理由あり） */
+  bundles: readonly Bundle[];
   modes: readonly Mode[];
   projects: readonly Project[];
   today: string;
@@ -42,6 +46,7 @@ const RECURRENCE_LABELS: Readonly<Record<RecurrenceType, string>> = {
  */
 export function RoutineForm({
   routine,
+  bundles,
   modes,
   projects,
   today,
@@ -65,6 +70,7 @@ export function RoutineForm({
   const [endDate, setEndDate] = useState(routine?.endDate ?? "");
   const [modeId, setModeId] = useState(routine?.modeId ?? null);
   const [projectId, setProjectId] = useState(routine?.projectId ?? null);
+  const [bundleId, setBundleId] = useState(routine?.bundleId ?? null);
 
   function submit() {
     onSubmit({
@@ -73,9 +79,7 @@ export function RoutineForm({
       scheduledStartTime,
       modeId,
       projectId,
-      // このフォームにバンドルの入力欄はまだ無い（S-02 のバンドル列は別タスク）。
-      // 更新は全項目を送るので、既存の所属をそのまま引き継ぐ（勝手に外さない）
-      bundleId: routine?.bundleId ?? null,
+      bundleId,
       recurrenceType,
       weekdays: recurrenceType === "weekly" ? weekdays : null,
       weekInterval: recurrenceType === "weekly" ? Number(weekInterval) : null,
@@ -274,6 +278,25 @@ export function RoutineForm({
             </select>
           </label>
         </div>
+      </div>
+
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <label className="text-sm">
+          <span className="text-xs text-ink-muted">バンドル</span>
+          <select
+            value={bundleId ?? ""}
+            disabled={isPending}
+            onChange={(e) => setBundleId(e.target.value === "" ? null : Number(e.target.value))}
+            className={`mt-1 w-full ${inputBase}`}
+          >
+            <option value="">{UNSET_LABEL}</option>
+            {bundles.map((bundle) => (
+              <option key={bundle.id} value={bundle.id}>
+                {bundle.name}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       {/* 保存中は確定も取消も止める（00_共通 §2.3。連打は二重に作り、応答待ちの取消は入力を失わせる） */}

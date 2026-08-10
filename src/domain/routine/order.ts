@@ -1,17 +1,24 @@
 // ルーチン一覧の並べ替え（画面定義書02 §3.1: FB-10）と、バンドルのメンバー一覧・追加候補
 // （画面定義書05 §3.2・O-5）の並び。どちらも「開始想定時刻の昇順・同時刻は名前の自然順」を使う
-import type { BundleId } from "../bundle/bundle";
+import type { Bundle, BundleId } from "../bundle/bundle";
 import type { Mode } from "../mode/mode";
 import type { Project } from "../project/project";
 import { compareByName } from "../shared/name-order";
 import type { RecurrenceType, Routine } from "./routine";
 
-export type RoutineSortKey = "name" | "mode" | "project" | "recurrence" | "scheduledStartTime";
+export type RoutineSortKey =
+  | "name"
+  | "bundle"
+  | "mode"
+  | "project"
+  | "recurrence"
+  | "scheduledStartTime";
 
 export type RoutineSortDirection = "asc" | "desc";
 
 /** 並べ替えに必要なマスタ（名前の引き当てに使う。アーカイブ済みも含めて渡される） */
 export type RoutineSortMasters = Readonly<{
+  bundles: readonly Bundle[];
   modes: readonly Mode[];
   projects: readonly Project[];
 }>;
@@ -48,6 +55,8 @@ export function sortRoutines(
   key: RoutineSortKey,
   direction: RoutineSortDirection
 ): Routine[] {
+  const bundleNameOf = (routine: Routine): string | null =>
+    resolveMasterName(routine.bundleId, masters.bundles);
   const modeNameOf = (routine: Routine): string | null =>
     resolveMasterName(routine.modeId, masters.modes);
   const projectNameOf = (routine: Routine): string | null =>
@@ -55,6 +64,8 @@ export function sortRoutines(
 
   const isUnset = (routine: Routine): boolean => {
     switch (key) {
+      case "bundle":
+        return bundleNameOf(routine) === null;
       case "mode":
         return modeNameOf(routine) === null;
       case "project":
@@ -68,6 +79,8 @@ export function sortRoutines(
     switch (key) {
       case "name":
         return compareByName(a, b);
+      case "bundle":
+        return compareByName({ name: bundleNameOf(a) ?? "" }, { name: bundleNameOf(b) ?? "" });
       case "mode":
         return compareByName({ name: modeNameOf(a) ?? "" }, { name: modeNameOf(b) ?? "" });
       case "project":

@@ -1,20 +1,25 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import type { Bundle } from "@/domain/bundle/bundle";
 import type { RoutineInput } from "@/domain/routine/input";
 import type { Routine } from "@/domain/routine/routine";
 
 import { routine } from "@/domain/routine/testing/routine";
-import { MODES, PROJECTS, TODAY } from "./_testing/fixtures";
+import { BUNDLES, MODES, PROJECTS, TODAY } from "./_testing/fixtures";
 import { RoutineForm } from "./routine-form";
 
 /** 新規（routine=null）と編集（routine あり）で同じフォームを使う（§4「新規/編集共通」） */
-function setup(target: Routine | null = null, { isPending = false } = {}) {
+function setup(
+  target: Routine | null = null,
+  { isPending = false, bundles = BUNDLES }: Readonly<{ isPending?: boolean; bundles?: readonly Bundle[] }> = {}
+) {
   const onSubmit = vi.fn();
   const onCancel = vi.fn();
   render(
     <RoutineForm
       routine={target}
+      bundles={bundles}
       modes={MODES}
       projects={PROJECTS}
       today={TODAY}
@@ -397,6 +402,32 @@ describe("RoutineForm（画面定義書02 §4: 繰り返し種別に応じて入
     expect(onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({ modeId: null, projectId: null })
     );
+  });
+
+  // アーカイブ済みバンドルは候補に出さない（画面定義書02 §4。モード・プロジェクトと同じ扱い）
+  it("バンドルは選択肢に「未設定」＋有効なバンドルだけを持つ（アーカイブ済みは出さない）", () => {
+    setup(null, {
+      bundles: [
+        BUNDLES[0],
+        BUNDLES[1],
+        { id: 9, name: "旧バンドル", color: BUNDLES[0].color, isArchived: true },
+      ].filter((b) => !b.isArchived),
+    });
+
+    const bundle = screen.getByLabelText<HTMLSelectElement>("バンドル");
+    expect([...bundle.options].map((o) => o.textContent)).toEqual(["未設定", "バンドルA", "バンドルB"]);
+  });
+
+  // 別のバンドルに属していても、ここでは付け替えられる（§4。S-05 O-5 と非対称）——
+  // 未所属に絞っていないことは、上のテストの期待値（有効なバンドルが全部出る）で固定している
+  it("バンドルは「未設定」に戻せる", () => {
+    const { onSubmit } = setup(routine({ id: 1, bundleId: 1 }));
+
+    fireEvent.change(screen.getByLabelText("バンドル"), { target: { value: "" } });
+
+    save();
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ bundleId: null }));
   });
 
   // 必須・範囲の判定は domain の validateRoutineInput が行い（アーキテクチャ定義書 §4）、

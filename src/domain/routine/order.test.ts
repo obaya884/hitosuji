@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { Bundle } from "../bundle/bundle";
 import type { Mode } from "../mode/mode";
 import type { Project } from "../project/project";
 import { COLOR_PRESETS } from "../shared/color-presets";
@@ -6,6 +7,10 @@ import { compareByName } from "../shared/name-order";
 import { bundleCandidates, bundleMembers, sortRoutines, type RoutineSortMasters } from "./order";
 import type { Routine } from "./routine";
 import { routine } from "./testing/routine";
+
+function bundle(id: number, name: string): Bundle {
+  return { id, name, color: COLOR_PRESETS[4].value, isArchived: false };
+}
 
 function mode(id: number, name: string): Mode {
   return { id, name, color: COLOR_PRESETS[8].value, isArchived: false };
@@ -16,11 +21,12 @@ function project(id: number, name: string): Project {
 }
 
 const masters: RoutineSortMasters = {
+  bundles: [bundle(1, "仕事"), bundle(2, "生活")],
   modes: [mode(1, "仕事"), mode(2, "生活")],
   projects: [project(1, "改善"), project(2, "経理")],
 };
 
-const emptyMasters: RoutineSortMasters = { modes: [], projects: [] };
+const emptyMasters: RoutineSortMasters = { bundles: [], modes: [], projects: [] };
 
 function names(routines: readonly Routine[]): string[] {
   return routines.map((r) => r.name);
@@ -76,6 +82,28 @@ describe("sortRoutines（画面定義書02 §3.1）", () => {
     ];
     const result = sortRoutines(input, masters, "mode", "asc");
     expect(names(result)).toEqual(["仕事の行", "存在しないモード"]);
+  });
+
+  it("未設定の扱い: バンドル未設定（bundleId=null）の行は昇順・降順とも末尾", () => {
+    const input = [
+      routine({ id: 1, name: "未設定行", bundleId: null }),
+      routine({ id: 2, name: "生活の行", bundleId: 2 }),
+      routine({ id: 3, name: "仕事の行", bundleId: 1 }),
+    ];
+    const asc = sortRoutines(input, masters, "bundle", "asc");
+    expect(names(asc)).toEqual(["仕事の行", "生活の行", "未設定行"]);
+
+    const desc = sortRoutines(input, masters, "bundle", "desc");
+    expect(names(desc)).toEqual(["生活の行", "仕事の行", "未設定行"]);
+  });
+
+  it("未設定の扱い: マスタに見つからない bundleId も未設定と同じ扱いにする", () => {
+    const input = [
+      routine({ id: 1, name: "存在しないバンドル", bundleId: 999 }),
+      routine({ id: 2, name: "仕事の行", bundleId: 1 }),
+    ];
+    const result = sortRoutines(input, masters, "bundle", "asc");
+    expect(names(result)).toEqual(["仕事の行", "存在しないバンドル"]);
   });
 
   it("未設定の扱い: プロジェクト未設定・マスタ不在の行も末尾（昇順）", () => {
