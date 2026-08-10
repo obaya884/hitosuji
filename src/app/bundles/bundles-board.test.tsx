@@ -5,9 +5,12 @@ import type { Bundle, BundleId } from "@/domain/bundle/bundle";
 import type { Mode } from "@/domain/mode/mode";
 import type { Routine } from "@/domain/routine/routine";
 import { routine } from "@/domain/routine/testing/routine";
+import { COLOR_BY_NAME } from "@/domain/shared/color-presets";
 import type { BundleListView } from "@/usecases/bundle/bundle-usecases";
 
+import { BUNDLE_MEMBER_MESSAGES } from "@/app/_lib/error-messages";
 import { deferredAction } from "@/app/_testing/actions";
+import { hasClass, rgbOf } from "@/app/_testing/dom";
 import { click, clickWithoutServer } from "@/app/_testing/interactions";
 import { rowOf } from "./_testing/table-helpers";
 
@@ -34,10 +37,10 @@ import {
 } from "./actions";
 import { BundlesBoard } from "./bundles-board";
 
-// プリセット13色のうちテストで使う3つ（画面定義書03 §3.2 の表の値と同じ。バンドルも共有する）
-const RED = "#ef4444";
-const BLUE = "#3b82f6";
-const GRAY = "#9ca3af";
+// プリセット13色のうちテストで使う3つ（画面定義書03 §3.2 の表。モードとバンドルで共有する）
+const RED = COLOR_BY_NAME["赤"];
+const BLUE = COLOR_BY_NAME["青"];
+const GRAY = COLOR_BY_NAME["グレー"];
 
 const bundle = (id: BundleId, name: string, color: string, isArchived = false): Bundle => ({
   id,
@@ -58,6 +61,14 @@ function rightPaneHeader(): HTMLElement {
   return header;
 }
 
+/**
+ * エラー帯が出た場所（発生源による出し分け。00_共通 §4.1）。左ペイン・ヘッダの帯は
+ * `TableFrame` が描く `<section>` の中に、メンバー表の帯は右ペイン（section の外）に出る
+ */
+function errorPaneOf(message: string): "board" | "members" {
+  return screen.getByText(message).closest("section") === null ? "members" : "board";
+}
+
 function renderBoard(
   props: Partial<{
     active: readonly Bundle[];
@@ -72,7 +83,8 @@ function renderBoard(
     active: props.active ?? ACTIVE,
     archived: props.archived ?? [],
     deletableIds: props.deletableIds ?? [],
-    memberCounts: props.memberCounts ?? { 1: 4, 2: 0 },
+    // 0件のバンドルの id は `listBundles` が省略する（Port の契約）ので、既定でも id:2 を入れない
+    memberCounts: props.memberCounts ?? { 1: 4 },
   };
   return render(
     <BundlesBoard bundles={bundles} routines={props.routines ?? []} modes={props.modes ?? []} />
@@ -95,12 +107,24 @@ describe("BundlesBoard（画面定義書05: 左ペインの一覧・作成・ア
     expect(within(row1).getByText("4")).not.toBeNull();
     expect(row1.querySelector("span[aria-hidden]")).toHaveProperty(
       "style.backgroundColor",
-      "rgb(239, 68, 68)"
+      rgbOf(RED)
     );
 
-    // 0件のバンドルも「0」を出す（値が確定しているので薄色表記は使わない）
+    // 件数が省略された（＝0件の）バンドルも「0」を出す（値が確定しているので薄色表記は使わない）
     const row2 = rowOf("週末の整理");
     expect(within(row2).getByText("0")).not.toBeNull();
+  });
+
+  it("選択中の行を地色で示す（§3.1）", () => {
+    renderBoard();
+
+    expect(hasClass(rowOf("朝の立上げ"), "bg-accent-weak")).toBe(true);
+    expect(hasClass(rowOf("週末の整理"), "bg-accent-weak")).toBe(false);
+
+    clickWithoutServer(within(rowOf("週末の整理")).getByRole("button", { name: "週末の整理" }));
+
+    expect(hasClass(rowOf("週末の整理"), "bg-accent-weak")).toBe(true);
+    expect(hasClass(rowOf("朝の立上げ"), "bg-accent-weak")).toBe(false);
   });
 
   it("初期選択は有効なバンドルの先頭で、その名前・色を右ペインのヘッダに出す（§3.1）", () => {
@@ -148,7 +172,6 @@ describe("BundlesBoard（画面定義書05: 左ペインの一覧・作成・ア
       vi.mocked(createBundleAction).mockResolvedValue({ ok: true, id: 3 });
       renderBoard({
         active: [...ACTIVE, bundle(3, "夜のまとめ", GRAY)],
-        memberCounts: { 1: 4, 2: 0, 3: 0 },
       });
       clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
       clickWithoutServer(screen.getByRole("button", { name: "色を選択（現在: 赤）" }));
@@ -195,6 +218,14 @@ describe("BundlesBoard（画面定義書05: 左ペインの一覧・作成・ア
       expect(deleteBundleAction).not.toHaveBeenCalled();
     });
 
+    it("アーカイブ済みの「復元」で有効へ戻す", async () => {
+      renderBoard({ archived: [bundle(8, "旧バンドルA", RED, true)] });
+
+      await click(within(rowOf("旧バンドルA")).getByRole("button", { name: "復元" }));
+
+      expect(setBundleArchivedAction).toHaveBeenCalledExactlyOnceWith(8, false);
+    });
+
     it("アーカイブ済みは折りたたみの中にあり、参照0件の行にだけ「削除」が出る", async () => {
       renderBoard({
         archived: [bundle(8, "旧バンドルA", RED, true), bundle(9, "旧バンドルB", GRAY, true)],
@@ -239,6 +270,18 @@ describe("BundlesBoard（画面定義書05: 左ペインの一覧・作成・ア
         color: BLUE,
       });
     });
+
+    it("Esc で編集を取り消し、保存を依頼しない（00_共通 §2.3）", () => {
+      renderBoard();
+      clickWithoutServer(within(rightPaneHeader()).getByRole("button", { name: "朝の立上げ" }));
+      const input = screen.getByDisplayValue("朝の立上げ");
+
+      fireEvent.change(input, { target: { value: "朝の準備" } });
+      fireEvent.keyDown(input, { key: "Escape" });
+
+      expect(screen.queryByDisplayValue("朝の準備")).toBeNull();
+      expect(updateBundleAction).not.toHaveBeenCalled();
+    });
   });
 
   // 保存境界（isPending/run）を画面全体で共有していること（00_共通 §4.2「再発火の抑止」——
@@ -276,9 +319,9 @@ describe("BundlesBoard（画面定義書05: 左ペインの一覧・作成・ア
       });
     });
 
-    // レビュー指摘: `setMembersError`/`clearBoardError` が共有の error を無条件にクリアしていたため、
-    // 未解決のエラーが出ている状態で他方のペインを触るだけ（サーバへは何も送らない操作）で
-    // 消えてしまっていた（00_共通 §4.1「失敗はすべて画面に出す」に反する）
+    // 画面の操作によるクリアは自分の scope のときだけ効かせる。無条件にクリアすると、
+    // 他方のペインを触るだけ（サーバへは何も送らない操作）で未解決のエラーが消えてしまう
+    // （00_共通 §4.1「失敗はすべて画面に出す」に反する）
     it("左ペインにエラーが出ている間、メンバー表の操作（サーバへ送らないもの）を触ってもエラーは消えない", async () => {
       vi.mocked(setBundleArchivedAction).mockResolvedValue({ ok: false, message: "左の失敗" });
       renderBoard({ routines: [routine({ id: 101, name: "朝食", bundleId: 1 })] });
@@ -306,6 +349,43 @@ describe("BundlesBoard（画面定義書05: 左ペインの一覧・作成・ア
       clickWithoutServer(within(rightPaneHeader()).getByRole("button", { name: "朝の立上げ" }));
 
       expect(screen.getByText("メンバー表の失敗")).not.toBeNull();
+    });
+
+    it("自分の scope のエラーは、そのペインで新しい編集を始めると消える", async () => {
+      vi.mocked(setBundleArchivedAction).mockResolvedValue({ ok: false, message: "左の失敗" });
+      renderBoard();
+      await click(screen.getByRole("button", { name: "アーカイブ" }));
+      expect(screen.getByText("左の失敗")).not.toBeNull();
+
+      clickWithoutServer(within(rightPaneHeader()).getByRole("button", { name: "朝の立上げ" }));
+
+      expect(screen.queryByText("左の失敗")).toBeNull();
+    });
+  });
+
+  // 発生源による帯の出し分け（00_共通 §4.1）。メンバー表が出す失敗はサーバへ届く前の
+  // クライアント検証（O-7）でも起こり、その経路も bundles-board を通って表示先が決まる
+  describe("エラー帯の出し分け（00_共通 §4.1）", () => {
+    it("メンバー表のクライアント検証エラーはメンバー表の帯に出る", () => {
+      renderBoard({
+        routines: [routine({ id: 101, name: "朝食", bundleId: 1, scheduledStartTime: "06:30" })],
+      });
+
+      clickWithoutServer(screen.getByRole("button", { name: "06:30" }));
+      const input = screen.getByDisplayValue("06:30");
+      fireEvent.change(input, { target: { value: "99:99" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+
+      expect(errorPaneOf(BUNDLE_MEMBER_MESSAGES.invalid_start_time)).toBe("members");
+    });
+
+    it("左ペインの失敗は左ペインの帯に出る", async () => {
+      vi.mocked(setBundleArchivedAction).mockResolvedValue({ ok: false, message: "左の失敗" });
+      renderBoard();
+
+      await click(screen.getByRole("button", { name: "アーカイブ" }));
+
+      expect(errorPaneOf("左の失敗")).toBe("board");
     });
   });
 });

@@ -11,6 +11,7 @@ import type { Task } from "@/domain/task/task";
 import { task } from "@/domain/task/testing/task";
 
 import {
+  deleteTaskAction,
   duplicateAndStartTaskAction,
   finishTaskAction,
   restoreCompletionAction,
@@ -230,10 +231,11 @@ describe("DailyBoard のバンドル割り込み警告（F-119 / 要件定義書
   const BUNDLE_NAME = "朝の立上げ";
   const BUNDLE_ID = bundleOf(BUNDLE_NAME).id;
   const MEMBER_DONE = "身支度";
+  const MEMBER_RUNNING = "洗顔";
   const MEMBER_TODO = "着替え";
   const NONMEMBER = "資料作成";
 
-  /** 完了したメンバー1件・未実行のメンバー1件・未実行の非メンバー1件（brief の表の #1〜#2） */
+  /** 完了したメンバー1件・未実行のメンバー1件・未実行の非メンバー1件（残り1件が出る最小形） */
   function bundleTasks(): Task[] {
     return [
       task({
@@ -255,6 +257,47 @@ describe("DailyBoard のバンドル割り込み警告（F-119 / 要件定義書
     await click(within(taskRow(NONMEMBER)).getByLabelText("開始"));
 
     expect(screen.queryByText(`「${BUNDLE_NAME}」が途中です（残り1件）`)).not.toBeNull();
+  });
+
+  /**
+   * 割り込み（O-2）＝実行中のメンバーを残したまま非メンバーを開始する形。**判定は打刻前の
+   * 一覧（`orderedTasks`）を読む**——楽観的更新（`optimistic.ts` の `"start"`）は割り込まれた
+   * 実行中タスクへ終了時刻を入れるので、判定が更新後の値を見ると未完了の数が1減り、
+   * 未完了メンバーが実行中の1件だけのときは警告ごと消える
+   */
+  it("実行中のメンバーに割り込んで非メンバーを開始しても知らせる（実行中のメンバーを未完了に数える）", async () => {
+    renderBoard([
+      task({
+        id: 21,
+        name: MEMBER_RUNNING,
+        bundleId: BUNDLE_ID,
+        sortOrder: 1000,
+        startedAt: atJst("10:00"),
+      }),
+      task({ id: 23, name: NONMEMBER, sortOrder: 2000 }),
+    ]);
+
+    await click(within(taskRow(NONMEMBER)).getByLabelText("開始"));
+
+    expect(screen.queryByText(`「${BUNDLE_NAME}」が途中です（残り1件）`)).not.toBeNull();
+  });
+
+  it("割り込まれた実行中メンバーと未実行メンバーを合わせて数える（残り2件）", async () => {
+    renderBoard([
+      task({
+        id: 21,
+        name: MEMBER_RUNNING,
+        bundleId: BUNDLE_ID,
+        sortOrder: 1000,
+        startedAt: atJst("10:00"),
+      }),
+      task({ id: 22, name: MEMBER_TODO, bundleId: BUNDLE_ID, sortOrder: 2000 }),
+      task({ id: 23, name: NONMEMBER, sortOrder: 3000 }),
+    ]);
+
+    await click(within(taskRow(NONMEMBER)).getByLabelText("開始"));
+
+    expect(screen.queryByText(`「${BUNDLE_NAME}」が途中です（残り2件）`)).not.toBeNull();
   });
 
   it("同じバンドルの別メンバーを開始しても知らせない", async () => {
@@ -290,9 +333,90 @@ describe("DailyBoard のバンドル割り込み警告（F-119 / 要件定義書
     expect(screen.queryByText(/が途中です/)).toBeNull();
   });
 
+  /**
+   * 契機は開始打刻の全経路（§4.4）——その否定側の土台。**直前に実行したのがメンバーで、
+   * 未完了のメンバーが1件残る**並びに非メンバーを1件足す。誤って開始以外を契機に加えると
+   * この形で鳴るので、鳴らないことがそのまま検査になる
+   */
+  function afterMemberTasks(nonMember: Task): Task[] {
+    return [
+      task({
+        id: 21,
+        name: MEMBER_DONE,
+        bundleId: BUNDLE_ID,
+        sortOrder: 1000,
+        startedAt: atJst("09:30"),
+        endedAt: atJst("09:40"),
+      }),
+      task({ id: 22, name: MEMBER_TODO, bundleId: BUNDLE_ID, sortOrder: 2000 }),
+      nonMember,
+    ];
+  }
+
+  it("終了打刻では知らせない（開始操作ではないため）", async () => {
+    renderBoard(
+      afterMemberTasks(
+        task({ id: 23, name: NONMEMBER, sortOrder: 3000, startedAt: atJst("10:00") })
+      )
+    );
+
+    await click(within(taskRow(NONMEMBER)).getByLabelText("終了"));
+
+    expect(vi.mocked(finishTaskAction)).toHaveBeenCalledWith(23, NOW);
+    expect(screen.queryByText(/が途中です/)).toBeNull();
+  });
+
+  it("開始打刻の取り消し（U）では知らせない", async () => {
+    renderBoard(
+      afterMemberTasks(
+        task({ id: 23, name: NONMEMBER, sortOrder: 3000, startedAt: atJst("10:00") })
+      )
+    );
+    selectRow(NONMEMBER);
+
+    await pressAndSettle("u");
+
+    expect(vi.mocked(undoStartAction)).toHaveBeenCalledWith(23, NOW);
+    expect(screen.queryByText(/が途中です/)).toBeNull();
+  });
+
+  it("完了の取り消し（U）でも知らせない", async () => {
+    renderBoard(
+      afterMemberTasks(
+        task({
+          id: 23,
+          name: NONMEMBER,
+          sortOrder: 3000,
+          startedAt: atJst("09:00"),
+          endedAt: atJst("09:20"),
+        })
+      )
+    );
+    selectRow(NONMEMBER);
+
+    await pressAndSettle("u");
+
+    expect(vi.mocked(undoCompleteAction)).toHaveBeenCalledWith(23, NOW);
+    expect(screen.queryByText(/が途中です/)).toBeNull();
+  });
+
+  // 警告は通知（notice）で出し、取り消しの保留（pendingUndo）とは別スロットに置く（§4.4）
+  it("削除の取り消しが保留中でも、警告は保留を消さずに並ぶ", async () => {
+    const extra = task({ id: 24, name: "雑務", sortOrder: 4000 });
+    vi.mocked(deleteTaskAction).mockResolvedValue({ ok: true, deleted: extra });
+    renderBoard([...bundleTasks(), extra]);
+    selectRow("雑務");
+    await pressAndSettle("d");
+
+    await click(within(taskRow(NONMEMBER)).getByLabelText("開始"));
+
+    expect(screen.queryByText("「雑務」を削除しました")).not.toBeNull();
+    expect(screen.queryByText(`「${BUNDLE_NAME}」が途中です（残り1件）`)).not.toBeNull();
+  });
+
   it("複製して開始（完了タスクの Enter）でも知らせる", () => {
     // 複製元（非メンバー・完了済み）は id=null で除外されないため配列に残る。
-    // 「直前」は開始時刻の最大で決まる（brief #9）ので、メンバーの開始をそれより後にしておく
+    // 「直前」は表示順ではなく開始時刻の最大で決まるので、メンバーの開始をそれより後にしておく
     renderBoard([
       task({
         id: 23,

@@ -67,7 +67,33 @@ describe("listBundles（画面定義書05 §3.1）", () => {
   });
 });
 
-describe("updateBundle / setBundleArchived（画面定義書05 §6: すでに削除された対象への操作）", () => {
+describe("updateBundle / setBundleArchived（画面定義書05 §4 O-2・O-3 / §6）", () => {
+  it("名前と色を書き換える（O-2）", async () => {
+    const repo = createInMemoryBundleRepository([morning]);
+
+    expect(await updateBundle(repo, morning.id, { name: "朝の準備", color: green })).toEqual({
+      ok: true,
+      value: morning.id,
+    });
+    expect((await repo.listAll())[0]).toEqual({ ...morning, name: "朝の準備", color: green });
+  });
+
+  it("アーカイブと復元の両方向で isArchived が切り替わる（O-3）", async () => {
+    const repo = createInMemoryBundleRepository([morning]);
+
+    expect(await setBundleArchived(repo, morning.id, true)).toEqual({
+      ok: true,
+      value: morning.id,
+    });
+    expect((await repo.listAll())[0].isArchived).toBe(true);
+
+    expect(await setBundleArchived(repo, morning.id, false)).toEqual({
+      ok: true,
+      value: morning.id,
+    });
+    expect((await repo.listAll())[0].isArchived).toBe(false);
+  });
+
   it("対象が無ければ not_found を返す", async () => {
     const repo = createInMemoryBundleRepository([]);
     expect(await updateBundle(repo, 99, { name: "朝", color: indigo })).toEqual({
@@ -100,6 +126,17 @@ describe("deleteBundle（画面定義書05 §5: 削除直前にサーバで再�
     expect(await deleteBundle(repo, archivedFree.id)).toEqual({ ok: true, value: archivedFree.id });
     expect(await repo.listAll()).toEqual([]);
   });
+
+  it("有効なバンドルは削除しない（アーカイブが先）", async () => {
+    const repo = createInMemoryBundleRepository([morning]);
+    expect(await deleteBundle(repo, morning.id)).toEqual({ ok: false, error: "not_archived" });
+    expect(await repo.listAll()).toHaveLength(1);
+  });
+
+  it("対象が無ければ not_found を返す", async () => {
+    const repo = createInMemoryBundleRepository([]);
+    expect(await deleteBundle(repo, 99)).toEqual({ ok: false, error: "not_found" });
+  });
 });
 
 describe("createBundle", () => {
@@ -110,5 +147,14 @@ describe("createBundle", () => {
       ok: true,
       value: { id: expect.any(Number), name: "夕方の締め", color: green, isArchived: false },
     });
+  });
+
+  it("検証を通らない入力は作成しない", async () => {
+    const repo = createInMemoryBundleRepository([]);
+    expect(await createBundle(repo, { name: "  ", color: green })).toEqual({
+      ok: false,
+      error: "name_required",
+    });
+    expect(await repo.listAll()).toEqual([]);
   });
 });

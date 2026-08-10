@@ -404,15 +404,10 @@ describe("RoutineForm（画面定義書02 §4: 繰り返し種別に応じて入
     );
   });
 
-  // アーカイブ済みバンドルは候補に出さない（画面定義書02 §4。モード・プロジェクトと同じ扱い）
-  it("バンドルは選択肢に「未設定」＋有効なバンドルだけを持つ（アーカイブ済みは出さない）", () => {
-    setup(null, {
-      bundles: [
-        BUNDLES[0],
-        BUNDLES[1],
-        { id: 9, name: "旧バンドル", color: BUNDLES[0].color, isArchived: true },
-      ].filter((b) => !b.isArchived),
-    });
+  // アーカイブ済みを候補から外すのは `routines/page.tsx`（`bundleView.active` を渡す）の責務で、
+  // このフォームは渡された候補をそのまま並べる（モード・プロジェクトと同じ扱い。画面定義書02 §4）
+  it("バンドルは選択肢に「未設定」＋渡された候補を持つ", () => {
+    setup(null, { bundles: BUNDLES });
 
     const bundle = screen.getByLabelText<HTMLSelectElement>("バンドル");
     expect([...bundle.options].map((o) => o.textContent)).toEqual(["未設定", "バンドルA", "バンドルB"]);
