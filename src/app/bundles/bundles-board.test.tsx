@@ -16,7 +16,7 @@ import { rowOf } from "@/app/_testing/table";
 
 // Server Action の先は実DB接続と revalidatePath に届くため、同じ返り値の契約
 // （ActionResult）を返す偽物へ差し替える（テスト戦略定義書 §2「偽物を置いてよい境界」）。
-// メンバー表（BundleMembersTable）専用の3本もここで一括して偽物にする——このファイルは
+// メンバー表（BundleMembersTable）専用の2本もここで一括して偽物にする——このファイルは
 // 左ペイン・ヘッダの検査に閉じ、メンバー表そのものは bundle-members-table.test.tsx が持つ
 vi.mock("./actions", () => ({
   createBundleAction: vi.fn(),
@@ -124,6 +124,31 @@ describe("BundlesBoard（画面定義書05: 左ペインの一覧・作成・ア
 
     expect(hasClass(rowOf("週末の整理"), "bg-accent-weak")).toBe(true);
     expect(hasClass(rowOf("朝の立上げ"), "bg-accent-weak")).toBe(false);
+  });
+
+  // **名前以外の場所を押す**——名前ボタンを押すテストは、選択が `<tr>` にあってもボタンだけに
+  // あってもバブリングで通ってしまい、当たり判定の広さを区別できない
+  it("色見本や件数を押しても選択が移る（§3.1: 選択の当たり判定は行全体）", () => {
+    renderBoard();
+
+    // 件数（名前の右端）
+    clickWithoutServer(within(rowOf("週末の整理")).getByText("0"));
+    expect(hasClass(rowOf("週末の整理"), "bg-accent-weak")).toBe(true);
+
+    // 色見本のセル（色見本自身は装飾として読み上げから外してあるのでセルを押す）
+    clickWithoutServer(within(rowOf("朝の立上げ")).getAllByRole("cell")[0]);
+    expect(hasClass(rowOf("朝の立上げ"), "bg-accent-weak")).toBe(true);
+    expect(hasClass(rowOf("週末の整理"), "bg-accent-weak")).toBe(false);
+  });
+
+  // 他の管理画面（S-02 / S-03）の見出し行にある説明文を、この画面は持たない
+  it("見出し行に説明文を置かず「＋ 新規追加」だけを出す（§2）", () => {
+    const { container } = renderBoard();
+
+    const boardPane = container.querySelector("section");
+    expect(boardPane).not.toBeNull();
+    expect(boardPane?.querySelectorAll("p")).toHaveLength(0);
+    expect(within(boardPane as HTMLElement).getByRole("button", { name: "新規追加" })).not.toBeNull();
   });
 
   it("初期選択は有効なバンドルの先頭で、その名前・色を右ペインのヘッダに出す（§3.1）", () => {
@@ -350,7 +375,9 @@ describe("BundlesBoard（画面定義書05: 左ペインの一覧・作成・ア
       expect(screen.getByText("メンバー表の失敗")).not.toBeNull();
     });
 
-    it("自分の scope のエラーは、そのペインで新しい編集を始めると消える", async () => {
+    // 上2本（他方の scope なら消えない）と対にして初めて scope の判定が固定される。
+    // 左ペインだけを見ていると、メンバー表側のクリアが scope を無視していても気づけない
+    it("左ペイン・ヘッダのエラーは、そのペインで新しい編集を始めると消える", async () => {
       vi.mocked(setBundleArchivedAction).mockResolvedValue({ ok: false, message: "左の失敗" });
       renderBoard();
       await click(screen.getByRole("button", { name: "アーカイブ" }));
@@ -359,6 +386,20 @@ describe("BundlesBoard（画面定義書05: 左ペインの一覧・作成・ア
       clickWithoutServer(within(rightPaneHeader()).getByRole("button", { name: "朝の立上げ" }));
 
       expect(screen.queryByText("左の失敗")).toBeNull();
+    });
+
+    it("メンバー表のエラーは、メンバー表で新しい操作を始めると消える", async () => {
+      vi.mocked(removeRoutineFromBundleAction).mockResolvedValue({
+        ok: false,
+        message: "メンバー表の失敗",
+      });
+      renderBoard({ routines: [routine({ id: 101, name: "朝食", bundleId: 1 })] });
+      await click(screen.getByRole("button", { name: "外す" }));
+      expect(screen.getByText("メンバー表の失敗")).not.toBeNull();
+
+      clickWithoutServer(screen.getByRole("button", { name: "＋ ルーチンを追加" }));
+
+      expect(screen.queryByText("メンバー表の失敗")).toBeNull();
     });
   });
 

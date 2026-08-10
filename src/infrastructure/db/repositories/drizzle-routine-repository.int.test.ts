@@ -306,6 +306,20 @@ describe("setBundle（画面定義書05 O-5〜O-6）", () => {
     expect((await repo.findById(created.id))?.bundleId).toBeNull();
   });
 
+  // 部分更新は当てる列以外を書き換えないこと。UPDATE に余計な列が紛れ込んでも
+  // `bundleId` だけ読む検査は通ってしまうので、行そのものを突き合わせる
+  it("setBundle は bundle_id 以外の列を書き換えない", async () => {
+    const [bundle] = await db
+      .insert(bundles)
+      .values({ name: "朝の立上げ", color: COLOR_BY_NAME["インディゴ"] })
+      .returning();
+    const created = await repo.create(input());
+
+    await repo.setBundle(created.id, bundle.id);
+
+    expect(await repo.findById(created.id)).toEqual({ ...created, bundleId: bundle.id });
+  });
+
   // データモデル定義書 §4.8: バンドルは展開のときに写す値で、あとから同期しない。
   // 波及させると、過去日に描き終わった道が遡って変わってしまう
   it("setBundle は展開済みタスクの bundle_id へ波及しない（過去日の道が遡って変わらない）", async () => {
