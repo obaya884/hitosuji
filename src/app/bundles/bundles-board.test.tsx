@@ -275,5 +275,37 @@ describe("BundlesBoard（画面定義書05: 左ペインの一覧・作成・ア
         pending.resolve({ ok: true });
       });
     });
+
+    // レビュー指摘: `setMembersError`/`clearBoardError` が共有の error を無条件にクリアしていたため、
+    // 未解決のエラーが出ている状態で他方のペインを触るだけ（サーバへは何も送らない操作）で
+    // 消えてしまっていた（00_共通 §4.1「失敗はすべて画面に出す」に反する）
+    it("左ペインにエラーが出ている間、メンバー表の操作（サーバへ送らないもの）を触ってもエラーは消えない", async () => {
+      vi.mocked(setBundleArchivedAction).mockResolvedValue({ ok: false, message: "左の失敗" });
+      renderBoard({ routines: [routine({ id: 101, name: "朝食", bundleId: 1 })] });
+
+      await click(screen.getByRole("button", { name: "アーカイブ" }));
+      expect(screen.getByText("左の失敗")).not.toBeNull();
+
+      // メンバー表側のローカルな UI 操作（候補一覧を開くだけ。Server Action は呼ばない）
+      clickWithoutServer(screen.getByRole("button", { name: "＋ ルーチンを追加" }));
+
+      expect(screen.getByText("左の失敗")).not.toBeNull();
+    });
+
+    it("メンバー表にエラーが出ている間、ヘッダの操作（サーバへ送らないもの）を触ってもエラーは消えない", async () => {
+      vi.mocked(removeRoutineFromBundleAction).mockResolvedValue({
+        ok: false,
+        message: "メンバー表の失敗",
+      });
+      renderBoard({ routines: [routine({ id: 101, name: "朝食", bundleId: 1 })] });
+
+      await click(screen.getByRole("button", { name: "外す" }));
+      expect(screen.getByText("メンバー表の失敗")).not.toBeNull();
+
+      // ヘッダ側のローカルな UI 操作（名前のインライン編集を開くだけ。Server Action は呼ばない）
+      clickWithoutServer(within(rightPaneHeader()).getByRole("button", { name: "朝の立上げ" }));
+
+      expect(screen.getByText("メンバー表の失敗")).not.toBeNull();
+    });
   });
 });

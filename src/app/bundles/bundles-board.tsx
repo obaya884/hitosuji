@@ -4,19 +4,20 @@
 // 右ペインのヘッダ（名前・色の編集・アーカイブ）とメンバー表（Task 10）まで。
 // この画面は N-01（楽観的更新）の対象外で、保存の完了を待って一覧へ反映する（§1）。
 //
-// **保存境界（isPending / run）は画面全体で1つ**（00_共通 §4.2「再発火の抑止」——対象の行が
+// **保存境界（isPending）は画面全体で1つ**（00_共通 §4.2「再発火の抑止」——対象の行が
 // 違っても確定を待つ操作をすべて受け付けない）。左ペイン・ヘッダ・メンバー表のどれかが
-// 応答待ちのあいだは、他のどの操作も押せない。
+// 応答待ちのあいだは、他のどの操作も押せない（`useTransition` を1つだけ持つ）。
 //
-// エラーの**表示先**だけは操作元で振り分ける（§4.2 が決めるのは抑止の要否だけで、
-// 表示位置は自由）。左ペイン・ヘッダの失敗は左ペインの TableFrame の帯（既存のまま）、
-// メンバー表の失敗はメンバー表自身の帯に出す（画面定義書05 §4.1「表の上部にエラー帯」を
-// メンバー表について素直に満たすため）。`errorFromMembers` が発生源のタグで、
-// `run`/`setError` を呼ぶときに必ずこのタグも一緒に立て直す
-// （1系統の `isPending` しか無い＝同時に2つの操作は走らないので、タグの取り違えは起きない）
-import { useState } from "react";
-import { useServerAction } from "@/app/_lib/use-server-action";
-import type { ActionResult } from "@/app/_lib/action-result";
+// エラーは `panelError`（{ scope; message } の1スロット）に持つ。**表示は自分の scope の
+// ときだけ**（左ペイン・ヘッダ→"board" は TableFrame の帯、メンバー表→"members" はメンバー表
+// 自身の帯）。**クリアも自分の scope のときだけ**——`clearBoardError`/`clearMembersError` は
+// 他方の scope のエラーが出ている間は何もしない。これが無いと「片方のペインを触っただけで
+// 他方の未解決のエラーが消える」（00_共通 §4.1「失敗はすべて画面に出す」に反する。レビュー
+// 指摘で発覚）。新しい Server Action を実行するとき（`runScoped`）だけは無条件にクリアする——
+// それは実際に新しい応答を待ち始める瞬間なので、古い通知を残す理由が無い
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { callAction, handleActionFailure, type ActionResult } from "@/app/_lib/action-result";
 import { linkMuted } from "@/app/_lib/ui";
 import type { Bundle, BundleId } from "@/domain/bundle/bundle";
 import type { Mode } from "@/domain/mode/mode";
@@ -43,6 +44,9 @@ type Props = Readonly<{
   modes: readonly Mode[];
 }>;
 
+/** エラーの発生源。表示・クリアの両方をこの単位で振り分ける（上のコメント参照） */
+type ErrorScope = "board" | "members";
+
 export function BundlesBoard({ bundles, routines, modes }: Props) {
   // 選択は id で持ち、描画時に active から解決する（選択中のバンドルがアーカイブ・削除で
   // 消えたときは先頭へ戻る。デイリーの `keepSelection` と同じ発想）
@@ -51,41 +55,70 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
   const [editingId, setEditingId] = useState<BundleId | "new" | null>(null);
   const [newColor, setNewColor] = useState<string>(DEFAULT_COLOR);
   const [colorPickerId, setColorPickerId] = useState<BundleId | "new" | null>(null);
-  const { error, setError, isPending, run } = useServerAction();
-  // エラーの発生源（上のコメント参照）。既定は左ペイン・ヘッダ側
-  const [errorFromMembers, setErrorFromMembers] = useState(false);
+  // 保存境界は画面全体で1つ（上のコメント参照）。`useServerAction` を使わないのは、あちらの
+  // `error` が単一の文字列で発生源を持たないため——ここでは `panelError` が代わりを担う
+  const [isPending, startTransition] = useTransition();
+  const [panelError, setPanelError] = useState<Readonly<{
+    scope: ErrorScope;
+    message: string;
+  }> | null>(null);
+  const router = useRouter();
 
   const selectedBundle =
     bundles.active.find((b) => b.id === selectedId) ?? bundles.active[0] ?? null;
 
-  /** 左ペイン・ヘッダの `run`。呼ぶたびにエラーの発生源をこちら側へ倒す */
+  /** 指定した scope の Server Action を実行する。開始時は無条件にエラーをクリアする（上のコメント） */
+  function runScoped<T extends ActionResult>(
+    scope: ErrorScope,
+    action: () => Promise<T>,
+    onSuccess?: (result: T) => void
+  ): void {
+    setPanelError(null);
+    startTransition(async () => {
+      const result = await callAction(action);
+      if (result.ok) {
+        onSuccess?.(result);
+        return;
+      }
+      handleActionFailure(result, {
+        setError: (message) => setPanelError({ scope, message }),
+        refresh: () => router.refresh(),
+      });
+    });
+  }
+
+  /** 左ペイン・ヘッダの `run` */
   function runPanel<T extends ActionResult>(
     action: () => Promise<T>,
     onSuccess?: (result: T) => void
   ): void {
-    setErrorFromMembers(false);
-    run(action, onSuccess);
+    runScoped("board", action, onSuccess);
   }
 
-  /** 左ペイン・ヘッダのエラーをその場で消す（新しい編集を始めたとき） */
-  function clearPanelError() {
-    setErrorFromMembers(false);
-    setError(null);
+  /** 左ペイン・ヘッダのエラーをその場で消す（新しい編集を始めたとき）。
+   *  すでに出ているのが他方（members）のエラーなら何もしない */
+  function clearBoardError() {
+    setPanelError((prev) => (prev?.scope === "board" ? null : prev));
   }
 
-  /** メンバー表の `run`。呼ぶたびにエラーの発生源をこちら側へ倒す（メンバー表へ props で渡す） */
+  /** メンバー表の `run`（メンバー表へ props で渡す） */
   function runMembers<T extends ActionResult>(
     action: () => Promise<T>,
     onSuccess?: (result: T) => void
   ): void {
-    setErrorFromMembers(true);
-    run(action, onSuccess);
+    runScoped("members", action, onSuccess);
   }
 
-  /** メンバー表向けの `setError`。クリアも含めて発生源をこちら側へ倒す */
+  /**
+   * メンバー表向けの `setError`（メンバー表へ props で渡す）。非 null は新しい失敗（クライアント
+   * 側の検証エラー等）なのでそのまま上書きする。null（クリア）は自分の scope のときだけ効かせる
+   */
   function setMembersError(message: string | null) {
-    setErrorFromMembers(true);
-    setError(message);
+    if (message === null) {
+      setPanelError((prev) => (prev?.scope === "members" ? null : prev));
+      return;
+    }
+    setPanelError({ scope: "members", message });
   }
 
   /** 新規追加行を閉じる（開いていたプリセット選択も畳む） */
@@ -131,7 +164,7 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
       value={bundle.name}
       isPending={isPending}
       onStartEditing={() => {
-        clearPanelError();
+        clearBoardError();
         setEditingId(bundle.id);
       }}
       onCommit={(name) =>
@@ -195,10 +228,10 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
       <div className="border-r border-line pr-4">
         <TableFrame
           description="色はプリセットから選択します。並び順は名前順です。作成すると選択されます。"
-          error={errorFromMembers ? null : error}
+          error={panelError?.scope === "board" ? panelError.message : null}
           isPending={isPending}
           onAddNew={() => {
-            clearPanelError();
+            clearBoardError();
             setNewColor(DEFAULT_COLOR);
             setEditingId("new");
           }}
@@ -288,7 +321,7 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
               bundle={selectedBundle}
               routines={routines}
               modes={modes}
-              error={errorFromMembers ? error : null}
+              error={panelError?.scope === "members" ? panelError.message : null}
               setError={setMembersError}
               isPending={isPending}
               run={runMembers}
