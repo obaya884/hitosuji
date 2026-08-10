@@ -10,7 +10,8 @@ import {
   useTransition,
   type KeyboardEvent,
 } from "react";
-import type { Bundle } from "@/domain/bundle/bundle";
+import type { Bundle, BundleId } from "@/domain/bundle/bundle";
+import { detectBundleDeparture } from "@/domain/bundle/departure";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import {
@@ -312,6 +313,21 @@ export function DailyBoard({
   }
 
   /**
+   * バンドルの割り込み警告（F-119 / 要件定義書 §5.6 / 画面定義書01 §4.4）。開始打刻の全経路から呼ぶ。
+   * 判定に失敗しても打刻は巻き添えにしない（呼び出し元の打刻処理とは独立に動く）
+   */
+  function noticeBundleDeparture(
+    started: Readonly<{ id: TaskId | null; bundleId: BundleId | null }>
+  ) {
+    const departure = detectBundleDeparture(orderedTasks, started);
+    if (departure === null) return;
+
+    const name = bundleById.get(departure.bundleId)?.name;
+    if (name === undefined) return;
+    setNotice(`「${name}」が途中です（残り${departure.remaining}件）`);
+  }
+
+  /**
    * Enter の打刻（画面定義書01 §6）。未実行=開始 / 実行中=終了 のトグル、
    * 完了=複製して開始（F-208 / O-14）。打刻時刻はクライアントの現在時刻を送る（§7）。
    * 未来日では打刻を受け付けない（§7）——行の打刻ボタンは出していないので、ここで止まるのは
@@ -323,8 +339,10 @@ export function DailyBoard({
     const status = taskStatus(task);
     const now = new Date();
     if (status === "completed") {
+      noticeBundleDeparture({ id: null, bundleId: null }); // F-208 / O-14 は非メンバー扱い
       duplicateAndStart(task, now); // F-208 / O-14
     } else if (status === "not_started") {
+      noticeBundleDeparture({ id: task.id, bundleId: task.bundleId });
       run(() => startTaskAction(task.id, now), { type: "start", id: task.id, at: now });
     } else {
       finish(task, now);

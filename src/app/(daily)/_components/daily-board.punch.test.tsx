@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { formatClock, formatDuration } from "@/app/_lib/format";
 import { click } from "@/app/_testing/interactions";
 import { atJst, NEXT_TEST_DATE, TEST_DATE } from "@/domain/shared/testing/clock";
+import type { Task } from "@/domain/task/task";
 import { task } from "@/domain/task/testing/task";
 
 import {
@@ -39,6 +40,7 @@ import {
   UNCOMPLETE_OK,
   type UndoCompleteResult,
 } from "../_testing/board-helpers";
+import { bundleOf } from "../_testing/factories";
 import { cellsOf, isSelected, rowAt, taskRow } from "../_testing/table-helpers";
 
 vi.mock("../actions", async () => (await import("../_testing/action-mocks")).actionMocks());
@@ -221,6 +223,122 @@ describe("DailyBoard の打刻（F-201 / F-211 / §7: クライアントの現�
     expect(vi.mocked(startTaskAction)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(finishTaskAction)).not.toHaveBeenCalled();
     expect(vi.mocked(suspendTaskAction)).not.toHaveBeenCalled();
+  });
+});
+
+describe("DailyBoard のバンドル割り込み警告（F-119 / 要件定義書 §5.6 / 画面定義書01 §4.4）", () => {
+  const BUNDLE_NAME = "朝の立上げ";
+  const BUNDLE_ID = bundleOf(BUNDLE_NAME).id;
+  const MEMBER_DONE = "身支度";
+  const MEMBER_TODO = "着替え";
+  const NONMEMBER = "資料作成";
+
+  /** 完了したメンバー1件・未実行のメンバー1件・未実行の非メンバー1件（brief の表の #1〜#2） */
+  function bundleTasks(): Task[] {
+    return [
+      task({
+        id: 21,
+        name: MEMBER_DONE,
+        bundleId: BUNDLE_ID,
+        sortOrder: 1000,
+        startedAt: atJst("06:00"),
+        endedAt: atJst("06:10"),
+      }),
+      task({ id: 22, name: MEMBER_TODO, bundleId: BUNDLE_ID, sortOrder: 2000 }),
+      task({ id: 23, name: NONMEMBER, sortOrder: 3000 }),
+    ];
+  }
+
+  it("バンドルの途中で非メンバーを開始するとトーストで知らせる（§4.4）", async () => {
+    renderBoard(bundleTasks());
+
+    await click(within(taskRow(NONMEMBER)).getByLabelText("開始"));
+
+    expect(screen.queryByText(`「${BUNDLE_NAME}」が途中です（残り1件）`)).not.toBeNull();
+  });
+
+  it("同じバンドルの別メンバーを開始しても知らせない", async () => {
+    renderBoard(bundleTasks());
+
+    await click(within(taskRow(MEMBER_TODO)).getByLabelText("開始"));
+
+    expect(screen.queryByText(/が途中です/)).toBeNull();
+  });
+
+  it("中断（I）では知らせない（開始操作ではないため）", () => {
+    renderBoard([
+      task({
+        id: 21,
+        name: MEMBER_DONE,
+        bundleId: BUNDLE_ID,
+        sortOrder: 1000,
+        startedAt: atJst("06:00"),
+        endedAt: atJst("06:10"),
+      }),
+      task({
+        id: 22,
+        name: RUNNING,
+        bundleId: BUNDLE_ID,
+        sortOrder: 2000,
+        startedAt: atJst("10:00"),
+      }),
+    ]);
+    selectRow(RUNNING);
+
+    press("i");
+
+    expect(screen.queryByText(/が途中です/)).toBeNull();
+  });
+
+  it("複製して開始（完了タスクの Enter）でも知らせる", () => {
+    // 複製元（非メンバー・完了済み）は id=null で除外されないため配列に残る。
+    // 「直前」は開始時刻の最大で決まる（brief #9）ので、メンバーの開始をそれより後にしておく
+    renderBoard([
+      task({
+        id: 23,
+        name: COMPLETED,
+        sortOrder: 500,
+        startedAt: atJst("09:00"),
+        endedAt: atJst("09:20"),
+      }),
+      task({
+        id: 21,
+        name: MEMBER_DONE,
+        bundleId: BUNDLE_ID,
+        sortOrder: 1000,
+        startedAt: atJst("09:30"),
+        endedAt: atJst("09:40"),
+      }),
+      task({ id: 22, name: MEMBER_TODO, bundleId: BUNDLE_ID, sortOrder: 2000 }),
+    ]);
+    selectRow(COMPLETED);
+
+    press("Enter");
+
+    expect(screen.queryByText(`「${BUNDLE_NAME}」が途中です（残り1件）`)).not.toBeNull();
+  });
+
+  it("判定に失敗しても打刻は成立する（打刻を巻き添えにしない）", async () => {
+    // フィクスチャに無い bundleId（名前が引けない状況）。未完了のメンバーも残し、
+    // remaining=0 で早期に null になる経路と区別する
+    const UNKNOWN_BUNDLE_ID = 999;
+    renderBoard([
+      task({
+        id: 21,
+        name: MEMBER_DONE,
+        bundleId: UNKNOWN_BUNDLE_ID,
+        sortOrder: 1000,
+        startedAt: atJst("06:00"),
+        endedAt: atJst("06:10"),
+      }),
+      task({ id: 24, name: MEMBER_TODO, bundleId: UNKNOWN_BUNDLE_ID, sortOrder: 1500 }),
+      task({ id: 22, name: NONMEMBER, sortOrder: 2000 }),
+    ]);
+
+    await click(within(taskRow(NONMEMBER)).getByLabelText("開始"));
+
+    expect(screen.queryByText(/が途中です/)).toBeNull();
+    expect(vi.mocked(startTaskAction)).toHaveBeenCalledWith(22, NOW);
   });
 });
 
