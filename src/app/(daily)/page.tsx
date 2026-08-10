@@ -1,8 +1,10 @@
+import { listBundles } from "@/usecases/bundle/bundle-usecases";
 import { expandRoutinesFor } from "@/usecases/routine/expand";
 import { listDailyList } from "@/usecases/task/daily-list-usecases";
 import { applyCarryOver } from "@/usecases/task/relocation-usecases";
 import { resolveToday } from "@/usecases/section/resolve-today";
 import { isValidLogicalDate } from "@/domain/shared/logical-date";
+import { createBundleRepository } from "@/infrastructure/db/repositories/drizzle-bundle-repository";
 import { createModeRepository } from "@/infrastructure/db/repositories/drizzle-mode-repository";
 import { createProjectRepository } from "@/infrastructure/db/repositories/drizzle-project-repository";
 import { createRoutineRepository } from "@/infrastructure/db/repositories/drizzle-routine-repository";
@@ -38,7 +40,12 @@ export default async function Home({
   // 展開の後・一覧取得の前に行い、展開されたばかりのタスクも整列の対象にする
   await applyCarryOver(deps, { date, today, nowClock: formatClock(new Date()) });
 
-  const view = await listDailyList(deps, date);
+  // バンドルの道（F-119）は listDailyList と依存関係がないので並列に取得する。
+  // アーカイブ済みも渡す——アーカイブしても展開済みタスクの道は描き続ける（画面定義書05 O-3）
+  const [view, bundleView] = await Promise.all([
+    listDailyList(deps, date),
+    listBundles(createBundleRepository()),
+  ]);
 
   return (
     <>
@@ -50,6 +57,7 @@ export default async function Home({
         modes={view.modes}
         projects={view.projects}
         sections={view.sections}
+        bundles={[...bundleView.active, ...bundleView.archived]}
         staleRunningTask={view.staleRunningTask}
       />
     </>

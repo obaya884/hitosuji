@@ -6,6 +6,8 @@ import { atJst } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
 import {
   afternoon,
+  BUNDLES,
+  bundleColorOf,
   colorOf,
   forenoon,
   morning,
@@ -45,6 +47,9 @@ function listElement(overrides: Overrides, handlers: Handlers) {
       // 受け取るだけ。既定は中立の「現在セクションなし」とし、依拠するテストが値を明示する
       currentSectionId={overrides.currentSectionId ?? null}
       stickyHeight={overrides.stickyHeight ?? 0}
+      // バンドルの道（F-119）。既定はフィクスチャ全件を引ける Map（依拠するテストは
+      // task.bundleId を明示すれば解決される。解決そのものを見ないテストには影響しない）
+      bundleById={overrides.bundleById ?? new Map(BUNDLES.map((b) => [b.id, b]))}
       {...handlers}
     />
   );
@@ -112,7 +117,8 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
     const { container } = renderList({ groups: [morning([task({ id: 1, name: "朝食" })])] });
 
     const headers = [...container.querySelectorAll("thead th")].map((th) => th.textContent);
-    expect(headers).toEqual(["", "タスク", "プロジェクト", "モード", "見積", "実績", "実施時間", ""]);
+    // 先頭の空見出しはバンドルの道（F-119 / §3.3）。名前は常設せず帯にマウスを乗せたときにだけ出す
+    expect(headers).toEqual(["", "", "タスク", "プロジェクト", "モード", "見積", "実績", "実施時間", ""]);
   });
 
   /**
@@ -518,8 +524,8 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
 
       const commentCell = screen.getByText("パンが切れていた").closest("td") as HTMLTableCellElement;
       const cells = [...(commentCell.closest("tr") as HTMLElement).querySelectorAll("td")];
-      // 打刻ボタン列の次＝タスク名列の位置に、1列分だけの幅で置く
-      expect(cells.indexOf(commentCell)).toBe(1);
+      // バンドルの道（列0）・打刻ボタン列（列1）の次＝タスク名列の位置に、1列分だけの幅で置く
+      expect(cells.indexOf(commentCell)).toBe(2);
       expect(commentCell.colSpan).toBe(1);
     });
 
@@ -598,6 +604,56 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
       renderList({ groups: [morning([WITHOUT_COMMENT])] });
 
       expect(hasClass(taskRow("メール"), "border-b")).toBe(true);
+    });
+  });
+
+  // 行の描画そのもの（帯の出し方・色・名前）は task-row.test.tsx が見る。ここで見るのは
+  // リストが担う解決だけ——task.bundleId を bundleById（親が組む Map）で引いて行へ渡すところ
+  describe("バンドルの道（F-119 / §3.3。task.bundleId → bundle の解決）", () => {
+    it("bundleById で解決した色を行の道に渡す", () => {
+      renderList({ groups: [morning([task({ id: 1, name: "ラジオ体操", bundleId: 5 })])] });
+
+      const road = within(taskRow("ラジオ体操")).getByTestId("bundle-road");
+      expect(road.style.backgroundColor).toBe(bundleColorOf("朝の立上げ"));
+    });
+
+    it("bundleId が null の行には道を渡さない（帯を出さない）", () => {
+      renderList({ groups: [morning([task({ id: 1, name: "単発タスク", bundleId: null })])] });
+
+      expect(within(taskRow("単発タスク")).queryByTestId("bundle-road")).toBeNull();
+    });
+
+    // 隣接（前後の行が同じバンドルかどうか）は見ない——2件のバンドルを間に非メンバーを挟んで
+    // 並べても、各行は自分の bundleId だけで独立に道を出す
+    it("間に非メンバーの行を挟んでも、両側のメンバー行はそれぞれ独立に道を出す", () => {
+      renderList({
+        groups: [
+          morning([
+            task({ id: 1, name: "ラジオ体操", bundleId: 5 }),
+            task({ id: 2, name: "見積り確認" }),
+            task({ id: 3, name: "夜のクローズ準備", bundleId: 6 }),
+          ]),
+        ],
+      });
+
+      expect(
+        within(taskRow("ラジオ体操")).getByTestId("bundle-road").style.backgroundColor
+      ).toBe(bundleColorOf("朝の立上げ"));
+      expect(within(taskRow("見積り確認")).queryByTestId("bundle-road")).toBeNull();
+      expect(
+        within(taskRow("夜のクローズ準備")).getByTestId("bundle-road").style.backgroundColor
+      ).toBe(bundleColorOf("夜のクローズ"));
+    });
+
+    it("選択行の下に開くコメント行にも道を渡す（2段で1件のタスクなので面と同じく帯も伸ばす）", () => {
+      renderList({
+        selectedId: 1,
+        groups: [morning([task({ id: 1, name: "朝食", bundleId: 5, comment: "パンが切れていた" })])],
+      });
+
+      const commentRow = screen.getByText("パンが切れていた").closest("tr") as HTMLElement;
+      const road = within(commentRow).getByTestId("bundle-road");
+      expect(road.style.backgroundColor).toBe(bundleColorOf("朝の立上げ"));
     });
   });
 });

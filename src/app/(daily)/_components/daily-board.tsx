@@ -10,6 +10,7 @@ import {
   useTransition,
   type KeyboardEvent,
 } from "react";
+import type { Bundle } from "@/domain/bundle/bundle";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import {
@@ -88,6 +89,8 @@ type Props = Readonly<{
   modes: readonly Mode[];
   projects: readonly Project[];
   sections: readonly Section[];
+  /** バンドルの道（F-119 / 画面定義書01 §3.3）。アーカイブ済みも含む（O-3。展開済みタスクの道は描き続ける） */
+  bundles: readonly Bundle[];
   /** 前日以前に放置されている実行中タスク（画面定義書01 §8） */
   staleRunningTask: Task | null;
 }>;
@@ -100,9 +103,12 @@ export function DailyBoard({
   modes,
   projects,
   sections,
+  bundles,
   staleRunningTask,
 }: Props) {
   const [optimisticGroups, dispatchOptimistic] = useOptimistic(groups, applyOptimisticAction);
+  // バンドルの道（§3.3）が taskId → bundle を引ける形にする。bundles は稀にしか変わらないので memo する
+  const bundleById = useMemo(() => new Map(bundles.map((b) => [b.id, b])), [bundles]);
   const [name, setName] = useState("");
   const [rawSelectedId, setSelectedId] = useState<TaskId | null>(null);
   const [editing, setEditing] = useState<EditingCell | null>(null);
@@ -652,6 +658,7 @@ export function DailyBoard({
         groups={optimisticGroups}
         modes={modes}
         projects={projects}
+        bundleById={bundleById}
         onRename={rename}
         onEstimate={setEstimate}
         onComment={setComment}

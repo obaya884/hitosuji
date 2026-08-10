@@ -34,6 +34,7 @@ function renderRow(overrides: Overrides) {
       <tbody>
         <TaskRow
           task={overrides.task}
+          bundle={overrides.bundle ?? null}
           index={overrides.index ?? 0}
           sectionId={overrides.sectionId ?? null}
           mode={overrides.mode}

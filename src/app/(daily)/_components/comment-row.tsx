@@ -1,5 +1,6 @@
 "use client";
 
+import type { Bundle } from "@/domain/bundle/bundle";
 import type { Mode } from "@/domain/mode/mode";
 import type { Task } from "@/domain/task/task";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
@@ -10,6 +11,8 @@ import { rowBackgroundClass } from "../_lib/row-background";
 
 export type CommentRowProps = Readonly<{
   task: Task;
+  /** バンドルの道（F-119 / §3.3）。2段で1件のタスクなので面と同じく帯もタスク行から伸ばす */
+  bundle: Bundle | null;
   mode?: Mode;
   isSelected: boolean;
   /** この行が編集中のどの項目を開いているか（`showsCommentRow` と同じ入力で語る） */
@@ -25,6 +28,7 @@ export type CommentRowProps = Readonly<{
  */
 export function CommentRow({
   task,
+  bundle,
   mode,
   isSelected,
   editing,
@@ -51,6 +55,19 @@ export function CommentRow({
       // 地色はタスク行と同じ規則で決める（§3.3。2行で1件のタスクなので面色を割らない）
       className={`border-b border-line ${rowBackgroundClass(task, isSelected)}`}
     >
+      {/* バンドルの道（F-119 / §3.3）。選択行の下に開くこの行にも帯を伸ばす
+          （2段で1件のタスクなので面を割らない。タスク行と同じ描き方） */}
+      <td className="relative w-1.5 p-0">
+        {bundle !== null && (
+          <span
+            data-testid="bundle-road"
+            aria-label={bundle.name}
+            title={bundle.name}
+            className="absolute inset-x-0 top-0 -bottom-px"
+            style={{ backgroundColor: bundle.color }}
+          />
+        )}
+      </td>
       {/* 打刻ボタン列は空ける。折り返す幅はタスク名列に揃え（§3.3）、右側の列は空セルで埋めて
           選択行の面色がコメント行でも途切れないようにする */}
       <td />

@@ -43,7 +43,7 @@ import {
   type DailyActionResult,
 } from "../actions";
 import { DailyBoard } from "../_components/daily-board";
-import { MODES, PROJECTS, SECTIONS, sectionOf } from "./factories";
+import { BUNDLES, MODES, PROJECTS, SECTIONS, sectionOf } from "./factories";
 import { taskRow } from "./table-helpers";
 
 /** jsdom に無い API を局所的に補う（幾何の判定そのものは段3＝ブラウザテスト送り） */
@@ -154,6 +154,7 @@ function boardProps(tasks: readonly Task[], over: Partial<BoardProps>): BoardPro
     modes: MODES,
     projects: PROJECTS,
     sections: SECTIONS,
+    bundles: BUNDLES,
     staleRunningTask: null,
     ...over,
   };

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import type { Bundle } from "@/domain/bundle/bundle";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
@@ -28,6 +29,8 @@ import { SelectPopover, type PopoverOption } from "./select-popover";
  */
 export type TaskRowProps = Readonly<{
   task: Task;
+  /** バンドルの道（F-119 / §3.3）。属さない行は null。隣接は見ない——所属を独立に描くだけ */
+  bundle: Bundle | null;
   mode?: Mode;
   project?: Project;
   onRename: (task: Task, name: string) => void;
@@ -80,6 +83,7 @@ function isOverEstimate(minutes: number, task: Task): boolean {
  */
 export function TaskRow({
   task,
+  bundle,
   index,
   sectionId,
   mode,
@@ -148,6 +152,21 @@ export function TaskRow({
         showsCommentRow(task, isSelected, editing) ? "" : "border-b border-line"
       } ${rowBackgroundClass(task, isSelected)}`}
     >
+      {/* バンドルの道（F-119 / 画面定義書01 §3.3）。行の最左端に太さ6pxの縦帯を、
+          行の上下端いっぱいに伸ばす。同じバンドルの行が縦に続くとつながって1本の道に見える。
+          隣接は見ない——帯の意味は「つながり」ではなく「この行はこのバンドルの一員」 */}
+      <td className="relative w-1.5 p-0">
+        {bundle !== null && (
+          <span
+            data-testid="bundle-road"
+            aria-label={bundle.name}
+            title={bundle.name}
+            // -bottom-px は行の下罫線の上まで伸ばして帯を途切れさせないため
+            className="absolute inset-x-0 top-0 -bottom-px"
+            style={{ backgroundColor: bundle.color }}
+          />
+        )}
+      </td>
       <td className="py-2.5">
         {/* 開始 →（実行中なら）終了 のトグル（F-201）。押しやすさのため円形ボタンにする。
             未来日では打刻を受け付けないのでボタン自体を出さない（§7） */}
