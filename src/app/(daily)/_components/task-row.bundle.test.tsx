@@ -113,9 +113,12 @@ describe("バンドルの道（画面定義書01 §3.3 / F-119）", () => {
   it("帯にバンドル名を持たせる（ホバーと読み上げに同じ名前を出す）", () => {
     renderRow({ task: task({ id: 1, name: "ラジオ体操", bundleId: 5 }), bundle: morningBundle });
 
-    // aria-label がそのまま読み上げ名になる（span に role は持たせていないため title と同じ値で見る）
-    const road = screen.getByTestId("bundle-road");
-    expect(road.getAttribute("aria-label")).toBe("朝の立上げ");
+    // role="img" を持たない素の span（role=generic）は aria-label が禁止属性（axe-core
+    // aria-prohibited-attr）で読み上げに反映されない。`getByRole` の `name` オプションは
+    // アクセシブル名を計算してマッチするので、role が無い/aria-label が効いていなければ
+    // このクエリ自体が失敗する（role="img" を外すと落ちるテストになる）
+    const road = screen.getByRole("img", { name: "朝の立上げ" });
+    expect(road).toBe(screen.getByTestId("bundle-road"));
     expect(road.getAttribute("title")).toBe("朝の立上げ");
   });
 

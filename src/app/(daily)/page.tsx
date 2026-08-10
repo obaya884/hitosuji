@@ -1,4 +1,3 @@
-import { listBundles } from "@/usecases/bundle/bundle-usecases";
 import { expandRoutinesFor } from "@/usecases/routine/expand";
 import { listDailyList } from "@/usecases/task/daily-list-usecases";
 import { applyCarryOver } from "@/usecases/task/relocation-usecases";
@@ -22,6 +21,8 @@ const deps = {
   modes: createModeRepository(),
   projects: createProjectRepository(),
   routines: createRoutineRepository(),
+  // バンドルの道（F-119）用。listDailyList が listAll() 1本で取る（アーカイブ済み込み。画面定義書05 O-3）
+  bundles: createBundleRepository(),
 };
 
 export default async function Home({
@@ -40,12 +41,7 @@ export default async function Home({
   // 展開の後・一覧取得の前に行い、展開されたばかりのタスクも整列の対象にする
   await applyCarryOver(deps, { date, today, nowClock: formatClock(new Date()) });
 
-  // バンドルの道（F-119）は listDailyList と依存関係がないので並列に取得する。
-  // アーカイブ済みも渡す——アーカイブしても展開済みタスクの道は描き続ける（画面定義書05 O-3）
-  const [view, bundleView] = await Promise.all([
-    listDailyList(deps, date),
-    listBundles(createBundleRepository()),
-  ]);
+  const view = await listDailyList(deps, date);
 
   return (
     <>
@@ -57,7 +53,7 @@ export default async function Home({
         modes={view.modes}
         projects={view.projects}
         sections={view.sections}
-        bundles={[...bundleView.active, ...bundleView.archived]}
+        bundles={view.bundles}
         staleRunningTask={view.staleRunningTask}
       />
     </>

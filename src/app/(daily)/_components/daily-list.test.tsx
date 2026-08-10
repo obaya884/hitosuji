@@ -121,6 +121,16 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
     expect(headers).toEqual(["", "", "タスク", "プロジェクト", "モード", "見積", "実績", "実施時間", ""]);
   });
 
+  // group-heading.tsx の colSpan を手で列見出しの数に合わせているので、列を足したときに
+  // 静かにずれないよう機械的に主張する（コメント行の同種の主張は §3.3「コメント」describe が持つ）
+  it("セクション見出し行の colSpan は列見出しの数と一致する（列を足しても見出しが表全体を覆う）", () => {
+    renderList({ groups: [morning([task({ id: 1, name: "朝食" })])] });
+
+    const heading = headingOf("朝");
+    const spanned = [...heading.querySelectorAll("td")].reduce((n, c) => n + c.colSpan, 0);
+    expect(spanned).toBe(document.querySelectorAll("thead th").length);
+  });
+
   /**
    * 残り時間（F-110）はセクションごとに独立した値で、リストがまとめて求めて配る。
    * **値の意味づけ（max・独立・完了/実行中）は `projection.test.ts` が持つ**ので、

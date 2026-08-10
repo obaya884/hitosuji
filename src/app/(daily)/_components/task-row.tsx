@@ -159,6 +159,9 @@ export function TaskRow({
         {bundle !== null && (
           <span
             data-testid="bundle-road"
+            // 素の span（role=generic）に aria-label は禁止属性（axe-core aria-prohibited-attr）。
+            // role="img" を持たせて名前付けを許す（review-board.tsx のハイライト印と同じ形）
+            role="img"
             aria-label={bundle.name}
             title={bundle.name}
             // -bottom-px は行の下罫線の上まで伸ばして帯を途切れさせないため

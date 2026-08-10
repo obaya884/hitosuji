@@ -61,6 +61,8 @@ export function CommentRow({
         {bundle !== null && (
           <span
             data-testid="bundle-road"
+            // タスク行と同じ理由で role="img" を持たせる（素の span に aria-label は禁止属性）
+            role="img"
             aria-label={bundle.name}
             title={bundle.name}
             className="absolute inset-x-0 top-0 -bottom-px"
