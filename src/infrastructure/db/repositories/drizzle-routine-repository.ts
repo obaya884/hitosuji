@@ -76,13 +76,6 @@ export function createRoutineRepository(db: Database = defaultDb): RoutineReposi
         .where(eq(routines.id, id));
     },
 
-    async setScheduledStartTime(id: RoutineId, scheduledStartTime: string) {
-      await db
-        .update(routines)
-        .set({ scheduledStartTime, updatedAt: new Date() })
-        .where(eq(routines.id, id));
-    },
-
     async expand(seeds: readonly RoutineTaskSeed[]) {
       if (seeds.length === 0) return 0;
 

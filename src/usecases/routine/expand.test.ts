@@ -39,7 +39,6 @@ function recordingRoutineRepo(all: readonly Routine[], skipped: readonly number[
     setActive: async () => {},
     delete: async () => {},
     setBundle: async () => {},
-    setScheduledStartTime: async () => {},
     expand: async (seeds) => {
       expanded.push(...seeds);
       return seeds.length;

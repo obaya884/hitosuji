@@ -175,11 +175,10 @@ const EXPECTED_MASTER: Record<MasterError, string> = {
   has_references: "参照しているデータがあるため削除できません",
 };
 
-/** バンドルのメンバー出し入れ・開始想定時刻の編集（画面定義書05 §4 O-5〜O-7 / §6） */
+/** バンドルのメンバー出し入れ（画面定義書05 §4 O-5〜O-6 / §6） */
 const EXPECTED_BUNDLE_MEMBER: Record<BundleMemberError, string> = {
   not_found: "対象が見つかりません（すでに削除されている可能性があります）",
   already_in_bundle: "このルーチンは別のバンドルに入っています（一覧を取り直してください）",
-  invalid_start_time: "開始想定時刻を HH:MM 形式で入力してください",
 };
 
 describe("エラー文言辞書（T-49: クライアントとサーバが同じ辞書を参照する）", () => {
@@ -213,7 +212,7 @@ describe("エラー文言辞書（T-49: クライアントとサーバが同じ�
     expect(MASTER_MESSAGES).toEqual(EXPECTED_MASTER);
   });
 
-  it("バンドルのメンバー出し入れ・開始想定時刻の編集（画面定義書05 §4 O-5〜O-7 / §6）の対応表が期待どおり", () => {
+  it("バンドルのメンバー出し入れ（画面定義書05 §4 O-5〜O-6 / §6）の対応表が期待どおり", () => {
     expect(BUNDLE_MEMBER_MESSAGES).toEqual(EXPECTED_BUNDLE_MEMBER);
   });
 
@@ -270,11 +269,6 @@ describe("同じコードは経路が違っても同じ文言を出す（FB-72: 
    */
   it("マスタとルーチンの invalid_start_time は意図的に違う（T-78: 2つの辞書は連動しない）", () => {
     expect(MASTER_MESSAGES.invalid_start_time).not.toBe(ROUTINE_MESSAGES.invalid_start_time);
-  });
-
-  // バンドル管理（S-05）と違い、こちらは「同じにする」が明文化された規則（画面定義書05 §6）
-  it("バンドルの invalid_start_time はルーチン管理（S-02）と同じ（画面定義書05 §6）", () => {
-    expect(BUNDLE_MEMBER_MESSAGES.invalid_start_time).toBe(ROUTINE_MESSAGES.invalid_start_time);
   });
 
   it("バンドルの not_found はマスタ管理と同じ（画面定義書00_共通 §4.1 の言い回しを共有）", () => {

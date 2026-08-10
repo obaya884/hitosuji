@@ -13,7 +13,6 @@ import {
   listRoutines,
   removeRoutineFromBundle,
   setRoutineActive,
-  setRoutineScheduledStartTime,
   updateRoutine,
 } from "./routine-usecases";
 import { inMemoryRoutineRepository } from "./testing/in-memory-repository";
@@ -324,37 +323,5 @@ describe("removeRoutineFromBundle（画面定義書05 O-6: メンバーを外す
   it("対象が無ければ not_found", async () => {
     const routines = inMemoryRoutineRepository([]);
     expect(await removeRoutineFromBundle(routines, 99)).toEqual({ ok: false, error: "not_found" });
-  });
-});
-
-describe("setRoutineScheduledStartTime（画面定義書05 O-7: 開始想定時刻のインライン編集）", () => {
-  // 区切り文字なし入力（`0805`）の整形はUI側（parseClockTime）が担う（routinize-popover.tsx
-  // と同じ役割分担）。ここは S-02 と同じ正規化の入口（DB形式 HH:MM:SS の吸収）だけを見る
-  it("DB形式（HH:MM:SS）の入力も正規化して保存する（S-02 と同じ規則）", async () => {
-    const routines = inMemoryRoutineRepository([routine({ id: 1 })]);
-    expect(await setRoutineScheduledStartTime(routines, 1, "08:05:00")).toEqual({
-      ok: true,
-      value: 1,
-    });
-    expect((await routines.findById(1))?.scheduledStartTime).toBe("08:05");
-  });
-
-  it("書式が不正なら保存しない（S-02 と同じ規則）", async () => {
-    const routines = inMemoryRoutineRepository([
-      routine({ id: 1, scheduledStartTime: "06:30" }),
-    ]);
-    expect(await setRoutineScheduledStartTime(routines, 1, "99:99")).toEqual({
-      ok: false,
-      error: "invalid_start_time",
-    });
-    expect((await routines.findById(1))?.scheduledStartTime).toBe("06:30");
-  });
-
-  it("対象が無ければ not_found", async () => {
-    const routines = inMemoryRoutineRepository([]);
-    expect(await setRoutineScheduledStartTime(routines, 99, "08:05")).toEqual({
-      ok: false,
-      error: "not_found",
-    });
   });
 });

@@ -25,7 +25,6 @@ vi.mock("./actions", () => ({
   deleteBundleAction: vi.fn(),
   setRoutineBundleAction: vi.fn(),
   removeRoutineFromBundleAction: vi.fn(),
-  setRoutineScheduledStartTimeAction: vi.fn(),
 }));
 
 import {
@@ -363,20 +362,21 @@ describe("BundlesBoard（画面定義書05: 左ペインの一覧・作成・ア
     });
   });
 
-  // 発生源による帯の出し分け（00_共通 §4.1）。メンバー表が出す失敗はサーバへ届く前の
-  // クライアント検証（O-7）でも起こり、その経路も bundles-board を通って表示先が決まる
+  // 発生源による帯の出し分け（00_共通 §4.1）。メンバー表が出す失敗もサーバからの応答であり、
+  // bundles-board を通って表示先が決まる
   describe("エラー帯の出し分け（00_共通 §4.1）", () => {
-    it("メンバー表のクライアント検証エラーはメンバー表の帯に出る", () => {
+    it("メンバー表の失敗はメンバー表の帯に出る", async () => {
+      vi.mocked(removeRoutineFromBundleAction).mockResolvedValue({
+        ok: false,
+        message: BUNDLE_MEMBER_MESSAGES.not_found,
+      });
       renderBoard({
-        routines: [routine({ id: 101, name: "朝食", bundleId: 1, scheduledStartTime: "06:30" })],
+        routines: [routine({ id: 101, name: "朝食", bundleId: 1 })],
       });
 
-      clickWithoutServer(screen.getByRole("button", { name: "06:30" }));
-      const input = screen.getByDisplayValue("06:30");
-      fireEvent.change(input, { target: { value: "99:99" } });
-      fireEvent.keyDown(input, { key: "Enter" });
+      await click(screen.getByRole("button", { name: "外す" }));
 
-      expect(errorPaneOf(BUNDLE_MEMBER_MESSAGES.invalid_start_time)).toBe("members");
+      expect(errorPaneOf(BUNDLE_MEMBER_MESSAGES.not_found)).toBe("members");
     });
 
     it("左ペインの失敗は左ペインの帯に出る", async () => {

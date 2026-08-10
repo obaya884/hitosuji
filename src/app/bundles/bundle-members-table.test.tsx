@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -19,14 +19,9 @@ import { click, clickWithoutServer } from "@/app/_testing/interactions";
 vi.mock("./actions", () => ({
   setRoutineBundleAction: vi.fn(),
   removeRoutineFromBundleAction: vi.fn(),
-  setRoutineScheduledStartTimeAction: vi.fn(),
 }));
 
-import {
-  removeRoutineFromBundleAction,
-  setRoutineBundleAction,
-  setRoutineScheduledStartTimeAction,
-} from "./actions";
+import { removeRoutineFromBundleAction, setRoutineBundleAction } from "./actions";
 import { BundleMembersTable } from "./bundle-members-table";
 
 const BUNDLE: Bundle = { id: 1, name: "朝の立上げ", color: "#ef4444", isArchived: false };
@@ -67,18 +62,9 @@ function names(container: HTMLElement): (string | null)[] {
   return rows(container).map((row) => row.cells[0].textContent);
 }
 
-/** 開始想定時刻のセルを開いて値を打ち、Enter で確定する（O-7の一連の操作） */
-function editStartTime(current: string, next: string) {
-  clickWithoutServer(screen.getByRole("button", { name: current }));
-  const input = screen.getByDisplayValue(current);
-  fireEvent.change(input, { target: { value: next } });
-  fireEvent.keyDown(input, { key: "Enter" });
-}
-
 beforeEach(() => {
   vi.mocked(setRoutineBundleAction).mockResolvedValue({ ok: true });
   vi.mocked(removeRoutineFromBundleAction).mockResolvedValue({ ok: true });
-  vi.mocked(setRoutineScheduledStartTimeAction).mockResolvedValue({ ok: true });
 });
 
 describe("BundleMembersTable（画面定義書05 §3.2: メンバー表の並び・表記）", () => {
@@ -231,73 +217,8 @@ describe("BundleMembersTable（画面定義書05 §4 O-6: メンバーを外す�
   });
 });
 
-describe("BundleMembersTable（画面定義書05 §4 O-7・§6: 開始想定時刻の編集）", () => {
-  it("区切り文字なしの入力を受け付ける（UI 層で正規化してから送る）", async () => {
-    renderTable([routine({ id: 7, bundleId: 1, scheduledStartTime: "06:30" })]);
-
-    editStartTime("06:30", "0805");
-
-    await waitFor(() => {
-      expect(setRoutineScheduledStartTimeAction).toHaveBeenCalledExactlyOnceWith(7, "08:05");
-    });
-  });
-
-  it("確定に成功するとセルが表示に戻る", async () => {
-    renderTable([routine({ id: 7, bundleId: 1, scheduledStartTime: "06:30" })]);
-
-    editStartTime("06:30", "0805");
-
-    await waitFor(() => {
-      expect(screen.queryByDisplayValue("0805")).toBeNull();
-    });
-  });
-
-  // normalizeClockInput が解釈できない入力（99:99・09:05x のような余剰つき）は、サーバへ
-  // 送らずその場でエラーを出す——normalizeClockInput が通す値は必ずサーバの isValidStartTime も
-  // 通る（両者の範囲チェックが同じ）ので、解釈できないと分かっている入力を往復させる理由が無い
-  it.each([["99:99"], ["09:05x"], ["12:34:56"]])(
-    "解釈できない入力（%s）はサーバへ送らずその場でエラーを出し、編集状態を残す",
-    async (invalid) => {
-      renderTable([routine({ id: 7, bundleId: 1, scheduledStartTime: "06:30" })]);
-
-      editStartTime("06:30", invalid);
-
-      expect(screen.getByText(BUNDLE_MEMBER_MESSAGES.invalid_start_time)).not.toBeNull();
-      // 確定していない＝セルは編集中のまま（入力欄が残る）
-      expect(screen.queryByDisplayValue(invalid)).not.toBeNull();
-      expect(setRoutineScheduledStartTimeAction).not.toHaveBeenCalled();
-    }
-  );
-
-  // 手前の検証を通っても、サーバ側の失敗（別タブでの操作等）は帯に出す（§6）
-  it("サーバが返した失敗も帯に出す（別タブでの操作等。§6）", async () => {
-    vi.mocked(setRoutineScheduledStartTimeAction).mockResolvedValue({
-      ok: false,
-      message: BUNDLE_MEMBER_MESSAGES.not_found,
-    });
-    renderTable([routine({ id: 7, bundleId: 1, scheduledStartTime: "06:30" })]);
-
-    editStartTime("06:30", "0805");
-
-    await waitFor(() => {
-      expect(screen.getByText(BUNDLE_MEMBER_MESSAGES.not_found)).not.toBeNull();
-    });
-    expect(setRoutineScheduledStartTimeAction).toHaveBeenCalledExactlyOnceWith(7, "08:05");
-  });
-
-  it("Esc で取消し、確定を依頼しない（00_共通 §2.3）", () => {
-    renderTable([routine({ id: 7, bundleId: 1, scheduledStartTime: "06:30" })]);
-
-    clickWithoutServer(screen.getByRole("button", { name: "06:30" }));
-    const input = screen.getByDisplayValue("06:30");
-    fireEvent.change(input, { target: { value: "0805" } });
-    fireEvent.keyDown(input, { key: "Escape" });
-
-    expect(screen.queryByDisplayValue("0805")).toBeNull();
-    expect(setRoutineScheduledStartTimeAction).not.toHaveBeenCalled();
-  });
-
-  it("保存中は「外す」「追加」「開始想定の編集」を押せない（00_共通 §2.3「保存中」）", async () => {
+describe("BundleMembersTable（保存中の操作抑止。00_共通 §2.3「保存中」）", () => {
+  it("保存中は「外す」「追加」を押せない", async () => {
     const pending = deferredAction();
     vi.mocked(removeRoutineFromBundleAction).mockReturnValue(pending.promise);
     renderTable([
@@ -311,7 +232,6 @@ describe("BundleMembersTable（画面定義書05 §4 O-7・§6: 開始想定時�
     expect(
       screen.getByRole<HTMLButtonElement>("button", { name: "＋ ルーチンを追加" }).disabled
     ).toBe(true);
-    expect(screen.getByRole<HTMLButtonElement>("button", { name: "06:30" }).disabled).toBe(true);
 
     fireEvent.click(screen.getByRole<HTMLButtonElement>("button", { name: "＋ ルーチンを追加" }));
     // 保存中に押しても候補一覧は開かない
@@ -324,7 +244,7 @@ describe("BundleMembersTable（画面定義書05 §4 O-7・§6: 開始想定時�
   });
 });
 
-describe("BundleMembersTable（画面定義書05 §4 O-8: ルーチン管理への導線）", () => {
+describe("BundleMembersTable（画面定義書05 §4 O-7: ルーチン管理への導線）", () => {
   it("メンバー名がルーチン管理へのリンクになっている", () => {
     renderTable([routine({ id: 7, name: "点検", bundleId: 1 })]);
 

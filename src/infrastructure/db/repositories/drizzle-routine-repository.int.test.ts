@@ -291,7 +291,7 @@ describe("expand（F-301: 冪等INSERT）", () => {
   });
 });
 
-describe("setBundle / setScheduledStartTime（画面定義書05 O-5〜O-7）", () => {
+describe("setBundle（画面定義書05 O-5〜O-6）", () => {
   it("setBundle でバンドルへ入れて外せる", async () => {
     const [bundle] = await db
       .insert(bundles)
@@ -335,17 +335,6 @@ describe("setBundle / setScheduledStartTime（画面定義書05 O-5〜O-7）", (
     await repo.setBundle(created.id, after.id);
 
     expect((await taskRepo.listByDate("2026-07-19"))[0].bundleId).toBe(before.id);
-  });
-
-  it("setScheduledStartTime は開始想定時刻だけを更新し、他の列を触らない", async () => {
-    const created = await repo.create(input({ name: "朝食", estimateMinutes: 20 }));
-
-    await repo.setScheduledStartTime(created.id, "08:05");
-
-    const found = await repo.findById(created.id);
-    expect(found?.scheduledStartTime).toBe("08:05");
-    expect(found?.name).toBe("朝食");
-    expect(found?.estimateMinutes).toBe(20);
   });
 });
 

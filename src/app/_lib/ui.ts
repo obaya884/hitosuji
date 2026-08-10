@@ -13,6 +13,10 @@ export const linkAccent = "text-sm text-accent hover:underline";
 
 export const linkMuted = "text-sm text-ink-muted hover:text-ink";
 
+// linkMuted と同じ地味な色で、ホバー時は濃くする代わりに下線を出す
+// （クリック可能であることを他のリンク・ボタンと同じ見せ方で示す）
+export const linkMutedUnderline = "text-sm text-ink-muted hover:underline";
+
 // 取り消せない操作（マスタの物理削除）の確定ボタン
 export const linkDanger = "text-sm text-danger hover:underline";
 

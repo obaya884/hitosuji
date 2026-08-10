@@ -30,8 +30,6 @@ export type RoutineRepository = Readonly<{
   delete(id: RoutineId): Promise<void>;
   /** バンドルの出し入れ（画面定義書05 O-5 / O-6）。null で外す */
   setBundle(id: RoutineId, bundleId: BundleId | null): Promise<void>;
-  /** 開始想定時刻だけの更新（画面定義書05 O-7）。他の項目を読み書きしない */
-  setScheduledStartTime(id: RoutineId, scheduledStartTime: string): Promise<void>;
   /**
    * 展開タスクを冪等に INSERT する（F-301）。
    * `ON CONFLICT (routine_id, task_date) DO NOTHING` で既展開分は無視される

@@ -16,7 +16,7 @@
 // 画面に出す」に反する）。新しい Server Action を実行するとき（`errorSinkFor` の null）だけは
 // 無条件にクリアする——それは実際に新しい応答を待ち始める瞬間なので、古い通知を残す理由が無い
 import { useState } from "react";
-import { linkMuted } from "@/app/_lib/ui";
+import { linkMutedUnderline } from "@/app/_lib/ui";
 import { useServerActionRunner } from "@/app/_lib/use-server-action";
 import type { Bundle, BundleId } from "@/domain/bundle/bundle";
 import type { Mode } from "@/domain/mode/mode";
@@ -178,11 +178,12 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
     />
   );
 
+  // 左ペインの幅は「新規追加行（色見本＋名前の入力欄＋保存／取消）が折り返さずに収まること」で決まる。
+  // 狭めると入力欄が右ペインとの境界を越えて崩れる（画面定義書05 §2）
   return (
-    <div className="grid grid-cols-[15rem_1fr]">
+    <div className="grid grid-cols-[22rem_1fr]">
       <div className="border-r border-line pr-4">
         <TableFrame
-          description="色はプリセットから選択します。並び順は名前順です。作成すると選択されます。"
           error={panelError?.scope === "board" ? panelError.message : null}
           isPending={isPending}
           onAddNew={() => {
@@ -196,7 +197,9 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
               {bundles.active.map((bundle) => (
                 <tr
                   key={bundle.id}
-                  className={`border-b border-line ${
+                  // 地色が行全体に付く以上、当たり判定も行全体にする（色見本や件数を押しても選べる）
+                  onClick={() => setSelectedId(bundle.id)}
+                  className={`cursor-pointer border-b border-line ${
                     bundle.id === selectedBundle?.id ? "bg-accent-weak" : "hover:bg-accent-weak"
                   }`}
                 >
@@ -205,11 +208,8 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
                   </td>
                   <td className="py-1.5 pr-1">
                     <span className="flex items-center justify-between gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedId(bundle.id)}
-                        className="truncate text-left hover:underline"
-                      >
+                      {/* 選択は行の onClick が担う。ボタンなのは一覧を Tab で触れる状態に保つため */}
+                      <button type="button" className="truncate text-left">
                         {bundle.name}
                       </button>
                       <span className="text-sm text-ink-muted">
@@ -255,7 +255,7 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
                 type="button"
                 onClick={() => runPanel(() => setBundleArchivedAction(selectedBundle.id, true))}
                 disabled={isPending}
-                className={`ml-auto px-2 ${linkMuted}`}
+                className={`ml-auto px-2 ${linkMutedUnderline}`}
               >
                 アーカイブ
               </button>

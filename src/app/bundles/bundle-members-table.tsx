@@ -15,19 +15,12 @@ import type { Bundle } from "@/domain/bundle/bundle";
 import type { Mode } from "@/domain/mode/mode";
 import { describeRecurrence, type Routine, type RoutineId } from "@/domain/routine/routine";
 import { bundleCandidates, bundleMembers } from "@/domain/bundle/members";
-import { BUNDLE_MEMBER_MESSAGES } from "@/app/_lib/error-messages";
-import { normalizeClockInput } from "@/app/_lib/format";
-import { linkAccent, linkMuted, noticeDanger, tableHeadRow } from "@/app/_lib/ui";
+import { linkAccent, linkMutedUnderline, noticeDanger, tableHeadRow } from "@/app/_lib/ui";
 import { useDismiss } from "@/app/_lib/use-dismiss";
 import type { SetActionError, useServerActionRunner } from "@/app/_lib/use-server-action";
 import { DurationValue } from "@/app/_components/duration-value";
-import { EditableCell } from "@/app/_components/editable-cell";
 import { UnsetMark } from "@/app/_components/unset-mark";
-import {
-  removeRoutineFromBundleAction,
-  setRoutineBundleAction,
-  setRoutineScheduledStartTimeAction,
-} from "./actions";
+import { removeRoutineFromBundleAction, setRoutineBundleAction } from "./actions";
 
 /** 保存境界の型。`isPending` は画面全体（2つの runner）の OR、`run` はこの表向けの runner のもの */
 type ServerActionBoundary = ReturnType<typeof useServerActionRunner>;
@@ -56,7 +49,6 @@ export function BundleMembersTable({
   isPending,
   run,
 }: Props) {
-  const [editingId, setEditingId] = useState<RoutineId | null>(null);
   const [isAddingOpen, setIsAddingOpen] = useState(false);
   const addRef = useRef<HTMLDivElement>(null);
 
@@ -78,23 +70,6 @@ export function BundleMembersTable({
 
   function removeMember(routineId: RoutineId) {
     run(() => removeRoutineFromBundleAction(routineId));
-  }
-
-  /**
-   * 開始想定時刻の確定（O-7）。区切りなし入力（`0805`）の解釈は UI 層の責務（`normalizeClockInput`）。
-   * **解釈できない入力はサーバへ送らず、その場でエラーを出して編集状態を残す**——`normalizeClockInput`
-   * が通す値は必ず `HH:MM` でサーバの検証も必ず通るので、解釈できないと分かっている入力を
-   * わざわざ往復させる理由が無い（画面定義書05 §6「検証の規則も文言もS-02と同じ」は
-   * `normalizeStartTime`/`isValidStartTime` と `ROUTINE_MESSAGES.invalid_start_time` の再利用で
-   * 満たしており、手前で弾いても規則は変わらない）。サーバ側の検証は最後の砦として残る
-   */
-  function commitStartTime(routineId: RoutineId, raw: string) {
-    const value = normalizeClockInput(raw);
-    if (value === null) {
-      setError(BUNDLE_MEMBER_MESSAGES.invalid_start_time);
-      return;
-    }
-    run(() => setRoutineScheduledStartTimeAction(routineId, value), () => setEditingId(null));
   }
 
   return (
@@ -138,29 +113,14 @@ export function BundleMembersTable({
                   <td className="py-2 pr-4 text-right font-mono tabular-nums">
                     <DurationValue minutes={member.estimateMinutes} />
                   </td>
-                  <td className="py-2 tabular-nums">
-                    <EditableCell
-                      isEditing={editingId === member.id}
-                      value={member.scheduledStartTime}
-                      isPending={isPending}
-                      // 区切りなし入力（0805）を打てる必要があるので type="time" にはしない
-                      // （ネイティブの時刻入力は自由なテキスト入力を受け付けない）
-                      type="text"
-                      display={<span className="font-mono">{member.scheduledStartTime}</span>}
-                      onStartEditing={() => {
-                        setError(null);
-                        setEditingId(member.id);
-                      }}
-                      onCommit={(raw) => commitStartTime(member.id, raw)}
-                      onClose={() => setEditingId(null)}
-                    />
-                  </td>
+                  {/* 読むだけ（直すのは S-02。O-7） */}
+                  <td className="py-2 font-mono tabular-nums">{member.scheduledStartTime}</td>
                   <td className="py-2 text-right whitespace-nowrap">
                     <button
                       type="button"
                       onClick={() => removeMember(member.id)}
                       disabled={isPending}
-                      className={`px-2 ${linkMuted}`}
+                      className={`px-2 ${linkMutedUnderline}`}
                     >
                       外す
                     </button>

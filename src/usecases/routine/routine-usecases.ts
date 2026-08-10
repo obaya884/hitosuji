@@ -9,7 +9,6 @@ import {
   type RoutineFromTaskError,
 } from "@/domain/routine/from-task";
 import { validateRoutineInput, type RoutineInput } from "@/domain/routine/input";
-import { isValidStartTime, normalizeStartTime } from "@/domain/section/section";
 import { compareByName } from "@/domain/shared/name-order";
 import { err, ok, type Result } from "@/domain/shared/result";
 import type { TaskId } from "@/domain/task/task";
@@ -132,23 +131,4 @@ export async function removeRoutineFromBundle(
   if ((await repo.findById(routineId)) === null) return err("not_found");
   await repo.setBundle(routineId, null);
   return ok(routineId);
-}
-
-export type SetRoutineScheduledStartTimeError = "not_found" | "invalid_start_time";
-
-/**
- * 開始想定時刻だけの更新（画面定義書05 O-7）。
- * 書式の規則は S-02 と同じ入口（`normalizeStartTime` / `isValidStartTime`）を通す——
- * `HH:MM` 以外は呼び出し元の解釈にかかわらず `invalid_start_time` で弾く
- */
-export async function setRoutineScheduledStartTime(
-  repo: RoutineRepository,
-  id: RoutineId,
-  raw: string
-): Promise<Result<RoutineId, SetRoutineScheduledStartTimeError>> {
-  const scheduledStartTime = normalizeStartTime(raw);
-  if (!isValidStartTime(scheduledStartTime)) return err("invalid_start_time");
-  if ((await repo.findById(id)) === null) return err("not_found");
-  await repo.setScheduledStartTime(id, scheduledStartTime);
-  return ok(id);
 }

@@ -7,11 +7,7 @@ import {
   setBundleArchived,
   updateBundle,
 } from "@/usecases/bundle/bundle-usecases";
-import {
-  addRoutineToBundle,
-  removeRoutineFromBundle,
-  setRoutineScheduledStartTime,
-} from "@/usecases/routine/routine-usecases";
+import { addRoutineToBundle, removeRoutineFromBundle } from "@/usecases/routine/routine-usecases";
 import type { BundleId } from "@/domain/bundle/bundle";
 import type { RoutineId } from "@/domain/routine/routine";
 import { createBundleRepository } from "@/infrastructure/db/repositories/drizzle-bundle-repository";
@@ -97,20 +93,6 @@ export async function setRoutineBundleAction(
 /** メンバーを外す（画面定義書05 §4 O-6） */
 export async function removeRoutineFromBundleAction(routineId: RoutineId): Promise<ActionResult> {
   const result = await removeRoutineFromBundle(routineRepo, routineId);
-  if (result.ok) {
-    revalidatePath(PATH);
-    return { ok: true };
-  } else {
-    return failure(BUNDLE_MEMBER_MESSAGES[result.error]);
-  }
-}
-
-/** 開始想定時刻の編集（画面定義書05 §4 O-7） */
-export async function setRoutineScheduledStartTimeAction(
-  routineId: RoutineId,
-  scheduledStartTime: string
-): Promise<ActionResult> {
-  const result = await setRoutineScheduledStartTime(routineRepo, routineId, scheduledStartTime);
   if (result.ok) {
     revalidatePath(PATH);
     return { ok: true };

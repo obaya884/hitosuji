@@ -15,7 +15,6 @@ import type {
   CreateRoutineFromTaskError,
   RemoveRoutineFromBundleError,
   RoutineUsecaseError,
-  SetRoutineScheduledStartTimeError,
 } from "@/usecases/routine/routine-usecases";
 import type { SectionUsecaseError } from "@/usecases/section/section-usecases";
 import type { TaskEditUsecaseError } from "@/usecases/task/daily-list-usecases";
@@ -219,20 +218,15 @@ export const MASTER_MESSAGES: Record<MasterError, string> = {
 };
 
 /**
- * バンドルのメンバー出し入れ・開始想定時刻の編集（画面定義書05 §4 O-5〜O-7 / §6）。
- * `not_found` はマスタ管理と同じ「対象が見つかりません」を、`invalid_start_time` は
- * **ルーチン管理（S-02）と同じ文言**を引く（画面定義書05 §6「検証の規則も文言も S-02 と同じにする」）。
+ * バンドルのメンバー出し入れ（画面定義書05 §4 O-5〜O-6 / §6）。
+ * `not_found` はマスタ管理と同じ「対象が見つかりません」を引く。
  * `already_in_bundle` はこの操作だけの専用コード
  */
-export type BundleMemberError =
-  | AddRoutineToBundleError
-  | RemoveRoutineFromBundleError
-  | SetRoutineScheduledStartTimeError;
+export type BundleMemberError = AddRoutineToBundleError | RemoveRoutineFromBundleError;
 
 export const BUNDLE_MEMBER_MESSAGES: Record<BundleMemberError, string> = {
   not_found: MASTER_MESSAGES.not_found,
   already_in_bundle: "このルーチンは別のバンドルに入っています（一覧を取り直してください）",
-  invalid_start_time: ROUTINE_MESSAGES.invalid_start_time,
 };
 
 /**

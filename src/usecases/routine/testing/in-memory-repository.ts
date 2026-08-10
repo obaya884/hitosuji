@@ -61,12 +61,6 @@ export function inMemoryRoutineRepository(
       rows[index] = { ...rows[index], bundleId };
     },
 
-    setScheduledStartTime: async (id: RoutineId, scheduledStartTime: string) => {
-      const index = indexOf(id);
-      if (index < 0) return;
-      rows[index] = { ...rows[index], scheduledStartTime };
-    },
-
     // 本物と同じく (routine_id, task_date) で冪等にする（データモデル定義書 §4.1）
     expand: async (seeds: readonly RoutineTaskSeed[]) => {
       const added = seeds.filter(
