@@ -318,6 +318,43 @@ describe("DailyBoard のバンドル割り込み警告（F-119 / 要件定義書
     expect(screen.queryByText(`「${BUNDLE_NAME}」が途中です（残り1件）`)).not.toBeNull();
   });
 
+  it("確定待ちの操作が飛んでいる間は複製して開始が抑止され、警告も出ない（開始していないのに鳴らない）", () => {
+    // 複製して開始（F-208）は楽観的更新をしない「確定を待つ操作」なので、別の確定待ち操作
+    // （ここでは中断 I）が飛んでいる間は runGuarded に抑止される。抑止＝発火していないので、
+    // 通知（開始したことにする前提の処理）も出てはいけない
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(suspendTaskAction).mockReturnValue(gate.promise);
+    renderBoard([
+      task({
+        id: 23,
+        name: COMPLETED,
+        sortOrder: 500,
+        startedAt: atJst("09:00"),
+        endedAt: atJst("09:20"),
+      }),
+      task({
+        id: 21,
+        name: MEMBER_DONE,
+        bundleId: BUNDLE_ID,
+        sortOrder: 1000,
+        startedAt: atJst("09:30"),
+        endedAt: atJst("09:40"),
+      }),
+      task({ id: 22, name: MEMBER_TODO, bundleId: BUNDLE_ID, sortOrder: 2000 }),
+      // 中断させる実行中タスク。開始時刻をメンバー(09:30)より前にして、「直前」の判定を
+      // このタスクに奪わせない（後ろだと非メンバーの直前として拾われ、抑止と無関係に null になる）
+      task({ id: 24, name: RUNNING, sortOrder: 3000, startedAt: atJst("08:00") }),
+    ]);
+    selectRow(RUNNING);
+    press("i"); // 中断（確定待ち）を発火させ、commitInFlight を立てる
+
+    selectRow(COMPLETED);
+    press("Enter"); // 複製して開始も確定待ちのため、この間は抑止される
+
+    expect(vi.mocked(duplicateAndStartTaskAction)).not.toHaveBeenCalled();
+    expect(screen.queryByText(/が途中です/)).toBeNull();
+  });
+
   it("判定に失敗しても打刻は成立する（打刻を巻き添えにしない）", async () => {
     // フィクスチャに無い bundleId（名前が引けない状況）。未完了のメンバーも残し、
     // remaining=0 で早期に null になる経路と区別する

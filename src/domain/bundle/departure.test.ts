@@ -104,4 +104,18 @@ describe("detectBundleDeparture（要件定義書 §5.6: 割り込みの検知�
       remaining: 1,
     });
   });
+
+  it("X 自身が既に開始時刻を持っていても、直前は別のタスクで決まる（要件定義書 §5.6: 「Xを除き」）", () => {
+    // X（id:3）自身の開始時刻を全体の最大にしておく。excludeId が効いていないと
+    // X が自分自身を「直前」として拾ってしまい、X は非メンバーなので条件1で null になる
+    const tasks = [
+      task({ id: 1, bundleId: 5, startedAt: atJst("06:30"), endedAt: atJst("06:48") }),
+      task({ id: 2, bundleId: 5 }),
+      task({ id: 3, bundleId: null, startedAt: atJst("23:00") }),
+    ];
+    expect(detectBundleDeparture(tasks, { id: 3, bundleId: null })).toEqual({
+      bundleId: 5,
+      remaining: 1,
+    });
+  });
 });

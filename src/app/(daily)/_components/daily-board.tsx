@@ -314,7 +314,11 @@ export function DailyBoard({
 
   /**
    * バンドルの割り込み警告（F-119 / 要件定義書 §5.6 / 画面定義書01 §4.4）。開始打刻の全経路から呼ぶ。
-   * 判定に失敗しても打刻は巻き添えにしない（呼び出し元の打刻処理とは独立に動く）
+   * **呼び出し元は打刻が実際に発火したとき（`run` / `runSelectingCreated` が `true` を返したとき）
+   * だけ呼ぶこと**——確定待ち中の抑止（00_共通 §4.2）で打刻自体が握りつぶされたときに、
+   * 開始していないのに警告だけ出るのを防ぐため（打刻を巻き添えにしない、の裏返し）。
+   * `detectBundleDeparture` は純粋な全域関数で例外を投げないので、打刻を守るための特別な
+   * try/catch は要らない——ここで担保しているのは「例外を出さない」ではなく「発火の有無を守る」
    */
   function noticeBundleDeparture(
     started: Readonly<{ id: TaskId | null; bundleId: BundleId | null }>
@@ -339,11 +343,16 @@ export function DailyBoard({
     const status = taskStatus(task);
     const now = new Date();
     if (status === "completed") {
-      noticeBundleDeparture({ id: null, bundleId: null }); // F-208 / O-14 は非メンバー扱い
-      duplicateAndStart(task, now); // F-208 / O-14
+      // F-208 / O-14。発火した（＝確定待ちで抑止されなかった）ときだけ知らせる
+      const fired = duplicateAndStart(task, now);
+      if (fired) noticeBundleDeparture({ id: null, bundleId: null }); // 複製は非メンバー扱い
     } else if (status === "not_started") {
-      noticeBundleDeparture({ id: task.id, bundleId: task.bundleId });
-      run(() => startTaskAction(task.id, now), { type: "start", id: task.id, at: now });
+      const fired = run(() => startTaskAction(task.id, now), {
+        type: "start",
+        id: task.id,
+        at: now,
+      });
+      if (fired) noticeBundleDeparture({ id: task.id, bundleId: task.bundleId });
     } else {
       finish(task, now);
     }
@@ -371,10 +380,12 @@ export function DailyBoard({
 
   /**
    * 複製して開始（F-208 / O-14）。完了タスクの「もう一回」。生成物の採番はサーバが決めるため
-   * 楽観的更新はせず（O-11 と同じ）、開始した複製タスクへ選択を移す
+   * 楽観的更新はせず（O-11 と同じ）、開始した複製タスクへ選択を移す。
+   * 戻り値は発火したか（`runSelectingCreated` の戻り値をそのまま返す。呼び出し元の
+   * `noticeBundleDeparture` の発火判定に使う）
    */
-  function duplicateAndStart(task: Task, now: Date) {
-    runSelectingCreated(() => duplicateAndStartTaskAction(task.id, now));
+  function duplicateAndStart(task: Task, now: Date): boolean {
+    return runSelectingCreated(() => duplicateAndStartTaskAction(task.id, now));
   }
 
   /** 開始打刻の取り消し（O-13 / F-210）。実行中タスクを未実行へ戻す。now はクライアントのものを送る */
