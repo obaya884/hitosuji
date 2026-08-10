@@ -4,7 +4,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { faintTextOf, hasClass } from "@/app/_testing/dom";
 import { atJst } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
-import { colorOf, modeOf, MODES, PROJECTS, SECTIONS } from "../_testing/factories";
+import {
+  bundleColorOf,
+  bundleOf,
+  colorOf,
+  modeOf,
+  MODES,
+  PROJECTS,
+  SECTIONS,
+} from "../_testing/factories";
 import { cellsOf, checkedPopoverLabels, popoverLabels, taskRow } from "../_testing/table-helpers";
 import { TaskRow, type TaskRowProps } from "./task-row";
 
@@ -899,5 +907,71 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
       );
       expect(onEndEdit).toHaveBeenCalledOnce();
     });
+  });
+});
+
+// 帯は `bundle` が渡されているかだけで決まる（隣接は見ない——「つながり」ではなく
+// 「この行はこのバンドルの一員」の印。隣り合う行がつながって見えるかは daily-list.test.tsx）
+describe("バンドルの道（画面定義書01 §3.3 / F-119）", () => {
+  const morningBundle = bundleOf("朝の立上げ");
+
+  it("バンドルに属する行の最左端に、バンドル色の縦帯を出す", () => {
+    renderRow({ task: task({ id: 1, name: "ラジオ体操", bundleId: 5 }), bundle: morningBundle });
+
+    expect(screen.getByTestId("bundle-road").style.backgroundColor).toBe(
+      bundleColorOf("朝の立上げ")
+    );
+  });
+
+  it("バンドルに属さない行には帯を出さない", () => {
+    renderRow({ task: task({ id: 1, name: "単発タスク", bundleId: null }), bundle: null });
+
+    expect(screen.queryByTestId("bundle-road")).toBeNull();
+  });
+
+  it("完了行にも帯を出す（状態を問わない）", () => {
+    renderRow({
+      task: task({
+        id: 1,
+        name: "完了タスク",
+        bundleId: 5,
+        startedAt: atJst("06:00"),
+        endedAt: atJst("06:10"),
+      }),
+      bundle: morningBundle,
+    });
+
+    expect(screen.queryByTestId("bundle-road")).not.toBeNull();
+  });
+
+  it("未来日にも帯を出す（日付を問わない）", () => {
+    renderRow({
+      task: task({ id: 1, name: "未来のタスク", bundleId: 5 }),
+      bundle: morningBundle,
+      isFutureDate: true,
+    });
+
+    expect(screen.queryByTestId("bundle-road")).not.toBeNull();
+  });
+
+  it("帯にバンドル名を持たせる（ホバーと読み上げに同じ名前を出す）", () => {
+    renderRow({ task: task({ id: 1, name: "ラジオ体操", bundleId: 5 }), bundle: morningBundle });
+
+    // role="img" を持たない素の span（role=generic）は aria-label が禁止属性（axe-core
+    // aria-prohibited-attr）で読み上げに反映されない。`getByRole` の `name` オプションは
+    // アクセシブル名を計算してマッチするので、role が無い/aria-label が効いていなければ
+    // このクエリ自体が失敗する（role="img" を外すと落ちるテストになる）
+    const road = screen.getByRole("img", { name: "朝の立上げ" });
+    expect(road).toBe(screen.getByTestId("bundle-road"));
+    expect(road.getAttribute("title")).toBe("朝の立上げ");
+  });
+
+  it("帯は打刻ボタンより外側（最左端の専用列）に置く", () => {
+    renderRow({ task: task({ id: 1, name: "ラジオ体操", bundleId: 5 }), bundle: morningBundle });
+
+    // `cellsOf` は列を添字で名付けるので、**それぞれの列が期待の中身を持つ**ことで並びを見る
+    const { road, punch } = cellsOf(taskRow("ラジオ体操"));
+    expect(within(road).queryByTestId("bundle-road")).not.toBeNull();
+    expect(within(punch).queryByLabelText("開始")).not.toBeNull();
   });
 });

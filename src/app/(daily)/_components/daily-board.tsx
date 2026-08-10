@@ -108,7 +108,7 @@ export function DailyBoard({
   staleRunningTask,
 }: Props) {
   const [optimisticGroups, dispatchOptimistic] = useOptimistic(groups, applyOptimisticAction);
-  // バンドルの道（§3.3）が taskId → bundle を引ける形にする。bundles は稀にしか変わらないので memo する
+  // バンドルの道（§3.3）で bundleId から色と名前を引く。bundles は稀にしか変わらないので memo する
   const bundleById = useMemo(() => new Map(bundles.map((b) => [b.id, b])), [bundles]);
   const [name, setName] = useState("");
   const [rawSelectedId, setSelectedId] = useState<TaskId | null>(null);
@@ -317,8 +317,9 @@ export function DailyBoard({
    * **呼び出し元は打刻が実際に発火したとき（`run` / `runSelectingCreated` が `true` を返したとき）
    * だけ呼ぶこと**——確定待ち中の抑止（00_共通 §4.2）で打刻自体が握りつぶされたときに、
    * 開始していないのに警告だけ出るのを防ぐため（打刻を巻き添えにしない、の裏返し）。
-   * `detectBundleDeparture` は純粋な全域関数で例外を投げないので、打刻を守るための特別な
-   * try/catch は要らない——ここで担保しているのは「例外を出さない」ではなく「発火の有無を守る」
+   *
+   * 判定に渡すのは**打刻前の一覧**（`orderedTasks`）。楽観的更新の適用後を渡すと、割り込みで
+   * 終了させた相手（`optimistic.ts` の `"start"`）が未完了から外れ、残りの数が実際より減る
    */
   function noticeBundleDeparture(
     started: Readonly<{ id: TaskId | null; bundleId: BundleId | null }>
@@ -326,9 +327,9 @@ export function DailyBoard({
     const departure = detectBundleDeparture(orderedTasks, started);
     if (departure === null) return;
 
-    const name = bundleById.get(departure.bundleId)?.name;
-    if (name === undefined) return;
-    setNotice(`「${name}」が途中です（残り${departure.remaining}件）`);
+    const bundleName = bundleById.get(departure.bundleId)?.name;
+    if (bundleName === undefined) return;
+    setNotice(`「${bundleName}」が途中です（残り${departure.remaining}件）`);
   }
 
   /**

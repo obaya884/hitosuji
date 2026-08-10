@@ -51,7 +51,7 @@ export type DailyListProps = Pick<
     isToday: boolean;
     /** 日界（分）。セクションの枠を論理日の区切りで測る起点（F-116） */
     dayStartMinutes: number;
-    /** バンドルの道（F-119 / §3.3）。taskId → bundle の解決は board が Map を組んで配る */
+    /** バンドルの道（F-119 / §3.3）。bundleId → bundle の Map を board が組み、行ごとの解決はここでする */
     bundleById: ReadonlyMap<BundleId, Bundle>;
   }>;
 

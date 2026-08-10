@@ -8,6 +8,7 @@ import { modeAppearance } from "@/app/_lib/mode-appearance";
 import { inputBase } from "@/app/_lib/ui";
 import type { EditField } from "../_lib/editing";
 import { rowBackgroundClass } from "../_lib/row-background";
+import { BundleRoadCell } from "./bundle-road-cell";
 
 export type CommentRowProps = Readonly<{
   task: Task;
@@ -55,21 +56,8 @@ export function CommentRow({
       // 地色はタスク行と同じ規則で決める（§3.3。2行で1件のタスクなので面色を割らない）
       className={`border-b border-line ${rowBackgroundClass(task, isSelected)}`}
     >
-      {/* バンドルの道（F-119 / §3.3）。選択行の下に開くこの行にも帯を伸ばす
-          （2段で1件のタスクなので面を割らない。タスク行と同じ描き方） */}
-      <td className="relative w-1.5 p-0">
-        {bundle !== null && (
-          <span
-            data-testid="bundle-road"
-            // タスク行と同じ理由で role="img" を持たせる（素の span に aria-label は禁止属性）
-            role="img"
-            aria-label={bundle.name}
-            title={bundle.name}
-            className="absolute inset-x-0 top-0 -bottom-px"
-            style={{ backgroundColor: bundle.color }}
-          />
-        )}
-      </td>
+      {/* 選択行の下に開くこの行にも帯を伸ばす（2段で1件のタスクなので面を割らない） */}
+      <BundleRoadCell bundle={bundle} />
       {/* 打刻ボタン列は空ける。折り返す幅はタスク名列に揃え（§3.3）、右側の列は空セルで埋めて
           選択行の面色がコメント行でも途切れないようにする */}
       <td />

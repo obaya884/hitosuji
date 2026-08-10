@@ -42,9 +42,11 @@ export async function listBundles(repo: BundleRepository): Promise<BundleListVie
   const all = sortByName(await repo.listAll());
   const archived = all.filter((b) => b.isArchived);
   const active = all.filter((b) => !b.isArchived);
-  const counts =
-    archived.length === 0 ? {} : await repo.referenceCounts(archived.map((b) => b.id));
-  const memberCounts = active.length === 0 ? {} : await repo.memberCounts(active.map((b) => b.id));
+  // 互いに依存しない2本の問い合わせなので待ち合わせを揃える（`listDailyList` と同じ）
+  const [counts, memberCounts] = await Promise.all([
+    archived.length === 0 ? {} : repo.referenceCounts(archived.map((b) => b.id)),
+    active.length === 0 ? {} : repo.memberCounts(active.map((b) => b.id)),
+  ]);
 
   return {
     active,

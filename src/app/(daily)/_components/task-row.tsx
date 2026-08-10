@@ -19,6 +19,7 @@ import { showsCommentRow, type EditField } from "../_lib/editing";
 import { toModeOptions, toProjectOptions } from "../_lib/master-options";
 import { rowBackgroundClass } from "../_lib/row-background";
 import { AssignCell } from "./assign-cell";
+import { BundleRoadCell } from "./bundle-road-cell";
 import { RowMenu } from "./row-menu";
 import { RoutinizePopover } from "./routinize-popover";
 import { SelectPopover, type PopoverOption } from "./select-popover";
@@ -152,24 +153,7 @@ export function TaskRow({
         showsCommentRow(task, isSelected, editing) ? "" : "border-b border-line"
       } ${rowBackgroundClass(task, isSelected)}`}
     >
-      {/* バンドルの道（F-119 / 画面定義書01 §3.3）。行の最左端に太さ6pxの縦帯を、
-          行の上下端いっぱいに伸ばす。同じバンドルの行が縦に続くとつながって1本の道に見える。
-          隣接は見ない——帯の意味は「つながり」ではなく「この行はこのバンドルの一員」 */}
-      <td className="relative w-1.5 p-0">
-        {bundle !== null && (
-          <span
-            data-testid="bundle-road"
-            // 素の span（role=generic）に aria-label は禁止属性（axe-core aria-prohibited-attr）。
-            // role="img" を持たせて名前付けを許す（review-board.tsx のハイライト印と同じ形）
-            role="img"
-            aria-label={bundle.name}
-            title={bundle.name}
-            // -bottom-px は行の下罫線の上まで伸ばして帯を途切れさせないため
-            className="absolute inset-x-0 top-0 -bottom-px"
-            style={{ backgroundColor: bundle.color }}
-          />
-        )}
-      </td>
+      <BundleRoadCell bundle={bundle} />
       <td className="py-2.5">
         {/* 開始 →（実行中なら）終了 のトグル（F-201）。押しやすさのため円形ボタンにする。
             未来日では打刻を受け付けないのでボタン自体を出さない（§7） */}

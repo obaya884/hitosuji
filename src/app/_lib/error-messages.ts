@@ -6,6 +6,7 @@
 // 共有／専用の切り分けと2辞書を畳まない判断の経緯は、技術改善バックログの `log_` / `closed_`
 // （T-74 / T-76 / T-78）にある
 import type { MasterDeletionError } from "@/domain/shared/master-deletion";
+import type { BundleUsecaseError } from "@/usecases/bundle/bundle-usecases";
 import type { PunchEditError } from "@/domain/task/punch-edit";
 import type { ModeUsecaseError } from "@/usecases/mode/mode-usecases";
 import type { ProjectUsecaseError } from "@/usecases/project/project-usecases";
@@ -181,13 +182,17 @@ export const ROUTINE_MESSAGES: Record<RoutineUsecaseError, string> = {
   routine_not_found: "ルーチンが見つかりませんでした",
 };
 
-/** マスタ管理3種（セクション・モード・プロジェクト）の失敗を1つの型で扱う（表示は `failure()` 経由） */
+/**
+ * マスタ管理3種（セクション・モード・プロジェクト）とバンドル（S-05 の左ペイン・ヘッダ）の
+ * 失敗を1つの型で扱う（表示は `failure()` 経由）
+ */
 // ユースケース側の型（`SectionError | "not_found"` 等）を並べる——ドメインのエラー型だけを並べると、
 // ユースケースが新しいコードを足しても下の `Record` が型エラーにならず、辞書の穴に気づけない
 export type MasterError =
   | SectionUsecaseError
   | ModeUsecaseError
   | ProjectUsecaseError
+  | BundleUsecaseError
   | MasterDeletionError;
 
 /**
