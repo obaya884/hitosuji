@@ -535,7 +535,10 @@ describe("postponeTask（F-107: 先送り）", () => {
   });
 
   // F-119: routine_id を外す扱いと揃える。付けたまま移すと移動先の日に改めて展開されるぶんと
-  // 同じバンドルに同名のタスクが2件並んでしまう（データモデル定義書 §4.8）
+  // 同じバンドルに同名のタスクが2件並んでしまう（データモデル定義書 §4.8）。
+  // **先送りは1つの UPDATE なので、外すかどうかを決めるのはリポジトリ段**——ここが読むのは
+  // 偽物が返す値で、契約の実検査は `drizzle-task-repository.int.test.ts` にある
+  // （`routineId` を見る隣のテストと同じ立て付け）
   it("バンドルからは外れる", async () => {
     const repo = inMemoryTaskRepository([task({ id: 1, bundleId: 5 })]);
 

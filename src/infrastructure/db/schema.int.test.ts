@@ -197,6 +197,21 @@ describe("tasks の外部キー（F-405: 参照されているマスタは DB �
     );
   });
 
+  it("参照されているバンドルは削除できない（F-119。展開済みタスクからの参照も止める）", async () => {
+    const [bundle] = await db
+      .insert(bundles)
+      .values({ name: "朝の立上げ", color: COLOR_BY_NAME["インディゴ"] })
+      .returning();
+    await db
+      .insert(tasks)
+      .values({ taskDate: "2026-07-19", name: "朝食", sortOrder: 1000, bundleId: bundle.id });
+
+    await rejectsWithConstraint(
+      db.delete(bundles).where(eq(bundles.id, bundle.id)),
+      "tasks_bundle_id_bundles_id_fk"
+    );
+  });
+
   // 参照整合のもう一方の側。削除を拒む力と対で、宙に浮いた参照を最初から作らせない
   it("存在しないマスタを指すタスクは作れない", async () => {
     const missing = 999999;

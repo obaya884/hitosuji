@@ -17,6 +17,15 @@ afterAll(async () => {
 });
 
 /** ルーチン由来タスクの展開元。ルーチンが絡む describe（先送り・削除とスキップ）が共有する */
+/** バンドル1件（bundle_id の伝播を見るテストが共有する。名前・色は主張に関わらない） */
+async function createBundle() {
+  const [row] = await db
+    .insert(bundles)
+    .values({ name: "朝の支度", color: COLOR_BY_NAME["青"] })
+    .returning();
+  return row;
+}
+
 async function createRoutine() {
   const [row] = await db
     .insert(routines)
@@ -442,10 +451,7 @@ describe("duplicateAndStart（F-208 / データモデル定義書 §4.6: 複製�
   });
 
   it("割り込みありで、終了・再開タスク生成・複製の開始が1トランザクションで反映される", async () => {
-    const [bundle] = await db
-      .insert(bundles)
-      .values({ name: "朝の支度", color: COLOR_BY_NAME["青"] })
-      .returning();
+    const bundle = await createBundle();
     const startedAt = new Date("2026-07-19T08:48:00Z");
     const now = new Date("2026-07-19T09:00:00Z");
     const [source, running] = await db
@@ -1702,10 +1708,7 @@ describe("bundle_id の伝播（データモデル定義書 §4.8 / F-119）", (
   // 中断（suspend）の再開タスクは元タスクのバンドルを引き継ぐ。外すと中断したメンバーが
   // バンドルから抜けて、残りが完了してもバンドルが永遠に完了しなくなる
   it("中断の再開タスクはバンドルを引き継ぐ（外すとバンドルが永遠に完了しない）", async () => {
-    const [bundle] = await db
-      .insert(bundles)
-      .values({ name: "朝の支度", color: COLOR_BY_NAME["青"] })
-      .returning();
+    const bundle = await createBundle();
     const startedAt = new Date("2026-07-19T08:48:00Z");
     const endedAt = new Date("2026-07-19T09:00:00Z");
     const [running] = await db
@@ -1744,10 +1747,7 @@ describe("bundle_id の伝播（データモデル定義書 §4.8 / F-119）", (
   // 割り込み（start の interruption）の再開タスクも同じ理由で引き継ぐ。
   // 割り込んだ側（C）は無関係の行なので変わらないことも一緒に見る
   it("割り込みの再開タスクもバンドルを引き継ぐ", async () => {
-    const [bundle] = await db
-      .insert(bundles)
-      .values({ name: "朝の支度", color: COLOR_BY_NAME["青"] })
-      .returning();
+    const bundle = await createBundle();
     const startedAt = new Date("2026-07-19T08:48:00Z");
     const endedAt = new Date("2026-07-19T09:00:00Z");
     const [running, target] = await db
@@ -1795,10 +1795,7 @@ describe("bundle_id の伝播（データモデル定義書 §4.8 / F-119）", (
   // 複製（create 経由）はバンドルを引き継がない。routine_id・コメント・ハイライトと同じ扱い
   // （データモデル定義書 §4.8）。NewTask に bundle_id を渡さないことで表す
   it("複製はバンドルを引き継がない（routine_id・コメント・ハイライトと同じ扱い）", async () => {
-    const [bundle] = await db
-      .insert(bundles)
-      .values({ name: "朝の支度", color: COLOR_BY_NAME["青"] })
-      .returning();
+    const bundle = await createBundle();
     const [source] = await db
       .insert(tasks)
       .values({ taskDate: "2026-07-19", name: "複製元", sortOrder: 1000, bundleId: bundle.id })
@@ -1824,10 +1821,7 @@ describe("bundle_id の伝播（データモデル定義書 §4.8 / F-119）", (
 
   // 複製して開始（duplicateAndStart）も同じくバンドルを引き継がない
   it("複製して開始もバンドルを引き継がない", async () => {
-    const [bundle] = await db
-      .insert(bundles)
-      .values({ name: "朝の支度", color: COLOR_BY_NAME["青"] })
-      .returning();
+    const bundle = await createBundle();
     const startedAt = new Date("2026-07-19T08:00:00Z");
     const endedAt = new Date("2026-07-19T08:30:00Z");
     const now = new Date("2026-07-19T09:00:00Z");
@@ -1866,10 +1860,7 @@ describe("bundle_id の伝播（データモデル定義書 §4.8 / F-119）", (
   // 先送りは routine_id を外す扱い（§3.5）と揃えてバンドルからも外す。付けたまま移すと
   // 移動先の日に改めて展開されるぶんと同じバンドルに同名のタスクが2件並んでしまう
   it("先送りはバンドルから外す（routine_id を外す扱いと揃える）", async () => {
-    const [bundle] = await db
-      .insert(bundles)
-      .values({ name: "朝の支度", color: COLOR_BY_NAME["青"] })
-      .returning();
+    const bundle = await createBundle();
     const [target] = await db
       .insert(tasks)
       .values({ taskDate: "2026-07-19", name: "先送り対象", sortOrder: 1000, bundleId: bundle.id })
@@ -1883,10 +1874,7 @@ describe("bundle_id の伝播（データモデル定義書 §4.8 / F-119）", (
 
   // 開始打刻の取り消し・完了の取り消しは打刻列だけを触るので bundle_id は変わらない
   it("開始打刻の取り消し・完了の取り消しはバンドルを変えない", async () => {
-    const [bundle] = await db
-      .insert(bundles)
-      .values({ name: "朝の支度", color: COLOR_BY_NAME["青"] })
-      .returning();
+    const bundle = await createBundle();
     const [running, completed] = await db
       .insert(tasks)
       .values([

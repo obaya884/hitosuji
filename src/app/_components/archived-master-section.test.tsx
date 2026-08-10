@@ -1,22 +1,12 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { rowOf } from "@/app/_testing/table";
 import { ArchivedMasterSection } from "./archived-master-section";
 
 type Item = Readonly<{ id: number; name: string }>;
 
 const item = (id: number, name: string): Item => ({ id, name });
-
-/**
- * 文言からその行（`<tr>`）を取る。この部品はマスタ管理・バンドル管理のどちらからも
- * 使われるため、特定の画面の `_testing/` には寄せず、ここに閉じて持つ
- * （`masters/_testing/table-helpers.ts` の `rowOf` と同じ発想）
- */
-function rowOf(text: string): HTMLElement {
-  const row = screen.getByText(text).closest("tr");
-  if (row === null) throw new Error(`「${text}」の行が見つかりません`);
-  return row;
-}
 
 /** 呼び出し側（各テーブル）と同じく、ラベル列の `<td>` を渡す */
 const renderCells = (master: Item) => <td>{master.name}</td>;

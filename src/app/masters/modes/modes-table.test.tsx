@@ -2,12 +2,12 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Mode } from "@/domain/mode/mode";
-import { COLOR_PRESETS } from "@/domain/shared/color-presets";
 
 import { deferredAction } from "@/app/_testing/actions";
 import { rgbOf } from "@/app/_testing/dom";
 import { click, clickWithoutServer } from "@/app/_testing/interactions";
-import { rowOf, startEditingCell } from "../_testing/table-helpers";
+import { rowOf } from "@/app/_testing/table";
+import { startEditingCell } from "../_testing/table-helpers";
 
 // Server Action の先は実DB接続と revalidatePath に届くため、同じ返り値の契約
 // （ActionResult）を返す偽物へ差し替える（テスト戦略定義書 §2「偽物を置いてよい境界」）
@@ -63,13 +63,6 @@ const openColorPicker = (row: HTMLElement, currentColorName: string): void =>
     within(row).getByRole("button", { name: `色を変更（現在: ${currentColorName}）` })
   );
 
-/** 開いているプリセット選択のパネル（候補の外へ検索が漏れないよう、ここへ絞って主張する） */
-const colorPickerPanel = (): HTMLElement => {
-  const panel = screen.getByRole("button", { name: "色 赤" }).closest("div");
-  if (panel === null) throw new Error("プリセット選択が開いていません");
-  return panel;
-};
-
 beforeEach(() => {
   vi.mocked(createModeAction).mockResolvedValue({ ok: true });
   vi.mocked(updateModeAction).mockResolvedValue({ ok: true });
@@ -97,102 +90,9 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
   });
 
   // このピッカーに 00_共通 §2.1 のどの項目が及ぶかは画面定義書03 §3.2 が正（FB-59）
+  // プリセット選択そのもの（13色・自由入力なし・輪郭・吹き出し・閉じ方）は共有部品の
+  // 観点なので `_components/color-picker.test.tsx` が持つ。ここは**この画面の配線**だけを見る
   describe("プリセット色の選択（画面定義書03 §3.2）", () => {
-    it("カラーバーを押すとプリセット13色（12色＋グレー）がその場に開く", async () => {
-      renderTable();
-
-      openColorPicker(rowOf("モードA"), "赤");
-
-      const swatches = screen.getAllByRole("button", { name: /^色 / });
-      expect(swatches.map((b) => b.getAttribute("aria-label"))).toEqual([
-        "色 赤",
-        "色 オレンジ",
-        "色 琥珀",
-        "色 黄",
-        "色 ライム",
-        "色 緑",
-        "色 ティール",
-        "色 シアン",
-        "色 青",
-        "色 インディゴ",
-        "色 紫",
-        "色 ピンク",
-        "色 グレー",
-      ]);
-    });
-
-    it("自由入力は設けない（N-05: 開いたパネルは候補だけで入力欄を持たない）", async () => {
-      renderTable();
-
-      openColorPicker(rowOf("モードA"), "赤");
-
-      const panel = colorPickerPanel();
-      expect(within(panel).queryByRole("textbox")).toBeNull();
-      expect(within(panel).getAllByRole("button")).toHaveLength(COLOR_PRESETS.length);
-    });
-
-    // ラベル（色名）と塗り（色値）が同じプリセットの1件から出ていることを画面段で固定する
-    it("候補は色名に対応する色値で塗られる", async () => {
-      renderTable();
-
-      openColorPicker(rowOf("モードA"), "赤");
-
-      for (const { value, name } of COLOR_PRESETS) {
-        const swatch = screen.getByRole("button", { name: `色 ${name}` });
-        expect(swatch.style.backgroundColor).toBe(rgbOf(value));
-      }
-    });
-
-    it("開くと現在値を輪郭で示す（画面定義書03 §3.2）", async () => {
-      renderTable();
-
-      openColorPicker(rowOf("モードB"), "青");
-
-      // 輪郭は面色と違い role や aria では読めないので classList で見る
-      // （`select-popover.test.tsx` のハイライト判定と同じ流儀）
-      expect(screen.getByRole("button", { name: "色 青" }).classList.contains("outline-ink")).toBe(
-        true
-      );
-      expect(screen.getByRole("button", { name: "色 赤" }).classList.contains("outline-ink")).toBe(
-        false
-      );
-    });
-
-    it("現在値を読み上げにも出す（`aria-pressed`）", async () => {
-      renderTable();
-
-      openColorPicker(rowOf("モードB"), "青");
-
-      expect(screen.getByRole("button", { name: "色 青" }).getAttribute("aria-pressed")).toBe("true");
-      expect(screen.getByRole("button", { name: "色 赤" }).getAttribute("aria-pressed")).toBe(
-        "false"
-      );
-    });
-
-    it("候補にマウスを乗せるとその色の名前を吹き出しで出す", async () => {
-      renderTable();
-      openColorPicker(rowOf("モードA"), "赤");
-      const swatch = screen.getByRole("button", { name: "色 ライム" });
-
-      fireEvent.mouseEnter(swatch);
-      expect(screen.getByRole("tooltip").textContent).toBe("ライム");
-
-      fireEvent.mouseLeave(swatch);
-      expect(screen.queryByRole("tooltip")).toBeNull();
-    });
-
-    it("キーボードで候補へ移っても色名を吹き出しで出す（マウスを使わなくても色名が読める）", async () => {
-      renderTable();
-      openColorPicker(rowOf("モードA"), "赤");
-      const swatch = screen.getByRole("button", { name: "色 ティール" });
-
-      fireEvent.focus(swatch);
-      expect(screen.getByRole("tooltip").textContent).toBe("ティール");
-
-      fireEvent.blur(swatch);
-      expect(screen.queryByRole("tooltip")).toBeNull();
-    });
-
     it("色を選ぶと即保存し（名前は現在値のまま送る）ポップオーバーを閉じる", async () => {
       renderTable();
       openColorPicker(rowOf("モードA"), "赤");
@@ -206,21 +106,11 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       expect(screen.queryByRole("button", { name: "色 グレー" })).toBeNull();
     });
 
-    it("Esc で閉じる（送信しない。00_共通 §2.1「閉じ方」）", async () => {
+    it("閉じただけでは保存しない（00_共通 §2.1「閉じ方」）", async () => {
       renderTable();
       openColorPicker(rowOf("モードA"), "赤");
 
       fireEvent.keyDown(document, { key: "Escape" });
-
-      expect(screen.queryByRole("button", { name: "色 赤" })).toBeNull();
-      expect(updateModeAction).not.toHaveBeenCalled();
-    });
-
-    it("外側のクリックで閉じる（送信しない。00_共通 §2.1「閉じ方」）", async () => {
-      renderTable();
-      openColorPicker(rowOf("モードA"), "赤");
-
-      fireEvent.mouseDown(document.body);
 
       expect(screen.queryByRole("button", { name: "色 赤" })).toBeNull();
       expect(updateModeAction).not.toHaveBeenCalled();

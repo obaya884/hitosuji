@@ -121,6 +121,35 @@ describe("DrizzleRoutineRepository", () => {
     expect(remaining[0].routineId).toBeNull();
     expect(await db.select().from(routines)).toHaveLength(0);
   });
+
+  // データモデル定義書 §4.8: バンドルは展開のときに写した値なので、由来のルーチンが消えても
+  // タスク側には残る（`routine_id` だけが SET NULL になる隣で `bundle_id` は動かない）
+  it("削除しても展開済みタスクの bundle_id は残る（道は消えない）", async () => {
+    const [bundle] = await db
+      .insert(bundles)
+      .values({ name: "朝の立上げ", color: COLOR_BY_NAME["インディゴ"] })
+      .returning();
+    const created = await repo.create(input({ bundleId: bundle.id }));
+    await repo.expand([
+      {
+        routineId: created.id,
+        taskDate: "2026-07-19",
+        name: "朝食",
+        estimateMinutes: 20,
+        sectionId: null,
+        modeId: null,
+        projectId: null,
+        bundleId: bundle.id,
+        sortOrder: 1000,
+      },
+    ]);
+
+    await repo.delete(created.id);
+
+    const remaining = await taskRepo.listByDate("2026-07-19");
+    expect(remaining[0].routineId).toBeNull();
+    expect(remaining[0].bundleId).toBe(bundle.id);
+  });
 });
 
 describe("expand（F-301: 冪等INSERT）", () => {
@@ -275,6 +304,37 @@ describe("setBundle / setScheduledStartTime（画面定義書05 O-5〜O-7）", (
 
     await repo.setBundle(created.id, null);
     expect((await repo.findById(created.id))?.bundleId).toBeNull();
+  });
+
+  // データモデル定義書 §4.8: バンドルは展開のときに写す値で、あとから同期しない。
+  // 波及させると、過去日に描き終わった道が遡って変わってしまう
+  it("setBundle は展開済みタスクの bundle_id へ波及しない（過去日の道が遡って変わらない）", async () => {
+    const [before] = await db
+      .insert(bundles)
+      .values({ name: "朝の立上げ", color: COLOR_BY_NAME["インディゴ"] })
+      .returning();
+    const [after] = await db
+      .insert(bundles)
+      .values({ name: "夜のクローズ", color: COLOR_BY_NAME["緑"] })
+      .returning();
+    const created = await repo.create(input({ bundleId: before.id }));
+    await repo.expand([
+      {
+        routineId: created.id,
+        taskDate: "2026-07-19",
+        name: "朝食",
+        estimateMinutes: 20,
+        sectionId: null,
+        modeId: null,
+        projectId: null,
+        bundleId: before.id,
+        sortOrder: 1000,
+      },
+    ]);
+
+    await repo.setBundle(created.id, after.id);
+
+    expect((await taskRepo.listByDate("2026-07-19"))[0].bundleId).toBe(before.id);
   });
 
   it("setScheduledStartTime は開始想定時刻だけを更新し、他の列を触らない", async () => {

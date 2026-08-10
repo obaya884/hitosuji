@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { COLOR_BY_NAME } from "@/domain/shared/color-presets";
 import { routines, tasks } from "@/infrastructure/db/schema";
@@ -158,5 +159,33 @@ describe("create / update / setArchived / remove", () => {
 
     await repo.remove(created.id);
     expect(await repo.listAll()).toEqual([]);
+  });
+
+  // 画面定義書05 O-3: アーカイブは「一覧から隠す」だけ。メンバーの所属も、展開済みタスクの道も
+  // そのまま残る（残ると困る側＝物理削除は参照0件でしか通らない）
+  it("アーカイブしてもメンバーの所属も展開済みタスクの道も変えない", async () => {
+    const bundle = await repo.create({ name: "朝の立上げ", color: COLOR_BY_NAME["青"] });
+    const [routine] = await db
+      .insert(routines)
+      .values({
+        name: "朝食",
+        estimateMinutes: 20,
+        scheduledStartTime: "06:30",
+        recurrenceType: "daily",
+        startDate: "2026-08-09",
+        bundleId: bundle.id,
+      })
+      .returning();
+    const [task] = await db
+      .insert(tasks)
+      .values({ taskDate: "2026-08-09", name: "朝食", sortOrder: 1000, bundleId: bundle.id })
+      .returning();
+
+    await repo.setArchived(bundle.id, true);
+
+    const [routineAfter] = await db.select().from(routines).where(eq(routines.id, routine.id));
+    const [taskAfter] = await db.select().from(tasks).where(eq(tasks.id, task.id));
+    expect(routineAfter.bundleId).toBe(bundle.id);
+    expect(taskAfter.bundleId).toBe(bundle.id);
   });
 });

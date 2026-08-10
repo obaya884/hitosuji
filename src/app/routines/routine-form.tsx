@@ -280,24 +280,23 @@ export function RoutineForm({
         </div>
       </div>
 
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <label className="text-sm">
-          <span className="text-xs text-ink-muted">バンドル</span>
-          <select
-            value={bundleId ?? ""}
-            disabled={isPending}
-            onChange={(e) => setBundleId(e.target.value === "" ? null : Number(e.target.value))}
-            className={`mt-1 w-full ${inputBase}`}
-          >
-            <option value="">{UNSET_LABEL}</option>
-            {bundles.map((bundle) => (
-              <option key={bundle.id} value={bundle.id}>
-                {bundle.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+      {/* 2列に並べる相手がいないので枠は作らない（グリッドにすると右半分が常に空く） */}
+      <label className="mt-3 block text-sm">
+        <span className="text-xs text-ink-muted">バンドル</span>
+        <select
+          value={bundleId ?? ""}
+          disabled={isPending}
+          onChange={(e) => setBundleId(e.target.value === "" ? null : Number(e.target.value))}
+          className={`mt-1 w-full ${inputBase}`}
+        >
+          <option value="">{UNSET_LABEL}</option>
+          {bundles.map((bundle) => (
+            <option key={bundle.id} value={bundle.id}>
+              {bundle.name}
+            </option>
+          ))}
+        </select>
+      </label>
 
       {/* 保存中は確定も取消も止める（00_共通 §2.3。連打は二重に作り、応答待ちの取消は入力を失わせる） */}
       <div className="mt-3 flex justify-end gap-2">
