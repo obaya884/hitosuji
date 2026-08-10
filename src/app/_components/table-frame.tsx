@@ -1,6 +1,7 @@
 "use client";
 
-// 管理画面（ルーチン管理・マスタ管理）の表に共通の外枠（画面定義書02 §3 / 画面定義書03 §3・§4）。
+// 管理画面（ルーチン管理・マスタ管理・バンドル管理）の表に共通の外枠
+// （画面定義書02 §3 / 03 §3・§4 / 05 §2。説明文を持たないのは 05 だけ）。
 // 説明文と新規追加ボタンの見出し行、保存に失敗したときのエラー帯までを持ち、
 // 見出し行より下は `children` に置く。列の並びは表ごとに違うので表側に残す。
 import type { ReactNode } from "react";
@@ -41,14 +42,14 @@ export function TableFrame({
 
   return (
     <section className="mt-4">
-      <div className="flex items-center justify-between">
-        {/* 説明が無い表では場所だけ空ける（ボタンは右端に置いたまま） */}
-        {description === undefined ? <span /> : <p className="text-xs text-ink-muted">{description}</p>}
+      <div className="flex items-center">
+        {description !== undefined && <p className="text-xs text-ink-muted">{description}</p>}
         <button
           onClick={onAddNew}
           // 保存中は新しい編集を始めさせない（開いていたセル・フォームが閉じてしまう。00_共通 §2.3）
           disabled={isPending}
-          className={`inline-flex shrink-0 items-center gap-1 ${btnSecondary}`}
+          // ml-auto で右端に寄せる（説明文の有無に関わらず位置が変わらない）
+          className={`ml-auto inline-flex shrink-0 items-center gap-1 ${btnSecondary}`}
         >
           <PlusIcon className="h-3 w-3" />
           {addLabel}

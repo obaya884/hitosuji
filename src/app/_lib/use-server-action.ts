@@ -26,6 +26,9 @@ export function useServerActionRunner(setError: SetActionError) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
+  // `Extract<T, { ok: true }>` のキャストは、ジェネリックな `T` が `result.ok` の分岐で
+  // 絞られない（絞れるのは具体的な合併型だけ）ため。`callAction` の戻りから失敗側は
+  // 除かれているので、値としては成功のケースしか来ない
   function run<T extends ActionResult>(
     action: () => Promise<T>,
     onSuccess?: (result: Extract<T, { ok: true }>) => void

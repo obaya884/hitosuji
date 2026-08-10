@@ -89,7 +89,7 @@ export function RoutinesTable({
   today,
   initialEditingId = null,
 }: Props) {
-  // S-05 のメンバー名リンク（`/routines?edit=<id>`）で開いた状態にする（画面定義書05 O-8）。
+  // S-05 のメンバー名リンク（`/routines?edit=<id>`）で開いた状態にする（画面定義書05 O-7）。
   // 見つからない id は静かに無視する（削除済み等。新規/一覧のまま表示すれば十分）
   const [editing, setEditing] = useState<Routine | "new" | null>(() =>
     initialEditingId === null ? null : (routines.find((r) => r.id === initialEditingId) ?? null)
@@ -232,10 +232,9 @@ export function RoutinesTable({
                   {bundle === undefined ? (
                     <UnsetMark />
                   ) : (
-                    // 収まらない名前は切り詰める（折り返すと行高が揃わない）
                     <span className="flex items-center gap-1.5">
-                      {/* ホバーはバンドル名（デイリーの帯と揃える。色名は S-03 の関心事） */}
-                      <ColorSwatch color={bundle.color} size="dot" title={bundle.name} />
+                      <ColorSwatch color={bundle.color} size="dot" />
+                      {/* 切り詰めは §3 が決める。title は切り詰めた名前の補完（色名は S-03 の関心事） */}
                       <span className="truncate" title={bundle.name}>
                         {bundle.name}
                       </span>

@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useDismiss } from "@/app/_lib/use-dismiss";
-import { floatPanel } from "@/app/_lib/ui";
+import { floatPanel, tooltipBubble } from "@/app/_lib/ui";
 import { COLOR_PRESETS, colorPresetName } from "@/domain/shared/color-presets";
 
 /** 新規追加行の既定色（プリセットの先頭＝赤。画面定義書03 §3.2 / 05 §4 O-1） */
@@ -27,18 +27,15 @@ export function ColorSwatch({
   color,
   size,
   dimmed = false,
-  title,
 }: Readonly<{
   color: string;
   size: ColorSwatchSize;
   /** アーカイブ済み一覧のように行ごと薄く見せるとき */
   dimmed?: boolean;
-  title?: string;
 }>) {
   return (
     <span
       style={{ backgroundColor: color }}
-      title={title}
       className={`inline-block shrink-0 rounded-control ${SWATCH_CLASS[size]} ${
         dimmed ? "opacity-50" : ""
       }`}
@@ -139,10 +136,7 @@ export function ColorPickerPopover({
           />
           {/* 色だけでは選びにくいので、乗せた候補の名前を吹き出しで出す（画面定義書03 §3.2） */}
           {hovered === value && (
-            <span
-              role="tooltip"
-              className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1 -translate-x-1/2 rounded-control bg-ink px-1.5 py-0.5 text-xs whitespace-nowrap text-paper"
-            >
+            <span role="tooltip" className={`bottom-full left-1/2 mb-1 -translate-x-1/2 ${tooltipBubble}`}>
               {name}
             </span>
           )}
