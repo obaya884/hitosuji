@@ -4,22 +4,24 @@
 // 業務ルールなので、`routines`（全ルーチン）をそのまま受け取り、選択中バンドルのメンバー・
 // 追加候補はここで domain 関数（bundleMembers / bundleCandidates）から導く
 // （RoutinesTable が `sortRoutines` を自分で呼ぶのと同じ形）。
-// この画面は N-01（楽観的更新）の対象外（§1）で、保存境界（`useServerAction`）は
-// bundles-board.tsx のヘッダとは別に持つ
+// この画面は N-01（楽観的更新）の対象外（§1）。**保存境界（isPending / run）は
+// bundles-board.tsx の左ペイン・ヘッダと共有する**——00_共通 §4.2「再発火の抑止」は対象の行が
+// 違っても確定を待つ操作をすべて受け付けない、と定めており、S-05 は画面全体がその対象（§1）。
+// エラー帯だけは表示先を振り分けたいので `error`/`setError` は bundles-board.tsx が
+// 発生源で出し分けた値を props で受け取る（詳細は bundles-board.tsx 側のコメント）
 import { useRef, useState } from "react";
 import Link from "next/link";
 import type { Bundle } from "@/domain/bundle/bundle";
 import type { Mode } from "@/domain/mode/mode";
 import { describeRecurrence, type Routine, type RoutineId } from "@/domain/routine/routine";
 import { bundleCandidates, bundleMembers } from "@/domain/routine/order";
+import { BUNDLE_MEMBER_MESSAGES } from "@/app/_lib/error-messages";
 import { normalizeClockInput } from "@/app/_lib/format";
-import { bottomCenterStack, linkAccent, linkMuted, noticeDanger, tableHeadRow } from "@/app/_lib/ui";
+import { linkAccent, linkMuted, noticeDanger, tableHeadRow } from "@/app/_lib/ui";
 import { useDismiss } from "@/app/_lib/use-dismiss";
-import { useServerAction } from "@/app/_lib/use-server-action";
-import { useSlowPending } from "@/app/_lib/use-slow-pending";
+import type { useServerAction } from "@/app/_lib/use-server-action";
 import { DurationValue } from "@/app/_components/duration-value";
 import { MasterEditableCell } from "@/app/_components/master-editable-cell";
-import { PendingIndicator } from "@/app/_components/pending-indicator";
 import { UnsetMark } from "@/app/_components/unset-mark";
 import {
   removeRoutineFromBundleAction,
@@ -27,22 +29,35 @@ import {
   setRoutineScheduledStartTimeAction,
 } from "./actions";
 
+/** 保存境界の型。bundles-board.tsx の `useServerAction()` の戻り値と同じ形を props で受け取る */
+type ServerActionBoundary = ReturnType<typeof useServerAction>;
+
 type Props = Readonly<{
   bundle: Bundle;
   /** 全ルーチン。選択中バンドルのメンバー・追加候補はここから domain 関数で導く */
   routines: readonly Routine[];
   /** 表示用マスタ。アーカイブ済みも含む（参照中のモード名を出すため） */
   modes: readonly Mode[];
+  /** この表が発生源のときだけ非 null になるよう、呼び出し側（bundles-board.tsx）が振り分ける */
+  error: ServerActionBoundary["error"];
+  /** 値を直接渡すだけなので、`useState` の関数更新までは要求しない（呼び出し側の型を軽くする） */
+  setError: (message: string | null) => void;
+  isPending: ServerActionBoundary["isPending"];
+  run: ServerActionBoundary["run"];
 }>;
 
 /** メンバー表（画面定義書05 §3.2）。右ペインのヘッダ（bundles-board.tsx）の下に置く */
-export function BundleMembersTable({ bundle, routines, modes }: Props) {
+export function BundleMembersTable({
+  bundle,
+  routines,
+  modes,
+  error,
+  setError,
+  isPending,
+  run,
+}: Props) {
   const [editingId, setEditingId] = useState<RoutineId | null>(null);
   const [isAddingOpen, setIsAddingOpen] = useState(false);
-  const { error, setError, isPending, run } = useServerAction();
-  // 確定を待つ操作の進行中の合図（00_共通 §4.2）。ヘッダ側（bundles-board.tsx）は左ペインの
-  // TableFrame が自前で出すが、メンバー表は保存境界が別なのでここでも出す
-  const slowPending = useSlowPending(isPending);
   const addRef = useRef<HTMLDivElement>(null);
 
   const members = bundleMembers(routines, bundle.id);
@@ -67,13 +82,18 @@ export function BundleMembersTable({ bundle, routines, modes }: Props) {
 
   /**
    * 開始想定時刻の確定（O-7）。区切りなし入力（`0805`）の解釈は UI 層の責務（`normalizeClockInput`）。
-   * **解釈できない入力は空文字で渡し、サーバの `invalid_start_time` を確実に踏ませる**
-   * （`routinize-popover.tsx` の submit と同じ手当て。生の文字列をそのまま渡すと、サーバ側の
-   * `normalizeStartTime` が先頭5文字を切り出すだけなので `09:05x` のような余剰入力が
-   * `09:05` として黙って通ってしまう）
+   * **解釈できない入力はサーバへ送らず、その場でエラーを出して編集状態を残す**——`normalizeClockInput`
+   * が通す値は必ず `HH:MM` でサーバの検証も必ず通るので、解釈できないと分かっている入力を
+   * わざわざ往復させる理由が無い（画面定義書05 §6「検証の規則も文言もS-02と同じ」は
+   * `normalizeStartTime`/`isValidStartTime` と `ROUTINE_MESSAGES.invalid_start_time` の再利用で
+   * 満たしており、手前で弾いても規則は変わらない）。サーバ側の検証は最後の砦として残る
    */
   function commitStartTime(routineId: RoutineId, raw: string) {
-    const value = normalizeClockInput(raw) ?? "";
+    const value = normalizeClockInput(raw);
+    if (value === null) {
+      setError(BUNDLE_MEMBER_MESSAGES.invalid_start_time);
+      return;
+    }
     run(() => setRoutineScheduledStartTimeAction(routineId, value), () => setEditingId(null));
   }
 
@@ -102,11 +122,14 @@ export function BundleMembersTable({ bundle, routines, modes }: Props) {
               return (
                 <tr
                   key={member.id}
-                  // 無効ルーチンはグレーアウト（S-02 §3 と同じ扱い。無効なメンバーは道が欠ける）
+                  // 無効ルーチンはグレーアウト（S-02 §3 と同じ扱い。無効なメンバーは道が欠ける）。
+                  // 名前セルもこの色を継承させる必要があるので、名前リンクに固定色クラスを当てない
+                  // （linkAccent 等は継承に勝ってしまい、いちばん目立つ列だけ通常色が残る。
+                  // routines-table.tsx:198-200 と同じ理由）
                   className={`border-b border-line ${member.isActive ? "" : "text-ink-faint"}`}
                 >
                   <td className="py-2">
-                    <Link href={`/routines?edit=${member.id}`} className={linkAccent}>
+                    <Link href={`/routines?edit=${member.id}`} className="hover:underline">
                       {member.name}
                     </Link>
                   </td>
@@ -182,12 +205,6 @@ export function BundleMembersTable({ bundle, routines, modes }: Props) {
             </ul>
           ))}
       </div>
-
-      {slowPending && (
-        <div className={bottomCenterStack}>
-          <PendingIndicator />
-        </div>
-      )}
     </div>
   );
 }

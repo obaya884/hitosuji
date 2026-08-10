@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Bundle, BundleId } from "@/domain/bundle/bundle";
@@ -7,6 +7,7 @@ import type { Routine } from "@/domain/routine/routine";
 import { routine } from "@/domain/routine/testing/routine";
 import type { BundleListView } from "@/usecases/bundle/bundle-usecases";
 
+import { deferredAction } from "@/app/_testing/actions";
 import { click, clickWithoutServer } from "@/app/_testing/interactions";
 import { rowOf } from "./_testing/table-helpers";
 
@@ -27,6 +28,7 @@ vi.mock("./actions", () => ({
 import {
   createBundleAction,
   deleteBundleAction,
+  removeRoutineFromBundleAction,
   setBundleArchivedAction,
   updateBundleAction,
 } from "./actions";
@@ -82,6 +84,7 @@ beforeEach(() => {
   vi.mocked(updateBundleAction).mockResolvedValue({ ok: true });
   vi.mocked(setBundleArchivedAction).mockResolvedValue({ ok: true });
   vi.mocked(deleteBundleAction).mockResolvedValue({ ok: true });
+  vi.mocked(removeRoutineFromBundleAction).mockResolvedValue({ ok: true });
 });
 
 describe("BundlesBoard（画面定義書05: 左ペインの一覧・作成・アーカイブ・削除／右ペインのヘッダ）", () => {
@@ -234,6 +237,42 @@ describe("BundlesBoard（画面定義書05: 左ペインの一覧・作成・ア
       expect(updateBundleAction).toHaveBeenCalledExactlyOnceWith(1, {
         name: "朝の立上げ",
         color: BLUE,
+      });
+    });
+  });
+
+  // 保存境界（isPending/run）を画面全体で共有していること（00_共通 §4.2「再発火の抑止」——
+  // 対象の行が違っても確定を待つ操作をすべて受け付けない）。左ペイン・ヘッダとメンバー表が
+  // それぞれ独立した境界を持っていた場合はどちらも green のまま通ってしまうテストなので、
+  // 「押せない」ことを直接見る
+  describe("保存境界の共有（00_共通 §4.2）", () => {
+    it("メンバー表の操作が保留中は、左ペインの「新規追加」も押せない", async () => {
+      const pending = deferredAction();
+      vi.mocked(removeRoutineFromBundleAction).mockReturnValue(pending.promise);
+      renderBoard({ routines: [routine({ id: 101, name: "朝食", bundleId: 1 })] });
+
+      await click(screen.getByRole("button", { name: "外す" }));
+
+      expect(screen.getByRole<HTMLButtonElement>("button", { name: "新規追加" }).disabled).toBe(
+        true
+      );
+
+      await act(async () => {
+        pending.resolve({ ok: true });
+      });
+    });
+
+    it("左ペイン・ヘッダの操作が保留中は、メンバー表の「外す」も押せない", async () => {
+      const pending = deferredAction();
+      vi.mocked(setBundleArchivedAction).mockReturnValue(pending.promise);
+      renderBoard({ routines: [routine({ id: 101, name: "朝食", bundleId: 1 })] });
+
+      await click(screen.getByRole("button", { name: "アーカイブ" }));
+
+      expect(screen.getByRole<HTMLButtonElement>("button", { name: "外す" }).disabled).toBe(true);
+
+      await act(async () => {
+        pending.resolve({ ok: true });
       });
     });
   });
