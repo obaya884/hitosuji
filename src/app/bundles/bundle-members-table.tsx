@@ -19,7 +19,7 @@ import { BUNDLE_MEMBER_MESSAGES } from "@/app/_lib/error-messages";
 import { normalizeClockInput } from "@/app/_lib/format";
 import { linkAccent, linkMuted, noticeDanger, tableHeadRow } from "@/app/_lib/ui";
 import { useDismiss } from "@/app/_lib/use-dismiss";
-import type { useServerAction } from "@/app/_lib/use-server-action";
+import type { SetActionError, useServerActionRunner } from "@/app/_lib/use-server-action";
 import { DurationValue } from "@/app/_components/duration-value";
 import { MasterEditableCell } from "@/app/_components/master-editable-cell";
 import { UnsetMark } from "@/app/_components/unset-mark";
@@ -29,8 +29,8 @@ import {
   setRoutineScheduledStartTimeAction,
 } from "./actions";
 
-/** 保存境界の型。bundles-board.tsx の `useServerAction()` の戻り値と同じ形を props で受け取る */
-type ServerActionBoundary = ReturnType<typeof useServerAction>;
+/** 保存境界の型。bundles-board.tsx が `useServerActionRunner()` から受け取ったものを配ってくる */
+type ServerActionBoundary = ReturnType<typeof useServerActionRunner>;
 
 type Props = Readonly<{
   bundle: Bundle;
@@ -39,9 +39,9 @@ type Props = Readonly<{
   /** 表示用マスタ。アーカイブ済みも含む（参照中のモード名を出すため） */
   modes: readonly Mode[];
   /** この表が発生源のときだけ非 null になるよう、呼び出し側（bundles-board.tsx）が振り分ける */
-  error: ServerActionBoundary["error"];
-  /** 値を直接渡すだけなので、`useState` の関数更新までは要求しない（呼び出し側の型を軽くする） */
-  setError: (message: string | null) => void;
+  error: string | null;
+  /** 画面の操作によるクリア（null）も、自分の scope のときだけ効くよう呼び出し側が振り分ける */
+  setError: SetActionError;
   isPending: ServerActionBoundary["isPending"];
   run: ServerActionBoundary["run"];
 }>;

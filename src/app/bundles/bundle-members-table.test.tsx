@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Bundle } from "@/domain/bundle/bundle";
@@ -7,7 +8,7 @@ import type { Routine } from "@/domain/routine/routine";
 import { routine } from "@/domain/routine/testing/routine";
 import { COLOR_PRESETS } from "@/domain/shared/color-presets";
 import { BUNDLE_MEMBER_MESSAGES } from "@/app/_lib/error-messages";
-import { useServerAction } from "@/app/_lib/use-server-action";
+import { useServerActionRunner } from "@/app/_lib/use-server-action";
 
 import { deferredAction } from "@/app/_testing/actions";
 import { hasClass } from "@/app/_testing/dom";
@@ -34,10 +35,13 @@ const BUNDLE: Bundle = { id: 1, name: "朝の立上げ", color: "#ef4444", isArc
 const MODES: readonly Mode[] = [{ id: 1, name: "モードA", color: COLOR_PRESETS[0].value, isArchived: false }];
 
 // BundleMembersTable は保存境界（isPending/run/error/setError）を持たず bundles-board.tsx から
-// props で受け取る（画面全体で1つの境界を共有するため。00_共通 §4.2）。テストでは実物の
-// `useServerAction` を呼ぶ薄いラッパーで、bundles-board.tsx の配線を素直に再現する
+// props で受け取る（画面全体で1つの境界を共有するため。00_共通 §4.2）。ここでは本番と同じ
+// `useServerActionRunner` へエラーの置き場を渡して配線する。**発生源による表示先の振り分け
+// （scope）は持たない**——この表しか描かないので分岐が起きず、振り分けそのものの検査は
+// bundles-board.test.tsx が持つ
 function Harness({ routines }: Readonly<{ routines: readonly Routine[] }>) {
-  const { error, setError, isPending, run } = useServerAction();
+  const [error, setError] = useState<string | null>(null);
+  const { isPending, run } = useServerActionRunner(setError);
   return (
     <BundleMembersTable
       bundle={BUNDLE}

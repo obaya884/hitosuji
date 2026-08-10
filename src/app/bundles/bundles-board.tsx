@@ -10,15 +10,14 @@
 //
 // エラーは `panelError`（{ scope; message } の1スロット）に持つ。**表示は自分の scope の
 // ときだけ**（左ペイン・ヘッダ→"board" は TableFrame の帯、メンバー表→"members" はメンバー表
-// 自身の帯）。**クリアも自分の scope のときだけ**——`clearBoardError`/`clearMembersError` は
-// 他方の scope のエラーが出ている間は何もしない。これが無いと「片方のペインを触っただけで
-// 他方の未解決のエラーが消える」（00_共通 §4.1「失敗はすべて画面に出す」に反する。レビュー
-// 指摘で発覚）。新しい Server Action を実行するとき（`runScoped`）だけは無条件にクリアする——
-// それは実際に新しい応答を待ち始める瞬間なので、古い通知を残す理由が無い
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { callAction, handleActionFailure, type ActionResult } from "@/app/_lib/action-result";
+// 自身の帯）。**画面の操作によるクリアも自分の scope のときだけ**——`clearBoardError` /
+// `setMembersError(null)` は他方の scope のエラーが出ている間は何もしない。これが無いと
+// 「片方のペインを触っただけで他方の未解決のエラーが消える」（00_共通 §4.1「失敗はすべて
+// 画面に出す」に反する）。新しい Server Action を実行するとき（`errorSinkFor` の null）だけは
+// 無条件にクリアする——それは実際に新しい応答を待ち始める瞬間なので、古い通知を残す理由が無い
+import { useState } from "react";
 import { linkMuted } from "@/app/_lib/ui";
+import { useServerActionRunner } from "@/app/_lib/use-server-action";
 import type { Bundle, BundleId } from "@/domain/bundle/bundle";
 import type { Mode } from "@/domain/mode/mode";
 import type { Routine } from "@/domain/routine/routine";
@@ -55,58 +54,33 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
   const [editingId, setEditingId] = useState<BundleId | "new" | null>(null);
   const [newColor, setNewColor] = useState<string>(DEFAULT_COLOR);
   const [colorPickerId, setColorPickerId] = useState<BundleId | "new" | null>(null);
-  // 保存境界は画面全体で1つ（上のコメント参照）。`useServerAction` を使わないのは、あちらの
-  // `error` が単一の文字列で発生源を持たないため——ここでは `panelError` が代わりを担う
-  const [isPending, startTransition] = useTransition();
   const [panelError, setPanelError] = useState<Readonly<{
     scope: ErrorScope;
     message: string;
   }> | null>(null);
-  const router = useRouter();
+
+  /** `run` の書き込み口。開始時のクリア（null）は無条件、失敗の文言は発生源の scope で置く */
+  function errorSinkFor(scope: ErrorScope) {
+    return (message: string | null) =>
+      setPanelError(message === null ? null : { scope, message });
+  }
+
+  // 実行の手順（クリア → transition → 失敗の扱い）は共通フックが持ち、この画面はエラーの
+  // 置き場だけを渡す。**保存境界は画面全体で1つ**（上のコメント）なので、どちらが応答待ちでも
+  // すべての操作を受け付けない
+  const { isPending: isPanelPending, run: runPanel } = useServerActionRunner(errorSinkFor("board"));
+  const { isPending: isMembersPending, run: runMembers } = useServerActionRunner(
+    errorSinkFor("members")
+  );
+  const isPending = isPanelPending || isMembersPending;
 
   const selectedBundle =
     bundles.active.find((b) => b.id === selectedId) ?? bundles.active[0] ?? null;
-
-  /** 指定した scope の Server Action を実行する。開始時は無条件にエラーをクリアする（上のコメント） */
-  function runScoped<T extends ActionResult>(
-    scope: ErrorScope,
-    action: () => Promise<T>,
-    onSuccess?: (result: T) => void
-  ): void {
-    setPanelError(null);
-    startTransition(async () => {
-      const result = await callAction(action);
-      if (result.ok) {
-        onSuccess?.(result);
-        return;
-      }
-      handleActionFailure(result, {
-        setError: (message) => setPanelError({ scope, message }),
-        refresh: () => router.refresh(),
-      });
-    });
-  }
-
-  /** 左ペイン・ヘッダの `run` */
-  function runPanel<T extends ActionResult>(
-    action: () => Promise<T>,
-    onSuccess?: (result: T) => void
-  ): void {
-    runScoped("board", action, onSuccess);
-  }
 
   /** 左ペイン・ヘッダのエラーをその場で消す（新しい編集を始めたとき）。
    *  すでに出ているのが他方（members）のエラーなら何もしない */
   function clearBoardError() {
     setPanelError((prev) => (prev?.scope === "board" ? null : prev));
-  }
-
-  /** メンバー表の `run`（メンバー表へ props で渡す） */
-  function runMembers<T extends ActionResult>(
-    action: () => Promise<T>,
-    onSuccess?: (result: T) => void
-  ): void {
-    runScoped("members", action, onSuccess);
   }
 
   /**
