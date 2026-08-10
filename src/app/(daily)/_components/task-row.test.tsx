@@ -954,7 +954,7 @@ describe("バンドルの道（画面定義書01 §3.3 / F-119）", () => {
     expect(screen.queryByTestId("bundle-road")).not.toBeNull();
   });
 
-  it("帯にバンドル名を持たせる（ホバーと読み上げに同じ名前を出す）", () => {
+  it("帯を読み上げにバンドル名で出す", () => {
     renderRow({ task: task({ id: 1, name: "ラジオ体操", bundleId: 5 }), bundle: morningBundle });
 
     // role="img" を持たない素の span（role=generic）は aria-label が禁止属性（axe-core
@@ -963,7 +963,22 @@ describe("バンドルの道（画面定義書01 §3.3 / F-119）", () => {
     // このクエリ自体が失敗する（role="img" を外すと落ちるテストになる）
     const road = screen.getByRole("img", { name: "朝の立上げ" });
     expect(road).toBe(screen.getByTestId("bundle-road"));
-    expect(road.getAttribute("title")).toBe("朝の立上げ");
+  });
+
+  it("帯に乗せた瞬間にバンドル名を吹き出しで出し、離すと消す（§3.3）", () => {
+    renderRow({ task: task({ id: 1, name: "ラジオ体操", bundleId: 5 }), bundle: morningBundle });
+
+    // 標準の `title` は表示までに間があるので使わない。属性が残っていると吹き出しと
+    // 二重に出るため、無いことも併せて見る
+    const road = screen.getByTestId("bundle-road");
+    expect(road.getAttribute("title")).toBeNull();
+    expect(screen.queryByRole("tooltip")).toBeNull();
+
+    fireEvent.mouseEnter(road);
+    expect(screen.getByRole("tooltip").textContent).toBe("朝の立上げ");
+
+    fireEvent.mouseLeave(road);
+    expect(screen.queryByRole("tooltip")).toBeNull();
   });
 
   it("帯は打刻ボタンより外側（最左端の専用列）に置く", () => {

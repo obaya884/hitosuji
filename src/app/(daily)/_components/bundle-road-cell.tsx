@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import type { Bundle } from "@/domain/bundle/bundle";
 
 /**
@@ -9,6 +12,8 @@ import type { Bundle } from "@/domain/bundle/bundle";
  * 列幅は `daily-list.tsx` の colgroup が持つ（列幅は1箇所に集約する）
  */
 export function BundleRoadCell({ bundle }: Readonly<{ bundle: Bundle | null }>) {
+  const [hovered, setHovered] = useState(false);
+
   return (
     <td className="relative p-0">
       {bundle !== null && (
@@ -18,11 +23,21 @@ export function BundleRoadCell({ bundle }: Readonly<{ bundle: Bundle | null }>) 
           // role="img" を持たせて名前付けを許す（review-board.tsx のハイライト印と同じ形）
           role="img"
           aria-label={bundle.name}
-          title={bundle.name}
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
           // -bottom-px は行の下罫線の上まで伸ばして帯を途切れさせないため
           className="absolute inset-x-0 top-0 -bottom-px"
           style={{ backgroundColor: bundle.color }}
         />
+      )}
+      {/* 名前は乗せた瞬間に出す（§3.3）。見た目はモードのプリセット選択（color-picker.tsx）と同じ */}
+      {bundle !== null && hovered && (
+        <span
+          role="tooltip"
+          className="pointer-events-none absolute top-1/2 left-full z-20 ml-1 -translate-y-1/2 rounded-control bg-ink px-1.5 py-0.5 text-xs whitespace-nowrap text-paper"
+        >
+          {bundle.name}
+        </span>
       )}
     </td>
   );

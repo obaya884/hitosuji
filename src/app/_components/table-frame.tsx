@@ -10,8 +10,8 @@ import { PendingIndicator } from "@/app/_components/pending-indicator";
 import { useSlowPending } from "@/app/_lib/use-slow-pending";
 
 type Props = Readonly<{
-  /** 見出し行の説明文（表ごとに違う。編集できる項目・並び順・展開の条件など） */
-  description: ReactNode;
+  /** 見出し行の説明文（表ごとに違う。編集できる項目・並び順・展開の条件など）。省略できる */
+  description?: ReactNode;
   /** 直近の Server Action の失敗メッセージ。`null` なら帯を出さない */
   error: string | null;
   /** 保存中（Server Action の応答待ち） */
@@ -42,7 +42,8 @@ export function TableFrame({
   return (
     <section className="mt-4">
       <div className="flex items-center justify-between">
-        <p className="text-xs text-ink-muted">{description}</p>
+        {/* 説明が無い表では場所だけ空ける（ボタンは右端に置いたまま） */}
+        {description === undefined ? <span /> : <p className="text-xs text-ink-muted">{description}</p>}
         <button
           onClick={onAddNew}
           // 保存中は新しい編集を始めさせない（開いていたセル・フォームが閉じてしまう。00_共通 §2.3）

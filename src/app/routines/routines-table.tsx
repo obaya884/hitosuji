@@ -164,7 +164,8 @@ export function RoutinesTable({
               sortKey="bundle"
               sort={sort}
               onSort={toggleSort}
-              className="w-28"
+              // 分類の他の列より広く取る——値のほかに色見本を抱えるぶん、同じ字数でも先に溢れる
+              className="w-44"
             />
             <SortableHeader
               label="モード"
@@ -231,10 +232,13 @@ export function RoutinesTable({
                   {bundle === undefined ? (
                     <UnsetMark />
                   ) : (
-                    <span className="inline-flex items-center gap-1.5">
+                    // 収まらない名前は切り詰める（折り返すと行高が揃わない）
+                    <span className="flex items-center gap-1.5">
                       {/* ホバーはバンドル名（デイリーの帯と揃える。色名は S-03 の関心事） */}
                       <ColorSwatch color={bundle.color} size="dot" title={bundle.name} />
-                      {bundle.name}
+                      <span className="truncate" title={bundle.name}>
+                        {bundle.name}
+                      </span>
                     </span>
                   )}
                 </td>
