@@ -24,9 +24,9 @@ import type { Routine } from "@/domain/routine/routine";
 import type { BundleListView } from "@/usecases/bundle/bundle-usecases";
 import { TableFrame } from "@/app/_components/table-frame";
 import { ColorBarButton, ColorSwatch, DEFAULT_COLOR } from "@/app/_components/color-picker";
-import { ArchivedMasterSection } from "@/app/_components/archived-master-section";
-import { MasterEditableCell } from "@/app/_components/master-editable-cell";
-import { MasterNewRow, MasterNewRowInput } from "@/app/_components/master-new-row";
+import { ArchivedSection } from "@/app/_components/archived-section";
+import { EditableCell } from "@/app/_components/editable-cell";
+import { NewRow, NewRowInput } from "@/app/_components/new-row";
 import { BundleMembersTable } from "./bundle-members-table";
 import {
   createBundleAction,
@@ -121,7 +121,7 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
 
   /** ヘッダの名前。クリックでその場編集（O-2）。色は現在値のまま送る */
   const headerNameCell = (bundle: Bundle) => (
-    <MasterEditableCell
+    <EditableCell
       isEditing={editingId === bundle.id}
       value={bundle.name}
       isPending={isPending}
@@ -154,7 +154,7 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
   );
 
   const newRow = (
-    <MasterNewRow
+    <NewRow
       isPending={isPending}
       onSave={(fieldValue) =>
         runPanel(
@@ -171,7 +171,7 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
         <>
           <td className="w-10 py-1 pl-1">{newColorCell}</td>
           <td className="py-1 pr-1">
-            <MasterNewRowInput field="name" placeholder="バンドル名" autoFocus onKeyDown={onKeyDown} />
+            <NewRowInput field="name" placeholder="バンドル名" autoFocus onKeyDown={onKeyDown} />
           </td>
         </>
       )}
@@ -225,7 +225,7 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
             </tbody>
           </table>
 
-          <ArchivedMasterSection
+          <ArchivedSection
             archived={bundles.archived}
             deletableIds={bundles.deletableIds}
             isPending={isPending}

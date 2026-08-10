@@ -21,7 +21,7 @@ import { linkAccent, linkMuted, noticeDanger, tableHeadRow } from "@/app/_lib/ui
 import { useDismiss } from "@/app/_lib/use-dismiss";
 import type { SetActionError, useServerActionRunner } from "@/app/_lib/use-server-action";
 import { DurationValue } from "@/app/_components/duration-value";
-import { MasterEditableCell } from "@/app/_components/master-editable-cell";
+import { EditableCell } from "@/app/_components/editable-cell";
 import { UnsetMark } from "@/app/_components/unset-mark";
 import {
   removeRoutineFromBundleAction,
@@ -139,7 +139,7 @@ export function BundleMembersTable({
                     <DurationValue minutes={member.estimateMinutes} />
                   </td>
                   <td className="py-2 tabular-nums">
-                    <MasterEditableCell
+                    <EditableCell
                       isEditing={editingId === member.id}
                       value={member.scheduledStartTime}
                       isPending={isPending}

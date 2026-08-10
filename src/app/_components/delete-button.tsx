@@ -1,6 +1,6 @@
 "use client";
 
-// マスタ管理・バンドル管理に共通の物理削除2段階ボタン（画面定義書03 §4.1 / 05 §5）。
+// 物理削除の2段階ボタン（画面定義書03 §4.1 / 05 §5）。
 // モーダルは使わず、同じ位置で「削除」→「本当に削除？ [削除する] [取消]」に切り替える
 import { useState } from "react";
 import { linkDanger, linkMuted } from "@/app/_lib/ui";
@@ -10,7 +10,7 @@ type Props = Readonly<{
   disabled: boolean;
 }>;
 
-export function DeleteMasterButton({ onDelete, disabled }: Props) {
+export function DeleteButton({ onDelete, disabled }: Props) {
   const [confirming, setConfirming] = useState(false);
 
   if (!confirming) {

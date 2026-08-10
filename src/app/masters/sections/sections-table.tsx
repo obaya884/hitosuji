@@ -6,9 +6,9 @@ import { formatDuration } from "@/app/_lib/format";
 import { linkMuted, tableHeadRow } from "@/app/_lib/ui";
 import { sectionCapacityMinutes, type Section, type SectionId } from "@/domain/section/section";
 import { TableFrame } from "@/app/_components/table-frame";
-import { ArchivedMasterSection } from "@/app/_components/archived-master-section";
-import { MasterEditableCell } from "@/app/_components/master-editable-cell";
-import { MasterNewRow, MasterNewRowInput } from "@/app/_components/master-new-row";
+import { ArchivedSection } from "@/app/_components/archived-section";
+import { EditableCell } from "@/app/_components/editable-cell";
+import { NewRow, NewRowInput } from "@/app/_components/new-row";
 import {
   archiveSectionAction,
   createSectionAction,
@@ -53,7 +53,7 @@ export function SectionsTable({ ranges, archived, deletableIds }: Props) {
 
   /** 名前セル。クリックでその場編集（§4「編集方式」） */
   const nameCell = (row: SectionRow) => (
-    <MasterEditableCell
+    <EditableCell
       isEditing={editing?.id === row.id && editing.field === "name"}
       value={row.name}
       isPending={isPending}
@@ -68,7 +68,7 @@ export function SectionsTable({ ranges, archived, deletableIds }: Props) {
 
   /** 開始時刻セル。編集できるのは開始時刻のみで、終了時刻は次セクションの開始からの導出値（読み取り専用） */
   const startTimeCell = (row: SectionRow) => (
-    <MasterEditableCell
+    <EditableCell
       isEditing={editing?.id === row.id && editing.field === "startTime"}
       value={row.startTime}
       isPending={isPending}
@@ -85,7 +85,7 @@ export function SectionsTable({ ranges, archived, deletableIds }: Props) {
   );
 
   const newRow = (
-    <MasterNewRow
+    <NewRow
       isPending={isPending}
       onSave={(fieldValue) =>
         run(
@@ -100,7 +100,7 @@ export function SectionsTable({ ranges, archived, deletableIds }: Props) {
           {/* 日界の選択は保存後に行う（新規行では空） */}
           <td className="py-1" />
           <td className="py-1 pr-2">
-            <MasterNewRowInput
+            <NewRowInput
               field="name"
               placeholder="セクション名"
               autoFocus
@@ -109,7 +109,7 @@ export function SectionsTable({ ranges, archived, deletableIds }: Props) {
           </td>
           <td className="py-1 pr-2">
             <span className="flex items-center gap-1">
-              <MasterNewRowInput field="startTime" type="time" onKeyDown={onKeyDown} />
+              <NewRowInput field="startTime" type="time" onKeyDown={onKeyDown} />
               {derivedEndTime("自動")}
             </span>
           </td>
@@ -182,7 +182,7 @@ export function SectionsTable({ ranges, archived, deletableIds }: Props) {
         </tbody>
       </table>
 
-      <ArchivedMasterSection
+      <ArchivedSection
         archived={archived}
         deletableIds={deletableIds}
         isPending={isPending}

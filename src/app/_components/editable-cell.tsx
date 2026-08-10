@@ -1,17 +1,17 @@
 "use client";
 
-// マスタ管理3表・バンドル管理に共通のインライン編集セル（画面定義書03 §4「編集方式」/
-// 05 §4 O-2 / 00_共通 §2.3）。表ごとに書き分けていた「Enter/Esc の作法・blur 確定・
-// 変更なしの判定・保存中の抑止」をここへ寄せる（T-44）。表に残るのは「何を送るか」の配線だけ。
+// 表のインライン編集セル（画面定義書03 §4「編集方式」/ 05 §4 O-2 / 00_共通 §2.3）。
+// 表ごとに書き分けていた「Enter/Esc の作法・blur 確定・変更なしの判定・保存中の抑止」を
+// ここへ寄せる（T-44）。表に残るのは「何を送るか」の配線だけ。
 import type { ReactNode } from "react";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { inputBase } from "@/app/_lib/ui";
 
-/** マスタ管理で編集する値の種類。見た目（幅・字面）はここから導く */
-export type MasterInputType = "text" | "time";
+/** インライン編集で扱う値の種類。見た目（幅・字面）はここから導く */
+export type InlineInputType = "text" | "time";
 
 /** 入力欄の幅。時刻は内容に合わせる（`w-full` にすると桁の右に余白だけが伸びる） */
-export function masterInputClass(type: MasterInputType): string {
+export function inlineInputClass(type: InlineInputType): string {
   return type === "time" ? inputBase : `w-full ${inputBase}`;
 }
 
@@ -22,7 +22,7 @@ type Props = Readonly<{
   value: string;
   /** 保存中（Server Action の応答待ち） */
   isPending: boolean;
-  type?: MasterInputType;
+  type?: InlineInputType;
   /** 閉じているときのボタン表示。既定は `value` そのまま（時間帯のように枠で見せる列で渡す） */
   display?: ReactNode;
   /** 入力欄の右に添える読み取り専用の表示（導出値など） */
@@ -34,7 +34,7 @@ type Props = Readonly<{
   onClose: () => void;
 }>;
 
-export function MasterEditableCell({
+export function EditableCell({
   isEditing,
   value,
   isPending,
@@ -90,7 +90,7 @@ export function MasterEditableCell({
         if (next === value) onClose();
         else onCommit(next);
       }}
-      className={masterInputClass(type)}
+      className={inlineInputClass(type)}
     />
   );
 

@@ -7,9 +7,9 @@ import type { Mode, ModeId } from "@/domain/mode/mode";
 import { colorPresetName } from "@/domain/shared/color-presets";
 import { TableFrame } from "@/app/_components/table-frame";
 import { ColorBarButton, ColorSwatch, DEFAULT_COLOR } from "@/app/_components/color-picker";
-import { ArchivedMasterSection } from "@/app/_components/archived-master-section";
-import { MasterEditableCell } from "@/app/_components/master-editable-cell";
-import { MasterNewRow, MasterNewRowInput } from "@/app/_components/master-new-row";
+import { ArchivedSection } from "@/app/_components/archived-section";
+import { EditableCell } from "@/app/_components/editable-cell";
+import { NewRow, NewRowInput } from "@/app/_components/new-row";
 import {
   createModeAction,
   deleteModeAction,
@@ -41,7 +41,7 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
    * 名前を保存するときは色は現在値のまま送る（色の変更はカラーバーのポップオーバーで独立して行う）
    */
   const nameCell = (mode: Mode) => (
-    <MasterEditableCell
+    <EditableCell
       isEditing={editingId === mode.id}
       value={mode.name}
       isPending={isPending}
@@ -93,7 +93,7 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
   );
 
   const newRow = (
-    <MasterNewRow
+    <NewRow
       isPending={isPending}
       onSave={(fieldValue) =>
         run(() => createModeAction({ name: fieldValue("name"), color: newColor }), closeNewRow)
@@ -103,7 +103,7 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
         <>
           <td className="py-1 pr-2">{newColorCell}</td>
           <td className="py-1 pr-2">
-            <MasterNewRowInput
+            <NewRowInput
               field="name"
               placeholder="モード名"
               autoFocus
@@ -154,7 +154,7 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
         </tbody>
       </table>
 
-      <ArchivedMasterSection
+      <ArchivedSection
         archived={archived}
         deletableIds={deletableIds}
         isPending={isPending}

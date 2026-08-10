@@ -133,7 +133,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       });
     });
 
-    // 抑止そのものは部品（MasterEditableCell）が持つ。ここで見るのは表が `isPending` を
+    // 抑止そのものは部品（EditableCell）が持つ。ここで見るのは表が `isPending` を
     // セルへ渡していることと、表の JSX が持つカラーバー・操作ボタン側の抑止（§6 の②）
     it("保存中は行の編集セル・カラーバー・操作ボタンを押せない", async () => {
       const pending = deferredAction();
@@ -167,7 +167,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
     });
 
     // onClose が表の editingId を落としているか（§6 の②「部品のコールバック → 画面の状態」）。
-    // Esc の挙動そのものは master-editable-cell.test.tsx が持つ
+    // Esc の挙動そのものは editable-cell.test.tsx が持つ
     it("Esc でセルが閉じ、元の表示に戻る", async () => {
       renderTable();
       const input = startEditingCell("モードA");
@@ -283,7 +283,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
     });
 
     // onCancel が表の editing を落としているか（§6 の②）。取消・Esc の挙動そのものは
-    // master-new-row.test.tsx が持つので、ここは行が消えることだけを見る
+    // new-row.test.tsx が持つので、ここは行が消えることだけを見る
     it("「取消」で新規行が消える（送信しない）", async () => {
       renderTable();
       clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
@@ -405,7 +405,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       expect(setModeArchivedAction).toHaveBeenCalledExactlyOnceWith(9, false);
     });
 
-    // 2段階の確認そのものは DeleteMasterButton のテストが持つ。ここは配線だけを見る
+    // 2段階の確認そのものは DeleteButton のテストが持つ。ここは配線だけを見る
     it("参照0件のアーカイブ済み行だけを物理削除へ配線する", async () => {
       renderTable({
         active: [],

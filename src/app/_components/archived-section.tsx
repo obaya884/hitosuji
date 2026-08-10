@@ -1,13 +1,13 @@
 import type { ReactNode } from "react";
 import { linkAccent } from "@/app/_lib/ui";
-import { DeleteMasterButton } from "./delete-master-button";
+import { DeleteButton } from "./delete-button";
 
 /**
- * マスタ管理・バンドル管理に共通のアーカイブ済み一覧（`<details>` 折りたたみ）。
- * 復元と、参照0件なら削除を置く（画面定義書03 §4 / 05 §5）。
+ * アーカイブ済み一覧（`<details>` 折りたたみ）。復元と、参照0件なら削除を置く
+ * （画面定義書03 §4 / 05 §5）。
  * ラベル列（名前・色・開始時刻など）は表ごとに違うため `renderCells` で受け取る。
  */
-export function ArchivedMasterSection<T extends { id: number }>({
+export function ArchivedSection<T extends { id: number }>({
   archived,
   deletableIds,
   isPending,
@@ -44,7 +44,7 @@ export function ArchivedMasterSection<T extends { id: number }>({
                   復元
                 </button>
                 {deletableIds.includes(item.id) && (
-                  <DeleteMasterButton onDelete={() => onDelete(item.id)} disabled={isPending} />
+                  <DeleteButton onDelete={() => onDelete(item.id)} disabled={isPending} />
                 )}
               </td>
             </tr>

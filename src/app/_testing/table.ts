@@ -1,5 +1,5 @@
 // 画面をまたぐ表の読み取り（テスト戦略定義書 §4）。マスタ管理3表・バンドル管理・共通部品
-// （`ArchivedMasterSection`）は同じ行の形（文言のセル＋操作ボタン）を持つので、行の引き方を
+// （`ArchivedSection`）は同じ行の形（文言のセル＋操作ボタン）を持つので、行の引き方を
 // ここに1本だけ置く。**デイリーの表は行の形が違う**ので `(daily)/_testing/table-helpers.ts`
 // の `taskRow` が別に持つ（名前セルが必ずボタンで、役割で引ける）
 import { screen } from "@testing-library/react";
