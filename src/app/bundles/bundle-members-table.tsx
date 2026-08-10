@@ -1,14 +1,14 @@
 "use client";
 
-// バンドル管理（S-05）のメンバー表（画面定義書05 §3.2・§4 O-5〜O-8）。並び順・候補の絞り込みは
+// バンドル管理（S-05）のメンバー表（画面定義書05 §3.2・§4 O-5〜O-7）。並び順・候補の絞り込みは
 // 業務ルールなので、`routines`（全ルーチン）をそのまま受け取り、選択中バンドルのメンバー・
 // 追加候補はここで domain 関数（bundleMembers / bundleCandidates）から導く
 // （RoutinesTable が `sortRoutines` を自分で呼ぶのと同じ形）。
 // この画面は N-01（楽観的更新）の対象外（§1）。**保存境界（isPending / run）は
 // bundles-board.tsx の左ペイン・ヘッダと共有する**——00_共通 §4.2「再発火の抑止」は対象の行が
 // 違っても確定を待つ操作をすべて受け付けない、と定めており、S-05 は画面全体がその対象（§1）。
-// エラー帯だけは表示先を振り分けたいので `error`/`setError` は bundles-board.tsx が
-// 発生源で出し分けた値を props で受け取る（詳細は bundles-board.tsx 側のコメント）
+// エラー帯だけは表示先を振り分けたいので `error`/`clearError` は bundles-board.tsx が
+// 発生源で出し分けたものを props で受け取る（詳細は bundles-board.tsx 側のコメント）
 import { useRef, useState } from "react";
 import Link from "next/link";
 import type { Bundle } from "@/domain/bundle/bundle";
@@ -17,7 +17,7 @@ import { describeRecurrence, type Routine, type RoutineId } from "@/domain/routi
 import { bundleCandidates, bundleMembers } from "@/domain/bundle/members";
 import { linkAccent, linkMutedUnderline, noticeDanger, tableHeadRow } from "@/app/_lib/ui";
 import { useDismiss } from "@/app/_lib/use-dismiss";
-import type { SetActionError, useServerActionRunner } from "@/app/_lib/use-server-action";
+import type { useServerActionRunner } from "@/app/_lib/use-server-action";
 import { DurationValue } from "@/app/_components/duration-value";
 import { UnsetMark } from "@/app/_components/unset-mark";
 import { removeRoutineFromBundleAction, setRoutineBundleAction } from "./actions";
@@ -33,8 +33,11 @@ type Props = Readonly<{
   modes: readonly Mode[];
   /** この表が発生源のときだけ非 null になるよう、呼び出し側（bundles-board.tsx）が振り分ける */
   error: string | null;
-  /** 画面の操作によるクリア（null）も、自分の scope のときだけ効くよう呼び出し側が振り分ける */
-  setError: SetActionError;
+  /**
+   * 画面の操作で帯を消す（自分の scope のときだけ効くよう呼び出し側が振り分ける）。
+   * **消すことしかしない**——この表の失敗はすべてサーバ応答なので、文言を置くのは `run` 側
+   */
+  clearError: () => void;
   isPending: ServerActionBoundary["isPending"];
   run: ServerActionBoundary["run"];
 }>;
@@ -45,7 +48,7 @@ export function BundleMembersTable({
   routines,
   modes,
   error,
-  setError,
+  clearError,
   isPending,
   run,
 }: Props) {
@@ -60,7 +63,7 @@ export function BundleMembersTable({
   useDismiss(addRef, () => setIsAddingOpen(false), { enabled: isAddingOpen });
 
   function toggleAdding() {
-    setError(null);
+    clearError();
     setIsAddingOpen((open) => !open);
   }
 

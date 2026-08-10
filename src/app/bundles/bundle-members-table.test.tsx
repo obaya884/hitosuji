@@ -29,11 +29,12 @@ const BUNDLE: Bundle = { id: 1, name: "朝の立上げ", color: "#ef4444", isArc
 // この表だけの最小のモード雛形（画面をまたぐ雛形は使わない。table-helpers.ts と同じ流儀）
 const MODES: readonly Mode[] = [{ id: 1, name: "モードA", color: COLOR_PRESETS[0].value, isArchived: false }];
 
-// BundleMembersTable は保存境界（isPending/run/error/setError）を持たず bundles-board.tsx から
+// BundleMembersTable は保存境界（isPending/run/error/clearError）を持たず bundles-board.tsx から
 // props で受け取る（画面全体で1つの境界を共有するため。00_共通 §4.2）。ここでは本番と同じ
-// `useServerActionRunner` へエラーの置き場を渡して配線する。**発生源による表示先の振り分け
-// （scope）は持たない**——この表しか描かないので分岐が起きず、振り分けそのものの検査は
-// bundles-board.test.tsx が持つ
+// `useServerActionRunner` へエラーの置き場を渡して配線し、**`clearError` も本番と同じく
+// クリア専用にする**（文言を置けるハーネスにすると、本番に無い経路をテストだけが持つ）。
+// **発生源による表示先の振り分け（scope）は持たない**——この表しか描かないので分岐が起きず、
+// 振り分けそのものの検査は bundles-board.test.tsx が持つ
 function Harness({ routines }: Readonly<{ routines: readonly Routine[] }>) {
   const [error, setError] = useState<string | null>(null);
   const { isPending, run } = useServerActionRunner(setError);
@@ -43,7 +44,7 @@ function Harness({ routines }: Readonly<{ routines: readonly Routine[] }>) {
       routines={routines}
       modes={MODES}
       error={error}
-      setError={setError}
+      clearError={() => setError(null)}
       isPending={isPending}
       run={run}
     />
@@ -67,7 +68,7 @@ beforeEach(() => {
   vi.mocked(removeRoutineFromBundleAction).mockResolvedValue({ ok: true });
 });
 
-describe("BundleMembersTable（画面定義書05 §3.2: メンバー表の並び・表記）", () => {
+describe("BundleMembersTable（画面定義書05 §3.2: メンバー表の並び・表記と、値を直す手段を持たないこと）", () => {
   it("メンバーを開始想定時刻の昇順に並べる（同時刻は名前の自然順）", () => {
     const { container } = renderTable([
       routine({ id: 1, name: "わ", bundleId: 1, scheduledStartTime: "07:00" }),
@@ -109,6 +110,14 @@ describe("BundleMembersTable（画面定義書05 §3.2: メンバー表の並び
     expect(cells[2].textContent).toBe("毎日");
     expect(cells[3].textContent).toBe("0:20");
     expect(cells[4].textContent).toBe("06:30");
+  });
+
+  // §3.2「開始想定時刻は**読むだけ**（直すのは S-02。O-7）」。値の一致だけでは足りない
+  // ——インライン編集（`EditableCell`）は値を表示するボタンを描くので、編集手段が戻っても通る
+  it("開始想定時刻はその場で直せない（§3.2: 読むだけ。値の編集は S-02 に閉じる）", () => {
+    renderTable([routine({ id: 1, name: "朝食", bundleId: 1, scheduledStartTime: "06:30" })]);
+
+    expect(screen.queryByRole("button", { name: "06:30" })).toBeNull();
   });
 
   it("モード未設定は共通 §2.4 の表記にする（薄色の `-`）", () => {
@@ -221,10 +230,7 @@ describe("BundleMembersTable（保存中の操作抑止。00_共通 §2.3「保�
   it("保存中は「外す」「追加」を押せない", async () => {
     const pending = deferredAction();
     vi.mocked(removeRoutineFromBundleAction).mockReturnValue(pending.promise);
-    renderTable([
-      routine({ id: 7, bundleId: 1, scheduledStartTime: "06:30" }),
-      routine({ id: 8, name: "候補", bundleId: null, scheduledStartTime: "07:00" }),
-    ]);
+    renderTable([routine({ id: 7, bundleId: 1 }), routine({ id: 8, name: "候補", bundleId: null })]);
 
     await click(screen.getByRole("button", { name: "外す" }));
 

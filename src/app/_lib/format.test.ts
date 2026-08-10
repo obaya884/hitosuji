@@ -53,7 +53,7 @@ describe("formatClock（画面定義書01 §3.3: 打刻時刻は日本時間 HH:
   });
 });
 
-describe("normalizeClockInput（画面定義書01 §3.3・05 §4 O-7: 区切りなし入力の正規化）", () => {
+describe("normalizeClockInput（画面定義書01 §3.3: 区切りなし入力の正規化）", () => {
   it("区切りなし入力（4桁・3桁）を HH:MM へ整形する", () => {
     expect(normalizeClockInput("0805")).toBe("08:05");
     expect(normalizeClockInput("805")).toBe("08:05");

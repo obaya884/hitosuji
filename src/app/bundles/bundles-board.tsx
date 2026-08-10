@@ -10,8 +10,8 @@
 //
 // エラーは `panelError`（{ scope; message } の1スロット）に持つ。**表示は自分の scope の
 // ときだけ**（左ペイン・ヘッダ→"board" は TableFrame の帯、メンバー表→"members" はメンバー表
-// 自身の帯）。**画面の操作によるクリアも自分の scope のときだけ**——`clearBoardError` /
-// `setMembersError(null)` は他方の scope のエラーが出ている間は何もしない。これが無いと
+// 自身の帯）。**画面の操作によるクリアも自分の scope のときだけ**——`clearErrorOf` は
+// 他方の scope のエラーが出ている間は何もしない。これが無いと
 // 「片方のペインを触っただけで他方の未解決のエラーが消える」（00_共通 §4.1「失敗はすべて
 // 画面に出す」に反する）。新しい Server Action を実行するとき（`errorSinkFor` の null）だけは
 // 無条件にクリアする——それは実際に新しい応答を待ち始める瞬間なので、古い通知を残す理由が無い
@@ -76,22 +76,13 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
   const selectedBundle =
     bundles.active.find((b) => b.id === selectedId) ?? bundles.active[0] ?? null;
 
-  /** 左ペイン・ヘッダのエラーをその場で消す（新しい編集を始めたとき）。
-   *  すでに出ているのが他方（members）のエラーなら何もしない */
-  function clearBoardError() {
-    setPanelError((prev) => (prev?.scope === "board" ? null : prev));
-  }
-
   /**
-   * メンバー表向けの `setError`（メンバー表へ props で渡す）。非 null は新しい失敗（クライアント
-   * 側の検証エラー等）なのでそのまま上書きする。null（クリア）は自分の scope のときだけ効かせる
+   * 画面の操作でエラーをその場で消す（新しい編集・操作を始めたとき）。すでに出ているのが
+   * 他方の scope のエラーなら何もしない（上のコメント）。**文言を置く口はここには無い**
+   * ——失敗はすべてサーバ応答なので、置くのは `errorSinkFor` を渡した `run` 側
    */
-  function setMembersError(message: string | null) {
-    if (message === null) {
-      setPanelError((prev) => (prev?.scope === "members" ? null : prev));
-      return;
-    }
-    setPanelError({ scope: "members", message });
+  function clearErrorOf(scope: ErrorScope) {
+    setPanelError((prev) => (prev?.scope === scope ? null : prev));
   }
 
   /** 新規追加行を閉じる（開いていたプリセット選択も畳む） */
@@ -126,7 +117,7 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
       value={bundle.name}
       isPending={isPending}
       onStartEditing={() => {
-        clearBoardError();
+        clearErrorOf("board");
         setEditingId(bundle.id);
       }}
       onCommit={(name) =>
@@ -178,8 +169,7 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
     />
   );
 
-  // 左ペインの幅は「新規追加行（色見本＋名前の入力欄＋保存／取消）が折り返さずに収まること」で決まる。
-  // 狭めると入力欄が右ペインとの境界を越えて崩れる（画面定義書05 §2）
+  // 左ペインの幅は §2 が決める（新規追加行が折り返さずに収まる幅。狭めると入力欄が境界を越える）
   return (
     <div className="grid grid-cols-[22rem_1fr]">
       <div className="border-r border-line pr-4">
@@ -187,7 +177,7 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
           error={panelError?.scope === "board" ? panelError.message : null}
           isPending={isPending}
           onAddNew={() => {
-            clearBoardError();
+            clearErrorOf("board");
             setNewColor(DEFAULT_COLOR);
             setEditingId("new");
           }}
@@ -197,7 +187,7 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
               {bundles.active.map((bundle) => (
                 <tr
                   key={bundle.id}
-                  // 地色が行全体に付く以上、当たり判定も行全体にする（色見本や件数を押しても選べる）
+                  // 選択の当たり判定は行全体（§3.1）
                   onClick={() => setSelectedId(bundle.id)}
                   className={`cursor-pointer border-b border-line ${
                     bundle.id === selectedBundle?.id ? "bg-accent-weak" : "hover:bg-accent-weak"
@@ -208,8 +198,14 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
                   </td>
                   <td className="py-1.5 pr-1">
                     <span className="flex items-center justify-between gap-2">
-                      {/* 選択は行の onClick が担う。ボタンなのは一覧を Tab で触れる状態に保つため */}
-                      <button type="button" className="truncate text-left">
+                      {/* ボタンなのは一覧を Tab で触れる状態に保つため（行の onClick はキーボードに届かない）。
+                          選択は行と二重に持つ——`setSelectedId` は冪等で、行のバブリング頼みにすると
+                          この行内に stopPropagation が入った時点で黙って壊れる */}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedId(bundle.id)}
+                        className="truncate text-left"
+                      >
                         {bundle.name}
                       </button>
                       <span className="text-sm text-ink-muted">
@@ -269,7 +265,7 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
               routines={routines}
               modes={modes}
               error={panelError?.scope === "members" ? panelError.message : null}
-              setError={setMembersError}
+              clearError={() => clearErrorOf("members")}
               isPending={isPending}
               run={runMembers}
             />
