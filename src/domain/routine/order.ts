@@ -1,15 +1,24 @@
-// ルーチン一覧の並べ替え（画面定義書02 §3.1: FB-10）
+// ルーチン一覧の並べ替え（画面定義書02 §3.1: FB-10）。「開始想定時刻の昇順・同時刻は名前の
+// 自然順」の比較関数はバンドルのメンバー集合（`domain/bundle/members.ts`）とも共有する
+import type { Bundle } from "../bundle/bundle";
 import type { Mode } from "../mode/mode";
 import type { Project } from "../project/project";
 import { compareByName } from "../shared/name-order";
 import type { RecurrenceType, Routine } from "./routine";
 
-export type RoutineSortKey = "name" | "mode" | "project" | "recurrence" | "scheduledStartTime";
+export type RoutineSortKey =
+  | "name"
+  | "bundle"
+  | "mode"
+  | "project"
+  | "recurrence"
+  | "scheduledStartTime";
 
 export type RoutineSortDirection = "asc" | "desc";
 
 /** 並べ替えに必要なマスタ（名前の引き当てに使う。アーカイブ済みも含めて渡される） */
 export type RoutineSortMasters = Readonly<{
+  bundles: readonly Bundle[];
   modes: readonly Mode[];
   projects: readonly Project[];
 }>;
@@ -31,6 +40,15 @@ function resolveMasterName(
   return found === undefined ? null : found.name;
 }
 
+/**
+ * 開始想定時刻の昇順・同時刻は名前の自然順（展開後のデイリーと同じ並び。`listRoutines` の既定順、
+ * `sortRoutines` の `scheduledStartTime` 軸、バンドルのメンバー集合（`domain/bundle/members.ts`）
+ * が共有する規則）
+ */
+export function byScheduledStartTimeAsc(a: Routine, b: Routine): number {
+  return a.scheduledStartTime.localeCompare(b.scheduledStartTime) || compareByName(a, b);
+}
+
 /** 画面定義書02 §3.1 の規則で並べ替える（引数は破壊しない） */
 export function sortRoutines(
   routines: readonly Routine[],
@@ -38,6 +56,8 @@ export function sortRoutines(
   key: RoutineSortKey,
   direction: RoutineSortDirection
 ): Routine[] {
+  const bundleNameOf = (routine: Routine): string | null =>
+    resolveMasterName(routine.bundleId, masters.bundles);
   const modeNameOf = (routine: Routine): string | null =>
     resolveMasterName(routine.modeId, masters.modes);
   const projectNameOf = (routine: Routine): string | null =>
@@ -45,6 +65,8 @@ export function sortRoutines(
 
   const isUnset = (routine: Routine): boolean => {
     switch (key) {
+      case "bundle":
+        return bundleNameOf(routine) === null;
       case "mode":
         return modeNameOf(routine) === null;
       case "project":
@@ -58,6 +80,8 @@ export function sortRoutines(
     switch (key) {
       case "name":
         return compareByName(a, b);
+      case "bundle":
+        return compareByName({ name: bundleNameOf(a) ?? "" }, { name: bundleNameOf(b) ?? "" });
       case "mode":
         return compareByName({ name: modeNameOf(a) ?? "" }, { name: modeNameOf(b) ?? "" });
       case "project":
@@ -65,7 +89,9 @@ export function sortRoutines(
       case "recurrence":
         return recurrenceRank(a.recurrenceType) - recurrenceRank(b.recurrenceType);
       case "scheduledStartTime":
-        return a.scheduledStartTime.localeCompare(b.scheduledStartTime);
+        // 名前の自然順まで含む関数だが、外側の compare が同じ第2キーを再度足すだけなので無害
+        // （二重適用しても結果は変わらない。規則の実体をここと下の bundleMembers 等で分けない）
+        return byScheduledStartTimeAsc(a, b);
     }
   };
 

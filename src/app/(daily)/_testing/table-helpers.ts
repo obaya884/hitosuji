@@ -5,8 +5,11 @@
 // 共有側（`@/app/_testing/dom`）には置かない（マスタは `masters/_testing/table-helpers.ts`）。
 import { screen, within } from "@testing-library/react";
 
-/** タスク行の列数（§3.3）。`cellsOf` が名前を付けている列と同数で、`taskRows` の判定が使う */
-const TASK_ROW_COLUMN_COUNT = 8;
+/**
+ * タスク行の列数（§3.3。バンドルの道 F-119 の帯列を含む）。
+ * `cellsOf` が名前を付けている列と同数で、`taskRows` の判定が使う
+ */
+const TASK_ROW_COLUMN_COUNT = 9;
 
 /**
  * 列の並び（§3.3）でセルを名前で引く。列位置の取り違えを検出できるようにする。
@@ -19,14 +22,15 @@ export function cellsOf(tr: HTMLElement) {
     throw new Error(`タスク行ではありません（列数 ${td.length} / 期待 ${TASK_ROW_COLUMN_COUNT}）`);
   }
   return {
-    punch: td[0] as HTMLElement,
-    name: td[1] as HTMLElement,
-    project: td[2] as HTMLElement,
-    mode: td[3] as HTMLElement,
-    estimate: td[4] as HTMLElement,
-    actual: td[5] as HTMLElement,
-    time: td[6] as HTMLElement,
-    menu: td[7] as HTMLElement,
+    road: td[0] as HTMLElement,
+    punch: td[1] as HTMLElement,
+    name: td[2] as HTMLElement,
+    project: td[3] as HTMLElement,
+    mode: td[4] as HTMLElement,
+    estimate: td[5] as HTMLElement,
+    actual: td[6] as HTMLElement,
+    time: td[7] as HTMLElement,
+    menu: td[8] as HTMLElement,
   };
 }
 

@@ -3,8 +3,9 @@ import { describe, expect, it } from "vitest";
 
 import { faintTextOf, hasClass, rgbOf } from "@/app/_testing/dom";
 import { otherRouterCalls, router } from "@/app/_testing/next-navigation";
-import { MODE_COLOR_PRESETS, type Mode } from "@/domain/mode/mode";
+import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
+import { COLOR_PRESETS } from "@/domain/shared/color-presets";
 import { atJst, TEST_DATE } from "@/domain/shared/testing/clock";
 import type { Task } from "@/domain/task/task";
 import { task } from "@/domain/task/testing/task";
@@ -13,9 +14,9 @@ import type { DailyReviewView } from "@/usecases/review/review-usecases";
 import { ReviewBoard } from "./review-board";
 
 const MODES: readonly Mode[] = [
-  { id: 1, name: "モードA", color: MODE_COLOR_PRESETS[0].value, isArchived: false },
-  { id: 2, name: "モードB", color: MODE_COLOR_PRESETS[1].value, isArchived: false },
-  { id: 9, name: "旧モード", color: MODE_COLOR_PRESETS[12].value, isArchived: true },
+  { id: 1, name: "モードA", color: COLOR_PRESETS[0].value, isArchived: false },
+  { id: 2, name: "モードB", color: COLOR_PRESETS[1].value, isArchived: false },
+  { id: 9, name: "旧モード", color: COLOR_PRESETS[12].value, isArchived: true },
 ];
 const PROJECTS: readonly Project[] = [
   { id: 11, name: "案件A", isArchived: false },

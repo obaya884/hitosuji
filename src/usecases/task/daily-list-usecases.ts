@@ -1,8 +1,10 @@
 // デイリーリストの表示ユースケース（S-01 / 画面定義書01 §3）
+import type { BundleRepository } from "@/usecases/ports/bundle-repository";
 import type { ModeRepository } from "@/usecases/ports/mode-repository";
 import type { ProjectRepository } from "@/usecases/ports/project-repository";
 import type { SectionRepository } from "@/usecases/ports/section-repository";
 import type { TaskRepository } from "@/usecases/ports/task-repository";
+import type { Bundle } from "@/domain/bundle/bundle";
 import type { Mode, ModeId } from "@/domain/mode/mode";
 import type { Project, ProjectId } from "@/domain/project/project";
 import { byDayStartOrder, dayStartTimeOf, type Section } from "@/domain/section/section";
@@ -32,6 +34,7 @@ export type DailyListDeps = Readonly<{
   sections: SectionRepository;
   modes: ModeRepository;
   projects: ProjectRepository;
+  bundles: BundleRepository;
 }>;
 
 export type DailyListView = Readonly<{
@@ -43,17 +46,26 @@ export type DailyListView = Readonly<{
   modes: readonly Mode[];
   projects: readonly Project[];
   sections: readonly Section[];
+  /**
+   * バンドルの道（F-119 / 画面定義書01 §3.3）に使う。アーカイブ済みも含めて全件返す
+   * （アーカイブしても展開済みタスクの道は描き続ける。画面定義書05 O-3）。
+   * `listBundles`（バンドル管理ユースケース）は参照件数等も返して重いので使わない——
+   * デイリーは打刻のたびに再取得されるホットパスなので、要る列（id・name・color）だけの
+   * `listAll()` 1本に留める
+   */
+  bundles: readonly Bundle[];
 }>;
 
 export async function listDailyList(
   deps: DailyListDeps,
   date: LogicalDate
 ): Promise<DailyListView> {
-  const [tasks, sections, modes, projects, running] = await Promise.all([
+  const [tasks, sections, modes, projects, bundles, running] = await Promise.all([
     deps.tasks.listByDate(date),
     deps.sections.listAll(),
     deps.modes.listAll(),
     deps.projects.listAll(),
+    deps.bundles.listAll(),
     deps.tasks.findRunning(),
   ]);
 
@@ -67,6 +79,7 @@ export async function listDailyList(
     modes: sortByName(modes),
     projects: sortByName(projects),
     sections: [...sections].sort(byDayStartOrder(dayStartTimeOf(sections))),
+    bundles,
     staleRunningTask,
   };
 }

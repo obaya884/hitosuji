@@ -1,4 +1,5 @@
 // タスク集約（データモデル定義書 §3.5）。プランとログを兼ねる中心テーブルの表現
+import type { BundleId } from "../bundle/bundle";
 import type { ModeId } from "../mode/mode";
 import type { ProjectId } from "../project/project";
 import type { RoutineId } from "../routine/routine";
@@ -15,6 +16,8 @@ export type Task = Readonly<{
   sectionId: SectionId | null;
   modeId: ModeId | null;
   projectId: ProjectId | null;
+  /** 属するバンドル（F-119）。ルーチン展開時に routine.bundleId を写す。単発タスクは null */
+  bundleId: BundleId | null;
   sortOrder: number;
   startedAt: Date | null;
   endedAt: Date | null;

@@ -10,6 +10,8 @@ import {
   useTransition,
   type KeyboardEvent,
 } from "react";
+import type { Bundle, BundleId } from "@/domain/bundle/bundle";
+import { detectBundleDeparture } from "@/domain/bundle/departure";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import {
@@ -88,6 +90,8 @@ type Props = Readonly<{
   modes: readonly Mode[];
   projects: readonly Project[];
   sections: readonly Section[];
+  /** バンドルの道（F-119 / 画面定義書01 §3.3）。アーカイブ済みも含む（O-3。展開済みタスクの道は描き続ける） */
+  bundles: readonly Bundle[];
   /** 前日以前に放置されている実行中タスク（画面定義書01 §8） */
   staleRunningTask: Task | null;
 }>;
@@ -100,9 +104,12 @@ export function DailyBoard({
   modes,
   projects,
   sections,
+  bundles,
   staleRunningTask,
 }: Props) {
   const [optimisticGroups, dispatchOptimistic] = useOptimistic(groups, applyOptimisticAction);
+  // バンドルの道（§3.3）で bundleId から色と名前を引く。bundles は稀にしか変わらないので memo する
+  const bundleById = useMemo(() => new Map(bundles.map((b) => [b.id, b])), [bundles]);
   const [name, setName] = useState("");
   const [rawSelectedId, setSelectedId] = useState<TaskId | null>(null);
   const [editing, setEditing] = useState<EditingCell | null>(null);
@@ -306,6 +313,26 @@ export function DailyBoard({
   }
 
   /**
+   * バンドルの割り込み警告（F-119 / 要件定義書 §5.6 / 画面定義書01 §4.4）。開始打刻の全経路から呼ぶ。
+   * **呼び出し元は打刻が実際に発火したとき（`run` / `runSelectingCreated` が `true` を返したとき）
+   * だけ呼ぶこと**——確定待ち中の抑止（00_共通 §4.2）で打刻自体が握りつぶされたときに、
+   * 開始していないのに警告だけ出るのを防ぐため（打刻を巻き添えにしない、の裏返し）。
+   *
+   * 判定に渡すのは**打刻前の一覧**（`orderedTasks`）。楽観的更新の適用後を渡すと、割り込みで
+   * 終了させた相手（`optimistic.ts` の `"start"`）が未完了から外れ、残りの数が実際より減る
+   */
+  function noticeBundleDeparture(
+    started: Readonly<{ id: TaskId | null; bundleId: BundleId | null }>
+  ) {
+    const departure = detectBundleDeparture(orderedTasks, started);
+    if (departure === null) return;
+
+    const bundleName = bundleById.get(departure.bundleId)?.name;
+    if (bundleName === undefined) return;
+    setNotice(`「${bundleName}」が途中です（残り${departure.remaining}件）`);
+  }
+
+  /**
    * Enter の打刻（画面定義書01 §6）。未実行=開始 / 実行中=終了 のトグル、
    * 完了=複製して開始（F-208 / O-14）。打刻時刻はクライアントの現在時刻を送る（§7）。
    * 未来日では打刻を受け付けない（§7）——行の打刻ボタンは出していないので、ここで止まるのは
@@ -317,9 +344,16 @@ export function DailyBoard({
     const status = taskStatus(task);
     const now = new Date();
     if (status === "completed") {
-      duplicateAndStart(task, now); // F-208 / O-14
+      // F-208 / O-14。発火した（＝確定待ちで抑止されなかった）ときだけ知らせる
+      const fired = duplicateAndStart(task, now);
+      if (fired) noticeBundleDeparture({ id: null, bundleId: null }); // 複製は非メンバー扱い
     } else if (status === "not_started") {
-      run(() => startTaskAction(task.id, now), { type: "start", id: task.id, at: now });
+      const fired = run(() => startTaskAction(task.id, now), {
+        type: "start",
+        id: task.id,
+        at: now,
+      });
+      if (fired) noticeBundleDeparture({ id: task.id, bundleId: task.bundleId });
     } else {
       finish(task, now);
     }
@@ -347,10 +381,12 @@ export function DailyBoard({
 
   /**
    * 複製して開始（F-208 / O-14）。完了タスクの「もう一回」。生成物の採番はサーバが決めるため
-   * 楽観的更新はせず（O-11 と同じ）、開始した複製タスクへ選択を移す
+   * 楽観的更新はせず（O-11 と同じ）、開始した複製タスクへ選択を移す。
+   * 戻り値は発火したか（`runSelectingCreated` の戻り値をそのまま返す。呼び出し元の
+   * `noticeBundleDeparture` の発火判定に使う）
    */
-  function duplicateAndStart(task: Task, now: Date) {
-    runSelectingCreated(() => duplicateAndStartTaskAction(task.id, now));
+  function duplicateAndStart(task: Task, now: Date): boolean {
+    return runSelectingCreated(() => duplicateAndStartTaskAction(task.id, now));
   }
 
   /** 開始打刻の取り消し（O-13 / F-210）。実行中タスクを未実行へ戻す。now はクライアントのものを送る */
@@ -652,6 +688,7 @@ export function DailyBoard({
         groups={optimisticGroups}
         modes={modes}
         projects={projects}
+        bundleById={bundleById}
         onRename={rename}
         onEstimate={setEstimate}
         onComment={setComment}

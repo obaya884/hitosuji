@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import type { Bundle } from "@/domain/bundle/bundle";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
@@ -18,6 +19,7 @@ import { showsCommentRow, type EditField } from "../_lib/editing";
 import { toModeOptions, toProjectOptions } from "../_lib/master-options";
 import { rowBackgroundClass } from "../_lib/row-background";
 import { AssignCell } from "./assign-cell";
+import { BundleRoadCell } from "./bundle-road-cell";
 import { RowMenu } from "./row-menu";
 import { RoutinizePopover } from "./routinize-popover";
 import { SelectPopover, type PopoverOption } from "./select-popover";
@@ -28,6 +30,8 @@ import { SelectPopover, type PopoverOption } from "./select-popover";
  */
 export type TaskRowProps = Readonly<{
   task: Task;
+  /** バンドルの道（F-119 / §3.3）。属さない行は null。隣接は見ない——所属を独立に描くだけ */
+  bundle: Bundle | null;
   mode?: Mode;
   project?: Project;
   onRename: (task: Task, name: string) => void;
@@ -80,6 +84,7 @@ function isOverEstimate(minutes: number, task: Task): boolean {
  */
 export function TaskRow({
   task,
+  bundle,
   index,
   sectionId,
   mode,
@@ -148,6 +153,7 @@ export function TaskRow({
         showsCommentRow(task, isSelected, editing) ? "" : "border-b border-line"
       } ${rowBackgroundClass(task, isSelected)}`}
     >
+      <BundleRoadCell bundle={bundle} />
       <td className="py-2.5">
         {/* 開始 →（実行中なら）終了 のトグル（F-201）。押しやすさのため円形ボタンにする。
             未来日では打刻を受け付けないのでボタン自体を出さない（§7） */}

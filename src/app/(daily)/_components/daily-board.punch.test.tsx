@@ -7,9 +7,11 @@ import { describe, expect, it, vi } from "vitest";
 import { formatClock, formatDuration } from "@/app/_lib/format";
 import { click } from "@/app/_testing/interactions";
 import { atJst, NEXT_TEST_DATE, TEST_DATE } from "@/domain/shared/testing/clock";
+import type { Task } from "@/domain/task/task";
 import { task } from "@/domain/task/testing/task";
 
 import {
+  deleteTaskAction,
   duplicateAndStartTaskAction,
   finishTaskAction,
   restoreCompletionAction,
@@ -39,6 +41,7 @@ import {
   UNCOMPLETE_OK,
   type UndoCompleteResult,
 } from "../_testing/board-helpers";
+import { bundleOf } from "../_testing/factories";
 import { cellsOf, isSelected, rowAt, taskRow } from "../_testing/table-helpers";
 
 vi.mock("../actions", async () => (await import("../_testing/action-mocks")).actionMocks());
@@ -221,6 +224,282 @@ describe("DailyBoard の打刻（F-201 / F-211 / §7: クライアントの現�
     expect(vi.mocked(startTaskAction)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(finishTaskAction)).not.toHaveBeenCalled();
     expect(vi.mocked(suspendTaskAction)).not.toHaveBeenCalled();
+  });
+});
+
+describe("DailyBoard のバンドル割り込み警告（F-119 / 要件定義書 §5.6 / 画面定義書01 §4.4）", () => {
+  const BUNDLE_NAME = "朝の立上げ";
+  const BUNDLE_ID = bundleOf(BUNDLE_NAME).id;
+  const MEMBER_DONE = "身支度";
+  const MEMBER_RUNNING = "洗顔";
+  const MEMBER_TODO = "着替え";
+  const NONMEMBER = "資料作成";
+
+  /** 完了したメンバー1件・未実行のメンバー1件・未実行の非メンバー1件（残り1件が出る最小形） */
+  function bundleTasks(): Task[] {
+    return [
+      task({
+        id: 21,
+        name: MEMBER_DONE,
+        bundleId: BUNDLE_ID,
+        sortOrder: 1000,
+        startedAt: atJst("06:00"),
+        endedAt: atJst("06:10"),
+      }),
+      task({ id: 22, name: MEMBER_TODO, bundleId: BUNDLE_ID, sortOrder: 2000 }),
+      task({ id: 23, name: NONMEMBER, sortOrder: 3000 }),
+    ];
+  }
+
+  it("バンドルの途中で非メンバーを開始するとトーストで知らせる（§4.4）", async () => {
+    renderBoard(bundleTasks());
+
+    await click(within(taskRow(NONMEMBER)).getByLabelText("開始"));
+
+    expect(screen.queryByText(`「${BUNDLE_NAME}」が途中です（残り1件）`)).not.toBeNull();
+  });
+
+  /**
+   * 割り込み（O-2）＝実行中のメンバーを残したまま非メンバーを開始する形。**判定は打刻前の
+   * 一覧（`orderedTasks`）を読む**——楽観的更新（`optimistic.ts` の `"start"`）は割り込まれた
+   * 実行中タスクへ終了時刻を入れるので、判定が更新後の値を見ると未完了の数が1減り、
+   * 未完了メンバーが実行中の1件だけのときは警告ごと消える
+   */
+  it("実行中のメンバーに割り込んで非メンバーを開始しても知らせる（実行中のメンバーを未完了に数える）", async () => {
+    renderBoard([
+      task({
+        id: 21,
+        name: MEMBER_RUNNING,
+        bundleId: BUNDLE_ID,
+        sortOrder: 1000,
+        startedAt: atJst("10:00"),
+      }),
+      task({ id: 23, name: NONMEMBER, sortOrder: 2000 }),
+    ]);
+
+    await click(within(taskRow(NONMEMBER)).getByLabelText("開始"));
+
+    expect(screen.queryByText(`「${BUNDLE_NAME}」が途中です（残り1件）`)).not.toBeNull();
+  });
+
+  it("割り込まれた実行中メンバーと未実行メンバーを合わせて数える（残り2件）", async () => {
+    renderBoard([
+      task({
+        id: 21,
+        name: MEMBER_RUNNING,
+        bundleId: BUNDLE_ID,
+        sortOrder: 1000,
+        startedAt: atJst("10:00"),
+      }),
+      task({ id: 22, name: MEMBER_TODO, bundleId: BUNDLE_ID, sortOrder: 2000 }),
+      task({ id: 23, name: NONMEMBER, sortOrder: 3000 }),
+    ]);
+
+    await click(within(taskRow(NONMEMBER)).getByLabelText("開始"));
+
+    expect(screen.queryByText(`「${BUNDLE_NAME}」が途中です（残り2件）`)).not.toBeNull();
+  });
+
+  it("同じバンドルの別メンバーを開始しても知らせない", async () => {
+    renderBoard(bundleTasks());
+
+    await click(within(taskRow(MEMBER_TODO)).getByLabelText("開始"));
+
+    expect(screen.queryByText(/が途中です/)).toBeNull();
+  });
+
+  it("中断（I）では知らせない（開始操作ではないため）", () => {
+    renderBoard([
+      task({
+        id: 21,
+        name: MEMBER_DONE,
+        bundleId: BUNDLE_ID,
+        sortOrder: 1000,
+        startedAt: atJst("06:00"),
+        endedAt: atJst("06:10"),
+      }),
+      task({
+        id: 22,
+        name: RUNNING,
+        bundleId: BUNDLE_ID,
+        sortOrder: 2000,
+        startedAt: atJst("10:00"),
+      }),
+    ]);
+    selectRow(RUNNING);
+
+    press("i");
+
+    expect(screen.queryByText(/が途中です/)).toBeNull();
+  });
+
+  /**
+   * 契機は開始打刻の全経路（§4.4）——その否定側の土台。**直前に実行したのがメンバーで、
+   * 未完了のメンバーが1件残る**並びに非メンバーを1件足す。誤って開始以外を契機に加えると
+   * この形で鳴るので、鳴らないことがそのまま検査になる
+   */
+  function afterMemberTasks(nonMember: Task): Task[] {
+    return [
+      task({
+        id: 21,
+        name: MEMBER_DONE,
+        bundleId: BUNDLE_ID,
+        sortOrder: 1000,
+        startedAt: atJst("09:30"),
+        endedAt: atJst("09:40"),
+      }),
+      task({ id: 22, name: MEMBER_TODO, bundleId: BUNDLE_ID, sortOrder: 2000 }),
+      nonMember,
+    ];
+  }
+
+  it("終了打刻では知らせない（開始操作ではないため）", async () => {
+    renderBoard(
+      afterMemberTasks(
+        task({ id: 23, name: NONMEMBER, sortOrder: 3000, startedAt: atJst("10:00") })
+      )
+    );
+
+    await click(within(taskRow(NONMEMBER)).getByLabelText("終了"));
+
+    expect(vi.mocked(finishTaskAction)).toHaveBeenCalledWith(23, NOW);
+    expect(screen.queryByText(/が途中です/)).toBeNull();
+  });
+
+  it("開始打刻の取り消し（U）では知らせない", async () => {
+    renderBoard(
+      afterMemberTasks(
+        task({ id: 23, name: NONMEMBER, sortOrder: 3000, startedAt: atJst("10:00") })
+      )
+    );
+    selectRow(NONMEMBER);
+
+    await pressAndSettle("u");
+
+    expect(vi.mocked(undoStartAction)).toHaveBeenCalledWith(23, NOW);
+    expect(screen.queryByText(/が途中です/)).toBeNull();
+  });
+
+  it("完了の取り消し（U）でも知らせない", async () => {
+    renderBoard(
+      afterMemberTasks(
+        task({
+          id: 23,
+          name: NONMEMBER,
+          sortOrder: 3000,
+          startedAt: atJst("09:00"),
+          endedAt: atJst("09:20"),
+        })
+      )
+    );
+    selectRow(NONMEMBER);
+
+    await pressAndSettle("u");
+
+    expect(vi.mocked(undoCompleteAction)).toHaveBeenCalledWith(23, NOW);
+    expect(screen.queryByText(/が途中です/)).toBeNull();
+  });
+
+  // 警告は通知（notice）で出し、取り消しの保留（pendingUndo）とは別スロットに置く（§4.4）
+  it("削除の取り消しが保留中でも、警告は保留を消さずに並ぶ", async () => {
+    const extra = task({ id: 24, name: "雑務", sortOrder: 4000 });
+    vi.mocked(deleteTaskAction).mockResolvedValue({ ok: true, deleted: extra });
+    renderBoard([...bundleTasks(), extra]);
+    selectRow("雑務");
+    await pressAndSettle("d");
+
+    await click(within(taskRow(NONMEMBER)).getByLabelText("開始"));
+
+    expect(screen.queryByText("「雑務」を削除しました")).not.toBeNull();
+    expect(screen.queryByText(`「${BUNDLE_NAME}」が途中です（残り1件）`)).not.toBeNull();
+  });
+
+  it("複製して開始（完了タスクの Enter）でも知らせる", () => {
+    // 複製元（非メンバー・完了済み）は id=null で除外されないため配列に残る。
+    // 「直前」は表示順ではなく開始時刻の最大で決まるので、メンバーの開始をそれより後にしておく
+    renderBoard([
+      task({
+        id: 23,
+        name: COMPLETED,
+        sortOrder: 500,
+        startedAt: atJst("09:00"),
+        endedAt: atJst("09:20"),
+      }),
+      task({
+        id: 21,
+        name: MEMBER_DONE,
+        bundleId: BUNDLE_ID,
+        sortOrder: 1000,
+        startedAt: atJst("09:30"),
+        endedAt: atJst("09:40"),
+      }),
+      task({ id: 22, name: MEMBER_TODO, bundleId: BUNDLE_ID, sortOrder: 2000 }),
+    ]);
+    selectRow(COMPLETED);
+
+    press("Enter");
+
+    expect(screen.queryByText(`「${BUNDLE_NAME}」が途中です（残り1件）`)).not.toBeNull();
+  });
+
+  it("確定待ちの操作が飛んでいる間は複製して開始が抑止され、警告も出ない（開始していないのに鳴らない）", () => {
+    // 複製して開始（F-208）は楽観的更新をしない「確定を待つ操作」なので、別の確定待ち操作
+    // （ここでは中断 I）が飛んでいる間は runGuarded に抑止される。抑止＝発火していないので、
+    // 通知（開始したことにする前提の処理）も出てはいけない
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(suspendTaskAction).mockReturnValue(gate.promise);
+    renderBoard([
+      task({
+        id: 23,
+        name: COMPLETED,
+        sortOrder: 500,
+        startedAt: atJst("09:00"),
+        endedAt: atJst("09:20"),
+      }),
+      task({
+        id: 21,
+        name: MEMBER_DONE,
+        bundleId: BUNDLE_ID,
+        sortOrder: 1000,
+        startedAt: atJst("09:30"),
+        endedAt: atJst("09:40"),
+      }),
+      task({ id: 22, name: MEMBER_TODO, bundleId: BUNDLE_ID, sortOrder: 2000 }),
+      // 中断させる実行中タスク。開始時刻をメンバー(09:30)より前にして、「直前」の判定を
+      // このタスクに奪わせない（後ろだと非メンバーの直前として拾われ、抑止と無関係に null になる）
+      task({ id: 24, name: RUNNING, sortOrder: 3000, startedAt: atJst("08:00") }),
+    ]);
+    selectRow(RUNNING);
+    press("i"); // 中断（確定待ち）を発火させ、commitInFlight を立てる
+
+    selectRow(COMPLETED);
+    press("Enter"); // 複製して開始も確定待ちのため、この間は抑止される
+
+    expect(vi.mocked(duplicateAndStartTaskAction)).not.toHaveBeenCalled();
+    expect(screen.queryByText(/が途中です/)).toBeNull();
+  });
+
+  it("判定に失敗しても打刻は成立する（打刻を巻き添えにしない）", async () => {
+    // フィクスチャに無い bundleId（名前が引けない状況）。未完了のメンバーも残し、
+    // remaining=0 で早期に null になる経路と区別する
+    const UNKNOWN_BUNDLE_ID = 999;
+    renderBoard([
+      task({
+        id: 21,
+        name: MEMBER_DONE,
+        bundleId: UNKNOWN_BUNDLE_ID,
+        sortOrder: 1000,
+        startedAt: atJst("06:00"),
+        endedAt: atJst("06:10"),
+      }),
+      task({ id: 24, name: MEMBER_TODO, bundleId: UNKNOWN_BUNDLE_ID, sortOrder: 1500 }),
+      task({ id: 22, name: NONMEMBER, sortOrder: 2000 }),
+    ]);
+
+    await click(within(taskRow(NONMEMBER)).getByLabelText("開始"));
+
+    expect(screen.queryByText(/が途中です/)).toBeNull();
+    expect(vi.mocked(startTaskAction)).toHaveBeenCalledWith(22, NOW);
   });
 });
 

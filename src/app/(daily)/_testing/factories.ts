@@ -6,9 +6,11 @@
 // セクションの時間帯は `SECTIONS` の `startTime` だけが持ち、枠の終了時刻は `sectionRanges` で
 // そこから導く（T-82）。**`sectionRanges` から枠を導く実装（`groupTasksBySection`・`toSectionOptions`）の
 // 出力と突き合わせる期待値には、ここの枠を使わずリテラルを書く**（同じ導出なので枠の検証が自明になる）。
-import { MODE_COLOR_PRESETS, type Mode } from "@/domain/mode/mode";
+import type { Bundle } from "@/domain/bundle/bundle";
+import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import { sectionRanges, type Section } from "@/domain/section/section";
+import { COLOR_PRESETS } from "@/domain/shared/color-presets";
 import type { DailyGroup } from "@/domain/task/daily-list";
 import type { Task } from "@/domain/task/task";
 import { rgbOf } from "@/app/_testing/dom";
@@ -36,14 +38,20 @@ export function sectionGroup(
 }
 
 export const MODES: readonly Mode[] = [
-  { id: 1, name: "仕事", color: MODE_COLOR_PRESETS[0].value, isArchived: false },
-  { id: 2, name: "生活", color: MODE_COLOR_PRESETS[5].value, isArchived: false },
-  { id: 3, name: "旧モード", color: MODE_COLOR_PRESETS[8].value, isArchived: true },
+  { id: 1, name: "仕事", color: COLOR_PRESETS[0].value, isArchived: false },
+  { id: 2, name: "生活", color: COLOR_PRESETS[5].value, isArchived: false },
+  { id: 3, name: "旧モード", color: COLOR_PRESETS[8].value, isArchived: true },
 ];
 
 export const PROJECTS: readonly Project[] = [
   { id: 11, name: "サイト改善", isArchived: false },
   { id: 12, name: "終わった案件", isArchived: true },
+];
+
+/** バンドルの道（F-119）用フィクスチャ。2件持たせて色の変わり目・分かれを組めるようにする */
+export const BUNDLES: readonly Bundle[] = [
+  { id: 5, name: "朝の立上げ", color: COLOR_PRESETS[2].value, isArchived: false },
+  { id: 6, name: "夜のクローズ", color: COLOR_PRESETS[7].value, isArchived: false },
 ];
 
 export const SECTIONS: readonly Section[] = [
@@ -81,6 +89,16 @@ export function sectionOf(name: string): Section {
 /** モードの色を名前で引く（jsdom が返す `rgb()` 表記） */
 export function colorOf(name: string): string {
   return rgbOf(modeOf(name).color);
+}
+
+/** バンドルを名前で引く */
+export function bundleOf(name: string): Bundle {
+  return masterOf("バンドル", BUNDLES, name);
+}
+
+/** バンドルの色を名前で引く（jsdom が返す `rgb()` 表記） */
+export function bundleColorOf(name: string): string {
+  return rgbOf(bundleOf(name).color);
 }
 
 /** 有効セクションの枠（アーカイブ済みは `sectionRanges` が落とす） */

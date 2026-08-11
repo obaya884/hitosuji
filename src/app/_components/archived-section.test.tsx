@@ -1,8 +1,8 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { rowOf } from "../_testing/table-helpers";
-import { ArchivedMasterSection } from "./archived-master-section";
+import { rowOf } from "@/app/_testing/table";
+import { ArchivedSection } from "./archived-section";
 
 type Item = Readonly<{ id: number; name: string }>;
 
@@ -21,7 +21,7 @@ function renderSection(
   }> = {}
 ) {
   return render(
-    <ArchivedMasterSection
+    <ArchivedSection
       archived={props.archived ?? [item(1, "マスタA"), item(2, "マスタB")]}
       deletableIds={props.deletableIds ?? []}
       isPending={props.isPending ?? false}
@@ -33,7 +33,7 @@ function renderSection(
 }
 
 // アーカイブは物理削除ではなく、一覧下部に折りたたみ表示して復元可能にする（画面定義書03 §4）
-describe("ArchivedMasterSection（画面定義書03 §4: アーカイブ済みは折りたたみ表示・復元可能）", () => {
+describe("ArchivedSection（画面定義書03 §4: アーカイブ済みは折りたたみ表示・復元可能）", () => {
   it("アーカイブ済みが0件なら節を出さない", () => {
     const { container } = renderSection({ archived: [] });
 

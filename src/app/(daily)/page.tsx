@@ -3,6 +3,7 @@ import { listDailyList } from "@/usecases/task/daily-list-usecases";
 import { applyCarryOver } from "@/usecases/task/relocation-usecases";
 import { resolveToday } from "@/usecases/section/resolve-today";
 import { isValidLogicalDate } from "@/domain/shared/logical-date";
+import { createBundleRepository } from "@/infrastructure/db/repositories/drizzle-bundle-repository";
 import { createModeRepository } from "@/infrastructure/db/repositories/drizzle-mode-repository";
 import { createProjectRepository } from "@/infrastructure/db/repositories/drizzle-project-repository";
 import { createRoutineRepository } from "@/infrastructure/db/repositories/drizzle-routine-repository";
@@ -20,6 +21,8 @@ const deps = {
   modes: createModeRepository(),
   projects: createProjectRepository(),
   routines: createRoutineRepository(),
+  // バンドルの道（F-119）用。listDailyList が listAll() 1本で取る（アーカイブ済み込み。画面定義書05 O-3）
+  bundles: createBundleRepository(),
 };
 
 export default async function Home({
@@ -50,6 +53,7 @@ export default async function Home({
         modes={view.modes}
         projects={view.projects}
         sections={view.sections}
+        bundles={view.bundles}
         staleRunningTask={view.staleRunningTask}
       />
     </>

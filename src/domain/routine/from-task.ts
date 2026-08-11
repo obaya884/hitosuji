@@ -88,6 +88,8 @@ export function routineInputFromTask(
     estimateMinutes: estimate.value,
     modeId: task.modeId,
     projectId: task.projectId,
+    // ルーチン化ではバンドルを選ばせない（画面定義書01 §4.1）。所属させたければ S-02 で編集する
+    bundleId: null,
     ...schedule.value,
     // 開始日は翌日（元タスクが今日のリストに既にあるため、当日再展開での重複を防ぐ）
     startDate: addDays(task.taskDate, 1),

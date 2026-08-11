@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment } from "react";
+import type { Bundle, BundleId } from "@/domain/bundle/bundle";
 import { APP_TIME_ZONE } from "@/domain/shared/time-zone";
 import type { DailyGroup } from "@/domain/task/daily-list";
 import { formatProjectedStart, projectedStartTimes, sectionSlacks } from "@/domain/task/projection";
@@ -50,6 +51,8 @@ export type DailyListProps = Pick<
     isToday: boolean;
     /** 日界（分）。セクションの枠を論理日の区切りで測る起点（F-116） */
     dayStartMinutes: number;
+    /** バンドルの道（F-119 / §3.3）。bundleId → bundle の Map を board が組み、行ごとの解決はここでする */
+    bundleById: ReadonlyMap<BundleId, Bundle>;
   }>;
 
 // 画面定義書01 §3.2/§3.3
@@ -78,6 +81,7 @@ export function DailyList({
   dayStartMinutes,
   currentSectionId,
   stickyHeight,
+  bundleById,
 }: DailyListProps) {
   const modeById = new Map(modes.map((m) => [m.id, m]));
   const projectById = new Map(projects.map((p) => [p.id, p]));
@@ -93,6 +97,8 @@ export function DailyList({
     // （セクション見出し・空セクション）の内容量で列幅が動き、見出しと本文の列境界が揃わなくなる（FB-14）
     <table className="mt-4 w-full table-fixed">
       <colgroup>
+        {/* バンドルの道（F-119 / §3.3）。太さ6px固定の縦帯なので他の列と同じく専用の col を持つ */}
+        <col className="w-1.5" />
         <col className="w-10" />
         <col />
         {/* プロジェクト・モードは同幅の固定幅（§3.3。収まらない名前は AssignCell で切り詰める） */}
@@ -107,6 +113,8 @@ export function DailyList({
       {/* 列見出しは画面トップに1つだけ置く（セクションごとに繰り返さない） */}
       <thead>
         <tr className={tableHeadRow}>
+          {/* バンドルの道の列見出しは常設しない（帯にマウスを乗せたときにだけ名前を出す。§3.3） */}
+          <th className="py-2 font-normal" />
           <th className="py-2 font-normal" />
           <th className="py-2 font-normal">タスク</th>
           <th className="py-2 font-normal">プロジェクト</th>
@@ -131,11 +139,14 @@ export function DailyList({
             const isSelected = task.id === selectedId;
             const editingField = editing?.taskId === task.id ? editing.field : null;
             const mode = task.modeId === null ? undefined : modeById.get(task.modeId);
+            // バンドルの道（F-119 / §3.3）。隣接は見ない——所属が読めればよいので行ごとに独立して解決する
+            const bundle = task.bundleId === null ? null : (bundleById.get(task.bundleId) ?? null);
             return (
               // コメント（O-16）はタスク行の下に続く独立した行なので、1タスクで2行になりうる
               <Fragment key={task.id}>
                 <TaskRow
                   task={task}
+                  bundle={bundle}
                   index={index}
                   sectionId={group.section?.id ?? null}
                   modes={modes}
@@ -165,6 +176,7 @@ export function DailyList({
                 {showsCommentRow(task, isSelected, editingField) && (
                   <CommentRow
                     task={task}
+                    bundle={bundle}
                     mode={mode}
                     isSelected={isSelected}
                     editing={editingField}

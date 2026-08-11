@@ -221,6 +221,7 @@ describe("optimisticTask（サーバ確定前の仮タスク）", () => {
       sectionId: null,
       modeId: null,
       projectId: null,
+      bundleId: null,
       sortOrder: Number.MAX_SAFE_INTEGER,
       startedAt: null,
       endedAt: null,

@@ -9,6 +9,7 @@ function input(over: Partial<RoutineInput> = {}): RoutineInput {
     scheduledStartTime: "06:30",
     modeId: null,
     projectId: null,
+    bundleId: null,
     recurrenceType: "daily",
     weekdays: null,
     weekInterval: 1,
@@ -76,6 +77,16 @@ describe("validateRoutineInput（画面定義書02 §4: 必須項目）", () => 
       ok: false,
       error: "invalid_end_date",
     });
+  });
+
+  it("バンドルは未設定でも通る（画面定義書02 §4: 未設定可）", () => {
+    const r = validateRoutineInput(input({ bundleId: null }));
+    expect(r.ok && r.value.bundleId).toBe(null);
+  });
+
+  it("バンドルの指定をそのまま保存値へ通す（データモデル定義書 §3.4）", () => {
+    const r = validateRoutineInput(input({ bundleId: 7 }));
+    expect(r.ok && r.value.bundleId).toBe(7);
   });
 });
 

@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { MODE_COLOR_BY_NAME } from "@/domain/mode/mode";
-import { modes, projects, routineSkips, routines, sections, tasks } from "@/infrastructure/db/schema";
+import { COLOR_BY_NAME } from "@/domain/shared/color-presets";
+import { bundles, modes, projects, routineSkips, routines, sections, tasks } from "@/infrastructure/db/schema";
 import { createTestDb, truncateAll } from "@/infrastructure/db/testing/test-db";
 import { createTaskRepository } from "./drizzle-task-repository";
 
@@ -15,6 +15,15 @@ beforeEach(async () => {
 afterAll(async () => {
   await pool.end();
 });
+
+/** バンドル1件（bundle_id の伝播を見るテストが共有する。名前・色は主張に関わらない） */
+async function createBundle() {
+  const [row] = await db
+    .insert(bundles)
+    .values({ name: "朝の支度", color: COLOR_BY_NAME["青"] })
+    .returning();
+  return row;
+}
 
 /** ルーチン由来タスクの展開元。ルーチンが絡む describe（先送り・削除とスキップ）が共有する */
 async function createRoutine() {
@@ -73,6 +82,7 @@ describe("DrizzleTaskRepository.listByDate（画面定義書01 §7: 表示日1�
         sectionId: section.id,
         modeId: null,
         projectId: null,
+        bundleId: null,
         sortOrder: 2000,
         startedAt,
         endedAt,
@@ -441,13 +451,14 @@ describe("duplicateAndStart（F-208 / データモデル定義書 §4.6: 複製�
   });
 
   it("割り込みありで、終了・再開タスク生成・複製の開始が1トランザクションで反映される", async () => {
+    const bundle = await createBundle();
     const startedAt = new Date("2026-07-19T08:48:00Z");
     const now = new Date("2026-07-19T09:00:00Z");
     const [source, running] = await db
       .insert(tasks)
       .values([
         { taskDate: "2026-07-19", name: "もう一回やる", estimateMinutes: 20, sortOrder: 1000, startedAt, endedAt: now },
-        { taskDate: "2026-07-19", name: "実行中", estimateMinutes: 30, sortOrder: 5000, startedAt },
+        { taskDate: "2026-07-19", name: "実行中", estimateMinutes: 30, sortOrder: 5000, startedAt, bundleId: bundle.id },
       ])
       .returning();
 
@@ -475,6 +486,9 @@ describe("duplicateAndStart（F-208 / データモデル定義書 §4.6: 複製�
           projectId: null,
           sortOrder: 7000,
           splitParentId: running.id,
+          // 複製して開始の割り込み側も、中断・割り込みと同じくバンドルを引き継ぐ
+          // （データモデル定義書 §4.8。外すとバンドルが永遠に完了しない）
+          bundleId: bundle.id,
         },
       },
       // 挿入位置に中間値が無かったときの振り直し（§3.5）。挿入より先に当たる
@@ -490,6 +504,7 @@ describe("duplicateAndStart（F-208 / データモデル定義書 §4.6: 複製�
         estimateMinutes: 18,
         sortOrder: 7000,
         startedAt: null,
+        bundleId: bundle.id, // 割り込みの再開タスクはバンドルを引き継ぐ（§4.8）
       })
     );
     expect(after.find((t) => t.id === source.id)?.sortOrder).toBe(3000); // 振り直しも同じトランザクション
@@ -709,6 +724,7 @@ describe("postpone（F-107: 先送り）", () => {
         sectionId: section.id,
         modeId: null,
         projectId: null,
+        bundleId: null,
         sortOrder: 3000, // 動く
         startedAt: null,
         endedAt: null,
@@ -824,8 +840,8 @@ describe("updateClassification（F-401 / F-402 / O-5: モード・プロジェ�
     const [work, life] = await db
       .insert(modes)
       .values([
-        { name: "仕事", color: MODE_COLOR_BY_NAME["青"] },
-        { name: "暮らし", color: MODE_COLOR_BY_NAME["緑"] },
+        { name: "仕事", color: COLOR_BY_NAME["青"] },
+        { name: "暮らし", color: COLOR_BY_NAME["緑"] },
       ])
       .returning();
     const [moving, study] = await db
@@ -1001,7 +1017,7 @@ describe("delete / restore（O-8: 削除と取り消し）", () => {
       .returning();
     const [mode] = await db
       .insert(modes)
-      .values({ name: "集中", color: MODE_COLOR_BY_NAME["青"] })
+      .values({ name: "集中", color: COLOR_BY_NAME["青"] })
       .returning();
     const [project] = await db.insert(projects).values({ name: "資料整備" }).returning();
     const [parent] = await db
@@ -1042,6 +1058,7 @@ describe("delete / restore（O-8: 削除と取り消し）", () => {
       sectionId: section.id,
       modeId: mode.id,
       projectId: project.id,
+      bundleId: null,
       sortOrder: 1000,
       startedAt,
       endedAt,
@@ -1190,6 +1207,7 @@ describe("create の振り直し（データモデル定義書 §3.5: 中間値�
       sectionId: null,
       modeId: null,
       projectId: null,
+      bundleId: null,
       sortOrder: 1000,
       startedAt: null,
       endedAt: null,
@@ -1683,5 +1701,206 @@ describe("undoComplete（F-212 / データモデル定義書 §4.7: 完了の取
     const [after] = await repo.listByDate("2026-07-19");
     expect(after.sectionId).toBeNull(); // 未分類へ戻る
     expect(after.endedAt).toEqual(endedAt);
+  });
+});
+
+describe("bundle_id の伝播（データモデル定義書 §4.8 / F-119）", () => {
+  // 中断（suspend）の再開タスクは元タスクのバンドルを引き継ぐ。外すと中断したメンバーが
+  // バンドルから抜けて、残りが完了してもバンドルが永遠に完了しなくなる
+  it("中断の再開タスクはバンドルを引き継ぐ（外すとバンドルが永遠に完了しない）", async () => {
+    const bundle = await createBundle();
+    const startedAt = new Date("2026-07-19T08:48:00Z");
+    const endedAt = new Date("2026-07-19T09:00:00Z");
+    const [running] = await db
+      .insert(tasks)
+      .values({
+        taskDate: "2026-07-19",
+        name: "執筆",
+        estimateMinutes: 30,
+        sortOrder: 1000,
+        startedAt,
+        bundleId: bundle.id,
+      })
+      .returning();
+
+    await repo.suspend({
+      taskId: running.id,
+      endedAt,
+      resumeTask: {
+        taskDate: "2026-07-19",
+        name: "執筆（再開）",
+        estimateMinutes: 18,
+        sectionId: null,
+        modeId: null,
+        projectId: null,
+        sortOrder: 2000,
+        splitParentId: running.id,
+        bundleId: bundle.id,
+      },
+      renumber: [],
+    });
+
+    const after = await repo.listByDate("2026-07-19");
+    expect(after.find((t) => t.splitParentId === running.id)?.bundleId).toBe(bundle.id);
+  });
+
+  // 割り込み（start の interruption）の再開タスクも同じ理由で引き継ぐ。
+  // 割り込んだ側（C）は無関係の行なので変わらないことも一緒に見る
+  it("割り込みの再開タスクもバンドルを引き継ぐ", async () => {
+    const bundle = await createBundle();
+    const startedAt = new Date("2026-07-19T08:48:00Z");
+    const endedAt = new Date("2026-07-19T09:00:00Z");
+    const [running, target] = await db
+      .insert(tasks)
+      .values([
+        {
+          taskDate: "2026-07-19",
+          name: "メールチェック",
+          estimateMinutes: 30,
+          sortOrder: 1000,
+          startedAt,
+          bundleId: bundle.id,
+        },
+        { taskDate: "2026-07-19", name: "設計書レビュー", estimateMinutes: 60, sortOrder: 2000 },
+      ])
+      .returning();
+
+    await repo.start({
+      taskId: target.id,
+      startedAt: endedAt,
+      interruption: {
+        runningTaskId: running.id,
+        endedAt,
+        resumeTask: {
+          taskDate: "2026-07-19",
+          name: "メールチェック（再開）",
+          estimateMinutes: 18,
+          sectionId: null,
+          modeId: null,
+          projectId: null,
+          sortOrder: 3000,
+          splitParentId: running.id,
+          bundleId: bundle.id,
+        },
+        renumber: [],
+      },
+      relocations: [],
+    });
+
+    const after = await repo.listByDate("2026-07-19");
+    expect(after.find((t) => t.splitParentId === running.id)?.bundleId).toBe(bundle.id);
+    expect(after.find((t) => t.id === target.id)?.bundleId).toBeNull(); // C は無関係なので変わらない
+  });
+
+  // 複製（create 経由）はバンドルを引き継がない。routine_id・コメント・ハイライトと同じ扱い
+  // （データモデル定義書 §4.8）。NewTask に bundle_id を渡さないことで表す
+  it("複製はバンドルを引き継がない（routine_id・コメント・ハイライトと同じ扱い）", async () => {
+    const bundle = await createBundle();
+    const [source] = await db
+      .insert(tasks)
+      .values({ taskDate: "2026-07-19", name: "複製元", sortOrder: 1000, bundleId: bundle.id })
+      .returning();
+
+    const created = await repo.create(
+      {
+        taskDate: "2026-07-19",
+        name: source.name,
+        estimateMinutes: 0,
+        sectionId: null,
+        modeId: null,
+        projectId: null,
+        sortOrder: 2000,
+        // bundleId を渡さない = 複製は引き継がない扱い（duplicateDraft が bundleId を持たない）
+      },
+      []
+    );
+
+    expect(created.bundleId).toBeNull();
+    expect((await repo.findById(source.id))?.bundleId).toBe(bundle.id); // 元タスクは変わらない
+  });
+
+  // 複製して開始（duplicateAndStart）も同じくバンドルを引き継がない
+  it("複製して開始もバンドルを引き継がない", async () => {
+    const bundle = await createBundle();
+    const startedAt = new Date("2026-07-19T08:00:00Z");
+    const endedAt = new Date("2026-07-19T08:30:00Z");
+    const now = new Date("2026-07-19T09:00:00Z");
+    const [source] = await db
+      .insert(tasks)
+      .values({
+        taskDate: "2026-07-19",
+        name: "ストレッチ",
+        estimateMinutes: 15,
+        sortOrder: 1000,
+        startedAt,
+        endedAt,
+        bundleId: bundle.id,
+      })
+      .returning();
+
+    const created = await repo.duplicateAndStart({
+      newTask: {
+        taskDate: "2026-07-19",
+        name: source.name,
+        estimateMinutes: 15,
+        sectionId: null,
+        modeId: null,
+        projectId: null,
+        sortOrder: 2000,
+        splitParentId: null,
+      },
+      startedAt: now,
+      interruption: null,
+      renumber: [],
+    });
+
+    expect(created.bundleId).toBeNull();
+  });
+
+  // 先送りは routine_id を外す扱い（§3.5）と揃えてバンドルからも外す。付けたまま移すと
+  // 移動先の日に改めて展開されるぶんと同じバンドルに同名のタスクが2件並んでしまう
+  it("先送りはバンドルから外す（routine_id を外す扱いと揃える）", async () => {
+    const bundle = await createBundle();
+    const [target] = await db
+      .insert(tasks)
+      .values({ taskDate: "2026-07-19", name: "先送り対象", sortOrder: 1000, bundleId: bundle.id })
+      .returning();
+
+    await repo.postpone(target.id, { taskDate: "2026-07-20", sortOrder: 3000 }, null);
+
+    const [after] = await repo.listByDate("2026-07-20");
+    expect(after.bundleId).toBeNull();
+  });
+
+  // 開始打刻の取り消し・完了の取り消しは打刻列だけを触るので bundle_id は変わらない
+  it("開始打刻の取り消し・完了の取り消しはバンドルを変えない", async () => {
+    const bundle = await createBundle();
+    const [running, completed] = await db
+      .insert(tasks)
+      .values([
+        {
+          taskDate: "2026-07-19",
+          name: "実行中タスク",
+          sortOrder: 1000,
+          startedAt: new Date("2026-07-19T09:00:00Z"),
+          bundleId: bundle.id,
+        },
+        {
+          taskDate: "2026-07-19",
+          name: "完了タスク",
+          sortOrder: 2000,
+          startedAt: new Date("2026-07-19T09:00:00Z"),
+          endedAt: new Date("2026-07-19T09:30:00Z"),
+          bundleId: bundle.id,
+        },
+      ])
+      .returning();
+
+    await repo.undoStart(running.id, []);
+    await repo.undoComplete(completed.id, []);
+
+    const after = await repo.listByDate("2026-07-19");
+    expect(after.find((t) => t.id === running.id)?.bundleId).toBe(bundle.id);
+    expect(after.find((t) => t.id === completed.id)?.bundleId).toBe(bundle.id);
   });
 });

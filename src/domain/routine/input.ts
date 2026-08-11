@@ -1,4 +1,5 @@
 // ルーチンの入力検証（画面定義書02 §4）
+import type { BundleId } from "../bundle/bundle";
 import type { ModeId } from "../mode/mode";
 import type { ProjectId } from "../project/project";
 import { isValidLogicalDate, type LogicalDate } from "../shared/logical-date";
@@ -29,6 +30,8 @@ export type RoutineInput = RoutineScheduleInput &
     estimateMinutes: number;
     modeId: ModeId | null;
     projectId: ProjectId | null;
+    /** 属するバンドル（F-119）。**検証しない**——存在しない id は FK が弾き、画面はセレクトの候補しか出さない */
+    bundleId: BundleId | null;
     startDate: string;
     endDate: string | null;
   }>;
@@ -52,6 +55,7 @@ export type ValidRoutineInput = ValidRoutineSchedule &
     estimateMinutes: number;
     modeId: ModeId | null;
     projectId: ProjectId | null;
+    bundleId: BundleId | null;
     startDate: LogicalDate;
     endDate: LogicalDate | null;
   }>;
@@ -101,6 +105,7 @@ export function validateRoutineInput(
     estimateMinutes: input.estimateMinutes,
     modeId: input.modeId,
     projectId: input.projectId,
+    bundleId: input.bundleId,
     ...schedule.value,
     startDate: input.startDate,
     endDate,

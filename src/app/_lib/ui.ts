@@ -13,6 +13,11 @@ export const linkAccent = "text-sm text-accent hover:underline";
 
 export const linkMuted = "text-sm text-ink-muted hover:text-ink";
 
+// linkMuted と同じ地味な色で、ホバー時は濃くする代わりに下線を出す
+// （クリック可能であることを他のリンク・ボタンと同じ見せ方で示す）。
+// **地味な操作リンクは新規もこちらを使う**——`linkMuted` は FB-100 でこちらへ畳む予定
+export const linkMutedUnderline = "text-sm text-ink-muted hover:underline";
+
 // 取り消せない操作（マスタの物理削除）の確定ボタン
 export const linkDanger = "text-sm text-danger hover:underline";
 
@@ -35,6 +40,11 @@ export const pendingNotice =
 // 同じ場所に出るため、重ならないよう1つの列に積む
 export const bottomCenterStack =
   "fixed bottom-4 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-2";
+
+// 乗せたものの名前を出す小さな吹き出し（プリセット色の色名・バンドルの道のバンドル名）。
+// **面の見た目だけを持ち、どの辺に出すかは呼び出し側が位置クラスで足す**（置き場所ごとに違う）
+export const tooltipBubble =
+  "pointer-events-none absolute z-20 rounded-control bg-ink px-1.5 py-0.5 text-xs whitespace-nowrap text-paper";
 
 // エラー・警告の帯（Server Action の失敗、前日以前の実行中タスク等）
 export const noticeDanger =

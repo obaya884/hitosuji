@@ -14,6 +14,7 @@ export function routine(over: Partial<Routine> & { id: number }): Routine {
     scheduledStartTime: "06:30", // 中立値なし（上記）
     modeId: null,
     projectId: null,
+    bundleId: null,
     recurrenceType: "daily", // 中立値なし（上記）
     weekdays: null,
     weekInterval: null,

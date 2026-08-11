@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ModeInput, ModeRepository } from "@/usecases/ports/mode-repository";
-import { MODE_COLOR_PRESETS, type Mode, type ModeId } from "@/domain/mode/mode";
+import type { Mode, ModeId } from "@/domain/mode/mode";
+import { COLOR_PRESETS } from "@/domain/shared/color-presets";
 import { createMode, deleteMode, listModes, setModeArchived, updateMode } from "./mode-usecases";
 
 // 古典学派: Port の契約を満たすインメモリ実装（テスト戦略定義書 §2）
@@ -37,7 +38,7 @@ function inMemoryRepo(
   };
 }
 
-const blue = MODE_COLOR_PRESETS[8].value;
+const blue = COLOR_PRESETS[8].value;
 
 describe("listModes（画面定義書03 §4: name 昇順・アーカイブ済みは別枠）", () => {
   it("有効とアーカイブ済みを分け、それぞれ名前順に返す", async () => {
@@ -81,7 +82,7 @@ describe("createMode / updateMode", () => {
   });
 
   it("名前と色を更新する", async () => {
-    const green = MODE_COLOR_PRESETS[4].value;
+    const green = COLOR_PRESETS[4].value;
     const repo = inMemoryRepo([{ id: 1, name: "仕事", color: blue, isArchived: false }]);
 
     expect((await updateMode(repo, 1, { name: "しごと", color: green })).ok).toBe(true);

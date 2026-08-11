@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { MasterNewRow, MasterNewRowInput } from "./master-new-row";
+import { NewRow, NewRowInput } from "./new-row";
 
 // マスタ管理3表が共有する新規追加行（画面定義書03 §4）。
 // ここでは部品としての作法を固定し、「何を送るか」の配線は各表のテストが持つ（T-44）
@@ -14,14 +14,14 @@ function renderNewRow(
   render(
     <table>
       <tbody>
-        <MasterNewRow
+        <NewRow
           isPending={props.isPending ?? false}
           onSave={(fieldValue) => saved.push([fieldValue("name"), fieldValue("startTime")])}
           onCancel={onCancel}
           renderCells={(onKeyDown) => (
             <>
               <td>
-                <MasterNewRowInput
+                <NewRowInput
                   field="name"
                   placeholder="セクション名"
                   autoFocus
@@ -29,7 +29,7 @@ function renderNewRow(
                 />
               </td>
               <td>
-                <MasterNewRowInput field="startTime" type="time" onKeyDown={onKeyDown} />
+                <NewRowInput field="startTime" type="time" onKeyDown={onKeyDown} />
               </td>
             </>
           )}
@@ -50,7 +50,7 @@ const timeInput = (): HTMLInputElement => {
   return input;
 };
 
-describe("MasterNewRow（画面定義書03 §4: 新規行だけは明示的な保存・取消を置く）", () => {
+describe("NewRow（画面定義書03 §4: 新規行だけは明示的な保存・取消を置く）", () => {
   it("入力欄は空で始まり、名前欄が最初からフォーカスされる", () => {
     renderNewRow();
 
@@ -83,13 +83,13 @@ describe("MasterNewRow（画面定義書03 §4: 新規行だけは明示的な�
     render(
       <table>
         <tbody>
-          <MasterNewRow
+          <NewRow
             isPending={false}
             onSave={(fieldValue) => saved.push([fieldValue("name"), fieldValue("startTime")])}
             onCancel={vi.fn()}
             renderCells={(onKeyDown) => (
               <td>
-                <MasterNewRowInput field="name" placeholder="プロジェクト名" onKeyDown={onKeyDown} />
+                <NewRowInput field="name" placeholder="プロジェクト名" onKeyDown={onKeyDown} />
               </td>
             )}
           />

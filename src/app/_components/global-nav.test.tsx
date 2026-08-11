@@ -19,20 +19,22 @@ function currentLabels() {
     .map((a) => a.textContent);
 }
 
-describe("GlobalNav（画面定義書00_共通 §1: Navigation Rail はラベルのみの4項目＋ロゴ＝ホーム、現在地をレールに示す）", () => {
-  it("デイリー / ルーチン / マスタ / レビュー の4項目をこの順で並べる", () => {
+describe("GlobalNav（画面定義書00_共通 §1: Navigation Rail はラベルのみの5項目＋ロゴ＝ホーム、現在地をレールに示す）", () => {
+  it("デイリー / ルーチン / バンドル / マスタ / レビュー の5項目をこの順で並べる（バンドルはルーチンの直後）", () => {
     pathname.value = "/";
     render(<GlobalNav />);
 
     expect(navItems().map((a) => a.textContent)).toEqual([
       "デイリー",
       "ルーチン",
+      "バンドル",
       "マスタ",
       "レビュー",
     ]);
     expect(navItems().map((a) => a.getAttribute("href"))).toEqual([
       "/",
       "/routines",
+      "/bundles",
       "/masters",
       "/review",
     ]);

@@ -36,7 +36,7 @@ export function GroupHeading({
   return (
     <tr className={`border-y border-line-strong ${isCurrentSection ? "bg-band-now" : "bg-band"}`}>
       {/* 全要素を左寄せで1行に並べる（§3.2「見出し行のレイアウト」。左右分離をやめる） */}
-      <td colSpan={8} className="py-2 pl-2">
+      <td colSpan={9} className="py-2 pl-2">
         <span className="flex items-center gap-2">
           <span className="text-sm font-bold tracking-wide">
             {group.section === null ? UNCATEGORIZED_LABEL : group.section.name}

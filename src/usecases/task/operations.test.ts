@@ -61,6 +61,17 @@ describe("suspendTask（F-204: 中断）", () => {
     expect(repo.rows[1].highlighted).toBe(false);
   });
 
+  // F-119: 外すとバンドルから抜けて、残りが完了してもバンドルが永遠に完了しなくなる（データモデル定義書 §4.8）
+  it("バンドルに属するタスクを中断すると、再開タスクもバンドルを引き継ぐ", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, estimateMinutes: 30, startedAt, sortOrder: 1000, bundleId: 5 }),
+    ]);
+
+    expect((await suspendTask(repo, { taskId: 1, now })).ok).toBe(true);
+
+    expect(repo.rows[1].bundleId).toBe(5);
+  });
+
   it("再開タスクの位置は同一セクション内だけで決まる（他セクションの行は挟まない）", async () => {
     const repo = inMemoryTaskRepository([
       task({ id: 1, sectionId: 3, sortOrder: 5000, startedAt }),
@@ -217,6 +228,13 @@ describe("duplicateTask（F-111: 複製）", () => {
     expect(result.ok && result.value.highlighted).toBe(false);
   });
 
+  // F-119: 複製するたびに未完了メンバーが増えてバンドルが進行中のままになる事故を防ぐ（データモデル定義書 §4.8）
+  it("バンドルに属するタスクを複製しても、複製はバンドルを引き継がない", async () => {
+    const repo = inMemoryTaskRepository([task({ id: 1, bundleId: 5 })]);
+    const result = await duplicateTask(repos(repo), { taskId: 1 });
+    expect(result.ok && result.value.bundleId).toBeNull();
+  });
+
   it("中間値が尽きたら振り直しを伴って挿入する（操作は失敗しない）", async () => {
     const repo = inMemoryTaskRepository([
       task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }),
@@ -325,6 +343,20 @@ describe("duplicateAndStartTask（F-208: 複製して開始）", () => {
     );
     // 実行中は常に1件（複製タスクのみ）
     expect(repo.rows.filter((t) => taskStatus(t) === "running")).toHaveLength(1);
+  });
+
+  // F-119: 複製タスクは引き継がないが、割り込みで生まれる再開タスクは引き継ぐ（データモデル定義書 §4.8）
+  it("複製タスクはバンドルを引き継がないが、割り込みの再開タスクは引き継ぐ", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000, bundleId: 5 }), // 完了（複製元）
+      task({ id: 2, sectionId: 2, estimateMinutes: 30, startedAt, sortOrder: 5000, bundleId: 9 }), // 午前・実行中
+    ]);
+
+    const result = await duplicateAndStartTask(repos(repo), { taskId: 1, ...input });
+
+    expect(result.ok && result.value.bundleId).toBeNull(); // 複製元（バンドル5）を引き継がない
+    const resume = repo.rows.find((t) => t.splitParentId === 2);
+    expect(resume?.bundleId).toBe(9); // 割り込み相手（バンドル9）から引き継ぐ
   });
 
   it("移動先に未実行タスクがあれば、複製タスクと再開タスクはその前へ連続して入る（§4.6 / C-7）", async () => {
@@ -500,6 +532,18 @@ describe("postponeTask（F-107: 先送り）", () => {
 
     expect((await postponeTask(repo, { taskId: 1 })).ok).toBe(true);
     expect(repo.rows[0].highlighted).toBe(true);
+  });
+
+  // F-119: routine_id を外す扱いと揃える。付けたまま移すと移動先の日に改めて展開されるぶんと
+  // 同じバンドルに同名のタスクが2件並んでしまう（データモデル定義書 §4.8）。
+  // **先送りは1つの UPDATE なので、外すかどうかを決めるのはリポジトリ段**——ここが読むのは
+  // 偽物が返す値で、契約の実検査は `drizzle-task-repository.int.test.ts` にある
+  // （`routineId` を見る隣のテストと同じ立て付け）
+  it("バンドルからは外れる", async () => {
+    const repo = inMemoryTaskRepository([task({ id: 1, bundleId: 5 })]);
+
+    expect((await postponeTask(repo, { taskId: 1 })).ok).toBe(true);
+    expect(repo.rows[0].bundleId).toBeNull();
   });
 
   it("存在しないタスクは task_not_found", async () => {

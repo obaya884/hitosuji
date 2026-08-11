@@ -21,6 +21,7 @@ function toDomain(row: Row): Routine {
     scheduledStartTime: normalizeStartTime(row.scheduledStartTime),
     modeId: row.modeId,
     projectId: row.projectId,
+    bundleId: row.bundleId,
     recurrenceType: row.recurrenceType as RecurrenceType,
     weekdays: row.weekdays,
     weekInterval: row.weekInterval,
@@ -66,6 +67,13 @@ export function createRoutineRepository(db: Database = defaultDb): RoutineReposi
     async delete(id: RoutineId) {
       // tasks.routine_id は ON DELETE SET NULL なので展開済みタスクはログとして残る
       await db.delete(routines).where(eq(routines.id, id));
+    },
+
+    async setBundle(id: RoutineId, bundleId: number | null) {
+      await db
+        .update(routines)
+        .set({ bundleId, updatedAt: new Date() })
+        .where(eq(routines.id, id));
     },
 
     async expand(seeds: readonly RoutineTaskSeed[]) {

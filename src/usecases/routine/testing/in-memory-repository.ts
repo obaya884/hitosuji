@@ -55,6 +55,12 @@ export function inMemoryRoutineRepository(
       if (index >= 0) rows.splice(index, 1);
     },
 
+    setBundle: async (id: RoutineId, bundleId) => {
+      const index = indexOf(id);
+      if (index < 0) return;
+      rows[index] = { ...rows[index], bundleId };
+    },
+
     // 本物と同じく (routine_id, task_date) で冪等にする（データモデル定義書 §4.1）
     expand: async (seeds: readonly RoutineTaskSeed[]) => {
       const added = seeds.filter(

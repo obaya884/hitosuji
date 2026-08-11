@@ -1,19 +1,19 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { DeleteMasterButton } from "./delete-master-button";
+import { DeleteButton } from "./delete-button";
 
 // 物理削除（F-405）の確認は「モーダルを使わず同じ位置で2段階」（画面定義書03 §4.1）
-describe("DeleteMasterButton（画面定義書03 §4.1: 2段階の確認・Undo なし）", () => {
+describe("DeleteButton（画面定義書03 §4.1: 2段階の確認・Undo なし）", () => {
   it("最初は「削除」だけを出す（確認は開いていない）", () => {
-    render(<DeleteMasterButton onDelete={vi.fn()} disabled={false} />);
+    render(<DeleteButton onDelete={vi.fn()} disabled={false} />);
 
     expect(screen.getByRole("button", { name: "削除" })).not.toBeNull();
     expect(screen.queryByText("本当に削除？")).toBeNull();
   });
 
   it("「削除」を押すと同じ位置が「本当に削除？ [削除する] [取消]」に切り替わる（モーダルは使わない）", () => {
-    render(<DeleteMasterButton onDelete={vi.fn()} disabled={false} />);
+    render(<DeleteButton onDelete={vi.fn()} disabled={false} />);
 
     fireEvent.click(screen.getByRole("button", { name: "削除" }));
 
@@ -26,7 +26,7 @@ describe("DeleteMasterButton（画面定義書03 §4.1: 2段階の確認・Undo 
 
   it("1段目では削除しない（確認を開いただけでは実行しない）", () => {
     const onDelete = vi.fn();
-    render(<DeleteMasterButton onDelete={onDelete} disabled={false} />);
+    render(<DeleteButton onDelete={onDelete} disabled={false} />);
 
     fireEvent.click(screen.getByRole("button", { name: "削除" }));
 
@@ -35,7 +35,7 @@ describe("DeleteMasterButton（画面定義書03 §4.1: 2段階の確認・Undo 
 
   it("「削除する」で削除を実行し、確認表示を閉じる", () => {
     const onDelete = vi.fn();
-    render(<DeleteMasterButton onDelete={onDelete} disabled={false} />);
+    render(<DeleteButton onDelete={onDelete} disabled={false} />);
     fireEvent.click(screen.getByRole("button", { name: "削除" }));
 
     fireEvent.click(screen.getByRole("button", { name: "削除する" }));
@@ -47,7 +47,7 @@ describe("DeleteMasterButton（画面定義書03 §4.1: 2段階の確認・Undo 
 
   it("「取消」で削除せずに1段目へ戻る", () => {
     const onDelete = vi.fn();
-    render(<DeleteMasterButton onDelete={onDelete} disabled={false} />);
+    render(<DeleteButton onDelete={onDelete} disabled={false} />);
     fireEvent.click(screen.getByRole("button", { name: "削除" }));
 
     fireEvent.click(screen.getByRole("button", { name: "取消" }));
@@ -58,7 +58,7 @@ describe("DeleteMasterButton（画面定義書03 §4.1: 2段階の確認・Undo 
 
   it("保存中（disabled）は「削除する」を押せない（多重送信を防ぐ）", () => {
     const onDelete = vi.fn();
-    render(<DeleteMasterButton onDelete={onDelete} disabled />);
+    render(<DeleteButton onDelete={onDelete} disabled />);
     fireEvent.click(screen.getByRole("button", { name: "削除" }));
 
     const execute = screen.getByRole("button", { name: "削除する" });

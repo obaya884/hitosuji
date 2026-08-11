@@ -76,6 +76,7 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
     const created: Task = {
       id: nextId++,
       splitParentId: null,
+      bundleId: null,
       ...input,
       highlighted: input.highlighted ?? false,
       startedAt,
@@ -194,6 +195,7 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
           taskDate: input.taskDate,
           sortOrder: input.sortOrder,
           routineId: null,
+          bundleId: null, // 先送りはバンドルからも外す（本物と同じ。データモデル定義書 §4.8）
           postponedCount: target.postponedCount + 1,
         });
       }

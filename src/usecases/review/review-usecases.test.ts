@@ -2,15 +2,16 @@ import { describe, expect, it } from "vitest";
 import type { ModeRepository } from "@/usecases/ports/mode-repository";
 import type { ProjectRepository } from "@/usecases/ports/project-repository";
 import { inMemoryTaskRepository } from "@/usecases/task/testing/in-memory-repository";
-import { MODE_COLOR_PRESETS, type Mode } from "@/domain/mode/mode";
+import type { Mode } from "@/domain/mode/mode";
 import type { Task } from "@/domain/task/task";
+import { COLOR_PRESETS } from "@/domain/shared/color-presets";
 import { atJst, TEST_DATE } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
 import { listDailyReview } from "./review-usecases";
 
 const modes: Mode[] = [
-  { id: 10, name: "仕事", color: MODE_COLOR_PRESETS[8].value, isArchived: false },
-  { id: 20, name: "旧枠", color: MODE_COLOR_PRESETS[12].value, isArchived: true },
+  { id: 10, name: "仕事", color: COLOR_PRESETS[8].value, isArchived: false },
+  { id: 20, name: "旧枠", color: COLOR_PRESETS[12].value, isArchived: true },
 ];
 
 const modeRepo: ModeRepository = {

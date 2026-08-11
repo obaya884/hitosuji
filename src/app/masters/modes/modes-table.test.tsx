@@ -1,12 +1,13 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MODE_COLOR_PRESETS, type Mode } from "@/domain/mode/mode";
+import type { Mode } from "@/domain/mode/mode";
 
 import { deferredAction } from "@/app/_testing/actions";
 import { rgbOf } from "@/app/_testing/dom";
 import { click, clickWithoutServer } from "@/app/_testing/interactions";
-import { rowOf, startEditingCell } from "../_testing/table-helpers";
+import { rowOf } from "@/app/_testing/table";
+import { startEditingCell } from "../_testing/table-helpers";
 
 // Server Action の先は実DB接続と revalidatePath に届くため、同じ返り値の契約
 // （ActionResult）を返す偽物へ差し替える（テスト戦略定義書 §2「偽物を置いてよい境界」）
@@ -26,7 +27,7 @@ import {
 import { ModesTable } from "./modes-table";
 
 // プリセット13色のうちテストで使う3つ（画面定義書03 §3.2 の表の値）。
-// 添字（MODE_COLOR_PRESETS[0].value 等）ではなく hex を直に置き、期待値の色名（「赤」等）と読み合わせられるようにする
+// 添字（COLOR_PRESETS[0].value 等）ではなく hex を直に置き、期待値の色名（「赤」等）と読み合わせられるようにする
 const RED = "#ef4444";
 const BLUE = "#3b82f6";
 const GRAY = "#9ca3af";
@@ -62,13 +63,6 @@ const openColorPicker = (row: HTMLElement, currentColorName: string): void =>
     within(row).getByRole("button", { name: `色を変更（現在: ${currentColorName}）` })
   );
 
-/** 開いているプリセット選択のパネル（候補の外へ検索が漏れないよう、ここへ絞って主張する） */
-const colorPickerPanel = (): HTMLElement => {
-  const panel = screen.getByRole("button", { name: "色 赤" }).closest("div");
-  if (panel === null) throw new Error("プリセット選択が開いていません");
-  return panel;
-};
-
 beforeEach(() => {
   vi.mocked(createModeAction).mockResolvedValue({ ok: true });
   vi.mocked(updateModeAction).mockResolvedValue({ ok: true });
@@ -96,102 +90,9 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
   });
 
   // このピッカーに 00_共通 §2.1 のどの項目が及ぶかは画面定義書03 §3.2 が正（FB-59）
+  // プリセット選択そのもの（13色・自由入力なし・輪郭・吹き出し・閉じ方）は共有部品の
+  // 観点なので `_components/color-picker.test.tsx` が持つ。ここは**この画面の配線**だけを見る
   describe("プリセット色の選択（画面定義書03 §3.2）", () => {
-    it("カラーバーを押すとプリセット13色（12色＋グレー）がその場に開く", async () => {
-      renderTable();
-
-      openColorPicker(rowOf("モードA"), "赤");
-
-      const swatches = screen.getAllByRole("button", { name: /^色 / });
-      expect(swatches.map((b) => b.getAttribute("aria-label"))).toEqual([
-        "色 赤",
-        "色 オレンジ",
-        "色 琥珀",
-        "色 黄",
-        "色 ライム",
-        "色 緑",
-        "色 ティール",
-        "色 シアン",
-        "色 青",
-        "色 インディゴ",
-        "色 紫",
-        "色 ピンク",
-        "色 グレー",
-      ]);
-    });
-
-    it("自由入力は設けない（N-05: 開いたパネルは候補だけで入力欄を持たない）", async () => {
-      renderTable();
-
-      openColorPicker(rowOf("モードA"), "赤");
-
-      const panel = colorPickerPanel();
-      expect(within(panel).queryByRole("textbox")).toBeNull();
-      expect(within(panel).getAllByRole("button")).toHaveLength(MODE_COLOR_PRESETS.length);
-    });
-
-    // ラベル（色名）と塗り（色値）が同じプリセットの1件から出ていることを画面段で固定する
-    it("候補は色名に対応する色値で塗られる", async () => {
-      renderTable();
-
-      openColorPicker(rowOf("モードA"), "赤");
-
-      for (const { value, name } of MODE_COLOR_PRESETS) {
-        const swatch = screen.getByRole("button", { name: `色 ${name}` });
-        expect(swatch.style.backgroundColor).toBe(rgbOf(value));
-      }
-    });
-
-    it("開くと現在値を輪郭で示す（画面定義書03 §3.2）", async () => {
-      renderTable();
-
-      openColorPicker(rowOf("モードB"), "青");
-
-      // 輪郭は面色と違い role や aria では読めないので classList で見る
-      // （`select-popover.test.tsx` のハイライト判定と同じ流儀）
-      expect(screen.getByRole("button", { name: "色 青" }).classList.contains("outline-ink")).toBe(
-        true
-      );
-      expect(screen.getByRole("button", { name: "色 赤" }).classList.contains("outline-ink")).toBe(
-        false
-      );
-    });
-
-    it("現在値を読み上げにも出す（`aria-pressed`）", async () => {
-      renderTable();
-
-      openColorPicker(rowOf("モードB"), "青");
-
-      expect(screen.getByRole("button", { name: "色 青" }).getAttribute("aria-pressed")).toBe("true");
-      expect(screen.getByRole("button", { name: "色 赤" }).getAttribute("aria-pressed")).toBe(
-        "false"
-      );
-    });
-
-    it("候補にマウスを乗せるとその色の名前を吹き出しで出す", async () => {
-      renderTable();
-      openColorPicker(rowOf("モードA"), "赤");
-      const swatch = screen.getByRole("button", { name: "色 ライム" });
-
-      fireEvent.mouseEnter(swatch);
-      expect(screen.getByRole("tooltip").textContent).toBe("ライム");
-
-      fireEvent.mouseLeave(swatch);
-      expect(screen.queryByRole("tooltip")).toBeNull();
-    });
-
-    it("キーボードで候補へ移っても色名を吹き出しで出す（マウスを使わなくても色名が読める）", async () => {
-      renderTable();
-      openColorPicker(rowOf("モードA"), "赤");
-      const swatch = screen.getByRole("button", { name: "色 ティール" });
-
-      fireEvent.focus(swatch);
-      expect(screen.getByRole("tooltip").textContent).toBe("ティール");
-
-      fireEvent.blur(swatch);
-      expect(screen.queryByRole("tooltip")).toBeNull();
-    });
-
     it("色を選ぶと即保存し（名前は現在値のまま送る）ポップオーバーを閉じる", async () => {
       renderTable();
       openColorPicker(rowOf("モードA"), "赤");
@@ -205,21 +106,11 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       expect(screen.queryByRole("button", { name: "色 グレー" })).toBeNull();
     });
 
-    it("Esc で閉じる（送信しない。00_共通 §2.1「閉じ方」）", async () => {
+    it("閉じただけでは保存しない（00_共通 §2.1「閉じ方」）", async () => {
       renderTable();
       openColorPicker(rowOf("モードA"), "赤");
 
       fireEvent.keyDown(document, { key: "Escape" });
-
-      expect(screen.queryByRole("button", { name: "色 赤" })).toBeNull();
-      expect(updateModeAction).not.toHaveBeenCalled();
-    });
-
-    it("外側のクリックで閉じる（送信しない。00_共通 §2.1「閉じ方」）", async () => {
-      renderTable();
-      openColorPicker(rowOf("モードA"), "赤");
-
-      fireEvent.mouseDown(document.body);
 
       expect(screen.queryByRole("button", { name: "色 赤" })).toBeNull();
       expect(updateModeAction).not.toHaveBeenCalled();
@@ -242,7 +133,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       });
     });
 
-    // 抑止そのものは部品（MasterEditableCell）が持つ。ここで見るのは表が `isPending` を
+    // 抑止そのものは部品（EditableCell）が持つ。ここで見るのは表が `isPending` を
     // セルへ渡していることと、表の JSX が持つカラーバー・操作ボタン側の抑止（§6 の②）
     it("保存中は行の編集セル・カラーバー・操作ボタンを押せない", async () => {
       const pending = deferredAction();
@@ -276,7 +167,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
     });
 
     // onClose が表の editingId を落としているか（§6 の②「部品のコールバック → 画面の状態」）。
-    // Esc の挙動そのものは master-editable-cell.test.tsx が持つ
+    // Esc の挙動そのものは editable-cell.test.tsx が持つ
     it("Esc でセルが閉じ、元の表示に戻る", async () => {
       renderTable();
       const input = startEditingCell("モードA");
@@ -392,7 +283,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
     });
 
     // onCancel が表の editing を落としているか（§6 の②）。取消・Esc の挙動そのものは
-    // master-new-row.test.tsx が持つので、ここは行が消えることだけを見る
+    // new-row.test.tsx が持つので、ここは行が消えることだけを見る
     it("「取消」で新規行が消える（送信しない）", async () => {
       renderTable();
       clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
@@ -514,7 +405,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       expect(setModeArchivedAction).toHaveBeenCalledExactlyOnceWith(9, false);
     });
 
-    // 2段階の確認そのものは DeleteMasterButton のテストが持つ。ここは配線だけを見る
+    // 2段階の確認そのものは DeleteButton のテストが持つ。ここは配線だけを見る
     it("参照0件のアーカイブ済み行だけを物理削除へ配線する", async () => {
       renderTable({
         active: [],

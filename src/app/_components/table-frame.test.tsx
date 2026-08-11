@@ -24,7 +24,9 @@ function renderFrame(
 ) {
   return render(
     <TableFrame
-      description={props.description ?? "並び順は名前順です。"}
+      // **既定値へ落とさず「渡されたか」で分ける**——`?? 既定` にすると説明文なし
+      // （バンドル管理 S-05 §2）を渡せず、その分岐の検証が書けなくなる
+      description={"description" in props ? props.description : "並び順は名前順です。"}
       error={props.error ?? null}
       isPending={props.isPending ?? false}
       // 渡さないときは既定の「新規追加」になる（マスタ管理3表はこちら）
@@ -49,6 +51,15 @@ describe("TableFrame（画面定義書02 §3 / 画面定義書03 §3・§4: 説�
     expect(screen.getByText("並び順は名前順です。")).not.toBeNull();
     expect(screen.getByRole("button", { name: "新規追加" })).not.toBeNull();
     expect(screen.getByText("マスタA")).not.toBeNull();
+  });
+
+  // 説明文を持たない表もある（バンドル管理 S-05 §2「見出し行には『＋ 新規追加』だけを置き、
+  // 説明文は書かない」）。空の段落を置くと、無い説明のぶん見出し行が間延びする
+  it("説明文を渡さなければ説明の段落を描かず、「新規追加」は残る（05 §2）", () => {
+    const { container } = renderFrame({ description: undefined });
+
+    expect(container.querySelectorAll("p")).toHaveLength(0);
+    expect(screen.getByRole("button", { name: "新規追加" })).not.toBeNull();
   });
 
   it("失敗が無いときはエラー帯を出さない（空の帯を置いて間延びさせない）", () => {

@@ -1,18 +1,18 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { MasterEditableCell } from "./master-editable-cell";
+import { EditableCell } from "./editable-cell";
 
 // マスタ管理3表が共有するインライン編集セル（画面定義書03 §4「編集方式」/ 00_共通 §2.3）。
 // ここでは部品としての作法を固定し、「何を送るか」の配線は各表のテストが持つ（T-44）
-function renderCell(props: Partial<Parameters<typeof MasterEditableCell>[0]> = {}) {
+function renderCell(props: Partial<Parameters<typeof EditableCell>[0]> = {}) {
   const handlers = {
     onStartEditing: vi.fn(),
     onCommit: vi.fn<(value: string) => void>(),
     onClose: vi.fn(),
   };
   render(
-    <MasterEditableCell
+    <EditableCell
       isEditing={false}
       value="モードA"
       isPending={false}
@@ -23,7 +23,7 @@ function renderCell(props: Partial<Parameters<typeof MasterEditableCell>[0]> = {
   return handlers;
 }
 
-describe("MasterEditableCell（画面定義書03 §4「編集方式」/ 00_共通 §2.3）", () => {
+describe("EditableCell（画面定義書03 §4「編集方式」/ 00_共通 §2.3）", () => {
   describe("閉じているとき", () => {
     it("現在値をボタンで出し、押すと編集を始める", () => {
       const { onStartEditing } = renderCell();

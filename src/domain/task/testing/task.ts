@@ -15,6 +15,7 @@ export function task(over: Partial<Task> & { id: number }): Task {
     sectionId: null,
     modeId: null,
     projectId: null,
+    bundleId: null,
     sortOrder: over.id * 1000, // 間隔採番（データモデル定義書 §3.5）。id 順＝表示順になる
     startedAt: null,
     endedAt: null,

@@ -1,4 +1,5 @@
-// 表示フォーマット（画面定義書01 §3.3）
+// 表示フォーマット（画面定義書01 §3.3）と、時刻入力の正規化（同§3.3）
+import { parseClockTime } from "@/domain/task/punch-edit";
 import { APP_TIME_ZONE, zonedParts } from "@/domain/shared/time-zone";
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"] as const;
@@ -29,4 +30,17 @@ export function formatClock(at: Date): string {
 /** `YYYY-MM-DD(曜)`（画面定義書01 §3.1） */
 export function formatLogicalDate(date: string, weekday: number): string {
   return `${date}(${WEEKDAYS[weekday]})`;
+}
+
+/**
+ * 時刻入力を `HH:MM` へ正規化する。区切りなし入力（`0805` → `08:05`）も受け付ける
+ * （画面定義書01 §3.3）。**解釈できなければ `null`**——呼び出し側は空文字等の
+ * 「確実に無効な値」へ落として検証に委ねること（余剰つきの入力をそのまま送ると、サーバ側の
+ * `normalizeStartTime` が先頭5文字を切り出すだけなので `09:05x` が `09:05` として黙って通る）
+ */
+export function normalizeClockInput(raw: string): string | null {
+  const parsed = parseClockTime(raw);
+  if (!parsed.ok) return null;
+  const { hours, minutes } = parsed.value;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }

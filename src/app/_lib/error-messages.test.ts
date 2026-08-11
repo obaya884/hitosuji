@@ -10,6 +10,8 @@ import type { TaskOperationError } from "@/usecases/task/operations";
 import type { PunchUsecaseError } from "@/usecases/task/punch-usecases";
 import type { ReorderUsecaseError } from "@/usecases/task/reorder-usecases";
 import {
+  BUNDLE_MEMBER_MESSAGES,
+  type BundleMemberError,
   MASTER_MESSAGES,
   type MasterError,
   OPERATION_MESSAGES,
@@ -173,6 +175,12 @@ const EXPECTED_MASTER: Record<MasterError, string> = {
   has_references: "参照しているデータがあるため削除できません",
 };
 
+/** バンドルのメンバー出し入れ（画面定義書05 §4 O-5〜O-6 / §6） */
+const EXPECTED_BUNDLE_MEMBER: Record<BundleMemberError, string> = {
+  not_found: "対象が見つかりません（すでに削除されている可能性があります）",
+  already_in_bundle: "このルーチンは別のバンドルに入っています（一覧を取り直してください）",
+};
+
 describe("エラー文言辞書（T-49: クライアントとサーバが同じ辞書を参照する）", () => {
   it("タスク編集（画面定義書01 §3.3・同書 §8）の対応表が期待どおり", () => {
     expect(TASK_EDIT_MESSAGES).toEqual(EXPECTED_TASK_EDIT);
@@ -202,6 +210,10 @@ describe("エラー文言辞書（T-49: クライアントとサーバが同じ�
 
   it("マスタ管理（画面定義書03 §3.1 / 同書 §3.2 / 同書 §4.1）の対応表が期待どおり", () => {
     expect(MASTER_MESSAGES).toEqual(EXPECTED_MASTER);
+  });
+
+  it("バンドルのメンバー出し入れ（画面定義書05 §4 O-5〜O-6 / §6）の対応表が期待どおり", () => {
+    expect(BUNDLE_MEMBER_MESSAGES).toEqual(EXPECTED_BUNDLE_MEMBER);
   });
 
   it("削除できない理由は参照元の種類（タスク・ルーチン）を挙げずに言い切る（画面定義書03 §4.1）", () => {
@@ -257,6 +269,10 @@ describe("同じコードは経路が違っても同じ文言を出す（FB-72: 
    */
   it("マスタとルーチンの invalid_start_time は意図的に違う（T-78: 2つの辞書は連動しない）", () => {
     expect(MASTER_MESSAGES.invalid_start_time).not.toBe(ROUTINE_MESSAGES.invalid_start_time);
+  });
+
+  it("バンドルの not_found はマスタ管理と同じ（画面定義書00_共通 §4.1 の言い回しを共有）", () => {
+    expect(BUNDLE_MEMBER_MESSAGES.not_found).toBe(MASTER_MESSAGES.not_found);
   });
 
   /**

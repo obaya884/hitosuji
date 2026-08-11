@@ -66,6 +66,7 @@ describe("routineInputFromTask（画面定義書01 §4.1: 引き継ぐ値・開�
         scheduledStartTime: "06:30",
         modeId: 2,
         projectId: 3,
+        bundleId: null,
         recurrenceType: "daily",
         weekdays: null,
         weekInterval: null,

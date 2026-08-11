@@ -5,7 +5,8 @@ import type { Section } from "@/domain/section/section";
 
 import { deferredAction } from "@/app/_testing/actions";
 import { click, clickWithoutServer } from "@/app/_testing/interactions";
-import { rowOf, startEditingCell } from "../_testing/table-helpers";
+import { rowOf } from "@/app/_testing/table";
+import { startEditingCell } from "../_testing/table-helpers";
 
 // Server Action の先は実DB接続と revalidatePath に届くため、同じ返り値の契約
 // （ActionResult）を返す偽物へ差し替える（テスト戦略定義書 §2「偽物を置いてよい境界」）
@@ -280,7 +281,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
       });
     });
 
-    // 抑止そのものは部品（MasterEditableCell）が持つ。ここで見るのは表が `isPending` を
+    // 抑止そのものは部品（EditableCell）が持つ。ここで見るのは表が `isPending` を
     // **2つのセルそれぞれへ**渡していることと、表の JSX が持つ日界ラジオ・操作ボタンの抑止（§6 の②）
     it("保存中は行の両方のセル・日界ラジオ・操作ボタンを押せない", async () => {
       const pending = deferredAction();
@@ -553,7 +554,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
       expect(screen.getByText("同じ開始時刻の有効なセクションがあります")).not.toBeNull();
     });
 
-    // 2段階の確認そのものは DeleteMasterButton のテストが持つ。ここは配線だけを見る
+    // 2段階の確認そのものは DeleteButton のテストが持つ。ここは配線だけを見る
     it("参照0件のアーカイブ済み行だけを物理削除へ配線する", async () => {
       renderTable({
         archived: [

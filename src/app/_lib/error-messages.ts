@@ -6,11 +6,14 @@
 // 共有／専用の切り分けと2辞書を畳まない判断の経緯は、技術改善バックログの `log_` / `closed_`
 // （T-74 / T-76 / T-78）にある
 import type { MasterDeletionError } from "@/domain/shared/master-deletion";
+import type { BundleUsecaseError } from "@/usecases/bundle/bundle-usecases";
 import type { PunchEditError } from "@/domain/task/punch-edit";
 import type { ModeUsecaseError } from "@/usecases/mode/mode-usecases";
 import type { ProjectUsecaseError } from "@/usecases/project/project-usecases";
 import type {
+  AddRoutineToBundleError,
   CreateRoutineFromTaskError,
+  RemoveRoutineFromBundleError,
   RoutineUsecaseError,
 } from "@/usecases/routine/routine-usecases";
 import type { SectionUsecaseError } from "@/usecases/section/section-usecases";
@@ -178,13 +181,17 @@ export const ROUTINE_MESSAGES: Record<RoutineUsecaseError, string> = {
   routine_not_found: "ルーチンが見つかりませんでした",
 };
 
-/** マスタ管理3種（セクション・モード・プロジェクト）の失敗を1つの型で扱う（表示は `failure()` 経由） */
+/**
+ * マスタ管理3種（セクション・モード・プロジェクト）とバンドル（S-05 の左ペイン・ヘッダ）の
+ * 失敗を1つの型で扱う（表示は `failure()` 経由）
+ */
 // ユースケース側の型（`SectionError | "not_found"` 等）を並べる——ドメインのエラー型だけを並べると、
 // ユースケースが新しいコードを足しても下の `Record` が型エラーにならず、辞書の穴に気づけない
 export type MasterError =
   | SectionUsecaseError
   | ModeUsecaseError
   | ProjectUsecaseError
+  | BundleUsecaseError
   | MasterDeletionError;
 
 /**
@@ -208,6 +215,18 @@ export const MASTER_MESSAGES: Record<MasterError, string> = {
   not_archived: "削除できるのはアーカイブ済みのものだけです",
   // 参照元はマスタごとに違う（画面定義書03 §4.1）ので、種類を挙げずに言い切る
   has_references: "参照しているデータがあるため削除できません",
+};
+
+/**
+ * バンドルのメンバー出し入れ（画面定義書05 §4 O-5〜O-6 / §6）。
+ * `not_found` はマスタ管理と同じ「対象が見つかりません」を引く。
+ * `already_in_bundle` はこの操作だけの専用コード
+ */
+export type BundleMemberError = AddRoutineToBundleError | RemoveRoutineFromBundleError;
+
+export const BUNDLE_MEMBER_MESSAGES: Record<BundleMemberError, string> = {
+  not_found: MASTER_MESSAGES.not_found,
+  already_in_bundle: "このルーチンは別のバンドルに入っています（一覧を取り直してください）",
 };
 
 /**

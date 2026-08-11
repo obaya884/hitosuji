@@ -1,3 +1,4 @@
+import type { BundleId } from "@/domain/bundle/bundle";
 import type { ModeId } from "@/domain/mode/mode";
 import type { ProjectId } from "@/domain/project/project";
 import type { Routine, RoutineId } from "@/domain/routine/routine";
@@ -14,6 +15,8 @@ export type RoutineTaskSeed = Readonly<{
   sectionId: SectionId | null;
   modeId: ModeId | null;
   projectId: ProjectId | null;
+  /** 属するバンドル（F-119）。ルーチンの bundleId をそのまま写す */
+  bundleId: BundleId | null;
   sortOrder: number;
 }>;
 
@@ -25,6 +28,8 @@ export type RoutineRepository = Readonly<{
   setActive(id: RoutineId, isActive: boolean): Promise<void>;
   /** 削除しても展開済みタスクは routine_id を NULL にして残る（画面定義書02 O-4） */
   delete(id: RoutineId): Promise<void>;
+  /** バンドルの出し入れ（画面定義書05 O-5 / O-6）。null で外す */
+  setBundle(id: RoutineId, bundleId: BundleId | null): Promise<void>;
   /**
    * 展開タスクを冪等に INSERT する（F-301）。
    * `ON CONFLICT (routine_id, task_date) DO NOTHING` で既展開分は無視される

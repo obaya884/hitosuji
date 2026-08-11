@@ -202,6 +202,20 @@ describe("startTask の割り込み（F-201 / データモデル定義書 §4.2�
     expect(resumed.highlighted).toBe(true);
   });
 
+  // F-119: 外すとバンドルから抜けて、残りが完了してもバンドルが永遠に完了しなくなる（データモデル定義書 §4.8）
+  it("割り込まれたタスクがバンドルに属していれば、再開タスクも引き継ぐ", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, startedAt, sortOrder: 1000, bundleId: 5 }),
+      task({ id: 2, sortOrder: 2000 }),
+    ]);
+
+    expect((await punch(repo, 2)).ok).toBe(true);
+
+    const resumed = repo.rows[2];
+    expect(resumed.splitParentId).toBe(1);
+    expect(resumed.bundleId).toBe(5);
+  });
+
   it("再開タスクは開始タスクのセクション・日付に従う（前日の実行中タスクを割り込んだ場合も当日側）", async () => {
     const repo = inMemoryTaskRepository([
       task({ id: 1, taskDate: "2026-07-25", sectionId: 9, startedAt, sortOrder: 1000 }),

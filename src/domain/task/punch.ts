@@ -1,4 +1,5 @@
 // 打刻と割り込み・中断の生成規則（要件定義書 §5.2 F-201/F-204 / データモデル定義書 §4.2）
+import type { BundleId } from "../bundle/bundle";
 import type { ModeId } from "../mode/mode";
 import type { ProjectId } from "../project/project";
 import { err, ok, type Result } from "../shared/result";
@@ -35,12 +36,15 @@ export type ResumeTaskDraft = Readonly<{
   projectId: ProjectId | null;
   highlighted: boolean;
   splitParentId: TaskId;
+  bundleId: BundleId | null;
 }>;
 
 /**
  * 中断・割り込みで生成する再開タスクの内容を作る。
- * mode/project/highlighted は元タスクと同値、split_parent_id で元タスクへ紐づける
- * （F-204 / データモデル定義書 §4.2。ハイライトを引き継ぐ規則は F-118）
+ * mode/project/highlighted/bundle_id は元タスクと同値、split_parent_id で元タスクへ紐づける
+ * （F-204 / データモデル定義書 §4.2。ハイライトを引き継ぐ規則は F-118）。
+ * bundle_id を引き継ぐのは、外すと中断・割り込みで分かれたぶんがバンドルから抜けて
+ * バンドルが永遠に完了しなくなるため（集合モデルなのでメンバーが1つ増えるだけで済む。§4.8）
  */
 export function resumeTaskDraft(original: Task, endedAt: Date): ResumeTaskDraft {
   const actual = actualMinutes({ ...original, endedAt }) ?? 0;
@@ -51,6 +55,7 @@ export function resumeTaskDraft(original: Task, endedAt: Date): ResumeTaskDraft 
     projectId: original.projectId,
     highlighted: original.highlighted,
     splitParentId: original.id,
+    bundleId: original.bundleId,
   };
 }
 

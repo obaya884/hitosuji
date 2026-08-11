@@ -14,10 +14,9 @@ import {
 import { validateRoutineSchedule } from "@/domain/routine/input";
 import { sectionAt } from "@/domain/section/section";
 import type { Section } from "@/domain/section/section";
-import { parseClockTime } from "@/domain/task/punch-edit";
 import type { Task } from "@/domain/task/task";
 import { routineFromTaskErrorMessage } from "@/app/_lib/error-messages";
-import { formatClock } from "@/app/_lib/format";
+import { formatClock, normalizeClockInput } from "@/app/_lib/format";
 import { btnPrimary, floatPanel, inputBase } from "@/app/_lib/ui";
 import { useDismiss } from "@/app/_lib/use-dismiss";
 import { useFlipUp } from "@/app/_lib/use-flip-up";
@@ -71,19 +70,6 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
   }
 
   /**
-   * 入力された時刻を `HH:MM` の文字列へ整形する。**解釈できなければ null**——区切りなし入力
-   * （`0805`）を受け付ける（§4.1・F-203）ぶん `09:05x` や `12:34:56` のような余剰もここへ来るが、
-   * domain 側の正規化（`normalizeStartTime`）は DB の `HH:MM:SS` を吸収するための先頭5文字の
-   * 切り出しなので、余剰は黙って切り詰められる。**余剰を判別できるのは解釈を試みるこの関数だけ**
-   */
-  function toClockText(raw: string): string | null {
-    const parsed = parseClockTime(raw);
-    if (!parsed.ok) return null;
-    const { hours, minutes } = parsed.value;
-    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
-  }
-
-  /**
    * 「作成」の確定（§4.1「入力の検証」）。検証はルーチン管理と共有の `validateRoutineSchedule`
    * に通し、文言はサーバのルーチン化アクションと同じ辞書から引く（同じ失敗を経路によって
    * 違う言い方にしないため。FB-72 ② / FB-75）
@@ -91,7 +77,10 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
   function submit() {
     // 解釈できない入力は空文字で渡し、検証に `invalid_start_time` を返させる——
     // 手前で弾くと検証の入口が2つになり、文言を持つ場所も増える
-    const input = { ...choice, scheduledStartTime: toClockText(choice.scheduledStartTime) ?? "" };
+    const input = {
+      ...choice,
+      scheduledStartTime: normalizeClockInput(choice.scheduledStartTime) ?? "",
+    };
     const validated = validateRoutineSchedule(input);
     if (!validated.ok) {
       setError(routineFromTaskErrorMessage(validated.error));
@@ -216,7 +205,7 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
           // 区切りなし入力（0805）も受け付けるため、離れた時点で HH:MM へ整形する（§4.1・F-203）。
           // 整形できない入力は直せるよう元のまま残す（確定は submit が止める）
           onBlur={() => {
-            const formatted = toClockText(choice.scheduledStartTime);
+            const formatted = normalizeClockInput(choice.scheduledStartTime);
             if (formatted !== null && formatted !== choice.scheduledStartTime) {
               updateChoice({ scheduledStartTime: formatted });
             }

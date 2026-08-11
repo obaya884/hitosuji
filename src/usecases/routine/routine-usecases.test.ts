@@ -6,10 +6,12 @@ import { routine } from "@/domain/routine/testing/routine";
 import { task } from "@/domain/task/testing/task";
 import { inMemoryTaskRepository } from "@/usecases/task/testing/in-memory-repository";
 import {
+  addRoutineToBundle,
   createRoutine,
   createRoutineFromTask,
   deleteRoutine,
   listRoutines,
+  removeRoutineFromBundle,
   setRoutineActive,
   updateRoutine,
 } from "./routine-usecases";
@@ -22,6 +24,7 @@ function input(over: Partial<RoutineInput> = {}): RoutineInput {
     scheduledStartTime: "06:30",
     modeId: null,
     projectId: null,
+    bundleId: null,
     recurrenceType: "daily",
     weekdays: null,
     weekInterval: null,
@@ -272,5 +275,53 @@ describe("deleteRoutine（画面定義書02 O-4: 削除。展開済みタスク�
       error: "routine_not_found",
     });
     expect(routines.rows).toHaveLength(1);
+  });
+});
+
+describe("addRoutineToBundle（画面定義書05 O-5: メンバーの追加）", () => {
+  it("未所属のルーチンをバンドルに入れる", async () => {
+    const routines = inMemoryRoutineRepository([routine({ id: 1, bundleId: null })]);
+    expect(await addRoutineToBundle(routines, 1, 5)).toEqual({ ok: true, value: 1 });
+    expect((await routines.findById(1))?.bundleId).toBe(5);
+  });
+
+  it("すでに別のバンドルに入っていたら追加しない（画面定義書05 §6: 別タブでの操作）", async () => {
+    const routines = inMemoryRoutineRepository([routine({ id: 1, bundleId: 9 })]);
+    expect(await addRoutineToBundle(routines, 1, 5)).toEqual({
+      ok: false,
+      error: "already_in_bundle",
+    });
+    expect((await routines.findById(1))?.bundleId).toBe(9);
+  });
+
+  it("同じバンドルへの再追加も already_in_bundle として扱う", async () => {
+    const routines = inMemoryRoutineRepository([routine({ id: 1, bundleId: 5 })]);
+    expect(await addRoutineToBundle(routines, 1, 5)).toEqual({
+      ok: false,
+      error: "already_in_bundle",
+    });
+  });
+
+  it("対象が無ければ not_found（画面定義書05 §6）", async () => {
+    const routines = inMemoryRoutineRepository([]);
+    expect(await addRoutineToBundle(routines, 99, 5)).toEqual({ ok: false, error: "not_found" });
+  });
+});
+
+describe("removeRoutineFromBundle（画面定義書05 O-6: メンバーを外す）", () => {
+  it("バンドルから外す", async () => {
+    const routines = inMemoryRoutineRepository([routine({ id: 1, bundleId: 5 })]);
+    expect(await removeRoutineFromBundle(routines, 1)).toEqual({ ok: true, value: 1 });
+    expect((await routines.findById(1))?.bundleId).toBe(null);
+  });
+
+  it("すでに未所属でも成功として扱う（外した結果は同じ）", async () => {
+    const routines = inMemoryRoutineRepository([routine({ id: 1, bundleId: null })]);
+    expect(await removeRoutineFromBundle(routines, 1)).toEqual({ ok: true, value: 1 });
+  });
+
+  it("対象が無ければ not_found", async () => {
+    const routines = inMemoryRoutineRepository([]);
+    expect(await removeRoutineFromBundle(routines, 99)).toEqual({ ok: false, error: "not_found" });
   });
 });

@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { MODE_COLOR_BY_NAME } from "@/domain/mode/mode";
-import { modes, projects, routines, sections, tasks } from "./schema";
+import { COLOR_BY_NAME } from "@/domain/shared/color-presets";
+import { bundles, modes, projects, routines, sections, tasks } from "./schema";
 import { createTestDb, truncateAll } from "./testing/test-db";
 
 const { db, pool } = createTestDb();
@@ -173,7 +173,7 @@ describe("tasks の外部キー（F-405: 参照されているマスタは DB �
   it("参照されているモードは削除できない", async () => {
     const [mode] = await db
       .insert(modes)
-      .values({ name: "仕事", color: MODE_COLOR_BY_NAME["青"] })
+      .values({ name: "仕事", color: COLOR_BY_NAME["青"] })
       .returning();
     await db
       .insert(tasks)
@@ -194,6 +194,21 @@ describe("tasks の外部キー（F-405: 参照されているマスタは DB �
     await rejectsWithConstraint(
       db.delete(projects).where(eq(projects.id, project.id)),
       "tasks_project_id_projects_id_fk"
+    );
+  });
+
+  it("参照されているバンドルは削除できない（F-119。展開済みタスクからの参照も止める）", async () => {
+    const [bundle] = await db
+      .insert(bundles)
+      .values({ name: "朝の立上げ", color: COLOR_BY_NAME["インディゴ"] })
+      .returning();
+    await db
+      .insert(tasks)
+      .values({ taskDate: "2026-07-19", name: "朝食", sortOrder: 1000, bundleId: bundle.id });
+
+    await rejectsWithConstraint(
+      db.delete(bundles).where(eq(bundles.id, bundle.id)),
+      "tasks_bundle_id_bundles_id_fk"
     );
   });
 
@@ -219,5 +234,42 @@ describe("tasks の外部キー（F-405: 参照されているマスタは DB �
         .values({ taskDate: "2026-07-19", name: "朝食", sortOrder: 1000, projectId: missing }),
       "tasks_project_id_projects_id_fk"
     );
+  });
+});
+
+describe("bundles（データモデル定義書 §3.7）", () => {
+  it("ルーチンとタスクからバンドルを参照できる", async () => {
+    const [bundle] = await db
+      .insert(bundles)
+      .values({ name: "朝の立上げ", color: COLOR_BY_NAME["インディゴ"] })
+      .returning();
+    expect(bundle.isArchived).toBe(false);
+
+    const [routine] = await db
+      .insert(routines)
+      .values({
+        name: "朝食",
+        estimateMinutes: 20,
+        scheduledStartTime: "06:30",
+        recurrenceType: "daily",
+        startDate: "2026-08-09",
+        bundleId: bundle.id,
+      })
+      .returning();
+    expect(routine.bundleId).toBe(bundle.id);
+
+    const [task] = await db
+      .insert(tasks)
+      .values({ taskDate: "2026-08-09", name: "朝食", sortOrder: 1000, bundleId: bundle.id })
+      .returning();
+    expect(task.bundleId).toBe(bundle.id);
+  });
+
+  it("バンドル未設定を許す（非バンドルのタスク・ルーチン）", async () => {
+    const [task] = await db
+      .insert(tasks)
+      .values({ taskDate: "2026-08-09", name: "単発", sortOrder: 1000 })
+      .returning();
+    expect(task.bundleId).toBeNull();
   });
 });

@@ -7,6 +7,7 @@ import {
   linkAccent,
   linkDanger,
   linkMuted,
+  linkMutedUnderline,
   noticeDanger,
 } from "./ui";
 
@@ -26,6 +27,7 @@ describe("ui のクラス定数（画面定義書00_共通 §1.1: 対象外の�
     ["btnSecondary", btnSecondary],
     ["linkAccent", linkAccent],
     ["linkMuted", linkMuted],
+    ["linkMutedUnderline", linkMutedUnderline],
     ["linkDanger", linkDanger],
     ["inputBase", inputBase],
     ["noticeDanger", noticeDanger],

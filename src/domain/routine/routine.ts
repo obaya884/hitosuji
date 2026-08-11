@@ -1,4 +1,5 @@
 // ルーチン集約（データモデル定義書 §3.4 / 画面定義書02）
+import type { BundleId } from "../bundle/bundle";
 import type { ModeId } from "../mode/mode";
 import type { ProjectId } from "../project/project";
 import type { LogicalDate } from "../shared/logical-date";
@@ -16,6 +17,8 @@ export type Routine = Readonly<{
   scheduledStartTime: string;
   modeId: ModeId | null;
   projectId: ProjectId | null;
+  /** 属するバンドル（F-119）。1ルーチン＝最大1バンドル。未所属は null */
+  bundleId: BundleId | null;
   recurrenceType: RecurrenceType;
   /** weekly のビットマスク（bit0=月 … bit6=日） */
   weekdays: number | null;

@@ -38,6 +38,7 @@ function recordingRoutineRepo(all: readonly Routine[], skipped: readonly number[
     update: async () => {},
     setActive: async () => {},
     delete: async () => {},
+    setBundle: async () => {},
     expand: async (seeds) => {
       expanded.push(...seeds);
       return seeds.length;
@@ -170,6 +171,24 @@ describe("expandRoutinesFor（データモデル定義書 §4.1）", () => {
     );
 
     expect(expanded.map((s) => s.routineId)).toEqual([2]);
+  });
+
+  it("ルーチンのバンドルを生成タスクへ写す（データモデル定義書 §4.1 / F-119）", async () => {
+    const { repo, expanded } = recordingRoutineRepo([
+      routine({ id: 1, name: "朝食", scheduledStartTime: "06:30", bundleId: 5 }),
+      routine({ id: 2, name: "単発", scheduledStartTime: "07:00", bundleId: null }),
+    ]);
+
+    await expandRoutinesFor(
+      { routines: repo, sections: sectionRepo, tasks: inMemoryTaskRepository() },
+      TODAY,
+      TODAY
+    );
+
+    expect(expanded.map((s) => [s.name, s.bundleId])).toEqual([
+      ["朝食", 5],
+      ["単発", null],
+    ]);
   });
 
   it("有効セクションがなければ未分類へ置く", async () => {

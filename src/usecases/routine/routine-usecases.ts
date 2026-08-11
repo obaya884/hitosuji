@@ -1,4 +1,5 @@
-// ルーチン管理のユースケース（S-02 / 画面定義書02 §5）
+// ルーチン管理のユースケース（S-02 / 画面定義書02 §5、S-05 / 画面定義書05）
+import type { BundleId } from "@/domain/bundle/bundle";
 import type { RoutineRepository } from "@/usecases/ports/routine-repository";
 import type { TaskRepository } from "@/usecases/ports/task-repository";
 import type { Routine, RoutineError, RoutineId } from "@/domain/routine/routine";
@@ -97,4 +98,37 @@ export async function deleteRoutine(
 
   await repo.delete(id);
   return ok(id);
+}
+
+export type AddRoutineToBundleError = "not_found" | "already_in_bundle";
+
+/**
+ * メンバーの追加（画面定義書05 O-5）。展開済みタスクには波及しない（データモデル定義書 §4.8）。
+ * **すでにどこかのバンドルに入っている相手は受け付けない**——S-05 の候補は未所属だけに絞るが、
+ * 別タブでの操作で状況が変わっていることがあるのでサーバ側でも見る（画面定義書05 §6）。
+ * 付け替えは S-02 の編集フォーム（`updateRoutine`）が担う
+ */
+export async function addRoutineToBundle(
+  repo: RoutineRepository,
+  routineId: RoutineId,
+  bundleId: BundleId
+): Promise<Result<RoutineId, AddRoutineToBundleError>> {
+  const routine = await repo.findById(routineId);
+  if (routine === null) return err("not_found");
+  if (routine.bundleId !== null) return err("already_in_bundle");
+
+  await repo.setBundle(routineId, bundleId);
+  return ok(routineId);
+}
+
+export type RemoveRoutineFromBundleError = "not_found";
+
+/** メンバーを外す（画面定義書05 O-6）。すでに未所属でも結果は同じなので成功として返す */
+export async function removeRoutineFromBundle(
+  repo: RoutineRepository,
+  routineId: RoutineId
+): Promise<Result<RoutineId, RemoveRoutineFromBundleError>> {
+  if ((await repo.findById(routineId)) === null) return err("not_found");
+  await repo.setBundle(routineId, null);
+  return ok(routineId);
 }

@@ -1,3 +1,4 @@
+import type { BundleId } from "@/domain/bundle/bundle";
 import type { ModeId } from "@/domain/mode/mode";
 import type { ProjectId } from "@/domain/project/project";
 import type { RoutineId } from "@/domain/routine/routine";
@@ -26,6 +27,8 @@ export type NewTask = Readonly<{
   highlighted?: boolean;
   /** 中断・割り込みで生成された再開タスクの元タスク（F-204） */
   splitParentId?: TaskId | null;
+  /** 属するバンドル（F-119）。再開タスクだけが元タスクの値を引き継ぐ（省略時は null。データモデル定義書 §4.8） */
+  bundleId?: BundleId | null;
 }>;
 
 /**
@@ -156,6 +159,7 @@ export type TaskRepository = Readonly<{
    * 先送り（F-107）: task_date の付け替えと postponed_count の加算。
    * あわせて routine_id を落とす——移動先の日にはその日のぶんが改めて展開されるため
    * （紐付けたまま移すと展開の一意制約に衝突する。データモデル定義書 §3.5）。
+   * bundle_id も同じ理由で落とす（同書 §4.8。付けたまま移すと同じバンドルに同名が2件並ぶ）。
    * ルーチン由来のタスクは、元の日を再展開しないようスキップも同じトランザクションで記録する（§3.6）
    */
   postpone(
