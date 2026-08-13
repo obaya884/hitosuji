@@ -41,7 +41,11 @@ export function RowMenu({ items }: Readonly<{ items: readonly RowMenuItem[] }>) 
               key={item.label}
               type="button"
               disabled={item.disabled}
-              onClick={() => {
+              onClick={(event) => {
+                // 行への伝播を止める（行内の打刻ボタンと同じ手当て。`task-row.tsx`）。
+                // メニューを開いたクリックで行は既に選ばれており、伝播させると
+                // 操作が動かした選択を行のクリックが後から上書きしてしまう
+                event.stopPropagation();
                 if (item.confirmMessage !== undefined && !window.confirm(item.confirmMessage)) {
                   return;
                 }

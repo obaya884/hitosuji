@@ -124,6 +124,26 @@ export function defaultTasks(): Task[] {
   ];
 }
 
+/**
+ * 未分類の未実行＋現在セクション（午前）の未実行＋午後の完了。**実行中を含まない**ので
+ * 現在地は規則2（現在セクションの未実行 ＝ NOT_STARTED）で決まる。素の表示順で探すと
+ * 先頭の INBOX に当たってしまう組み合わせ（FB-78）で、**現在地を採り直す挙動との差が出る**
+ * 唯一の並びなので、選択の送り先を見るテストもここを使う（FB-106）
+ */
+export function inboxAndSections(): Task[] {
+  return [
+    task({ id: 10, name: INBOX }),
+    task({ id: 11, name: NOT_STARTED, sectionId: FORENOON.id }),
+    task({
+      id: 13,
+      name: COMPLETED,
+      sectionId: AFTERNOON.id,
+      startedAt: atJst("09:00"),
+      endedAt: atJst("09:20"),
+    }),
+  ];
+}
+
 /** 完了の取り消し（O-15）が返す復帰用スナップショット（データモデル定義書 §4.7 の4列） */
 const SNAPSHOT: CompletionSnapshot = {
   taskId: 13,

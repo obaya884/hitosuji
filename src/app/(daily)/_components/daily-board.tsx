@@ -24,7 +24,7 @@ import { weekdayIndex, type LogicalDate } from "@/domain/shared/logical-date";
 import { APP_TIME_ZONE } from "@/domain/shared/time-zone";
 import type { DailyGroup } from "@/domain/task/daily-list";
 import { stepMoveDestination } from "@/domain/task/reorder";
-import { currentNotStartedId, keepSelection } from "@/domain/task/selection";
+import { currentNotStartedId, keepSelection, selectionAfterRemoval } from "@/domain/task/selection";
 import { taskStatus } from "@/domain/task/status";
 import { editEndedAt, editStartedAt } from "@/domain/task/punch-edit";
 import { normalizeComment, validateEstimateMinutes, validateTaskName } from "@/domain/task/edit";
@@ -473,7 +473,12 @@ export function DailyBoard({
     // 実行中でなければ非活性だが、`I`（§6）は状態を見ずにここへ来るため止めるのはここになる
     if (operation === "suspend" && isFutureDate) return;
 
+    // 行が消えるときの送り先（§5。消える行は常に選択行なので、選択行かどうかの分岐は要らない）
+    const nextSelectedId = selectionAfterRemoval(orderedTasks, task.id);
+
     if (operation === "delete") {
+      // 行は楽観的に消えるので選択も同時に送る（確定を待つと、その間だけ現在地へ寄り道して見える）
+      setSelectedId(nextSelectedId);
       run(
         async () => {
           const result = await deleteTaskAction(task.id);
@@ -482,7 +487,10 @@ export function DailyBoard({
           }
           return result;
         },
-        { type: "remove", id: task.id }
+        { type: "remove", id: task.id },
+        // 拒まれたら行が戻るので選択も戻す（§5）。送った選択がそのままのときだけ戻し、
+        // 確定を待つ間にユーザーが選び直していたらその操作を優先する（終了打刻と同じ）
+        () => setSelectedId((current) => (current === nextSelectedId ? task.id : current))
       );
       return;
     }
@@ -494,11 +502,17 @@ export function DailyBoard({
     }
 
     // 中断・先送りは楽観更新せずサーバ確定を待つ（＝ optimistic を渡さない）
-    run(() =>
-      operation === "suspend"
-        ? suspendTaskAction(task.id, new Date())
-        : postponeTaskAction(task.id)
-    );
+    if (operation === "suspend") {
+      run(() => suspendTaskAction(task.id, new Date()));
+      return;
+    }
+
+    run(async () => {
+      const result = await postponeTaskAction(task.id);
+      // 行が消えるのは確定後なので、選択もそこで送る（§5）。待つ間に選び直していたらそちらを優先する
+      if (result.ok) setSelectedId((current) => (current === task.id ? nextSelectedId : current));
+      return result;
+    });
   }
 
   /**

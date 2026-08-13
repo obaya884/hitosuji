@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { currentNotStartedId, currentTaskId, keepSelection, moveSelection } from "./selection";
+import {
+  currentNotStartedId,
+  currentTaskId,
+  keepSelection,
+  moveSelection,
+  selectionAfterRemoval,
+} from "./selection";
 import { task } from "./testing/task";
 
 const startedAt = new Date("2026-07-26T08:00:00Z");
@@ -167,6 +173,42 @@ describe("moveSelection（画面定義書01 §6: J/K・↑↓ で選択移動）
 
   it("選択IDが一覧に存在しない場合は先頭へフォールバックする", () => {
     expect(moveSelection(tasks, 999, 1)).toBe(1);
+  });
+});
+
+describe("selectionAfterRemoval（画面定義書01 §5: 選択行が消えたときの送り先）", () => {
+  it("消えた行の直後を選ぶ", () => {
+    const tasks = [task({ id: 1 }), task({ id: 2 }), task({ id: 3 })];
+    expect(selectionAfterRemoval(tasks, 2)).toBe(3);
+  });
+
+  // 3件で見るのは、2件だと「直前」と「先頭」が同じ値になり先頭フォールバックの変異を殺せないため
+  it("末尾が消えたときは直前を選ぶ（先頭には戻さない）", () => {
+    const tasks = [task({ id: 1 }), task({ id: 2 }), task({ id: 3 })];
+    expect(selectionAfterRemoval(tasks, 3)).toBe(2);
+  });
+
+  it("直後が完了でも状態を問わずそれを選ぶ", () => {
+    const tasks = [task({ id: 1 }), task({ id: 2, startedAt, endedAt }), task({ id: 3 })];
+    expect(selectionAfterRemoval(tasks, 1)).toBe(2);
+  });
+
+  it("直後が実行中でも状態を問わずそれを選ぶ", () => {
+    const tasks = [task({ id: 1 }), task({ id: 2, startedAt }), task({ id: 3 })];
+    expect(selectionAfterRemoval(tasks, 1)).toBe(2);
+  });
+
+  it("直後がセクションをまたいでいてもそのまま選ぶ（送り先は表示順だけで決まる）", () => {
+    const tasks = [task({ id: 1, sectionId: CURRENT }), task({ id: 2, sectionId: LATER })];
+    expect(selectionAfterRemoval(tasks, 1)).toBe(2);
+  });
+
+  it("1件しかなければ選択はなくなる", () => {
+    expect(selectionAfterRemoval([task({ id: 1 })], 1)).toBeNull();
+  });
+
+  it("消えた行が一覧に無ければ送り先もない", () => {
+    expect(selectionAfterRemoval([task({ id: 1 }), task({ id: 2 })], 99)).toBeNull();
   });
 });
 

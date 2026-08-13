@@ -150,7 +150,8 @@ export function useDailyShortcuts(params: DailyShortcutParams): void {
           return;
         case "u": {
           // 取り消しの保留（削除 O-8 / 完了の取り消し O-15）が Undoトースト表示中ならそれを最優先する。
-          // 削除すると選択が現在地（実行中タスク）へ移るため、優先しないと U が開始取消に化ける（FB-37 動作確認）
+          // 削除すると選択が消えた行の送り先（§5）へ移るため、優先しないと U がその行の
+          // 開始取消・完了取消に化ける（FB-37 動作確認）
           if (hasPendingUndo) {
             undoPending();
             return;

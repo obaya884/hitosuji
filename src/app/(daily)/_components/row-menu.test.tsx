@@ -38,6 +38,24 @@ describe("RowMenu（画面定義書01 O-7/O-8: 行メニューから先送り・
     expect(screen.queryByText("翌日へ先送り")).toBeNull();
   });
 
+  // 行のクリックは選択を動かす（§5）。項目のクリックが行まで届くと、操作が動かした選択
+  // （削除・先送りの送り先。§5）を行の側が上書きしてしまう
+  it("項目のクリックは外側へ伝播しない", () => {
+    const onOutsideClick = vi.fn();
+    render(
+      <div onClick={onOutsideClick}>
+        <RowMenu items={[{ label: "削除", onSelect: vi.fn() }]} />
+      </div>
+    );
+    fireEvent.click(screen.getByLabelText("行メニュー"));
+    expect(onOutsideClick).toHaveBeenCalledOnce(); // 開くクリックは伝播する（これが行を選ぶ）
+    onOutsideClick.mockClear();
+
+    fireEvent.click(screen.getByText("削除"));
+
+    expect(onOutsideClick).not.toHaveBeenCalled();
+  });
+
   it("非活性の項目は見せるが押せない（§4.1 / FB-30: 操作の存在は分かるようにする）", () => {
     const onSelect = vi.fn();
     openMenu([{ label: "ルーチン化", onSelect, disabled: true }]);
