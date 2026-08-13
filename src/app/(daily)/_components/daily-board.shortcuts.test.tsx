@@ -12,7 +12,6 @@ import { describe, expect, it, vi } from "vitest";
 import { clickWithoutServer } from "@/app/_testing/interactions";
 import { otherRouterCalls, router } from "@/app/_testing/next-navigation";
 import { atJst, TEST_DATE } from "@/domain/shared/testing/clock";
-import type { Task } from "@/domain/task/task";
 import { task } from "@/domain/task/testing/task";
 
 import { deleteTaskAction, moveTaskByStepAction, type DailyActionResult } from "../actions";
@@ -24,6 +23,7 @@ import {
   FORENOON,
   hold,
   INBOX,
+  inboxAndSections,
   NOT_STARTED,
   OK,
   press,
@@ -38,25 +38,6 @@ import { isSelected, rowNames, taskRow } from "../_testing/table-helpers";
 vi.mock("../actions", async () => (await import("../_testing/action-mocks")).actionMocks());
 
 setupBoard();
-
-/**
- * 未分類の未実行＋現在セクション（午前）の未実行＋午後の完了。実行中を含まないので
- * 現在地は規則2（現在セクションの未実行 = NOT_STARTED）で決まる。素の表示順で探すと
- * 先頭の INBOX に当たってしまう組み合わせ（FB-78）
- */
-function inboxAndSections(): Task[] {
-  return [
-    task({ id: 10, name: INBOX }),
-    task({ id: 11, name: NOT_STARTED, sectionId: FORENOON.id }),
-    task({
-      id: 13,
-      name: COMPLETED,
-      sectionId: AFTERNOON.id,
-      startedAt: atJst("09:00"),
-      endedAt: atJst("09:20"),
-    }),
-  ];
-}
 
 describe("DailyBoard のショートカット結線（§6。キー判定そのものは use-daily-shortcuts が持つ）", () => {
   it("Shift+J は選択タスクを1つ下へ動かし、楽観的に並べ替える", () => {

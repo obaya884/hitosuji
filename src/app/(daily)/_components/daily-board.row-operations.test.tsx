@@ -20,6 +20,7 @@ import {
   setTaskProjectAction,
   setTaskSectionAction,
   startTaskAction,
+  undoCompleteAction,
   undoStartAction,
   type DailyActionResult,
 } from "../actions";
@@ -31,6 +32,8 @@ import {
   DELETE_OK,
   FORENOON,
   hold,
+  INBOX,
+  inboxAndSections,
   NOT_STARTED,
   OK,
   press,
@@ -41,7 +44,7 @@ import {
   setupBoard,
   type DeleteResult,
 } from "../_testing/board-helpers";
-import { rowNames, taskRow } from "../_testing/table-helpers";
+import { isSelected, rowNames, taskRow } from "../_testing/table-helpers";
 
 vi.mock("../actions", async () => (await import("../_testing/action-mocks")).actionMocks());
 
@@ -149,6 +152,8 @@ describe("DailyBoard の削除と取り消し（O-8 / F-115）", () => {
     expect(rowNames()).toEqual([NOT_STARTED, RUNNING, COMPLETED]);
     expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
     expect(screen.queryByText("取り消す")).toBeNull();
+    // 選択の巻き戻しも `onFailure`（`callAction` の外）に置く。内側だと通信断でだけ走らない（FB-64）
+    expect(isSelected(NOT_STARTED)).toBe(true);
   });
 
   it("削除の取り消しが通信できずに終わってもエラートーストを出す（00_共通 §4.1）", async () => {
@@ -174,6 +179,164 @@ describe("DailyBoard の削除と取り消し（O-8 / F-115）", () => {
     expect(confirm).toHaveBeenCalledWith(`「${COMPLETED}」は打刻済みです。削除しますか？`);
     expect(vi.mocked(deleteTaskAction)).not.toHaveBeenCalled();
     expect(rowNames()).toContain(COMPLETED);
+  });
+});
+
+// 送り先（直後の行）と旧挙動（現在地の採り直し）の差が出るのは `inboxAndSections`（board-helpers）
+// の並びだけ——実行中がなく、現在セクション（午前）の未実行が消える1件しかないので、
+// 現在地を採り直すとリスト先頭の未分類へ飛ぶ（FB-78 / FB-106）
+describe("DailyBoard の選択行が消えたときの送り先（§5 / FB-106）", () => {
+  it("削除すると選択は消えた行の直後へ移る（現在地＝未分類へは飛ばない）", async () => {
+    renderBoard(inboxAndSections());
+    selectRow(NOT_STARTED);
+
+    await pressAndSettle("d");
+
+    expect(isSelected(COMPLETED)).toBe(true);
+    expect(isSelected(INBOX)).toBe(false);
+  });
+
+  it("末尾の行を削除したときは直前の行へ移る", async () => {
+    renderBoard(inboxAndSections());
+    selectRow(COMPLETED);
+
+    await pressAndSettle("d");
+
+    expect(isSelected(NOT_STARTED)).toBe(true);
+  });
+
+  it("行メニューを開くとその行が選択される（§5「消える行は常に選択行」の前提）", () => {
+    renderBoard(inboxAndSections());
+    selectRow(INBOX);
+
+    clickWithoutServer(within(taskRow(NOT_STARTED)).getByLabelText("行メニュー"));
+
+    expect(isSelected(NOT_STARTED)).toBe(true);
+  });
+
+  it("行メニューから別の行を削除しても送り先は同じ", async () => {
+    renderBoard(inboxAndSections());
+    selectRow(INBOX);
+
+    await chooseRowMenu(NOT_STARTED, "削除");
+
+    expect(isSelected(COMPLETED)).toBe(true);
+    expect(isSelected(INBOX)).toBe(false);
+  });
+
+  it("打刻済み行を確認を承認して削除したときも直後の行へ送る（行メニュー専用の経路）", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderBoard(inboxAndSections());
+
+    await chooseRowMenu(NOT_STARTED, "削除");
+
+    expect(isSelected(COMPLETED)).toBe(true);
+  });
+
+  it("削除直後の U（保留の解決）で行が戻っても、選択は送り先に留まる", async () => {
+    const { applyServerState } = renderBoard(inboxAndSections());
+    selectRow(NOT_STARTED);
+    await pressAndSettle("d");
+    applyServerState(inboxAndSections().filter((t) => t.id !== 11));
+
+    await pressAndSettle("u"); // 保留があるので U は削除の取り消しに当たる（O-13）
+    applyServerState(inboxAndSections());
+
+    expect(vi.mocked(restoreTaskAction)).toHaveBeenCalledTimes(1);
+    expect(isSelected(COMPLETED)).toBe(true);
+  });
+
+  it("送り先が完了行のときは、保留を捨てた後の U が完了の取り消しへ当たる（O-13 の切り分け）", async () => {
+    renderBoard(inboxAndSections());
+    selectRow(NOT_STARTED);
+    await pressAndSettle("d"); // 送り先は完了行（COMPLETED）
+
+    clickWithoutServer(screen.getByLabelText("閉じる")); // 保留を捨てる
+    await pressAndSettle("u");
+
+    expect(vi.mocked(undoCompleteAction)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(undoStartAction)).not.toHaveBeenCalled();
+  });
+
+  it("削除をサーバが拒んだら、行の巻き戻しに合わせて選択も元の行へ戻す", async () => {
+    const gate = hold<DeleteResult>(DELETE_OK);
+    vi.mocked(deleteTaskAction).mockReturnValue(gate.promise);
+    renderBoard(inboxAndSections());
+    selectRow(NOT_STARTED);
+
+    press("d");
+    expect(isSelected(COMPLETED)).toBe(true); // 楽観的に消えるので選択も先に送る
+
+    await gate.resolve({ ok: false, message: "保存に失敗しました" });
+
+    expect(isSelected(NOT_STARTED)).toBe(true);
+  });
+
+  it("削除の拒否でも、確定を待つ間に選び直した行は上書きしない（終了打刻と同じ）", async () => {
+    const gate = hold<DeleteResult>(DELETE_OK);
+    vi.mocked(deleteTaskAction).mockReturnValue(gate.promise);
+    renderBoard(inboxAndSections());
+    selectRow(NOT_STARTED);
+
+    press("d");
+    selectRow(INBOX); // 確定を待つ間にユーザーが選び直す
+    await gate.resolve({ ok: false, message: "保存に失敗しました" });
+
+    expect(isSelected(INBOX)).toBe(true);
+  });
+
+  it("削除を取り消して行が戻ったあとも、選択は送り先に留まる", async () => {
+    const { applyServerState } = renderBoard(inboxAndSections());
+    selectRow(NOT_STARTED);
+    await pressAndSettle("d");
+    applyServerState(inboxAndSections().filter((t) => t.id !== 11)); // 消えたままの状態を作る
+
+    await click(screen.getByText("取り消す"));
+    applyServerState(inboxAndSections()); // 復元がサーバで確定して行が戻る
+
+    expect(isSelected(COMPLETED)).toBe(true);
+    expect(isSelected(NOT_STARTED)).toBe(false);
+  });
+
+  it("先送り（O-7）も同じ規則で送るが、行が消えるのは確定後なので選択もそこで動く", async () => {
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(postponeTaskAction).mockReturnValue(gate.promise);
+    const { applyServerState } = renderBoard(inboxAndSections());
+    selectRow(NOT_STARTED);
+
+    await chooseRowMenu(NOT_STARTED, "翌日へ先送り");
+    expect(isSelected(NOT_STARTED)).toBe(true); // 確定前は動かさない
+
+    await gate.resolve(OK);
+    applyServerState(inboxAndSections().filter((t) => t.id !== 11)); // 再取得でその日から消える
+
+    expect(isSelected(COMPLETED)).toBe(true);
+  });
+
+  it("先送りの確定でも、待つ間に選び直した行は上書きしない", async () => {
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(postponeTaskAction).mockReturnValue(gate.promise);
+    renderBoard(inboxAndSections());
+    selectRow(NOT_STARTED);
+
+    await chooseRowMenu(NOT_STARTED, "翌日へ先送り");
+    selectRow(INBOX);
+    await gate.resolve(OK);
+
+    expect(isSelected(INBOX)).toBe(true);
+  });
+
+  it("先送りをサーバが拒んだら選択は動かさない", async () => {
+    vi.mocked(postponeTaskAction).mockResolvedValue({
+      ok: false,
+      message: "先送りできるのは未実行タスクだけです",
+    });
+    renderBoard(inboxAndSections());
+    selectRow(NOT_STARTED);
+
+    await chooseRowMenu(NOT_STARTED, "翌日へ先送り");
+
+    expect(isSelected(NOT_STARTED)).toBe(true);
   });
 });
 
@@ -317,10 +480,10 @@ describe("DailyBoard の通知と行メニュー（画面定義書01 §8 / O-7 /
     const { applyServerState } = renderBoard();
     selectRow(NOT_STARTED);
     await pressAndSettle("d");
-    applyServerState(defaultTasks().filter((t) => t.id !== 11)); // 選択は現在地（実行中）へ移る
+    applyServerState(defaultTasks().filter((t) => t.id !== 11)); // 選択は直後の行（＝実行中）へ移る
 
     clickWithoutServer(screen.getByLabelText("閉じる"));
-    press("u"); // 保留が無くなったので選択行（削除後は現在地＝実行中タスク）の切り分けへ
+    press("u"); // 保留が無くなったので選択行（削除の送り先＝実行中タスク）の切り分けへ
 
     expect(vi.mocked(restoreTaskAction)).not.toHaveBeenCalled();
     expect(vi.mocked(undoStartAction)).toHaveBeenCalledTimes(1);

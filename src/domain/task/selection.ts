@@ -60,7 +60,22 @@ export function moveSelection(
 }
 
 /**
- * 選択が実在するタスクを指しているかを保つ（削除・日付移動の後に使う）。
+ * 選択行が消えたときの送り先（§5）。**消える前の並び**で直後の行、無ければ直前の行。
+ * 削除（O-8）・先送り（O-7）が使う。1件しか無ければ null（選択はなくなる）。
+ * **状態を問わない**のが `currentTaskId`（打刻ループへ戻す F-211 の送り）との呼び分け
+ */
+export function selectionAfterRemoval(
+  orderedTasks: readonly Task[],
+  removedId: TaskId
+): TaskId | null {
+  const index = orderedTasks.findIndex((t) => t.id === removedId);
+  if (index === -1) return null;
+  return orderedTasks[index + 1]?.id ?? orderedTasks[index - 1]?.id ?? null;
+}
+
+/**
+ * 選択が実在するタスクを指しているかを保つ（日付の切り替えなどで選択が消えた後の最後の砦）。
+ * **削除・先送りの送り先は `selectionAfterRemoval` が操作の側で決める**ので、ここへは落ちてこない。
  * `TaskId` / `SectionId` はどちらも素の `number` なので、取り違えても型は捕まえない。
  *
  * @param selectedId いま選ばれている行

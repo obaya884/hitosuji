@@ -569,7 +569,7 @@ describe("DailyBoard の U の切り分け（O-13: 保留 → 実行中 → 完�
   it("取り消しの保留があるあいだの U は保留の解決を最優先する（開始取消に化けない）", async () => {
     renderBoard();
     selectRow(NOT_STARTED);
-    await pressAndSettle("d"); // 削除で選択は現在地（実行中タスク）へ移る
+    await pressAndSettle("d"); // 削除で選択は直後の行（＝実行中タスク）へ移る（§5）
 
     await pressAndSettle("u");
 
