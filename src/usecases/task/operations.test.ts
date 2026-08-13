@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { SectionRepository } from "@/usecases/ports/section-repository";
 import type { Section } from "@/domain/section/section";
 import { taskStatus } from "@/domain/task/status";
-import { TEST_DATE } from "@/domain/shared/testing/clock";
+import { NEXT_TEST_DATE, TEST_DATE } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
 import {
   deleteTask,
@@ -136,66 +136,91 @@ describe("suspendTask（F-204: 中断）", () => {
   });
 });
 
-describe("duplicateTask（F-111: 複製）", () => {
-  // 挿入位置は1日のリスト全体の表示順で決まり、section_id は挿入位置のセクションに従う
-  const sections: Section[] = [
-    { id: 1, name: "朝", startTime: "06:00", isArchived: false },
-    { id: 2, name: "午前", startTime: "09:00", isArchived: false },
-  ];
-  const sectionRepo: SectionRepository = {
-    listAll: async () => sections,
-    create: async () => sections[0],
-    update: async () => {},
-    setArchived: async () => {},
-    setDayStart: async () => {},
-    referenceCounts: async () => ({}),
-    remove: async () => {},
-  };
-  const repos = (tasks: ReturnType<typeof inMemoryTaskRepository>) => ({
-    tasks,
-    sections: sectionRepo,
-  });
-
-  it("実行中タスクがあればその直後へ挿入する", async () => {
+describe("duplicateTask（F-111 / O-11: 複製元の直下へ挿入）", () => {
+  // 並びは sort_order で決まる（渡す配列の順ではない）ので、フィクスチャの配列順は昇順と食い違わせておく
+  it("複製元の直下へ挿入し、既存行の採番は動かさない", async () => {
     const repo = inMemoryTaskRepository([
-      task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }),
-      task({ id: 2, sectionId: 1, startedAt, sortOrder: 2000 }), // 実行中
       task({ id: 3, sectionId: 1, sortOrder: 3000 }),
+      task({ id: 1, sectionId: 1, sortOrder: 1000 }),
+      task({ id: 2, sectionId: 1, sortOrder: 2000 }), // 複製元
     ]);
 
-    const result = await duplicateTask(repos(repo), { taskId: 1 });
-    expect(result.ok && result.value.sortOrder).toBe(2500); // 実行中(2000)の直後
+    const result = await duplicateTask(repo, { taskId: 2 });
+    expect(result.ok && [result.value.sectionId, result.value.sortOrder]).toEqual([1, 2500]);
+    // 中間値が取れるので振り直しは起きない
+    expect(repo.rows.filter((t) => t.id !== 4).map((t) => [t.id, t.sortOrder])).toEqual([
+      [3, 3000],
+      [1, 1000],
+      [2, 2000],
+    ]);
   });
 
-  it("実行中がなければ最初の未実行タスクの直前へ挿入する", async () => {
+  it("セクション末尾のタスクを複製すると末尾へ追加する", async () => {
     const repo = inMemoryTaskRepository([
-      task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }),
-      task({ id: 2, sectionId: 1, sortOrder: 2000 }), // 最初の未実行
+      task({ id: 1, sectionId: 1, sortOrder: 1000 }),
+      task({ id: 2, sectionId: 1, sortOrder: 2000 }), // 複製元（末尾）
     ]);
 
-    const result = await duplicateTask(repos(repo), { taskId: 1 });
-    expect(result.ok && result.value.sortOrder).toBe(1500);
+    const result = await duplicateTask(repo, { taskId: 2 });
+    expect(result.ok && [result.value.sectionId, result.value.sortOrder]).toEqual([1, 3000]);
   });
 
-  it("挿入位置が別セクションなら section_id もそのセクションに従う", async () => {
+  // O-11: 複製元の直下だけで決まる。別セクションにある実行中タスク（＝今の位置）にも、
+  // そのセクションの未実行（旧規則の「未実施のトップ」）にも引き寄せられない
+  it("実行中タスクが別セクションにあっても、複製元の直下へ挿入する", async () => {
     const repo = inMemoryTaskRepository([
-      task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }), // 朝・完了
-      task({ id: 2, sectionId: 2, startedAt, sortOrder: 1000 }), // 午前・実行中
+      task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }), // 朝・完了（複製元）
+      task({ id: 2, sectionId: 1, sortOrder: 2000 }), // 朝・未実行（やり残し）
+      task({ id: 3, sectionId: 2, startedAt, sortOrder: 1000 }), // 午前・実行中
     ]);
 
-    // 朝のタスクを複製すると、実行中タスク（午前）の直後に入る
-    const result = await duplicateTask(repos(repo), { taskId: 1 });
-    expect(result.ok && [result.value.sectionId, result.value.sortOrder]).toEqual([2, 2000]);
+    const result = await duplicateTask(repo, { taskId: 1 });
+    expect(result.ok && [result.value.sectionId, result.value.sortOrder]).toEqual([1, 1500]);
   });
 
-  it("すべて完了ならリスト末尾（最後のセクション）へ挿入する", async () => {
+  // O-11: 打刻済みの並びに未実行の複製行が割り込むことを許す（元の行の隣に置くことを優先する）
+  it("打刻済みタスクを複製すると、その直下＝打刻済みの並びの中へ挿入する", async () => {
     const repo = inMemoryTaskRepository([
-      task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }),
-      task({ id: 2, sectionId: 2, startedAt, endedAt: now, sortOrder: 1000 }),
+      task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }), // 完了（複製元）
+      task({ id: 2, sectionId: 1, startedAt, endedAt: now, sortOrder: 2000 }), // 完了
+      task({ id: 3, sectionId: 1, sortOrder: 3000 }), // 未実行
     ]);
 
-    const result = await duplicateTask(repos(repo), { taskId: 1 });
-    expect(result.ok && result.value.sectionId).toBe(2);
+    const result = await duplicateTask(repo, { taskId: 1 });
+    expect(result.ok && [result.value.sectionId, result.value.sortOrder]).toEqual([1, 1500]);
+  });
+
+  it("実行中タスク自身を複製すると、その直下へ挿入する", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 1, startedAt, sortOrder: 1000 }), // 実行中（複製元）
+      task({ id: 2, sectionId: 1, sortOrder: 2000 }),
+    ]);
+
+    const result = await duplicateTask(repo, { taskId: 1 });
+    expect(result.ok && [result.value.sectionId, result.value.sortOrder]).toEqual([1, 1500]);
+  });
+
+  it("他の日のタスクは挿入位置に影響せず、採番も巻き込まない", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }), // 複製元（末尾）
+      task({ id: 2, taskDate: NEXT_TEST_DATE, sectionId: 1, sortOrder: 1500 }), // 翌日の同セクション
+    ]);
+
+    const result = await duplicateTask(repo, { taskId: 1 });
+    // 翌日の行まで数えていれば直下＝1000と1500の中間（1250）になる
+    expect(result.ok && [result.value.taskDate, result.value.sortOrder]).toEqual([TEST_DATE, 2000]);
+    expect(repo.rows.find((t) => t.id === 2)?.sortOrder).toBe(1500);
+  });
+
+  it("未分類のタスクを複製すると未分類のまま直下へ置かれる", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: null, startedAt, endedAt: now, sortOrder: 1000 }), // 複製元
+      task({ id: 2, sectionId: null, sortOrder: 2000 }),
+      task({ id: 3, sectionId: 1, startedAt, sortOrder: 1000 }), // 実行中
+    ]);
+
+    const result = await duplicateTask(repo, { taskId: 1 });
+    expect(result.ok && [result.value.sectionId, result.value.sortOrder]).toEqual([null, 1500]);
   });
 
   it("完了タスクを複製しても未実行タスクとして作られる（見積もりは満額）", async () => {
@@ -203,7 +228,7 @@ describe("duplicateTask（F-111: 複製）", () => {
       task({ id: 1, estimateMinutes: 45, startedAt, endedAt: now }),
     ]);
 
-    const result = await duplicateTask(repos(repo), { taskId: 1 });
+    const result = await duplicateTask(repo, { taskId: 1 });
     expect(result.ok && result.value).toEqual(
       expect.objectContaining({
         estimateMinutes: 45,
@@ -217,40 +242,53 @@ describe("duplicateTask（F-111: 複製）", () => {
 
   it("ルーチン由来のタスクを複製しても routine_id は引き継がない（冪等制約に抵触するため）", async () => {
     const repo = inMemoryTaskRepository([task({ id: 1, routineId: 9 })]);
-    const result = await duplicateTask(repos(repo), { taskId: 1 });
+    const result = await duplicateTask(repo, { taskId: 1 });
     expect(result.ok && result.value.routineId).toBeNull();
   });
 
   // F-118: 複製は「もう一回」＝別の実施なのでハイライトを引き継がない（データモデル定義書 §4.6）
   it("ハイライトされたタスクを複製しても、複製はハイライトされない", async () => {
     const repo = inMemoryTaskRepository([task({ id: 1, highlighted: true })]);
-    const result = await duplicateTask(repos(repo), { taskId: 1 });
-    expect(result.ok && result.value.highlighted).toBe(false);
+    const result = await duplicateTask(repo, { taskId: 1 });
+    // `result.ok &&` で畳むと失敗時も false になり緑になるので、objectContaining で受ける
+    expect(result.ok && result.value).toEqual(expect.objectContaining({ highlighted: false }));
   });
 
   // F-119: 複製するたびに未完了メンバーが増えてバンドルが進行中のままになる事故を防ぐ（データモデル定義書 §4.8）
   it("バンドルに属するタスクを複製しても、複製はバンドルを引き継がない", async () => {
     const repo = inMemoryTaskRepository([task({ id: 1, bundleId: 5 })]);
-    const result = await duplicateTask(repos(repo), { taskId: 1 });
+    const result = await duplicateTask(repo, { taskId: 1 });
     expect(result.ok && result.value.bundleId).toBeNull();
   });
 
   it("中間値が尽きたら振り直しを伴って挿入する（操作は失敗しない）", async () => {
     const repo = inMemoryTaskRepository([
-      task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }),
-      task({ id: 2, sectionId: 1, sortOrder: 1001 }), // 最初の未実行。1000との間に隙間がない
+      task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }), // 複製元
+      task({ id: 2, sectionId: 1, sortOrder: 1001 }), // 1000との間に隙間がない
+      task({ id: 3, sectionId: 2, sortOrder: 1001 }), // 別セクション（振り直しの対象外）
+      task({ id: 4, taskDate: NEXT_TEST_DATE, sectionId: 1, sortOrder: 1001 }), // 翌日（同上）
     ]);
 
-    const result = await duplicateTask(repos(repo), { taskId: 1 });
+    const result = await duplicateTask(repo, { taskId: 1 });
     expect(result.ok).toBe(true);
 
-    const ordered = [...repo.rows].sort((a, b) => a.sortOrder - b.sortOrder);
-    expect(ordered.map((t) => t.id)).toEqual([1, 3, 2]); // 複製(id:3)が id:2 の直前に入る
+    // 複製(id:5)が複製元(id:1)の直下に入り、振り直しは複製元のセクション・日付の中だけで起きる
+    const inGroup = repo.rows
+      .filter((t) => t.taskDate === TEST_DATE && t.sectionId === 1)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+    expect(inGroup.map((t) => [t.id, t.sortOrder])).toEqual([
+      [1, 1000],
+      [5, 2000],
+      [2, 3000],
+    ]);
+    expect(repo.rows.filter((t) => t.id === 3 || t.id === 4).map((t) => t.sortOrder)).toEqual([
+      1001, 1001,
+    ]);
   });
 
   it("存在しないタスクは複製できない", async () => {
     const repo = inMemoryTaskRepository([]);
-    expect(await duplicateTask(repos(repo), { taskId: 99 })).toEqual({
+    expect(await duplicateTask(repo, { taskId: 99 })).toEqual({
       ok: false,
       error: "task_not_found",
     });
@@ -450,7 +488,7 @@ describe("duplicateAndStartTask（F-208: 複製して開始）", () => {
       task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000, highlighted: true }),
     ]);
     const result = await duplicateAndStartTask(repos(repo), { taskId: 1, ...input });
-    expect(result.ok && result.value.highlighted).toBe(false);
+    expect(result.ok && result.value).toEqual(expect.objectContaining({ highlighted: false }));
   });
 
   it("完了タスク以外は複製して開始できない", async () => {

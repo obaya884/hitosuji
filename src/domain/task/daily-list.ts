@@ -163,7 +163,7 @@ export function withTaskRemoved(
 
 /**
  * 1日のタスクを表示順（セクション → sort_order）に並べる。
- * 複製の挿入位置（F-111）のように、リスト全体の並びが要る処理で使う
+ * 規則b の繰り下げ（F-113 / `planCarryOver`）のように、リスト全体の並びが要る処理で使う
  */
 export function orderTasksForDisplay(
   tasks: readonly Task[],

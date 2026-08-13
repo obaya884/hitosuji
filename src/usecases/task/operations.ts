@@ -4,12 +4,11 @@ import type { SectionRepository } from "@/usecases/ports/section-repository";
 import { addDays, type LogicalDate } from "@/domain/shared/logical-date";
 import { err, ok, type Result } from "@/domain/shared/result";
 import { sectionAt } from "@/domain/section/section";
-import { duplicateDraft, insertionIndexForDuplicate } from "@/domain/task/duplicate";
+import { duplicateDraft } from "@/domain/task/duplicate";
 import { canFinish, resumeTaskDraft } from "@/domain/task/punch";
 import type { PunchUsecaseError } from "@/usecases/task/punch-usecases";
 import { newTaskFromDraft } from "@/usecases/task/from-draft";
 import { taskStatus } from "@/domain/task/status";
-import { orderTasksForDisplay } from "@/domain/task/daily-list";
 import { startOrderIndex } from "@/domain/task/relocation";
 import {
   appendSortOrder,
@@ -61,37 +60,27 @@ export async function suspendTask(
 }
 
 /**
- * 複製（F-111）。状態不問で複製し、未実行タスクとして「未実施のトップ」へ挿入する。
- * 挿入位置は1日のリスト全体の表示順で決まり、section_id は挿入位置のセクションに従う
+ * 複製（F-111）。状態不問で複製し、未実行タスクとして**複製元の直下**へ挿入する（画面定義書01 O-11）。
+ * 表示日が今日で複製元が現在位置より前にあるときは、この直後の描画で
+ * 規則b（画面定義書01 §4.2-b）が現在位置へ繰り下げる
  */
 export async function duplicateTask(
-  repos: Readonly<{ tasks: TaskRepository; sections: SectionRepository }>,
+  repo: TaskRepository,
   input: Readonly<{ taskId: TaskId }>
 ): Promise<Result<Task, TaskOperationError>> {
-  const target = await repos.tasks.findById(input.taskId);
+  const target = await repo.findById(input.taskId);
   if (target === null) return err("task_not_found");
 
-  const [sameDay, sections] = await Promise.all([
-    repos.tasks.listByDate(target.taskDate),
-    repos.sections.listAll(),
-  ]);
-
-  // 1日全体の表示順に対して「未実施のトップ」を求める
-  const ordered = orderTasksForDisplay(sameDay, sections);
-  const index = insertionIndexForDuplicate(ordered);
-
-  // 挿入位置の直前のタスクからセクションを決める（先頭なら未分類）
-  const sectionId = index === 0 ? null : ordered[index - 1].sectionId;
-  const group = tasksInSection(sameDay, sectionId);
-  const indexInGroup =
-    index === 0 ? 0 : group.findIndex((t) => t.id === ordered[index - 1].id) + 1;
-  const placed = placeSortOrder(group, indexInGroup); // 新規タスクなので自身は振り直しに含めない
+  const sameDay = await repo.listByDate(target.taskDate);
+  const group = tasksInSection(sameDay, target.sectionId); // 未分類なら未分類のまま
+  const index = group.findIndex((t) => t.id === target.id) + 1; // 複製元の直下
+  const placed = placeSortOrder(group, index); // 新規タスクなので自身は振り直しに含めない
 
   const draft = duplicateDraft(target);
-  const created = await repos.tasks.create(
+  const created = await repo.create(
     newTaskFromDraft(draft, {
       taskDate: target.taskDate,
-      sectionId,
+      sectionId: target.sectionId,
       sortOrder: placed.sortOrder,
     }),
     placed.renumber
