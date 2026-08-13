@@ -313,7 +313,7 @@ export async function suspendTaskAction(id: TaskId, now: Date): Promise<DailyAct
 
 /** 複製（F-111）。複製後に選択行を移すため、作られたタスクのIDを返す（O-11） */
 export async function duplicateTaskAction(id: TaskId): Promise<CreatingActionResult> {
-  const result = await duplicateTask({ tasks: taskRepo, sections: sectionRepo }, { taskId: id });
+  const result = await duplicateTask(taskRepo, { taskId: id });
   if (result.ok) {
     revalidatePath("/");
     return { ok: true, createdId: result.value.id };

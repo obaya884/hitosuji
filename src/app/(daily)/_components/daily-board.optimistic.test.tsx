@@ -389,7 +389,8 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
     selectRow(NOT_STARTED);
 
     await pressAndSettle("y");
-    // サーバが採番した複製（同名・未実施のトップ＝実行中タスクの直後）が現れる
+    // サーバが採番した複製（同名）が現れる。複製元 id:11 は現在位置より前なので、
+    // 直下に入った複製行は同じ描画で規則b により実行中 id:12 の直後へ繰り下がる（O-11）
     applyServerState([
       ...defaultTasks(),
       task({ id: 31, name: NOT_STARTED, sectionId: FORENOON.id, sortOrder: 3000 }),
