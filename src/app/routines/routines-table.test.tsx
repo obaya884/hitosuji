@@ -57,12 +57,12 @@ function renderTable(
 /** 観測点は構造で取る（列は位置で決まる。§3「列は左から …の順」） */
 const COL = {
   name: 0,
-  bundle: 1,
+  project: 1,
   mode: 2,
-  project: 3,
-  recurrence: 4,
+  recurrence: 3,
+  scheduledStart: 4,
   estimate: 5,
-  scheduledStart: 6,
+  bundle: 6,
   active: 7,
 } as const;
 
@@ -104,7 +104,7 @@ describe("RoutinesTable（画面定義書02 §3: 一覧の列と表記）", () =
     expect(screen.getByText(/自動で展開されます（当日以降のみ）/)).not.toBeNull();
   });
 
-  it("列は左から 名前/バンドル/モード/プロジェクト/繰り返し/見積/開始想定/有効/操作 の順に並べる", () => {
+  it("列は左から 名前/プロジェクト/モード/繰り返し/開始想定/見積/バンドル/有効/操作 の順に並べる", () => {
     const { container } = renderTable([routine({ id: 1 })]);
 
     const labels = [...container.querySelectorAll("thead th")].map((th) =>
@@ -113,12 +113,12 @@ describe("RoutinesTable（画面定義書02 §3: 一覧の列と表記）", () =
     );
     expect(labels).toEqual([
       "名前",
-      "バンドル",
-      "モード",
       "プロジェクト",
+      "モード",
       "繰り返し",
-      "見積",
       "開始想定",
+      "見積",
+      "バンドル",
       "有効",
       "",
     ]);
@@ -133,6 +133,18 @@ describe("RoutinesTable（画面定義書02 §3: 一覧の列と表記）", () =
     expect(target.textContent).toBe(BUNDLES[0].name);
     const swatch = target.querySelector<HTMLElement>("[aria-hidden]")!;
     expect(swatch.style.backgroundColor).toBe(rgbOf(BUNDLES[0].color));
+  });
+
+  // §3「収まらない名前は切り詰める」「分類の他の列より幅を広く取る」。実測幅は jsdom では常に 0
+  // なので測らず、切り詰めの指定と幅の指定（他の分類列より大きい）が付いていることで代える
+  it("バンドル名は切り詰め、列幅は他の分類列より広く取る（§3）", () => {
+    const { container } = renderTable([routine({ id: 1, bundleId: 1 })]);
+
+    const name = cell(container, 0, COL.bundle).querySelector(".truncate");
+    expect(name?.getAttribute("title")).toBe(BUNDLES[0].name);
+    expect(hasClass(header("バンドル"), "w-44")).toBe(true);
+    expect(hasClass(header("プロジェクト"), "w-28")).toBe(true);
+    expect(hasClass(header("モード"), "w-24")).toBe(true);
   });
 
   it("バンドルが未設定なら薄色の `-` を出す（00_共通 §2.4）", () => {
@@ -172,17 +184,17 @@ describe("RoutinesTable（画面定義書02 §3: 一覧の列と表記）", () =
     ]);
 
     expect(cell(container, 0, COL.name).textContent).toBe("点検");
-    expect(cell(container, 0, COL.mode).textContent).toBe("モードA");
     expect(cell(container, 0, COL.project).textContent).toBe("案件A");
-    expect(cell(container, 0, COL.estimate).textContent).toBe("0:20");
+    expect(cell(container, 0, COL.mode).textContent).toBe("モードA");
     expect(cell(container, 0, COL.recurrence).textContent).toBe("毎日");
     expect(cell(container, 0, COL.scheduledStart).textContent).toBe("06:30(朝)");
+    expect(cell(container, 0, COL.estimate).textContent).toBe("0:20");
   });
 
   it("モード・プロジェクトが未設定なら薄色の `-` を出す（00_共通 §2.4）", () => {
     const { container } = renderTable([routine({ id: 1, modeId: null, projectId: null })]);
 
-    for (const col of [COL.mode, COL.project]) {
+    for (const col of [COL.project, COL.mode]) {
       const target = cell(container, 0, col);
       expect(target.textContent).toBe("-");
       expect(hasClass(target.firstElementChild!, "text-ink-faint")).toBe(true);
@@ -202,8 +214,8 @@ describe("RoutinesTable（画面定義書02 §3: 一覧の列と表記）", () =
       allProjects: [...PROJECTS, archivedProject],
     });
 
-    expect(cell(container, 0, COL.mode).textContent).toBe("旧モード");
     expect(cell(container, 0, COL.project).textContent).toBe("旧案件");
+    expect(cell(container, 0, COL.mode).textContent).toBe("旧モード");
   });
 
   // 要約の文字列そのものは domain の describeRecurrence が担保済み。
@@ -334,13 +346,15 @@ describe("RoutinesTable（画面定義書02 §3.1: 列見出しのクリック�
     expect(names(container)).toEqual(["い", "う", "あ"]);
   });
 
-  it("並べ替えできるのは 名前/バンドル/モード/プロジェクト/繰り返し/開始想定 の6列だけ（見積は対象外）", () => {
-    renderTable(forSort);
+  // 見出しを走査して「押せる列」を配列で取ることで、対象の集合・その順序・対象外（見積・有効・
+  // 操作列にボタンが生えていないこと）を1本で押さえる
+  it("並べ替えできるのは 名前/プロジェクト/モード/繰り返し/開始想定/バンドル の6列だけ（見積は対象外）", () => {
+    const { container } = renderTable(forSort);
 
-    for (const label of ["名前", "バンドル", "モード", "プロジェクト", "繰り返し", "開始想定"]) {
-      expect(header(label).querySelector("button")).not.toBeNull();
-    }
-    expect(header("見積").querySelector("button")).toBeNull();
+    const sortable = [...container.querySelectorAll("thead th")]
+      .filter((th) => th.querySelector("button") !== null)
+      .map((th) => th.textContent?.replace(/[▲▼]/g, ""));
+    expect(sortable).toEqual(["名前", "プロジェクト", "モード", "繰り返し", "開始想定", "バンドル"]);
   });
 
   it("見出しのクリックでバンドル順に並べ替える（F-306）", () => {

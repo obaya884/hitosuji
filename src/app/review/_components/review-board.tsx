@@ -117,8 +117,8 @@ function ExecutionLog({
             <tr className={tableHeadRow}>
               <th className="w-32 py-2 font-normal">時刻</th>
               <th className="py-2 font-normal">タスク名</th>
-              <th className="w-28 py-2 font-normal">モード</th>
               <th className="w-32 py-2 font-normal">プロジェクト</th>
+              <th className="w-28 py-2 font-normal">モード</th>
               <th className="w-16 py-2 pr-4 text-right font-normal">見積</th>
               <th className="w-16 py-2 pr-4 text-right font-normal">実績</th>
               <th className="w-16 py-2 text-right font-normal">差異</th>
@@ -205,8 +205,8 @@ function LogRow({
             </Link>
           </div>
         </td>
-        <td className="py-2 text-sm">{mode?.name ?? <UnsetMark />}</td>
         <td className="py-2 text-sm">{project?.name ?? <UnsetMark />}</td>
+        <td className="py-2 text-sm">{mode?.name ?? <UnsetMark />}</td>
         <td className="py-2 pr-4 text-right font-mono tabular-nums">
           <DurationValue minutes={task.estimateMinutes} />
         </td>

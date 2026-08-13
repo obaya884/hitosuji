@@ -6,13 +6,14 @@ import type { Project } from "../project/project";
 import { compareByName } from "../shared/name-order";
 import type { RecurrenceType, Routine } from "./routine";
 
+/** 並べ替えできる列（画面定義書02 §3.1）。列順に並べる */
 export type RoutineSortKey =
   | "name"
-  | "bundle"
-  | "mode"
   | "project"
+  | "mode"
   | "recurrence"
-  | "scheduledStartTime";
+  | "scheduledStartTime"
+  | "bundle";
 
 export type RoutineSortDirection = "asc" | "desc";
 
@@ -65,12 +66,12 @@ export function sortRoutines(
 
   const isUnset = (routine: Routine): boolean => {
     switch (key) {
-      case "bundle":
-        return bundleNameOf(routine) === null;
-      case "mode":
-        return modeNameOf(routine) === null;
       case "project":
         return projectNameOf(routine) === null;
+      case "mode":
+        return modeNameOf(routine) === null;
+      case "bundle":
+        return bundleNameOf(routine) === null;
       default:
         return false;
     }
@@ -80,18 +81,18 @@ export function sortRoutines(
     switch (key) {
       case "name":
         return compareByName(a, b);
-      case "bundle":
-        return compareByName({ name: bundleNameOf(a) ?? "" }, { name: bundleNameOf(b) ?? "" });
-      case "mode":
-        return compareByName({ name: modeNameOf(a) ?? "" }, { name: modeNameOf(b) ?? "" });
       case "project":
         return compareByName({ name: projectNameOf(a) ?? "" }, { name: projectNameOf(b) ?? "" });
+      case "mode":
+        return compareByName({ name: modeNameOf(a) ?? "" }, { name: modeNameOf(b) ?? "" });
       case "recurrence":
         return recurrenceRank(a.recurrenceType) - recurrenceRank(b.recurrenceType);
       case "scheduledStartTime":
         // 名前の自然順まで含む関数だが、外側の compare が同じ第2キーを再度足すだけなので無害
         // （二重適用しても結果は変わらない。規則の実体をここと下の bundleMembers 等で分けない）
         return byScheduledStartTimeAsc(a, b);
+      case "bundle":
+        return compareByName({ name: bundleNameOf(a) ?? "" }, { name: bundleNameOf(b) ?? "" });
     }
   };
 

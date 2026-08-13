@@ -55,12 +55,12 @@ function bodyRows(scope: HTMLElement): HTMLTableRowElement[] {
   return [...scope.querySelectorAll<HTMLTableRowElement>("tbody tr")];
 }
 
-/** 実績ログの列（§3.3: 開始-終了 / タスク名 / モード / プロジェクト / 見積 / 実績 / 差異） */
+/** 実績ログの列（§3.3: 開始-終了 / タスク名 / プロジェクト / モード / 見積 / 実績 / 差異） */
 const LOG = {
   clock: 0,
   name: 1,
-  mode: 2,
-  project: 3,
+  project: 2,
+  mode: 3,
   estimate: 4,
   actual: 5,
   diff: 6,
@@ -121,7 +121,7 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
     expect(sectionOf("実績ログ").querySelector("table")).toBeNull();
   });
 
-  it("列は 時刻/タスク名/モード/プロジェクト/見積/実績/差異 の順に並べる", () => {
+  it("列は 時刻/タスク名/プロジェクト/モード/見積/実績/差異 の順に並べる", () => {
     renderBoard({ log: [done({ id: 1, startedAt: atJst("06:30"), endedAt: atJst("06:48") })] });
 
     const labels = [...sectionOf("実績ログ").querySelectorAll("thead th")].map(
@@ -130,12 +130,16 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
     expect(labels).toEqual([
       "時刻",
       "タスク名",
-      "モード",
       "プロジェクト",
+      "モード",
       "見積",
       "実績",
       "差異",
     ]);
+    // 見出しと本体の列数が食い違わないこと（末尾に列を足しても上の期待値だけでは検出できない）
+    expect(logRow().cells).toHaveLength(labels.length);
+    // §3.3 は「プロジェクト → モードの順を3画面で揃える」と書くが、各画面のテストは自画面の順
+    // だけを固定する（共有の期待値を持ち回ると画面どうしが結合する）。揃っているかは docs の責任
   });
 
   it("各列に対応する値を出す（実績が見積より短ければ差異は `-`）", () => {
@@ -157,8 +161,8 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
     const cells = logRow().cells;
     expect(cells[LOG.clock].textContent).toBe("06:30-06:48");
     expect(cells[LOG.name].textContent).toBe("点検");
-    expect(cells[LOG.mode].textContent).toBe("モードA");
     expect(cells[LOG.project].textContent).toBe("案件A");
+    expect(cells[LOG.mode].textContent).toBe("モードA");
     expect(cells[LOG.estimate].textContent).toBe("0:20");
     expect(cells[LOG.actual].textContent).toBe("0:18");
     expect(cells[LOG.diff].textContent).toBe("-0:02");
@@ -236,7 +240,7 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
       totalMinutes: 30,
     });
 
-    for (const col of [LOG.mode, LOG.project]) {
+    for (const col of [LOG.project, LOG.mode]) {
       const target = logRow().cells[col];
       expect(target.textContent).toBe("-");
       expect(hasClass(target.firstElementChild!, "text-ink-faint")).toBe(true);
@@ -273,8 +277,8 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
       totalMinutes: 30,
     });
 
-    expect(logRow().cells[LOG.mode].textContent).toBe("旧モード");
     expect(logRow().cells[LOG.project].textContent).toBe("旧案件");
+    expect(logRow().cells[LOG.mode].textContent).toBe("旧モード");
   });
 
   it("タスク名から表示日の S-01 へ移動できる（O-2: 修正の導線）", () => {
