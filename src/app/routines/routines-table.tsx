@@ -160,12 +160,11 @@ export function RoutinesTable({
           <tr className={tableHeadRow}>
             <SortableHeader label="名前" sortKey="name" sort={sort} onSort={toggleSort} />
             <SortableHeader
-              label="バンドル"
-              sortKey="bundle"
+              label="プロジェクト"
+              sortKey="project"
               sort={sort}
               onSort={toggleSort}
-              // 分類の他の列より広く取る——値のほかに色見本を抱えるぶん、同じ字数でも先に溢れる
-              className="w-44"
+              className="w-28"
             />
             <SortableHeader
               label="モード"
@@ -175,27 +174,28 @@ export function RoutinesTable({
               className="w-24"
             />
             <SortableHeader
-              label="プロジェクト"
-              sortKey="project"
-              sort={sort}
-              onSort={toggleSort}
-              className="w-28"
-            />
-            <SortableHeader
               label="繰り返し"
               sortKey="recurrence"
               sort={sort}
               onSort={toggleSort}
               className="w-40"
             />
-            {/* 見積は並べ替えの対象外（画面定義書02 §3.1） */}
-            <th className="w-20 py-2 pr-4 text-right font-normal">見積</th>
             <SortableHeader
               label="開始想定"
               sortKey="scheduledStartTime"
               sort={sort}
               onSort={toggleSort}
               className="w-32"
+            />
+            {/* 見積は並べ替えの対象外（画面定義書02 §3.1） */}
+            <th className="w-20 py-2 pr-4 text-right font-normal">見積</th>
+            <SortableHeader
+              label="バンドル"
+              sortKey="bundle"
+              sort={sort}
+              onSort={toggleSort}
+              // 分類の他の列より広く取る——値のほかに色見本を抱えるぶん、同じ字数でも先に溢れる
+              className="w-44"
             />
             <th className="w-12 py-2 font-normal">有効</th>
             <th className="w-24 py-2 font-normal" />
@@ -226,6 +226,20 @@ export function RoutinesTable({
                 >
                   {routine.name}
                 </td>
+                <td className="py-2 text-sm">{project?.name ?? <UnsetMark />}</td>
+                <td className="py-2 text-sm">{mode?.name ?? <UnsetMark />}</td>
+                <td className="py-2 text-sm">{describeRecurrence(routine)}</td>
+                <td className="py-2 tabular-nums">
+                  <span className="font-mono">{routine.scheduledStartTime}</span>
+                  {/* 併記するセクション名は従（00_共通 §1.1。S-01 のタスク名に添えるセクション名と同じ） */}
+                  {section !== undefined && (
+                    <span className="ml-1 text-sm text-ink-muted">({section.name})</span>
+                  )}
+                </td>
+                <td className="py-2 pr-4 text-right font-mono tabular-nums">
+                  {/* 1分以上が必須（画面定義書02 §5）なので `--:--` は出ないが、同じ部品を通す */}
+                  <DurationValue minutes={routine.estimateMinutes} />
+                </td>
                 <td className="py-2 text-sm">
                   {/* バンドル色にモード色のような主段の表現は乗せない（画面定義書02 §3。
                       モード色が乗るのは名前列だけ） */}
@@ -239,20 +253,6 @@ export function RoutinesTable({
                         {bundle.name}
                       </span>
                     </span>
-                  )}
-                </td>
-                <td className="py-2 text-sm">{mode?.name ?? <UnsetMark />}</td>
-                <td className="py-2 text-sm">{project?.name ?? <UnsetMark />}</td>
-                <td className="py-2 text-sm">{describeRecurrence(routine)}</td>
-                <td className="py-2 pr-4 text-right font-mono tabular-nums">
-                  {/* 1分以上が必須（画面定義書02 §5）なので `--:--` は出ないが、同じ部品を通す */}
-                  <DurationValue minutes={routine.estimateMinutes} />
-                </td>
-                <td className="py-2 tabular-nums">
-                  <span className="font-mono">{routine.scheduledStartTime}</span>
-                  {/* 併記するセクション名は従（00_共通 §1.1。S-01 のタスク名に添えるセクション名と同じ） */}
-                  {section !== undefined && (
-                    <span className="ml-1 text-sm text-ink-muted">({section.name})</span>
                   )}
                 </td>
                 <td className="py-2">

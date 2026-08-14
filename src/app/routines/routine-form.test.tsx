@@ -54,7 +54,41 @@ const DEFAULT_INPUT: RoutineInput = {
 const WEEKDAYS_MON_TO_FRI = 0b0011111;
 const WEEKDAYS_SAT_SUN = 0b1100000;
 
+/**
+ * 入力項目のラベルを DOM 順に並べる。項目の並びは §4 の条項なので、値ではなく順序を見る。
+ * 2カラムグリッドの見た目の折り返しは jsdom では測れない（そこはオーナーの動作確認が担う）
+ */
+function itemLabels(): (string | null)[] {
+  return [...document.querySelectorAll("label > span:first-child, fieldset > legend")].map(
+    (el) => el.textContent
+  );
+}
+
 describe("RoutineForm（画面定義書02 §4: 繰り返し種別に応じて入力項目を出し分ける新規/編集フォーム）", () => {
+  it("項目は一覧の列順（§3）に沿って並べる（開始日・終了日は繰り返しの期間なので繰り返しの直後）", () => {
+    setup();
+
+    expect(itemLabels()).toEqual([
+      "名前",
+      "プロジェクト",
+      "モード",
+      "繰り返し",
+      "開始日",
+      "終了日（任意）",
+      "開始想定時刻",
+      "見積もり（分）",
+      "バンドル",
+    ]);
+  });
+
+  it("週次の条件付き項目（週間隔）は繰り返しの中・開始日の手前に入る", () => {
+    setup(routine({ id: 1, recurrenceType: "weekly", weekdays: 0b0000010, weekInterval: 2 }));
+
+    const labels = itemLabels();
+    expect(labels.indexOf("週間隔")).toBeGreaterThan(labels.indexOf("繰り返し"));
+    expect(labels.indexOf("週間隔")).toBeLessThan(labels.indexOf("開始日"));
+  });
+
   it("新規は既定値で開く（見積15分・開始想定09:00・毎日・開始日=今日・終了日なし・モード/プロジェクト未設定）", () => {
     const { onSubmit } = setup();
 
@@ -415,6 +449,16 @@ describe("RoutineForm（画面定義書02 §4: 繰り返し種別に応じて入
 
   // 別のバンドルに属していても、ここでは付け替えられる（§4。S-05 O-5 と非対称）——
   // 未所属に絞っていないことは、上のテストの期待値（有効なバンドルが全部出る）で固定している
+  it("バンドルを選ぶと id で送る（別のバンドルに属していても付け替えられる）", () => {
+    const { onSubmit } = setup(routine({ id: 1, bundleId: 1 }));
+
+    fireEvent.change(screen.getByLabelText("バンドル"), { target: { value: "2" } });
+
+    save();
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ bundleId: 2 }));
+  });
+
   it("バンドルは「未設定」に戻せる", () => {
     const { onSubmit } = setup(routine({ id: 1, bundleId: 1 }));
 

@@ -37,10 +37,11 @@ const RECURRENCE_LABELS: Readonly<Record<RecurrenceType, string>> = {
 };
 
 /**
- * 新規/編集フォーム（画面定義書02 §4）。繰り返し種別に応じて入力項目を出し分ける。
+ * 新規/編集フォーム（画面定義書02 §4）。項目は一覧の列順（§3）に沿って並べ、繰り返し種別に
+ * 応じて入力項目を出し分ける。
  *
  * 保存中（`isPending`）は 00_共通 §2.3 に従い、確定（保存）・取消と、**送信せず表示だけを
- * 変えるその場の選択**（繰り返し種別・曜日・モード/プロジェクト）を止める。
+ * 変えるその場の選択**（繰り返し種別・曜日・プロジェクト/モード）を止める。
  * **テキスト入力欄は触れるままにする**——失敗して戻ってきたときに入力し直せるようにするため
  * （同書 §2.3「失敗時」）。値を送るのは保存ボタンだけなので、打っている間に送信は起きない
  */
@@ -106,23 +107,38 @@ export function RoutineForm({
 
         <div className="grid grid-cols-2 gap-3">
           <label className="text-sm">
-            <span className="text-xs text-ink-muted">見積もり（分）</span>
-            <input
-              type="number"
-              min={1}
-              value={estimateMinutes}
-              onChange={(e) => setEstimateMinutes(e.target.value)}
+            <span className="text-xs text-ink-muted">プロジェクト</span>
+            <select
+              value={projectId ?? ""}
+              disabled={isPending}
+              onChange={(e) =>
+                setProjectId(e.target.value === "" ? null : Number(e.target.value))
+              }
               className={`mt-1 w-full ${inputBase}`}
-            />
+            >
+              <option value="">{UNSET_LABEL}</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="text-sm">
-            <span className="text-xs text-ink-muted">開始想定時刻</span>
-            <input
-              type="time"
-              value={scheduledStartTime}
-              onChange={(e) => setScheduledStartTime(e.target.value)}
+            <span className="text-xs text-ink-muted">モード</span>
+            <select
+              value={modeId ?? ""}
+              disabled={isPending}
+              onChange={(e) => setModeId(e.target.value === "" ? null : Number(e.target.value))}
               className={`mt-1 w-full ${inputBase}`}
-            />
+            >
+              <option value="">{UNSET_LABEL}</option>
+              {modes.map((mode) => (
+                <option key={mode.id} value={mode.id}>
+                  {mode.name}
+                </option>
+              ))}
+            </select>
           </label>
         </div>
       </div>
@@ -221,6 +237,8 @@ export function RoutineForm({
       </fieldset>
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        {/* 開始日・終了日は一覧に列を持たないが繰り返しの期間なので、繰り返しの入力群に続ける
+            （画面定義書02 §4） */}
         <div className="grid grid-cols-2 gap-3">
           <label className="text-sm">
             <span className="text-xs text-ink-muted">開始日</span>
@@ -244,38 +262,23 @@ export function RoutineForm({
 
         <div className="grid grid-cols-2 gap-3">
           <label className="text-sm">
-            <span className="text-xs text-ink-muted">モード</span>
-            <select
-              value={modeId ?? ""}
-              disabled={isPending}
-              onChange={(e) => setModeId(e.target.value === "" ? null : Number(e.target.value))}
+            <span className="text-xs text-ink-muted">開始想定時刻</span>
+            <input
+              type="time"
+              value={scheduledStartTime}
+              onChange={(e) => setScheduledStartTime(e.target.value)}
               className={`mt-1 w-full ${inputBase}`}
-            >
-              <option value="">{UNSET_LABEL}</option>
-              {modes.map((mode) => (
-                <option key={mode.id} value={mode.id}>
-                  {mode.name}
-                </option>
-              ))}
-            </select>
+            />
           </label>
           <label className="text-sm">
-            <span className="text-xs text-ink-muted">プロジェクト</span>
-            <select
-              value={projectId ?? ""}
-              disabled={isPending}
-              onChange={(e) =>
-                setProjectId(e.target.value === "" ? null : Number(e.target.value))
-              }
+            <span className="text-xs text-ink-muted">見積もり（分）</span>
+            <input
+              type="number"
+              min={1}
+              value={estimateMinutes}
+              onChange={(e) => setEstimateMinutes(e.target.value)}
               className={`mt-1 w-full ${inputBase}`}
-            >
-              <option value="">{UNSET_LABEL}</option>
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
+            />
           </label>
         </div>
       </div>
