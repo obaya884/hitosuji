@@ -80,6 +80,7 @@
 | T-122 | テストのためだけに `export` している関数があり、公開面が実態より広く見える | 内部設計 | 低 | 完了（2026-08-09）→ 15件を判定し、9件を内部関数へ戻し1件を削除。5件は「テストが走査するための公開」として doc に明記のうえ維持 | [詳細](#t-122) |
 | T-115 | 「現在位置」の添字計算が `relocation.ts` と `duplicate.ts` に別実装で2つある | 内部設計 | 低 | 完了（2026-08-13。FB-103 で複製の挿入位置が「複製元の直下」になり insertionIndexForDuplicate を削除、重複が消えたため対応不要） | [詳細](#t-115) |
 | T-131 | Dependabot 依存追随（pg 8.23.0・@types/pg 8.21.0・tsx 4.23.12） | 依存追随 | 中 | 完了 | [詳細](#t-131) |
+| T-132 | nanoid のセキュリティアラートを overrides で根治する | 依存追随 | 中 | 完了 | [詳細](#t-132) |
 
 ## 詳細
 
@@ -794,6 +795,14 @@
 - 版差分の評価: `pg` 8.23.0 の変更はクエリパイプラインの**追加のみ**（opt-in）で既存経路に影響なし。`@types/pg` はランタイム `pg` と同じ 8.x 系で追い越していない（[アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md) §11）。`tsx` はバグ修正だけの patch
 - 結果: 挙動変更なし（lockfile と package.json のみ）。オープン Dependabot PR 0件・セキュリティアラート 0件
 - 関連: [T-116](#t-116)（直前の同種の依存追随）/ [T-129](./23_技術改善バックログ.md#t-129)（`pg` の major で `sslmode` の解釈が変わる件。本件は minor なので該当せず、警告の状況も変わっていない）/ [.claude/skills/dependabot-triage](../../.claude/skills/dependabot-triage/SKILL.md)
+
+### T-132
+
+- 背景: Dependabot セキュリティアラート1件（high、GHSA-2v37-7h3g-55p8、`nanoid < 3.3.18`）。カスタムジェネレータに `size` 0 を渡すと無限ループする。[T-131](./closed_23_技術改善バックログ.md#t-131) のトリアージ中に**新規公開された advisory**で、同 PR の bump が持ち込んだものではない（[T-117](./closed_23_技術改善バックログ.md#t-117) と同じ現れ方）
+- 到達可能性: **実質到達不能**。経路は `@tailwindcss/postcss` → `postcss` → `nanoid` の1本だけで、`postcss` 側の使用箇所は `lib/input.js` の `nanoid(6)` ——サイズ固定でカスタムジェネレータを渡さないため脆弱条件を満たさない。Dependabot は scope を `runtime` と表示するが、`@tailwindcss/postcss` は devDependencies でビルド時にしか動かない
+- 対応: 上流にクリーンなパッチ版があるため dismiss ではなく根治を選んだ（本書 T-04・T-23・T-117 と同じ判断）。`overrides` に `nanoid: ^3.3.18` を追加。`postcss` 側の要求は `^3.3.17` なので範囲内に収まり、解決結果は 3.3.18
+- 検証: `npm run lint`・`typecheck`・`build`（postcss が効く経路）・`npm test` 2183本、すべて緑
+- 関連: [T-131](./closed_23_技術改善バックログ.md#t-131)（トリアージの本体）/ 本書 T-04・T-23・T-117（いずれも overrides で根治した先例）/ [.claude/skills/dependabot-triage](../../.claude/skills/dependabot-triage/SKILL.md) §6
 
 ## 旧書式の記録（2026-07-26 以前）
 
