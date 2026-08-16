@@ -16,6 +16,7 @@ const errorNotice = (container: HTMLElement) =>
 function renderFrame(
   props: Partial<{
     description: ReactNode;
+    countLabel: string;
     error: string | null;
     isPending: boolean;
     addLabel: string;
@@ -27,6 +28,8 @@ function renderFrame(
       // **既定値へ落とさず「渡されたか」で分ける**——`?? 既定` にすると説明文なし
       // （バンドル管理 S-05 §2）を渡せず、その分岐の検証が書けなくなる
       description={"description" in props ? props.description : "並び順は名前順です。"}
+      // 既定は「渡さない」（本数を出すのはルーチン管理だけ。画面定義書02 §3）
+      countLabel={props.countLabel}
       error={props.error ?? null}
       isPending={props.isPending ?? false}
       // 渡さないときは既定の「新規追加」になる（マスタ管理3表はこちら）
@@ -132,6 +135,63 @@ describe("TableFrame（画面定義書02 §3 / 画面定義書03 §3・§4: 説�
 
     expect(screen.getByRole("button", { name: "新規ルーチン" })).not.toBeNull();
     expect(screen.queryByRole("button", { name: "新規追加" })).toBeNull();
+  });
+
+  // 本数は見出し行の可変部分（画面定義書02 §3）。**値の組み立ては表側**なので、
+  // ここで見るのは「渡した文言を出すか」「どこに置くか」「どの段で出すか」の3つ。
+  // **「出すのはルーチン管理だけ」はこの段では担保できない**——条項の実体は各表が
+  // 渡さないことなので、部品からは「渡されなければ出さない」までしか言えない
+  describe("見出し行の本数（画面定義書02 §3）", () => {
+    const COUNT = "12 / 15 件";
+
+    it("本数を渡すと見出し行に出す", () => {
+      renderFrame({ countLabel: COUNT });
+
+      expect(screen.getByText(COUNT)).not.toBeNull();
+    });
+
+    // 説明文は既定のまま渡し、**本数の有無だけで段落の数が動く**ことを見る
+    // （説明文を落とす形にすると `description` の分岐と交絡し、count 側が無防備になる）
+    it("本数を渡さなければ段落を増やさない", () => {
+      const { container } = renderFrame();
+
+      expect(container.querySelectorAll("p")).toHaveLength(1);
+      expect(screen.getByText("並び順は名前順です。")).not.toBeNull();
+    });
+
+    // 「ボタンの左」は右寄せの塊の中での話。文書順だけを見ると、見出し行の**左端**
+    // （説明文より前）へ移しても緑のままなので、同じ親にいることまで固定する
+    it("本数は新規追加ボタンと同じ塊に入り、ボタンの左に置く", () => {
+      renderFrame({ countLabel: COUNT });
+      const count = screen.getByText(COUNT);
+      const button = screen.getByRole("button", { name: "新規追加" });
+
+      expect(count.parentElement).toBe(button.parentElement);
+      expect(count.compareDocumentPosition(button)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    });
+
+    // 文字の段は**メタ**（00_共通 §1.1）。値が確定しているので薄色の未設定表記（同 §2.4）は使わない
+    it("本数はメタの段で出し、未設定の薄色にはしない", () => {
+      renderFrame({ countLabel: COUNT });
+      const count = screen.getByText(COUNT);
+
+      expect(hasClass(count, "text-xs")).toBe(true);
+      expect(hasClass(count, "text-ink-muted")).toBe(true);
+      expect(hasClass(count, "text-ink-faint")).toBe(false);
+    });
+
+    // 右端揃え（ml-auto）は jsdom では測れない（幾何）ので、指定があることだけでも固定する。
+    // **本数の有無で右端が動かない**ことがこの構造の要点なので、両方の場合で見る
+    // （ml-auto がボタン側へ戻ると、本数を渡した画面だけボタンの位置がずれる）
+    it.each([
+      ["本数を渡したとき", { countLabel: COUNT }],
+      ["本数を渡さないとき", {}],
+    ])("%s も、本数とボタンの塊ごと右端へ寄せる", (_name, props) => {
+      renderFrame(props);
+      const group = screen.getByRole("button", { name: "新規追加" }).parentElement;
+
+      expect(hasClass(group as HTMLElement, "ml-auto")).toBe(true);
+    });
   });
 
   it("「新規追加」で新規行を開く合図を返す（開くのに要る初期化は表側が持つ）", () => {

@@ -111,6 +111,9 @@ export function RoutinesTable({
     sort.direction
   );
 
+  // 見出し行に出す本数（画面定義書02 §3）。無効にしたルーチンは以後展開されない（F-303）
+  const activeCount = routines.filter((r) => r.isActive).length;
+
   /** 同じ列をもう一度押したら降順に切り替える。別の列なら昇順から始める */
   function toggleSort(key: RoutineSortKey) {
     setSort((s) =>
@@ -145,6 +148,7 @@ export function RoutinesTable({
   return (
     <TableFrame
       description="有効なルーチンは、デイリーリストで対象日を表示したときに自動で展開されます（当日以降のみ）。"
+      countLabel={`${activeCount} / ${routines.length} 件`}
       error={error}
       isPending={isPending}
       addLabel="新規ルーチン"
