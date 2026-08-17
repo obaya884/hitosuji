@@ -46,7 +46,12 @@ export const SHORTCUTS: readonly Shortcut[] = [
     keys: plain("Enter"),
     description: "開始 →（実行中なら）終了 のトグル。完了タスクは複製して開始",
   },
-  { label: "I", keys: plain("i"), description: "中断（実行中タスクのみ）" },
+  {
+    label: "I",
+    keys: plain("i"),
+    description: "中断（実行中タスクのみ）",
+    mnemonic: "Interrupt",
+  },
   { label: "A", keys: plain("a"), description: "クイック追加欄へフォーカス", mnemonic: "Add" },
   { label: "R", keys: plain("r"), description: "タスク名編集", mnemonic: "Rename" },
   { label: "E", keys: plain("e"), description: "見積もり編集", mnemonic: "Estimate" },
@@ -56,8 +61,8 @@ export const SHORTCUTS: readonly Shortcut[] = [
     description: "開始時刻 / 終了時刻の修正",
     mnemonic: "Begin / Finish",
   },
-  { label: "M", keys: plain("m"), description: "モードの選択" },
-  { label: "P", keys: plain("p"), description: "プロジェクトの選択" },
+  { label: "M", keys: plain("m"), description: "モードの選択", mnemonic: "Mode" },
+  { label: "P", keys: plain("p"), description: "プロジェクトの選択", mnemonic: "Project" },
   { label: "S", keys: plain("s"), description: "セクションの選択", mnemonic: "Section" },
   {
     label: "C",
@@ -72,7 +77,7 @@ export const SHORTCUTS: readonly Shortcut[] = [
     description: "タスクの並び替え（下へ / 上へ）",
   },
   { label: "Y", keys: plain("y"), description: "選択タスクの複製", mnemonic: "Yank" },
-  { label: "D", keys: plain("d"), description: "削除" },
+  { label: "D", keys: plain("d"), description: "削除", mnemonic: "Delete" },
   {
     label: "U",
     keys: plain("u"),
@@ -83,6 +88,8 @@ export const SHORTCUTS: readonly Shortcut[] = [
     label: "Shift+H / Shift+L / T",
     keys: [...shift("H", "L"), ...plain("t")],
     description: "前日 / 翌日 / 今日へ移動",
+    // 由来があるのは末尾の `T` だけ（`Shift+H` / `Shift+L` は vim の左右移動から）
+    mnemonic: "Today",
   },
   {
     label: "G",

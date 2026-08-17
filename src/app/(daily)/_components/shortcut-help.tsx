@@ -17,7 +17,8 @@ export function ShortcutHelp({ onClose }: Props) {
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className={`max-h-full w-full max-w-md overflow-y-auto p-4 ${floatPanel}`}
+        // 幅は下のキー列（w-56）とセット。由来を抱えるぶん左列が長いので、パネルごと広げて説明側を痩せさせない
+        className={`max-h-full w-full max-w-lg overflow-y-auto p-4 ${floatPanel}`}
       >
         <div className="flex items-baseline justify-between">
           <h2 className="text-sm font-medium">キーボードショートカット</h2>
@@ -29,13 +30,15 @@ export function ShortcutHelp({ onClose }: Props) {
           <tbody>
             {SHORTCUTS.map((shortcut) => (
               <tr key={shortcut.label} className="border-b border-line last:border-0">
-                <td className="w-44 py-1 pr-2 align-top font-mono text-xs">{shortcut.label}</td>
-                <td className="py-1 text-ink">
-                  {shortcut.description}
+                {/* ニーモニック由来はキーの側に置く（画面定義書01 §6）。表は列幅が内容で決まる
+                    ので、w-56 だけでは折り返しを止められない（FB-107 と同型）→ nowrap で確定させる */}
+                <td className="w-56 py-1 pr-2 align-top font-mono text-xs whitespace-nowrap">
+                  {shortcut.label}
                   {shortcut.mnemonic !== undefined && (
-                    <span className="ml-1 text-xs text-ink-muted">（{shortcut.mnemonic}）</span>
+                    <span className="font-sans text-ink-muted">（{shortcut.mnemonic}）</span>
                   )}
                 </td>
+                <td className="py-1">{shortcut.description}</td>
               </tr>
             ))}
           </tbody>
