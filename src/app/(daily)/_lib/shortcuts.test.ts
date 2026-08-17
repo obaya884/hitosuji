@@ -39,15 +39,21 @@ describe("SHORTCUTS（画面定義書01 §6 からキー表記・並び・ニー
     // 由来のある行だけを並べるので、表にない由来を創作していないことも同時に主張する
     expect(mnemonics).toEqual([
       ["N", "Now"],
+      ["I", "Interrupt"],
       ["A", "Add"],
       ["R", "Rename"],
       ["E", "Estimate"],
       ["B / F", "Begin / Finish"],
+      ["M", "Mode"],
+      ["P", "Project"],
       ["S", "Section"],
       ["C", "Comment"],
       ["H", "Highlight"],
       ["Y", "Yank"],
+      ["D", "Delete"],
       ["U", "Undo"],
+      // 3キーのうち由来があるのは `T` だけ（Shift+H / Shift+L は vim の左右移動から）
+      ["Shift+H / Shift+L / T", "Today"],
       ["G", "Go to date"],
     ]);
   });
