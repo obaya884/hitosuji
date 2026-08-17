@@ -13,6 +13,11 @@ import { useSlowPending } from "@/app/_lib/use-slow-pending";
 type Props = Readonly<{
   /** 見出し行の説明文（表ごとに違う。編集できる項目・並び順・展開の条件など）。省略できる */
   description?: ReactNode;
+  /**
+   * 見出し行に出す本数（新規追加ボタンの左）。**整形済みの文言**を受け取る（数え方も書式も表側の話）。
+   * 省略できる——出すのはルーチン管理だけで、マスタ管理・バンドル管理は渡さない（画面定義書02 §3）
+   */
+  countLabel?: string;
   /** 直近の Server Action の失敗メッセージ。`null` なら帯を出さない */
   error: string | null;
   /** 保存中（Server Action の応答待ち） */
@@ -30,6 +35,7 @@ type Props = Readonly<{
 
 export function TableFrame({
   description,
+  countLabel,
   error,
   isPending,
   addLabel = "新規追加",
@@ -44,16 +50,22 @@ export function TableFrame({
     <section className="mt-4">
       <div className="flex items-center">
         {description !== undefined && <p className="text-xs text-ink-muted">{description}</p>}
-        <button
-          onClick={onAddNew}
-          // 保存中は新しい編集を始めさせない（開いていたセル・フォームが閉じてしまう。00_共通 §2.3）
-          disabled={isPending}
-          // ml-auto で右端に寄せる（説明文の有無に関わらず位置が変わらない）
-          className={`ml-auto inline-flex shrink-0 items-center gap-1 ${btnSecondary}`}
-        >
-          <PlusIcon className="h-3 w-3" />
-          {addLabel}
-        </button>
+        {/* ml-auto は本数とボタンをまとめた側に置く（説明文・本数の有無に関わらず右端が動かない） */}
+        <div className="ml-auto flex shrink-0 items-center gap-3">
+          {/* 本数は増減するので tabular-nums で桁幅を止める（レビューのサマリ・タスク進捗と同じ） */}
+          {countLabel !== undefined && (
+            <p className="text-xs text-ink-muted tabular-nums">{countLabel}</p>
+          )}
+          <button
+            onClick={onAddNew}
+            // 保存中は新しい編集を始めさせない（開いていたセル・フォームが閉じてしまう。00_共通 §2.3）
+            disabled={isPending}
+            className={`inline-flex items-center gap-1 ${btnSecondary}`}
+          >
+            <PlusIcon className="h-3 w-3" />
+            {addLabel}
+          </button>
+        </div>
       </div>
 
       {error !== null && <p className={`mt-2 ${noticeDanger}`}>{error}</p>}

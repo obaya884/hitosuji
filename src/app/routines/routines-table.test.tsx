@@ -104,6 +104,34 @@ describe("RoutinesTable（画面定義書02 §3: 一覧の列と表記）", () =
     expect(screen.getByText(/自動で展開されます（当日以降のみ）/)).not.toBeNull();
   });
 
+  // §3「見出し行に本数を出す」（FB-105 / F-303）。本数の値そのものはここが正で、
+  // 見出し行のどこに置くか（新規追加ボタンの左）・どの段で出すかは共通の外枠 TableFrame 側で見る
+  describe("見出し行の本数（§3）", () => {
+    it("有効数と全件数を `有効数 / 全件数 件` の形で出す", () => {
+      renderTable([
+        routine({ id: 1, isActive: true }),
+        routine({ id: 2, isActive: false }),
+        routine({ id: 3, isActive: true }),
+      ]);
+
+      expect(screen.getByText("2 / 3 件")).not.toBeNull();
+    });
+
+    // 有効数は「展開の対象になる本数」なので、無効化するとこちらだけが減る
+    it("全件が無効なら有効数は 0 になり、全件数は変わらない", () => {
+      renderTable([routine({ id: 1, isActive: false }), routine({ id: 2, isActive: false })]);
+
+      expect(screen.getByText("0 / 2 件")).not.toBeNull();
+    });
+
+    // 値が確定しているので薄色の未設定表記（00_共通 §2.4）は使わない
+    it("1件も無くても `0 / 0 件` を出す", () => {
+      renderTable([]);
+
+      expect(screen.getByText("0 / 0 件")).not.toBeNull();
+    });
+  });
+
   it("列は左から 名前/プロジェクト/モード/繰り返し/開始想定/見積/バンドル/有効/操作 の順に並べる", () => {
     const { container } = renderTable([routine({ id: 1 })]);
 
