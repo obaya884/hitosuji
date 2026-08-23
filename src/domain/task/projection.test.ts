@@ -178,7 +178,7 @@ describe("formatProjectedStart（F-120 / 画面定義書01 §3.3 の `HH:MM-` �
     expect(formatProjectedStart(atJst("21:45"), atJst("09:00"), APP_TIME_ZONE)).toBe("21:45–");
   });
 
-  it("暦日をまたいだら終了予定と同じ「翌」前置（画面定義書01 §3.1。折返し `25:30–` は使わない）", () => {
+  it("暦日をまたいだら終了予定と同じ「翌」前置（画面定義書01 §3.1）", () => {
     const nextDay = atJst("01:30", "2026-07-27");
     expect(formatProjectedStart(nextDay, atJst("22:00"), APP_TIME_ZONE)).toBe("翌 01:30–");
   });
@@ -194,13 +194,22 @@ describe("formatProjectedStart（F-120 / 画面定義書01 §3.3 の `HH:MM-` �
     expect(formatProjectedStart(withSeconds, atJst("09:00"), APP_TIME_ZONE)).toBe("09:30–");
   });
 
+  it("起点の暦日は引数のタイムゾーンで決まる（終了予定と同じく定数を直接見ていない）", () => {
+    // JST 07-27 01:30（= 07-26T16:30Z）を JST 07-26 22:00（= 13:00Z）から見ると日をまたぐが、
+    // 同じ2つの瞬間を UTC で読むと 07-26 の 13:00 → 16:30 でまたがない
+    const at = new Date("2026-07-26T16:30:00Z");
+    const now = new Date("2026-07-26T13:00:00Z");
+    expect(formatProjectedStart(at, now, APP_TIME_ZONE)).toBe("翌 01:30–");
+    expect(formatProjectedStart(at, now, "UTC")).toBe("16:30–");
+  });
+
   it("日またぎの判定は論理日の区切り（日界 F-116）を基準にする", () => {
     // 日界 06:00・now 23:00（論理日は 07-26）→ 翌 03:00 は 1日先
     expect(
       formatProjectedStart(atJst("03:00", "2026-07-27"), atJst("23:00"), APP_TIME_ZONE, 6 * 60)
     ).toBe("翌 03:00–");
     // 日界 06:00・now 02:00 は論理日が前の暦日（07-25）になり、起点も前の暦日 0:00
-    // → 07-26 05:00 は 1日先（折返しなら 29:00 になっていた側。FB-84）
+    // → 07-26 05:00 は 1日先（now と同じ暦日でも「翌」になる側）
     expect(formatProjectedStart(atJst("05:00"), atJst("02:00"), APP_TIME_ZONE, 6 * 60)).toBe(
       "翌 05:00–"
     );
@@ -237,6 +246,11 @@ describe("formatProjectedEnd（F-104 / 画面定義書01 §3.1: 暦日をまた�
     expect(formatProjectedEnd(midnight, atJst("22:00"), APP_TIME_ZONE)).toBe("翌 0:00");
   });
 
+  it("日またぎの直前（23:59）は前置しない（またがない側の境界）", () => {
+    expect(formatProjectedEnd(atJst("23:59"), atJst("09:00"), APP_TIME_ZONE)).toBe("23:59");
+    expect(formatProjectedStart(atJst("23:59"), atJst("09:00"), APP_TIME_ZONE)).toBe("23:59–");
+  });
+
   it("2日以上先は「翌」ではなく `+N日` を前置する（積み上げが当日中に終わらないとき）", () => {
     // now 07-26 22:00 から見て 07-28 03:00 は2日先
     expect(formatProjectedEnd(atJst("03:00", "2026-07-28"), atJst("22:00"), APP_TIME_ZONE)).toBe(
@@ -245,6 +259,27 @@ describe("formatProjectedEnd（F-104 / 画面定義書01 §3.1: 暦日をまた�
     expect(formatProjectedStart(atJst("03:00", "2026-07-28"), atJst("22:00"), APP_TIME_ZONE)).toBe(
       "+2日 03:00–"
     );
+  });
+
+  it("`+N日` の N は日数ぶん伸びる（2日先で固定されていない）", () => {
+    expect(formatProjectedEnd(atJst("03:00", "2026-07-29"), atJst("22:00"), APP_TIME_ZONE)).toBe(
+      "+3日 3:00"
+    );
+    expect(formatProjectedEnd(atJst("03:00", "2026-08-05"), atJst("22:00"), APP_TIME_ZONE)).toBe(
+      "+10日 3:00"
+    );
+  });
+
+  it("「翌」と `+2日` の境目は起点暦日からちょうど48時間（両側から挟む）", () => {
+    const now = atJst("00:00");
+    // 起点 = 07-26 0:00。47:59 側は「翌」、48:00 ちょうどから `+2日`
+    expect(formatProjectedEnd(atJst("23:59", "2026-07-27"), now, APP_TIME_ZONE)).toBe("翌 23:59");
+    expect(formatProjectedEnd(atJst("00:00", "2026-07-28"), now, APP_TIME_ZONE)).toBe("+2日 0:00");
+  });
+
+  it("end の秒は切り捨てる（now の秒だけでなく end 側も。実打刻の表示と同じ扱い）", () => {
+    const withSeconds = new Date(atJst("21:45").getTime() + 40_000);
+    expect(formatProjectedEnd(withSeconds, atJst("09:00"), APP_TIME_ZONE)).toBe("21:45");
   });
 
   it("日またぎの起点は運用タイムゾーンの暦日 0:00（実行環境のローカル時刻に依らない）", () => {
@@ -259,7 +294,7 @@ describe("formatProjectedEnd（F-104 / 画面定義書01 §3.1: 暦日をまた�
   });
 
   it("起点の暦日は引数のタイムゾーンで決まる（定数を直接見ていない）", () => {
-    // 同じ2つの瞬間を UTC で読むと now は 07-26 13:00・終了は同日 16:30 なので折返さない
+    // 同じ2つの瞬間を UTC で読むと now は 07-26 13:00・終了は同日 16:30 なので日をまたがない
     expect(
       formatProjectedEnd(new Date("2026-07-26T16:30:00Z"), new Date("2026-07-26T13:00:00Z"), "UTC")
     ).toBe("16:30");
@@ -300,6 +335,28 @@ describe("F-116: 日またぎ表記・超過警告を日界（論理日）基準
     expect(isOverMidnight(afterDayStart, now, APP_TIME_ZONE, DAY_START)).toBe(true);
   });
 
+  // 逆向きの含意（警告 ⟹ 日またぎ）。日界は 0 以上なので「前置なしで警告」は起こりえない
+  it("警告色が出るケースには必ず前置が付く（日界 00:00・06:00 のいずれでも）", () => {
+    const cases = [
+      { dayStart: 0, at: atJst("00:00", "2026-07-27") },
+      { dayStart: DAY_START, at: atJst("06:00", "2026-07-27") },
+      { dayStart: DAY_START, at: atJst("12:00", "2026-07-28") }, // `+N日` 側でも成り立つ
+    ];
+    for (const { dayStart, at } of cases) {
+      const now = atJst("23:00");
+      expect(isOverMidnight(at, now, APP_TIME_ZONE, dayStart)).toBe(true);
+      expect(formatProjectedEnd(at, now, APP_TIME_ZONE, dayStart)).toMatch(/^(翌 |\+\d+日 )/);
+    }
+  });
+
+  it("`+N日` に達する終了予定も警告色の対象（前置の形が変わっても判定は次の日界のまま）", () => {
+    const twoDaysAhead = atJst("03:00", "2026-07-28");
+    expect(formatProjectedEnd(twoDaysAhead, atJst("22:00"), APP_TIME_ZONE, DAY_START)).toBe(
+      "+2日 3:00"
+    );
+    expect(isOverMidnight(twoDaysAhead, atJst("22:00"), APP_TIME_ZONE, DAY_START)).toBe(true);
+  });
+
   it("日界 06:00 では次の日界（翌 06:00）を越えるまで警告しない", () => {
     expect(
       isOverMidnight(atJst("03:00", "2026-07-27"), atJst("23:00"), APP_TIME_ZONE, DAY_START)
@@ -310,7 +367,7 @@ describe("F-116: 日またぎ表記・超過警告を日界（論理日）基準
   });
 
   it("日界より前（深夜帯）の now は論理日が前の暦日になり、起点も前の暦日", () => {
-    // 日界 06:00 で now 02:00（論理日は前日）。05:00 終了は前日 0:00 起点で1日先（折返しなら 29:00）
+    // 日界 06:00 で now 02:00（論理日は前日）。05:00 終了は前日 0:00 起点で1日先
     expect(formatProjectedEnd(atJst("05:00"), atJst("02:00"), APP_TIME_ZONE, DAY_START)).toBe(
       "翌 5:00"
     );

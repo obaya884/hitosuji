@@ -327,6 +327,8 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
       // 積み上げをリセットしない）。どちらも論理日の暦日をまたいだ側なので「翌」を前置する
       expect(cellsOf(taskRow("夜の片付け")).time.textContent).toBe("翌 02:00–");
       expect(cellsOf(taskRow("日記")).time.textContent).toBe("翌 03:30–");
+      // 前置が付く行でも警告色にはしない（§3.3。超過の警告はサマリ行の終了予定が担う）
+      expect(cellsOf(taskRow("夜の片付け")).time.querySelector(".text-danger")).toBe(null);
     });
 
     it("表示日が今日でなければ出さない（終了予定・残り時間と同じ規律）", () => {

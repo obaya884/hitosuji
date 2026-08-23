@@ -16,7 +16,7 @@ type Props = Readonly<{
   now: Date;
   /** 当日を表示しているときのみ表示する（画面定義書01 §3.1） */
   isToday: boolean;
-  /** 日界（分）。終了予定の折返し・超過警告の起点（F-116） */
+  /** 日界（分）。終了予定の日またぎ判定・超過警告の起点（F-116） */
   dayStartMinutes: number;
 }>;
 

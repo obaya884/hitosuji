@@ -14,7 +14,7 @@ import { elapsedMinutes, type Task, type TaskId } from "./task";
 
 /**
  * 現在時刻が属する論理日の暦日 0:00（F-116）。日界（分）より前の時間帯は前の暦日が起点になる。
- * 折返し表記・超過警告・セクション終了時刻を、暦日 0:00 ではなく論理日の区切りで測るための基準。
+ * 日またぎ判定・超過警告・セクション終了時刻を、暦日 0:00 ではなく論理日の区切りで測るための基準。
  * 暦日と壁時計は運用タイムゾーンで読む（表示の `formatClock` と同じ基準。T-47）。
  * 論理日そのものの決定は `todayLogicalDate` に任せ（日界の規則を2か所に持たない）、
  * その暦日 0:00 を運用タイムゾーンの壁時計として絶対時刻に戻す。
@@ -80,10 +80,13 @@ export function projectedStartTimes(tasks: readonly Task[], now: Date): Map<Task
 }
 
 /**
- * 論理日の暦日 0:00 を起点に測った経過（日界 F-116 を踏まえる。データモデル定義書 §4.3）。
- * `dayOffset` は暦日をまたいだ日数（0 = またがない）、`hours` は暦日の壁時計の時（0〜23）。
- * 既定（dayStartMinutes = 0）では now の暦日 0:00 起点。
- * 基準は運用タイムゾーン（実打刻の `formatClock` と同じ。T-47）
+ * 論理日の暦日 0:00（`logicalBaseMidnight`）を起点に測った経過（日界 F-116。データモデル定義書 §4.3）。
+ * `dayOffset` は**その起点暦日から何日先か**（0 = 同じ暦日）、`hours`/`minutes` は暦日の壁時計（0〜23時）。
+ * 起点は now の暦日とは限らない——日界 06:00・now 07-26 02:00 なら論理日は 07-25 なので、
+ * 同じ 07-26 の 05:00 でも `dayOffset` は 1 になる。既定（dayStartMinutes = 0）では now の暦日 0:00 起点。
+ * 基準は運用タイムゾーン（実打刻の `formatClock` と同じ。T-47）。
+ * 1日 = 24時間として割る（夏時間のあるゾーンでは暦日と1日ずれうるが、運用タイムゾーンの
+ * Asia/Tokyo に夏時間が無いので成り立つ前提。`shared/time-zone.ts` の冒頭と同じ）
  */
 function logicalClock(
   at: Date,
@@ -93,18 +96,19 @@ function logicalClock(
 ): { dayOffset: number; hours: number; minutes: number } {
   const startOfBase = logicalBaseMidnight(now, timeZone, dayStartMinutes);
   const minutesFromBase = Math.floor((at.getTime() - startOfBase.getTime()) / 60_000);
-  const hoursFromBase = Math.floor(minutesFromBase / 60);
-  return {
-    dayOffset: Math.floor(hoursFromBase / 24),
-    hours: ((hoursFromBase % 24) + 24) % 24,
-    minutes: ((minutesFromBase % 60) + 60) % 60,
-  };
+  // 床除算で日を切り出してから残りを取るので、剰余の符号を気にせず 0〜1439 に収まる
+  const dayOffset = Math.floor(minutesFromBase / (24 * 60));
+  const minutesInDay = minutesFromBase - dayOffset * 24 * 60;
+  return { dayOffset, hours: Math.floor(minutesInDay / 60), minutes: minutesInDay % 60 };
 }
 
 /**
  * 暦日をまたいだ側であることを示す前置き（画面定義書01 §3.1「日またぎの時刻表記」）。
- * またがないときは空文字。1日先は「翌」、2日以上先は「+N日」（見積もりが積み上がって
- * 当日中に終わらないとき。「翌」のままでは表示が嘘になる）
+ * **区切りの空白を含めて返す**（またがないときは空文字）ので、呼び出し側は時刻の直前に連結するだけでよい。
+ * 1日先は「翌」、2日以上先は「+N日」（見積もりが積み上がって当日中に終わらないとき。
+ * 「翌」のままでは表示が嘘になる）。
+ * `dayOffset` が負（起点より前）になる呼び出しは無い——`end`・`start` はいずれも now 以降で、
+ * 起点は now の属する論理日の暦日 0:00 だから。万一渡っても前置なしに落ちる
  */
 function dayPrefix(dayOffset: number): string {
   if (dayOffset <= 0) return "";
