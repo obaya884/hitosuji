@@ -312,7 +312,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
       expect(cellsOf(taskRow("レビュー依頼")).time.textContent).toBe("10:30–");
     });
 
-    it("セクションをまたいで積み上げ、日界（F-116）を起点に折り返して表す", () => {
+    it("セクションをまたいで積み上げ、日界（F-116）を起点に日またぎを判定して表す", () => {
       renderList({
         // 日界 06:00・深夜 02:00 は前の論理日の続き（暦日 0:00 起点なら 02:00 と出てしまう）
         dayStartMinutes: 360,
@@ -324,9 +324,11 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
       });
 
       // 1件目は now そのまま、2件目は前セクションの見積もり90分ぶん後ろ（グループをまたいでも
-      // 積み上げをリセットしない）。どちらも論理日の中の位置として 24 時超えで表記する
-      expect(cellsOf(taskRow("夜の片付け")).time.textContent).toBe("26:00–");
-      expect(cellsOf(taskRow("日記")).time.textContent).toBe("27:30–");
+      // 積み上げをリセットしない）。どちらも論理日の暦日をまたいだ側なので「翌」を前置する
+      expect(cellsOf(taskRow("夜の片付け")).time.textContent).toBe("翌 02:00–");
+      expect(cellsOf(taskRow("日記")).time.textContent).toBe("翌 03:30–");
+      // 前置が付く行でも警告色にはしない（§3.3。超過の警告はサマリ行の終了予定が担う）
+      expect(cellsOf(taskRow("夜の片付け")).time.querySelector(".text-danger")).toBe(null);
     });
 
     it("表示日が今日でなければ出さない（終了予定・残り時間と同じ規律）", () => {

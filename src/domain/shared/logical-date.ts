@@ -1,7 +1,7 @@
 // 論理日付 "YYYY-MM-DD"（データモデル定義書 §1: task_date は保存された論理日付。打刻時刻から導出しない）
 // 日界（F-116）次第で打刻時刻の暦日と一致しない（既定の 00:00 なら一致する）。**論理日付の決定と、
-// その逆向き（論理日の中の壁時計 → 絶対時刻）**はこの純関数群に閉じる——日界を起点にした時計の
-// 折返し・セクション枠の起点は `domain/task/projection.ts` と `domain/section/section.ts` が持つ
+// その逆向き（論理日の中の壁時計 → 絶対時刻）**はこの純関数群に閉じる——日界を起点にした
+// 日またぎ判定・セクション枠の起点は `domain/task/projection.ts` と `domain/section/section.ts` が持つ
 import { fromZonedClock, zonedParts } from "./time-zone";
 
 export type LogicalDate = string;

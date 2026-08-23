@@ -26,7 +26,7 @@ function valueOf(label: string): string {
 // 値の式は domain の projection.test.ts が担保済み。ここは「何をいつ出すか」（§3.1）に絞る
 describe("DailySummary（画面定義書01 §3.1 / F-104・F-114: 終了予定・現在・残作業と1日全体の進捗）", () => {
   it("当日表示では終了予定・現在・残作業を並べる", () => {
-    // 終了予定の折返しは論理日の暦日 0:00 起点で測る（起点は JST。T-47）
+    // 終了予定の日またぎは論理日の暦日 0:00 起点で測る（起点は JST。T-47）
     const now = atJst("10:00");
     render(
       <DailySummary
@@ -106,7 +106,7 @@ describe("DailySummary（画面定義書01 §3.1 / F-104・F-114: 終了予定�
     expect(valueOf("残作業")).toBe("0:45");
   });
 
-  it("日界を越える終了予定は折返し表記（25:30 形式）で警告色にする（F-104）", () => {
+  it("日界を越える終了予定は「翌」を前置して警告色にする（F-104 / §3.1）", () => {
     const now = atJst("23:00");
     render(
       <DailySummary
@@ -117,7 +117,7 @@ describe("DailySummary（画面定義書01 §3.1 / F-104・F-114: 終了予定�
       />
     );
 
-    const value = screen.queryByText("25:30");
+    const value = screen.queryByText("翌 1:30");
     expect(value).not.toBeNull();
     expect(value?.classList.contains("text-danger")).toBe(true);
   });
@@ -137,8 +137,8 @@ describe("DailySummary（画面定義書01 §3.1 / F-104・F-114: 終了予定�
     expect(value?.classList.contains("text-danger")).toBe(false);
   });
 
-  it("日界（F-116）を起点に折返しと超過を測る（深夜は前の論理日の続き）", () => {
-    // 日界 06:00・深夜 02:00 → 論理日は前の暦日（07-26）なので通算 27:00 と読む
+  it("日界（F-116）を起点に日またぎと超過を測る（深夜は前の論理日の続き）", () => {
+    // 日界 06:00・深夜 02:00 → 論理日は前の暦日（07-26）なので 07-27 03:00 は「翌」側
     render(
       <DailySummary
         groups={[unclassifiedGroup([task({ id: 1, estimateMinutes: 60 })])]}
@@ -148,7 +148,7 @@ describe("DailySummary（画面定義書01 §3.1 / F-104・F-114: 終了予定�
       />
     );
 
-    const value = screen.queryByText("27:00");
+    const value = screen.queryByText("翌 3:00");
     expect(value).not.toBeNull();
     // 次の日界（07-27 06:00）は越えないので警告色にしない
     expect(value?.classList.contains("text-danger")).toBe(false);

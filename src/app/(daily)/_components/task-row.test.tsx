@@ -199,6 +199,20 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
 
       expect(cellsOf(taskRow("メール")).time.textContent).toBe("08:05–");
     });
+
+    // 実打刻は終了予定・予想開始と同じ列に並ぶが、あちらの日またぎ前置（§3.1）は付けない
+    it("暦日をまたいで走った打刻も `HH:MM` のまま（F-203。「翌」を前置しない。§3.3）", () => {
+      renderRow({
+        task: task({
+          id: 1,
+          name: "夜更かし",
+          startedAt: atJst("23:40"),
+          endedAt: atJst("00:10", "2026-07-27"),
+        }),
+      });
+
+      expect(cellsOf(taskRow("夜更かし")).time.textContent).toBe("23:40–00:10");
+    });
   });
 
   describe("未設定の表記（00_共通 §2.4: 設定できるセルは空欄にしない）", () => {
