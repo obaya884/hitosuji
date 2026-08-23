@@ -80,8 +80,8 @@ export function projectedStartTimes(tasks: readonly Task[], now: Date): Map<Task
 }
 
 /**
- * 論理日の暦日 0:00 を起点に測った時計数字（日界 F-116 を踏まえる。データモデル定義書 §4.3）。
- * 24:00 を超えると hours は 25, 26… と伸びる（折返し表記 `25:30` の材料）。
+ * 論理日の暦日 0:00 を起点に測った経過（日界 F-116 を踏まえる。データモデル定義書 §4.3）。
+ * `dayOffset` は暦日をまたいだ日数（0 = またがない）、`hours` は暦日の壁時計の時（0〜23）。
  * 既定（dayStartMinutes = 0）では now の暦日 0:00 起点。
  * 基準は運用タイムゾーン（実打刻の `formatClock` と同じ。T-47）
  */
@@ -90,19 +90,33 @@ function logicalClock(
   now: Date,
   timeZone: string,
   dayStartMinutes: number
-): { hours: number; minutes: number } {
+): { dayOffset: number; hours: number; minutes: number } {
   const startOfBase = logicalBaseMidnight(now, timeZone, dayStartMinutes);
   const minutesFromBase = Math.floor((at.getTime() - startOfBase.getTime()) / 60_000);
+  const hoursFromBase = Math.floor(minutesFromBase / 60);
   return {
-    hours: Math.floor(minutesFromBase / 60),
+    dayOffset: Math.floor(hoursFromBase / 24),
+    hours: ((hoursFromBase % 24) + 24) % 24,
     minutes: ((minutesFromBase % 60) + 60) % 60,
   };
 }
 
 /**
- * 終了予定時刻の表示（F-104: 24:00超過は翌日表記 `25:30`）。
- * 折返しの時計数字は論理日の暦日 0:00 起点（日界 F-116 を踏まえる。データモデル定義書 §4.3）。
+ * 暦日をまたいだ側であることを示す前置き（画面定義書01 §3.1「日またぎの時刻表記」）。
+ * またがないときは空文字。1日先は「翌」、2日以上先は「+N日」（見積もりが積み上がって
+ * 当日中に終わらないとき。「翌」のままでは表示が嘘になる）
+ */
+function dayPrefix(dayOffset: number): string {
+  if (dayOffset <= 0) return "";
+  return dayOffset === 1 ? "翌 " : `+${dayOffset}日 `;
+}
+
+/**
+ * 終了予定時刻の表示（F-104 / 画面定義書01 §3.1）。時計の数字は暦日の壁時計のままとし、
+ * 暦日をまたぐ側だけ「翌」を前置する（`翌 2:00`。折返し表記 `26:00` は使わない。FB-84）。
+ * またいだかの判定は論理日の暦日 0:00 起点（日界 F-116 を踏まえる。データモデル定義書 §4.3）で、
  * 既定（dayStartMinutes = 0）では now の暦日 0:00 が起点になる。
+ * **警告色の判定（`isOverMidnight`）とは独立**——あちらは次の日界を越えるかを見る
  */
 export function formatProjectedEnd(
   end: Date,
@@ -110,14 +124,14 @@ export function formatProjectedEnd(
   timeZone: string,
   dayStartMinutes = 0
 ): string {
-  const { hours, minutes } = logicalClock(end, now, timeZone, dayStartMinutes);
-  return `${hours}:${String(minutes).padStart(2, "0")}`;
+  const { dayOffset, hours, minutes } = logicalClock(end, now, timeZone, dayStartMinutes);
+  return `${dayPrefix(dayOffset)}${hours}:${String(minutes).padStart(2, "0")}`;
 }
 
 /**
  * 予想開始時刻の表示（F-120 / 画面定義書01 §3.3 の `HH:MM-` 形式）。返す文字列は `09:05–`。
  * 実打刻（`09:35–`）と同じ列に並ぶので、時は2桁ゼロ埋め・区切りも実打刻と同じ en dash に揃える。
- * 24:00 超過は終了予定と同じ論理日基準の折返し表記（`25:30–`）
+ * 暦日をまたぐ側は終了予定と同じ前置き（`翌 02:00–`。§3.1「日またぎの時刻表記」）
  */
 export function formatProjectedStart(
   start: Date,
@@ -125,8 +139,8 @@ export function formatProjectedStart(
   timeZone: string,
   dayStartMinutes = 0
 ): string {
-  const { hours, minutes } = logicalClock(start, now, timeZone, dayStartMinutes);
-  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}–`;
+  const { dayOffset, hours, minutes } = logicalClock(start, now, timeZone, dayStartMinutes);
+  return `${dayPrefix(dayOffset)}${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}–`;
 }
 
 /**
