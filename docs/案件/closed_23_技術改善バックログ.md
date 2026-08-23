@@ -81,6 +81,7 @@
 | T-115 | 「現在位置」の添字計算が `relocation.ts` と `duplicate.ts` に別実装で2つある | 内部設計 | 低 | 完了（2026-08-13。FB-103 で複製の挿入位置が「複製元の直下」になり insertionIndexForDuplicate を削除、重複が消えたため対応不要） | [詳細](#t-115) |
 | T-131 | Dependabot 依存追随（pg 8.23.0・@types/pg 8.21.0・tsx 4.23.12） | 依存追随 | 中 | 完了 | [詳細](#t-131) |
 | T-132 | nanoid のセキュリティアラートを overrides で根治する | 依存追随 | 中 | 完了 | [詳細](#t-132) |
+| T-133 | Dependabot 依存追随（next 16.3.1・eslint-config-next 16.3.1・@types/pg 8.23.1） | 依存追随 | 中 | 完了 | [詳細](#t-133) |
 
 ## 詳細
 
@@ -803,6 +804,17 @@
 - 対応: 上流にクリーンなパッチ版があるため dismiss ではなく根治を選んだ（本書 T-04・T-23・T-117 と同じ判断）。`overrides` に `nanoid: ^3.3.18` を追加。`postcss` 側の要求は `^3.3.17` なので範囲内に収まり、解決結果は 3.3.18
 - 検証: `npm run lint`・`typecheck`・`build`（postcss が効く経路）・`npm test` 2183本、すべて緑
 - 関連: [T-131](./closed_23_技術改善バックログ.md#t-131)（トリアージの本体）/ 本書 T-04・T-23・T-117（いずれも overrides で根治した先例）/ [.claude/skills/dependabot-triage](../../.claude/skills/dependabot-triage/SKILL.md) §6
+
+### T-133
+
+- 背景: Dependabot の version-update PR 3件（#139・#136・#135）。セキュリティアラート（Dependabot・code-scanning）は open 0件だった
+- **マージ（#139、minor-and-patch グループ3件）**: `next` 16.3.0→16.3.1（patch・runtime）、`eslint-config-next` 16.3.0→16.3.1（patch・dev。`next` と同版で揃う）、`@types/pg` 8.21.0→8.23.1（minor・dev）
+- 検証: CI の `verify` が lint・typecheck・build・テスト2周（UTC / JST）まで完走して緑。[T-131](./closed_23_技術改善バックログ.md#t-131) と違い **CI を通らない依存は今回の3件に含まれない**（`tsx` のような `db:seed` 専用の依存が無い）ため、ローカル追検証は行っていない
+- 版差分の評価: `next` 16.3.1 は Turbopack と `next/image` のバグ修正が中心の patch。`@types/pg` 8.23.1 はランタイムの `pg`（`^8.23.0`）に**型が追いつく**方向で、[アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md) §11 の「追い越さない」に反しない
+- **クローズ（#135、`@types/node` 24.13.3→26.2.0）**: 本番 Vercel のランタイムが Node 24 系（CI・`db-migrate` も `node-version: 24`）のため追い越さない（同 §11）。現行 `^24` は追随済みで、[T-30](./closed_23_技術改善バックログ.md#t-30-typesnode-を本番ランタイムnode-24-系へ追随させる2026-07-25) のような中間版への残作業も無い。26 系のクローズは #3・#79 に続く3回目
+- **クローズ（#136、`eslint` 9.39.5→10.8.1）**: [T-02](./23_技術改善バックログ.md#t-02) に再確認として記録した（上流は前回から動いておらず、判断も同じ）
+- 結果: 挙動変更なし（lockfile と `package.json` のみ）。オープン Dependabot PR 0件・セキュリティアラート 0件
+- 関連: [T-131](./closed_23_技術改善バックログ.md#t-131)（直前の同種の依存追随）/ [T-02](./23_技術改善バックログ.md#t-02)（eslint 10 の保留。本件で3度目の再確認）/ [アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md) §11（版の追随関係）/ [.claude/skills/dependabot-triage](../../.claude/skills/dependabot-triage/SKILL.md)
 
 ## 旧書式の記録（2026-07-26 以前）
 
