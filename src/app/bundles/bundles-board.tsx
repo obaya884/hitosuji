@@ -16,7 +16,7 @@
 // 画面に出す」に反する）。新しい Server Action を実行するとき（`errorSinkFor` の null）だけは
 // 無条件にクリアする——それは実際に新しい応答を待ち始める瞬間なので、古い通知を残す理由が無い
 import { useState } from "react";
-import { linkMutedUnderline } from "@/app/_lib/ui";
+import { linkMuted } from "@/app/_lib/ui";
 import { useServerActionRunner } from "@/app/_lib/use-server-action";
 import type { Bundle, BundleId } from "@/domain/bundle/bundle";
 import type { Mode } from "@/domain/mode/mode";
@@ -251,7 +251,7 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
                 type="button"
                 onClick={() => runPanel(() => setBundleArchivedAction(selectedBundle.id, true))}
                 disabled={isPending}
-                className={`ml-auto px-2 ${linkMutedUnderline}`}
+                className={`ml-auto px-2 ${linkMuted}`}
               >
                 アーカイブ
               </button>

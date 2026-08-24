@@ -4,8 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Section } from "@/domain/section/section";
 
 import { deferredAction } from "@/app/_testing/actions";
+import { hasClass } from "@/app/_testing/dom";
 import { click, clickWithoutServer } from "@/app/_testing/interactions";
 import { rowOf } from "@/app/_testing/table";
+import { disabledPermanent } from "@/app/_lib/ui";
 import { startEditingCell } from "../_testing/table-helpers";
 
 // Server Action の先は実DB接続と revalidatePath に届くため、同じ返り値の契約
@@ -80,6 +82,17 @@ const startEditingStartTime = (
   clickWithoutServer(within(rowOf(name)).getByRole("button", { name: `${startTime}–${endTime}` }));
   return screen.getByDisplayValue<HTMLInputElement>(startTime);
 };
+
+const archiveButtonOf = (name: string): HTMLElement =>
+  within(rowOf(name)).getByRole("button", { name: "アーカイブ" });
+
+/**
+ * 薄さは**擬似クラス由来（`disabled:opacity-*`）でも拾う**——「薄くない」の主張を
+ * `hasClass(el, "opacity-40")` だけで書くと、§2.5 が禁じた擬似クラス書きに戻したときに
+ * トークンが `disabled:opacity-40` になって主張が素通りする（否定側専用）。
+ */
+const isDimmedAnyhow = (el: HTMLElement): boolean =>
+  [...el.classList].some((token) => /(^|:)opacity-/.test(token));
 
 beforeEach(() => {
   vi.mocked(archiveSectionAction).mockResolvedValue({ ok: true });
@@ -182,12 +195,21 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
     it("日界セクションはアーカイブできない（先に別セクションを日界に指定させる）", async () => {
       renderTable();
 
-      const archive = within(rowOf("セクションA")).getByRole("button", { name: "アーカイブ" });
+      const archive = archiveButtonOf("セクションA");
       expect(archive).toHaveProperty("disabled", true);
       expect(archive.getAttribute("title")).toBe("日界セクションはアーカイブできません");
 
       await click(archive);
       expect(archiveSectionAction).not.toHaveBeenCalled();
+    });
+
+    // 恒久的な無効（日界）と保存中の無効が同じ `disabled` に乗る唯一の箇所なので、
+    // 見た目で2種類を見分けられることをここで固定する（画面定義書00_共通 §2.5）
+    it("日界セクションのアーカイブは薄く見せる（恒久的な無効。00_共通 §2.5）", () => {
+      renderTable();
+
+      expect(hasClass(archiveButtonOf("セクションA"), disabledPermanent)).toBe(true);
+      expect(isDimmedAnyhow(archiveButtonOf("セクションB"))).toBe(false);
     });
 
     it("日界の指定が無い行（isDayStart 省略）は非日界として扱う（データモデル定義書 §3.1）", () => {
@@ -309,9 +331,10 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
         true
       );
       // 日界セクションなので元から押せない。保存中の抑止を見たいので非日界の行で見る
-      expect(
-        within(rowOf("セクションB")).getByRole("button", { name: "アーカイブ" })
-      ).toHaveProperty("disabled", true);
+      const archive = archiveButtonOf("セクションB");
+      expect(archive).toHaveProperty("disabled", true);
+      // 保存中は数百msで消える状態なので濃淡は変えない（恒久的な無効との差を残す。00_共通 §2.5）
+      expect(isDimmedAnyhow(archive)).toBe(false);
 
       await act(async () => {
         pending.resolve({ ok: true });

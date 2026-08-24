@@ -1,25 +1,30 @@
 // UIのクラス規約。ボタン・入力・浮遊面の見た目はここで一元管理し、
 // 各コンポーネントは className にこれらを埋め込む（コンポーネント化はしない）。
+//
+// ホバーの合図は「押せる範囲がどう区切られているか」で決める（00_共通 §2.5。面＝背景 /
+// 語＝下線）。`btn*` と `link*` の `disabled:` はその合図を**保存中の一時的な無効**で
+// 打ち消すもので、濃淡は変えない（恒久的な無効は下の `disabledPermanent`）。
 
 export const btnPrimary =
-  "rounded-control bg-accent px-3 py-1 text-sm font-medium text-white hover:bg-accent-hover";
+  "rounded-control bg-accent px-3 py-1 text-sm font-medium text-white hover:bg-accent-hover disabled:hover:bg-accent";
 
 export const btnSecondary =
-  "rounded-control border border-line bg-surface px-3 py-1 text-sm text-ink hover:bg-accent-weak";
+  "rounded-control border border-line bg-surface px-3 py-1 text-sm text-ink hover:bg-accent-weak disabled:hover:bg-surface";
 
 // 部品（リンク状のボタン・入力欄）は本文のサイズを継承させず自分で持つ
 // ——本文は主/従/メタの3段（00_共通 §1.1）だが、部品はその外側なので継承すると置かれた場所で大小が変わる
-export const linkAccent = "text-sm text-accent hover:underline";
+export const linkAccent = "text-sm text-accent hover:underline disabled:no-underline";
 
-export const linkMuted = "text-sm text-ink-muted hover:text-ink";
-
-// linkMuted と同じ地味な色で、ホバー時は濃くする代わりに下線を出す
-// （クリック可能であることを他のリンク・ボタンと同じ見せ方で示す）。
-// **地味な操作リンクは新規もこちらを使う**——`linkMuted` は FB-100 でこちらへ畳む予定
-export const linkMutedUnderline = "text-sm text-ink-muted hover:underline";
+// 副次的な操作リンク（アーカイブ・復元・外す等）。色は地味なままホバーでは下線を出す
+// ——地の色が薄いぶん色の変化量が小さく、押せることの合図として弱いため（FB-100）
+export const linkMuted = "text-sm text-ink-muted hover:underline disabled:no-underline";
 
 // 取り消せない操作（マスタの物理削除）の確定ボタン
-export const linkDanger = "text-sm text-danger hover:underline";
+export const linkDanger = "text-sm text-danger hover:underline disabled:no-underline";
+
+// 恒久的な無効（いまの状態では押せない）の薄さ（00_共通 §2.5）。
+// **`disabled:` の擬似クラスでは使わない**——同じ属性に保存中の無効も乗るため書き分けられない
+export const disabledPermanent = "opacity-40";
 
 export const inputBase =
   "rounded-control border border-line bg-surface px-2 py-1 text-sm text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none";

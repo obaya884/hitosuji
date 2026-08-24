@@ -55,7 +55,7 @@ export function EditableCell({
         onClick={onStartEditing}
         className={`${
           type === "time" ? "font-mono tabular-nums" : "text-left"
-        } hover:underline disabled:no-underline disabled:opacity-60`}
+        } hover:underline disabled:no-underline`}
       >
         {display ?? value}
       </button>

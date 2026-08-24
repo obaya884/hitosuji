@@ -100,7 +100,7 @@ export function DatePicker({ date, today, onSelect, onClose }: Props) {
           type="button"
           aria-label="前月"
           onClick={() => setFocused((d) => shiftMonthKeepingDay(d, -1))}
-          className="rounded-control p-1 text-ink-muted hover:bg-accent-weak hover:text-ink"
+          className="rounded-control p-1 text-ink-muted hover:bg-accent-weak"
         >
           <ChevronLeftIcon className="h-3 w-3" />
         </button>
@@ -111,7 +111,7 @@ export function DatePicker({ date, today, onSelect, onClose }: Props) {
           type="button"
           aria-label="翌月"
           onClick={() => setFocused((d) => shiftMonthKeepingDay(d, 1))}
-          className="rounded-control p-1 text-ink-muted hover:bg-accent-weak hover:text-ink"
+          className="rounded-control p-1 text-ink-muted hover:bg-accent-weak"
         >
           <ChevronRightIcon className="h-3 w-3" />
         </button>

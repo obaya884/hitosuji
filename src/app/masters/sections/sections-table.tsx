@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useServerAction } from "@/app/_lib/use-server-action";
 import { formatDuration } from "@/app/_lib/format";
-import { linkMuted, tableHeadRow } from "@/app/_lib/ui";
+import { disabledPermanent, linkMuted, tableHeadRow } from "@/app/_lib/ui";
 import { sectionCapacityMinutes, type Section, type SectionId } from "@/domain/section/section";
 import { TableFrame } from "@/app/_components/table-frame";
 import { ArchivedSection } from "@/app/_components/archived-section";
@@ -147,37 +147,41 @@ export function SectionsTable({ ranges, archived, deletableIds }: Props) {
           </tr>
         </thead>
         <tbody>
-          {ranges.map((row) => (
-            <tr key={row.id} className="border-b border-line">
-              <td className="py-2">
-                {/* 1日の開始（日界）セクションの選択（F-116 / 画面定義書03 §3.1） */}
-                <input
-                  type="radio"
-                  name="dayStart"
-                  aria-label={`${row.name}を1日の開始にする`}
-                  checked={row.isDayStart ?? false}
-                  disabled={isPending}
-                  onChange={() => run(() => setDayStartSectionAction(row.id))}
-                />
-              </td>
-              <td className="py-2">{nameCell(row)}</td>
-              <td className="py-2">{startTimeCell(row)}</td>
-              <td className="py-2 font-mono tabular-nums text-ink-muted">
-                {formatDuration(sectionCapacityMinutes(row.startTime, row.endTime))}
-              </td>
-              <td className="py-2 text-right whitespace-nowrap">
-                <button
-                  onClick={() => run(() => archiveSectionAction(row.id))}
-                  // 日界セクションはアーカイブ不可（先に別セクションを日界に指定する。§3.1）
-                  disabled={isPending || (row.isDayStart ?? false)}
-                  title={row.isDayStart ? "日界セクションはアーカイブできません" : undefined}
-                  className={`px-2 ${linkMuted} disabled:opacity-40`}
-                >
-                  アーカイブ
-                </button>
-              </td>
-            </tr>
-          ))}
+          {ranges.map((row) => {
+            const isDayStart = row.isDayStart ?? false;
+            return (
+              <tr key={row.id} className="border-b border-line">
+                <td className="py-2">
+                  {/* 1日の開始（日界）セクションの選択（F-116 / 画面定義書03 §3.1） */}
+                  <input
+                    type="radio"
+                    name="dayStart"
+                    aria-label={`${row.name}を1日の開始にする`}
+                    checked={isDayStart}
+                    disabled={isPending}
+                    onChange={() => run(() => setDayStartSectionAction(row.id))}
+                  />
+                </td>
+                <td className="py-2">{nameCell(row)}</td>
+                <td className="py-2">{startTimeCell(row)}</td>
+                <td className="py-2 font-mono tabular-nums text-ink-muted">
+                  {formatDuration(sectionCapacityMinutes(row.startTime, row.endTime))}
+                </td>
+                <td className="py-2 text-right whitespace-nowrap">
+                  <button
+                    onClick={() => run(() => archiveSectionAction(row.id))}
+                    // 日界セクションはアーカイブ不可（先に別セクションを日界に指定する。§3.1）
+                    disabled={isPending || isDayStart}
+                    title={isDayStart ? "日界セクションはアーカイブできません" : undefined}
+                    // 日界の不可は恒久的なので条件で薄くする（00_共通 §2.5）
+                    className={`px-2 ${linkMuted} ${isDayStart ? disabledPermanent : ""}`}
+                  >
+                    アーカイブ
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
           {editing?.id === "new" && newRow}
         </tbody>
       </table>
