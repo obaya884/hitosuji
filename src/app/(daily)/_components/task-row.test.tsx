@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { faintTextOf, hasClass } from "@/app/_testing/dom";
+import { disabledPermanent } from "@/app/_lib/ui";
 import { atJst } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
 import {
@@ -107,6 +108,21 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
       const button = within(cellsOf(taskRow("朝食")).punch).getByRole("button");
       expect(button.getAttribute("aria-label")).toBe("完了済み");
       expect((button as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    // 3状態のうち完了だけが恒久的な無効。薄さを文字色でなく不透明度で表すのは、
+    // 打刻ボタンのように枠線を持つ部品でも一律に効かせるため（00_共通 §2.5）
+    it("完了の打刻ボタンだけを薄くする（恒久的な無効。00_共通 §2.5）", () => {
+      const punchButtonOf = (name: string): HTMLElement =>
+        within(cellsOf(taskRow(name)).punch).getByRole("button");
+
+      renderRow({
+        task: task({ id: 1, name: "朝食", startedAt: atJst("06:30"), endedAt: atJst("06:48") }),
+      });
+      expect(hasClass(punchButtonOf("朝食"), disabledPermanent)).toBe(true);
+
+      renderRow({ task: task({ id: 2, name: "日次プラン" }) });
+      expect(hasClass(punchButtonOf("日次プラン"), disabledPermanent)).toBe(false);
     });
 
     it.each([

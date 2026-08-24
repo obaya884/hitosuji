@@ -15,7 +15,7 @@ import type { Bundle } from "@/domain/bundle/bundle";
 import type { Mode } from "@/domain/mode/mode";
 import { describeRecurrence, type Routine, type RoutineId } from "@/domain/routine/routine";
 import { bundleCandidates, bundleMembers } from "@/domain/bundle/members";
-import { linkAccent, linkMutedUnderline, noticeDanger, tableHeadRow } from "@/app/_lib/ui";
+import { linkAccent, linkMuted, noticeDanger, tableHeadRow } from "@/app/_lib/ui";
 import { useDismiss } from "@/app/_lib/use-dismiss";
 import type { useServerActionRunner } from "@/app/_lib/use-server-action";
 import { DurationValue } from "@/app/_components/duration-value";
@@ -123,7 +123,7 @@ export function BundleMembersTable({
                       type="button"
                       onClick={() => removeMember(member.id)}
                       disabled={isPending}
-                      className={`px-2 ${linkMutedUnderline}`}
+                      className={`px-2 ${linkMuted}`}
                     >
                       外す
                     </button>
@@ -156,7 +156,7 @@ export function BundleMembersTable({
                     type="button"
                     onClick={() => addMember(candidate.id)}
                     disabled={isPending}
-                    className="flex w-full items-center justify-between gap-3 px-2 py-1 text-left text-sm hover:bg-accent-weak"
+                    className="flex w-full items-center justify-between gap-3 px-2 py-1 text-left text-sm hover:bg-accent-weak disabled:hover:bg-transparent"
                   >
                     <span>{candidate.name}</span>
                     <span className="font-mono text-ink-muted">

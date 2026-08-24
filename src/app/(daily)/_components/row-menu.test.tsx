@@ -1,6 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { disabledPermanent } from "@/app/_lib/ui";
+import { hasClass } from "@/app/_testing/dom";
 import { RowMenu, type RowMenuItem } from "./row-menu";
 
 /** メニューを開いた状態にして、パネル内の項目ボタンを返す */
@@ -65,6 +67,19 @@ describe("RowMenu（画面定義書01 O-7/O-8: 行メニューから先送り・
 
     fireEvent.click(item);
     expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  // 行メニューの無効はすべて恒久的（ルーチン由来はルーチン化不可・中断は実行中のみ 等）と
+  // 見て薄くしている。保存中由来の項目が混ざると、この前提ごと条項違反になる（00_共通 §2.5）
+  it("非活性の項目だけを薄くする（恒久的な無効。00_共通 §2.5）", () => {
+    const onSelect = vi.fn();
+    openMenu([
+      { label: "ルーチン化", onSelect, disabled: true },
+      { label: "複製", onSelect },
+    ]);
+
+    expect(hasClass(screen.getByText("ルーチン化"), disabledPermanent)).toBe(true);
+    expect(hasClass(screen.getByText("複製"), disabledPermanent)).toBe(false);
   });
 
   it("確認付きの項目は承認したときだけ実行する（O-8: 打刻済みの削除）", () => {

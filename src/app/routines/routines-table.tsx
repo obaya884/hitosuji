@@ -66,7 +66,8 @@ function SortableHeader({
       aria-sort={isActive ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}
       className={`py-2 font-normal ${className}`}
     >
-      <button type="button" onClick={() => onSort(sortKey)} className="hover:text-ink">
+      {/* 列見出しは語そのものが押せるので下線で示す（00_共通 §2.5） */}
+      <button type="button" onClick={() => onSort(sortKey)} className="hover:underline">
         {label}
         <span className={isActive ? "ml-1" : "ml-1 invisible"} aria-hidden>
           {isActive && sort.direction === "desc" ? "▼" : "▲"}

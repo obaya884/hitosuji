@@ -13,7 +13,7 @@ import { CheckIcon, CommentIcon, PlayIcon, StarIcon, StopIcon } from "@/app/_com
 import { formatClock, formatDuration } from "@/app/_lib/format";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { modeAppearance } from "@/app/_lib/mode-appearance";
-import { inputBase } from "@/app/_lib/ui";
+import { disabledPermanent, inputBase } from "@/app/_lib/ui";
 import { UNCATEGORIZED_LABEL } from "@/app/_lib/unset";
 import { showsCommentRow, type EditField } from "../_lib/editing";
 import { toModeOptions, toProjectOptions } from "../_lib/master-options";
@@ -173,9 +173,10 @@ export function TaskRow({
             }
             className={`flex h-7 w-7 items-center justify-center rounded-full ${
               status === "running"
-                ? "bg-accent text-white"
+                ? "bg-accent text-white hover:bg-accent-hover"
                 : status === "completed"
-                  ? "text-ink-faint"
+                  ? // 完了は操作なし＝恒久的な無効なので薄くする（00_共通 §2.5）
+                    `text-ink-muted ${disabledPermanent}`
                   : "border border-line text-ink-muted hover:border-accent hover:text-accent"
             }`}
           >
