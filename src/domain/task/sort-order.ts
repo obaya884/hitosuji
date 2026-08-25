@@ -12,7 +12,7 @@ const SORT_ORDER_STEP = 1000;
  */
 export type Renumber = readonly Readonly<{ taskId: TaskId; sortOrder: number }>[];
 
-/** 挿入位置の採番（`placeSortOrder` の結果） */
+/** 新規1行を差し込む・既存1行を動かすときの採番結果 */
 export type SortOrderPlacement = Readonly<{
   /** 挿入するタスク自身の sort_order */
   sortOrder: number;
@@ -71,6 +71,23 @@ export function placeSortOrder(
       task === undefined ? [] : [{ taskId: task.id, sortOrder: numbers[i] }]
     ),
   };
+}
+
+/**
+ * **元の行の直下へ新規行を1件差し込む**採番（§3.5）。`tasks`（同じ日のタスク全件）から
+ * `anchor` と同じグループ（セクション。未分類なら未分類）を取り出し、その1つ後ろへ置く。
+ * **なぜ直下なのかは各ユースケースの条項が持つ**（ここが持つのは採番の手続きだけ）。
+ *
+ * 呼び出し側が守ること:
+ * - `anchor` は `tasks` に含まれていること（含まれないと先頭に置かれる）
+ * - **差し込む行は `anchor` と同じセクションへ置くこと**——採番は `anchor` のグループで決まるが、
+ *   差し込む行自身の `sectionId` は呼び出し側が別に与えるので、食い違うと静かに位置だけが狂う
+ * - **既存行の移動には使わない**——`placeSortOrder` に `moving` を渡さない（差し込む行はまだ
+ *   id を持たない）ので、振り直しが要る場面でその行自身が `renumber` から漏れる
+ */
+export function placeNewBelow(tasks: readonly Task[], anchor: Task): SortOrderPlacement {
+  const siblings = tasksInSection(tasks, anchor.sectionId);
+  return placeSortOrder(siblings, siblings.findIndex((t) => t.id === anchor.id) + 1);
 }
 
 /** 新規2行を連続して差し込むときの採番（`placeNewPair` の結果） */
