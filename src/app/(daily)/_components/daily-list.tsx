@@ -2,6 +2,7 @@
 
 import { Fragment } from "react";
 import type { Bundle, BundleId } from "@/domain/bundle/bundle";
+import type { LogicalDate } from "@/domain/shared/logical-date";
 import { APP_TIME_ZONE } from "@/domain/shared/time-zone";
 import type { DailyGroup } from "@/domain/task/daily-list";
 import { formatProjectedStart, projectedStartTimes, sectionSlacks } from "@/domain/task/projection";
@@ -47,7 +48,9 @@ export type DailyListProps = Pick<
     selectedId: TaskId | null;
     /** 編集中のセル（選択行モデルと同じく親が単一の真実を持つ） */
     editing: EditingCell | null;
-    /** 表示日が今日か。セクション残り時間（§3.2）と予想開始時刻（§3.3）は今日のみ出す */
+    /** 表示日。セクション残り時間（§3.2）の枠をこの日の論理日に敷く */
+    date: LogicalDate;
+    /** 表示日が今日か。予想開始時刻（§3.3）は今日のみ出す */
     isToday: boolean;
     /** 日界（分）。セクションの枠を論理日の区切りで測る起点（F-116） */
     dayStartMinutes: number;
@@ -77,6 +80,7 @@ export function DailyList({
   onBeginEdit,
   onEndEdit,
   now,
+  date,
   isToday,
   dayStartMinutes,
   currentSectionId,
@@ -87,7 +91,14 @@ export function DailyList({
   const projectById = new Map(projects.map((p) => [p.id, p]));
 
   const projectedStarts = projectedStartLabels(groups, now, isToday, dayStartMinutes);
-  const remainings = sectionRemainings(groups, now, isToday, dayStartMinutes);
+  // 表示日は「過去・今日・未来」のいずれか1つなので、過去は残り2つの否定で決まる（§3.2 の表示条件）
+  const remainings = sectionRemainings(
+    groups,
+    date,
+    now,
+    !isToday && !isFutureDate,
+    dayStartMinutes
+  );
   // セクション選択の候補（O-5 / §4.3）。先頭の固定項目が currentSectionId を要るため、
   // 行ではなくここで組んで渡す（モード・プロジェクトの候補は行側で組む）
   const sectionOptions = toSectionOptions(sections, currentSectionId);
@@ -196,17 +207,19 @@ export function DailyList({
 /**
  * 見出しに出すセクション残り時間（F-110 / §3.2）を sectionId で引ける Map。値と算出の規則は
  * `sectionSlacks`（データモデル定義書 §4.3）が持つ。ここで足すのは表示条件だけ——
- * **表示日が今日で、かつ現在時刻が枠の終了より前**のものに絞る。今日でなければ null（見出しに出さない）
+ * **表示日が過去なら出さない**（null）。今日はさらに**現在時刻が枠の終了より前**のものに絞る
+ * （未来日の枠はすべて現在時刻より後なので、同じ絞り込みが素通りする）
  */
 function sectionRemainings(
   groups: readonly DailyGroup[],
+  date: LogicalDate,
   now: Date,
-  isToday: boolean,
+  isPastDate: boolean,
   dayStartMinutes: number
 ): Map<SectionId, number> | null {
-  if (!isToday) return null;
+  if (isPastDate) return null;
 
-  const slacks = sectionSlacks(groups, now, APP_TIME_ZONE, dayStartMinutes);
+  const slacks = sectionSlacks(groups, date, now, APP_TIME_ZONE, dayStartMinutes);
   return new Map(
     [...slacks]
       .filter(([, slack]) => now.getTime() < slack.endAt.getTime())

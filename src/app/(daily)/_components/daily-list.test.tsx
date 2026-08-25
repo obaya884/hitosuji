@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
 import { hasClass } from "@/app/_testing/dom";
-import { atJst } from "@/domain/shared/testing/clock";
+import { atJst, NEXT_TEST_DATE, TEST_DATE } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
 import {
   afternoon,
@@ -39,8 +39,12 @@ function listElement(overrides: Overrides, handlers: Handlers) {
       // （`projectedStartTimes` / `sectionSlacks`）の両方へ流れるが、どちらも
       // `APP_TIME_ZONE` 基準なので `atJst` 一本で組める（T-47）
       now={overrides.now ?? atJst("10:00")}
+      // 表示日。セクション残り時間の枠をこの日に敷く（§3.2）ので、既定は `now` と同じ日にする
+      date={overrides.date ?? TEST_DATE}
       isToday={overrides.isToday ?? true}
       // 既定は打刻できる日（今日以前）。行へそのまま流すだけなので、出し分けは task-row.test.tsx が見る（§7）
+      // ——ただし残り時間（§3.2）の「過去日か」はリストがこれと `isToday` の否定で決めるので、
+      // 未来日に依拠するテストは `date` と一緒にこちらも立てる
       isFutureDate={overrides.isFutureDate ?? false}
       dayStartMinutes={overrides.dayStartMinutes ?? 0}
       // 現在セクションを `sections` と現在時刻から導出するのは board の仕事（§4.3）で、リストは
@@ -167,15 +171,47 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
       expect(headingOf("未分類").textContent).not.toContain("残り");
     });
 
-    it("表示日が今日でなければ出さない（現在時刻起点の値のため）", () => {
+    it("表示日が過去なら出さない（やり残しが枠を食った量は時間合計が語る。FB-104）", () => {
       renderList({
-        isToday: false,
-        now: atJst("10:00"),
-        groups: [forenoon([task({ id: 1, name: "設計書レビュー", estimateMinutes: 30 })])],
+        isToday: false, // 未来日でもないので過去日
+        date: "2026-07-25",
+        // **枠の終了が now より後になる組み合わせで見る**——午後（13:00–翌06:00）は前日ぶんでも
+        // 翌 06:00 まで伸びるので、深夜 02:00 の時点ではまだ終わっていない。ここを今日と同じ
+        // 昼の時刻にすると「now < 枠の終了」の絞り込みだけで消え、過去日の判定が素通りする
+        now: atJst("02:00", "2026-07-26"),
+        groups: [afternoon([task({ id: 1, name: "夜更かし", estimateMinutes: 30 })])],
       });
 
-      expect(headingOf("午前").textContent).not.toContain("残り");
-      expect(headingOf("午前").textContent).toContain("合計");
+      expect(headingOf("午後").textContent).not.toContain("残り");
+      expect(headingOf("午後").textContent).toContain("合計");
+    });
+
+    it("未来日でも出す。枠は表示日に敷くので値は「枠の長さ − 見積もり」になる（FB-104）", () => {
+      renderList({
+        isToday: false,
+        isFutureDate: true,
+        date: NEXT_TEST_DATE, // 翌日。now は今日のまま（枠の頭より前になる）
+        now: atJst("10:00"),
+        groups: [forenoon([task({ id: 1, name: "設計書レビュー", estimateMinutes: 60 })])],
+      });
+
+      // 午前の枠は4時間。今日基準で測ると (翌13:00 − 10:00) − 60分 = +26:00 になってしまう
+      expect(within(headingOf("午前")).queryByText("+3:00")).not.toBeNull();
+    });
+
+    it("日界が 00:00 でないとき、暦日が同じでも未来の論理日なら出す（F-116 × FB-104）", () => {
+      renderList({
+        isToday: false,
+        isFutureDate: true,
+        dayStartMinutes: 360, // 日界 06:00 → now(07-27 02:00) の論理日は 07-26 で、07-27 は未来日
+        date: NEXT_TEST_DATE,
+        now: atJst("02:00", NEXT_TEST_DATE),
+        groups: [forenoon([task({ id: 1, name: "設計書レビュー", estimateMinutes: 60 })])],
+      });
+
+      // 07-27 の午前は 07-27 09:00–13:00。now の暦日で敷くと同じ 07-27 でも
+      // 論理日の起点が前日にずれ、枠が now より前だと誤って測りうる
+      expect(within(headingOf("午前")).queryByText("+3:00")).not.toBeNull();
     });
 
     it("現在時刻が枠の終了に達したら出さない（§3.2「終了時刻より前のときだけ」の境界）", () => {
@@ -331,9 +367,21 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
       expect(cellsOf(taskRow("夜の片付け")).time.querySelector(".text-danger")).toBe(null);
     });
 
-    it("表示日が今日でなければ出さない（終了予定・残り時間と同じ規律）", () => {
+    it("表示日が過去なら出さない（終了予定 F-104 と同じ規律）", () => {
       renderList({
         isToday: false,
+        date: "2026-07-25",
+        groups: [morning([task({ id: 1, name: "日次プラン", estimateMinutes: 15 })])],
+      });
+
+      expect(cellsOf(taskRow("日次プラン")).time.textContent).toBe("");
+    });
+
+    it("未来日でも出さない（残り時間 F-110 と違って未来へは広げない。§3.3 / FB-104）", () => {
+      renderList({
+        isToday: false,
+        isFutureDate: true,
+        date: NEXT_TEST_DATE,
         groups: [morning([task({ id: 1, name: "日次プラン", estimateMinutes: 15 })])],
       });
 

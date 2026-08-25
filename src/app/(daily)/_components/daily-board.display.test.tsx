@@ -6,7 +6,7 @@
 import { act, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { atJst, TEST_DATE } from "@/domain/shared/testing/clock";
+import { atJst, NEXT_TEST_DATE, TEST_DATE } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
 
 import { SECTIONS } from "../_testing/factories";
@@ -50,8 +50,14 @@ describe("DailyBoard の現在セクションの導出（§3.2 F-121 の強調 /
     expect(highlightedSectionNames()).toEqual([FORENOON.name]);
   });
 
-  it("表示日が今日でなければどのセクションも強調しない（F-121）", () => {
+  it("表示日が過去ならどのセクションも強調しない（F-121）", () => {
     renderBoard(defaultTasks(), { date: "2026-07-20", today: TEST_DATE, isToday: false });
+
+    expect(highlightedSectionNames()).toEqual([]);
+  });
+
+  it("未来日でも強調しない（残り時間 F-110 と違って未来へは広げない。§3.2 / FB-104）", () => {
+    renderBoard(defaultTasks(), { date: NEXT_TEST_DATE, today: TEST_DATE, isToday: false });
 
     expect(highlightedSectionNames()).toEqual([]);
   });
@@ -96,7 +102,7 @@ describe("DailyBoard の固定領域の高さ（§2 / §5: 追従した行が固
   });
 });
 
-describe("DailyBoard の表示日に応じた出し分けと警告（§3.1 / F-209）", () => {
+describe("DailyBoard の表示日に応じた出し分けと警告（§3.1 / §3.2 / F-209）", () => {
   // 移動先が S-04（/review）になっていないことは href でしか判らない（04 §3.1
   // 「S-01 と S-04 の表示日は連動させない」の S-01 側。04 の対は review-board.test.tsx）
   it("日付ナビの移動先は S-01 に閉じる（前日・翌日・今日へ）", () => {
@@ -117,6 +123,23 @@ describe("DailyBoard の表示日に応じた出し分けと警告（§3.1 / F-2
     renderBoard();
 
     expect(screen.queryByRole("link", { name: "今日へ" })).toBeNull();
+  });
+
+  /**
+   * 残り時間の値も表示条件も projection / daily-list の段が持つ。ここで見るのは
+   * **board が `date` と「今日・未来日のどちらか」を配れているか**（`today` との比較は board にしかない）。
+   * 過去日側をここに置かないのは、`NOW` を固定している以上どんな過去日でも枠が既に終わっており、
+   * 「now < 枠の終了」の絞り込みだけで消えて board の配線を観測できないため（判定は daily-list.test.tsx）
+   */
+  it("未来日でも残り時間を出す。枠は表示日に敷く（§3.2 / FB-104）", () => {
+    renderBoard([task({ id: 9, name: "資料作成", sectionId: FORENOON.id, estimateMinutes: 60 })], {
+      date: NEXT_TEST_DATE,
+      today: TEST_DATE,
+      isToday: false,
+    });
+
+    // 午前は 09:00–13:00 の4時間。今日（NOW = 10:30）の枠を測ってしまうと +25:30 になる
+    expect(headingOf(FORENOON.name).textContent).toContain("残り +3:00");
   });
 
   it("前日以前の実行中タスクがあれば警告バナーを出す（F-209）", () => {
