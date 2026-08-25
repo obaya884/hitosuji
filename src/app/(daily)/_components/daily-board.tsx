@@ -720,6 +720,7 @@ export function DailyBoard({
         selectedId={selectedId}
         onSelect={setSelectedId}
         now={now}
+        date={date}
         isToday={isToday}
         dayStartMinutes={dayStartMinutes}
         currentSectionId={currentSectionId}

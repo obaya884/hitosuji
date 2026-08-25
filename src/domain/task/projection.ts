@@ -1,12 +1,7 @@
 // 終了予定時刻と残時間（F-104）・予想開始時刻（F-120 / データモデル定義書 §4.3）
 // DBには保存しない導出値。現在時刻とタイムゾーンは引数で受け取る（domain は now も環境も持たない）
-import {
-  offsetFromDayStart,
-  sectionCapacityMinutes,
-  startMinutes,
-  type SectionId,
-} from "../section/section";
-import { todayLogicalDate } from "../shared/logical-date";
+import { sectionCapacityMinutes, startMinutes, type SectionId } from "../section/section";
+import { atLogicalDayClock, todayLogicalDate, type LogicalDate } from "../shared/logical-date";
 import { fromZonedClock } from "../shared/time-zone";
 import type { DailyGroup } from "./daily-list";
 import { taskStatus } from "./status";
@@ -14,7 +9,8 @@ import { elapsedMinutes, type Task, type TaskId } from "./task";
 
 /**
  * 現在時刻が属する論理日の暦日 0:00（F-116）。日界（分）より前の時間帯は前の暦日が起点になる。
- * 日またぎ判定・超過警告・セクション終了時刻を、暦日 0:00 ではなく論理日の区切りで測るための基準。
+ * 日またぎ判定（F-104 / F-120）と超過警告を、暦日 0:00 ではなく論理日の区切りで測るための基準。
+ * **セクションの枠はこれを使わない**——枠は now ではなく表示日に敷く（`sectionSlacks`）。
  * 暦日と壁時計は運用タイムゾーンで読む（表示の `formatClock` と同じ基準。T-47）。
  * 論理日そのものの決定は `todayLogicalDate` に任せ（日界の規則を2か所に持たない）、
  * その暦日 0:00 を運用タイムゾーンの壁時計として絶対時刻に戻す。
@@ -162,22 +158,6 @@ export function isOverMidnight(
   return end.getTime() >= nextDayStart;
 }
 
-/**
- * セクション開始の絶対時刻。枠の起点（日界からの巡回位置。F-116）を論理日の区切りから測るので、
- * 日界を跨ぐ枠（回転で末尾に来る深夜など）も同じ論理日の中で正しく置ける。
- * 既定（dayStartMinutes = 0）では now の暦日で解釈する。
- */
-function sectionStartAt(
-  now: Date,
-  startTime: string,
-  timeZone: string,
-  dayStartMinutes: number
-): Date {
-  const base = logicalBaseMidnight(now, timeZone, dayStartMinutes);
-  const startOffset = offsetFromDayStart(startMinutes(startTime), dayStartMinutes);
-  return new Date(base.getTime() + (dayStartMinutes + startOffset) * 60_000);
-}
-
 /** 開始の絶対時刻に枠の長さ（`sectionCapacityMinutes`）を足して枠の終了を作る */
 function sectionEndFrom(startAt: Date, startTime: string, endTime: string): Date {
   return new Date(startAt.getTime() + sectionCapacityMinutes(startTime, endTime) * 60_000);
@@ -201,12 +181,15 @@ export type SectionSlack = Readonly<{ endAt: Date; slackMinutes: number }>;
  * F-110 は「この枠に収まるか」を答えるため。これがないと残りが枠の長さを超える（FB-80）。
  *
  * 枠が定まらないグループ（未分類・アーカイブ済みセクション）は戻り値に含めない。
- * この値は表示日=今日のときだけ出す（画面定義書01 §3.2）ため、now の暦日 = 表示日となる。
+ * **枠は `date`（表示日）に敷く**ので、未来日でも意味のある値になる——now が枠の頭より前になり
+ * `max` が常に枠の頭を返すため、値は「枠の長さ − 未完了見積もり」＝現在時刻に依らない対比になる。
  * 各セクションが独立して決まるので**`groups` の順序には依存しない**（表示順で渡さなくてよい）。
- * 表示可否（表示日=今日・now < 枠の終了）は `endAt` を見て呼び出し側が判定する（画面定義書01 §3.2）
+ * 表示可否は呼び出し側が決める（画面定義書01 §3.2）——表示日が過去かは `date` で、
+ * 今日の「もう過ぎた枠」かは戻り値の `endAt` と now を見て判定する
  */
 export function sectionSlacks(
   groups: readonly DailyGroup[],
+  date: LogicalDate,
   now: Date,
   timeZone: string,
   dayStartMinutes = 0
@@ -216,7 +199,13 @@ export function sectionSlacks(
   for (const group of groups) {
     if (group.section === null || group.endTime === null) continue; // 枠を持たない
 
-    const startAt = sectionStartAt(now, group.section.startTime, timeZone, dayStartMinutes);
+    // 枠の頭。日界（F-116）より前の時刻を論理日の翌暦日へ落とす規則は `atLogicalDayClock` が持つ
+    const startAt = atLogicalDayClock(
+      date,
+      startMinutes(group.section.startTime),
+      timeZone,
+      dayStartMinutes
+    );
     const endAt = sectionEndFrom(startAt, group.section.startTime, group.endTime);
     // 枠がまだ始まっていなければ枠の頭から、始まっていれば now から測る
     const worksFrom = Math.max(now.getTime(), startAt.getTime());
