@@ -12,6 +12,7 @@ import { taskStatus } from "@/domain/task/status";
 import { startOrderIndex } from "@/domain/task/relocation";
 import {
   appendSortOrder,
+  placeNewBelow,
   placeNewPair,
   placeSortOrder,
   tasksInSection,
@@ -41,9 +42,7 @@ export async function suspendTask(
 
   // 再開タスクは元タスクの直後（データモデル定義書 §4.2-a）
   const sameDay = await repo.listByDate(target.taskDate);
-  const group = tasksInSection(sameDay, target.sectionId);
-  const index = group.findIndex((t) => t.id === target.id) + 1;
-  const placed = placeSortOrder(group, index); // 新規タスクなので自身は振り直しに含めない
+  const placed = placeNewBelow(sameDay, target);
 
   const draft = resumeTaskDraft(target, input.now);
   await repo.suspend({
@@ -72,9 +71,7 @@ export async function duplicateTask(
   if (target === null) return err("task_not_found");
 
   const sameDay = await repo.listByDate(target.taskDate);
-  const group = tasksInSection(sameDay, target.sectionId); // 未分類なら未分類のまま
-  const index = group.findIndex((t) => t.id === target.id) + 1; // 複製元の直下
-  const placed = placeSortOrder(group, index); // 新規タスクなので自身は振り直しに含めない
+  const placed = placeNewBelow(sameDay, target);
 
   const draft = duplicateDraft(target);
   const created = await repo.create(

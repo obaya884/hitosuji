@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   appendSortOrder,
+  placeNewBelow,
   placeNewPair,
   placeSortOrder,
   renumberSortOrders,
@@ -244,6 +245,98 @@ describe("placeNewPair（データモデル定義書 §3.5 / §4.6: 新規2行�
     const siblings = [task({ id: 1, sortOrder: 3000 })];
     expect(placeNewPair(siblings, 99)).toEqual({ first: 4000, second: 5000, renumber: [] });
     expect(placeNewPair(siblings, -1)).toEqual({ first: 1000, second: 2000, renumber: [] });
+  });
+});
+
+describe("placeNewBelow（データモデル定義書 §3.5: 元の行の直下へ新規行を差し込む採番）", () => {
+  it("同じセクションの並びの中で、元の行の1つ後ろへ置く", () => {
+    const anchor = task({ id: 2, sectionId: 1, sortOrder: 2000 });
+    const tasks = [
+      task({ id: 1, sectionId: 1, sortOrder: 1000 }),
+      anchor,
+      task({ id: 3, sectionId: 1, sortOrder: 3000 }),
+    ];
+    expect(placeNewBelow(tasks, anchor)).toEqual({ sortOrder: 2500, renumber: [] });
+  });
+
+  it("他セクション・未分類の行は並びに数えない（元の行と同じグループだけで決める）", () => {
+    const anchor = task({ id: 2, sectionId: 1, sortOrder: 2000 });
+    const tasks = [
+      task({ id: 1, sectionId: 2, sortOrder: 2500 }), // 別セクションの中間値は効かない
+      task({ id: 4, sectionId: null, sortOrder: 2500 }), // 未分類も同じ
+      anchor,
+    ];
+    // 同じセクションには anchor しか居ないので末尾追加＝+1000
+    expect(placeNewBelow(tasks, anchor)).toEqual({ sortOrder: 3000, renumber: [] });
+  });
+
+  it("元の行が未分類なら未分類の並びの中で置く", () => {
+    const anchor = task({ id: 2, sectionId: null, sortOrder: 1000 });
+    const tasks = [anchor, task({ id: 3, sectionId: null, sortOrder: 2000 })];
+    expect(placeNewBelow(tasks, anchor)).toEqual({ sortOrder: 1500, renumber: [] });
+  });
+
+  it("グループの末尾の行の直下は末尾追加＝+1000（`after` が無い経路）", () => {
+    const anchor = task({ id: 3, sectionId: 1, sortOrder: 3000 });
+    const tasks = [
+      task({ id: 1, sectionId: 1, sortOrder: 1000 }),
+      task({ id: 2, sectionId: 1, sortOrder: 2000 }),
+      anchor,
+    ];
+    expect(placeNewBelow(tasks, anchor)).toEqual({ sortOrder: 4000, renumber: [] });
+  });
+
+  it("`tasks` の配列順が sort_order 順でなくても、並びは sort_order で決まる", () => {
+    // `placeSortOrder` は「昇順で渡されること」を前提に前後を見る（その担保がここへ移った）。
+    // 並べ替えを落とすと、配列順の隣（3000 と anchor）を前後と読んで 2500 ではなく 2000 になる
+    const anchor = task({ id: 2, sectionId: 1, sortOrder: 2000 });
+    const tasks = [
+      task({ id: 3, sectionId: 1, sortOrder: 3000 }),
+      task({ id: 1, sectionId: 1, sortOrder: 1000 }),
+      anchor,
+    ];
+    expect(placeNewBelow(tasks, anchor)).toEqual({ sortOrder: 2500, renumber: [] });
+  });
+
+  it("元の行は id で照合する（`tasks` の中身が同じ値の別インスタンスでも直下に入る）", () => {
+    // リポジトリは呼ぶたびに別インスタンスを返しうるので、参照の同一性に頼ってはいけない
+    const anchor = task({ id: 2, sectionId: 1, sortOrder: 2000 });
+    const tasks = [
+      task({ id: 1, sectionId: 1, sortOrder: 1000 }),
+      { ...anchor },
+      task({ id: 3, sectionId: 1, sortOrder: 3000 }),
+    ];
+    expect(placeNewBelow(tasks, anchor)).toEqual({ sortOrder: 2500, renumber: [] });
+  });
+
+  it("同じ sort_order の行が居るときは、並びの中の位置で結果が変わる（同値は許される。§4.7）", () => {
+    const anchor = task({ id: 1, sectionId: 1, sortOrder: 1000 });
+    const twin = task({ id: 2, sectionId: 1, sortOrder: 1000 });
+
+    // 安定ソートなので配列順がそのまま並びになる。相方が後ろ＝前後が同値で席が無く振り直し
+    expect(placeNewBelow([anchor, twin], anchor)).toEqual({
+      sortOrder: 2000,
+      renumber: [
+        { taskId: 1, sortOrder: 1000 },
+        { taskId: 2, sortOrder: 3000 },
+      ],
+    });
+    // 相方が前なら anchor が末尾なので、ただの末尾追加になる
+    expect(placeNewBelow([twin, anchor], anchor)).toEqual({ sortOrder: 2000, renumber: [] });
+  });
+
+  it("席が無ければ振り直す。差し込む行自身は振り直しに含めない（まだ id が無いため）", () => {
+    const anchor = task({ id: 1, sectionId: 1, sortOrder: 1000 });
+    const tasks = [anchor, task({ id: 2, sectionId: 1, sortOrder: 1001 })];
+
+    // 振り直しは既存2行ぶんだけ。直下の席（2000）は戻り値の sortOrder が持つ
+    expect(placeNewBelow(tasks, anchor)).toEqual({
+      sortOrder: 2000,
+      renumber: [
+        { taskId: 1, sortOrder: 1000 },
+        { taskId: 2, sortOrder: 3000 },
+      ],
+    });
   });
 });
 
