@@ -24,6 +24,8 @@ import {
   hold,
   INBOX,
   inboxAndSections,
+  LATER_COMPLETED,
+  LATER_NOT_STARTED,
   NOT_STARTED,
   OK,
   press,
@@ -33,6 +35,7 @@ import {
   selectRow,
   setupBoard,
 } from "../_testing/board-helpers";
+import { SECTIONS } from "../_testing/factories";
 import { isSelected, rowNames, taskRow } from "../_testing/table-helpers";
 
 vi.mock("../actions", async () => (await import("../_testing/action-mocks")).actionMocks());
@@ -191,7 +194,7 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
     expect(isSelected(INBOX)).toBe(false);
   });
 
-  it("現在セクションに未実行がなければ未分類を選ぶ（後段のセクションより先。§5 規則3）", () => {
+  it("現在セクションに未実行がなければ後ろのセクションへ進む（未分類より先。§5 規則3 / FB-109）", () => {
     // 規則3 は実グルーピング（`groupTasksBySection`）を通す board 段でしか結合を確かめられない
     renderBoard([
       task({ id: 10, name: INBOX }),
@@ -208,12 +211,101 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
 
     press("n");
 
+    expect(isSelected(NOT_STARTED)).toBe(true);
+    expect(isSelected(INBOX)).toBe(false);
+  });
+
+  // 「後ろ」は §3.2 の**回転順**（日界を先頭に `(start_time − 日界 + 24h) % 24h` 昇順）であって
+  // start_time の大小ではない。共有フィクスチャは日界が 朝06:00 で回転が恒等なので差が出ず、
+  // 日界より前の深夜セクションを足したときだけ両者を識別できる
+  it("「後ろ」は回転順で決まる（深夜セクションは日界より前でも表示順の末尾。§5 規則3 / F-116）", () => {
+    const midnight = { id: 400, name: "深夜", startTime: "02:00", isArchived: false };
+    renderBoard(
+      [
+        task({ id: 10, name: INBOX }),
+        task({
+          id: 11,
+          name: COMPLETED,
+          sectionId: FORENOON.id,
+          startedAt: atJst("09:00"),
+          endedAt: atJst("09:20"),
+        }),
+        task({ id: 14, name: NOT_STARTED, sectionId: midnight.id }),
+      ],
+      { sections: [...SECTIONS, midnight] }
+    );
+    selectRow(COMPLETED);
+
+    press("n");
+
+    expect(isSelected(NOT_STARTED)).toBe(true);
+    expect(isSelected(INBOX)).toBe(false);
+  });
+
+  // アーカイブ済みセクションも当日タスクが属していれば同じ回転順で表示される（§3.2）ので、
+  // 規則3 の「後ろ」にも入る
+  it("後ろがアーカイブ済みセクションでもそこへ進む（§5 規則3 / §3.2）", () => {
+    const archivedEvening = { id: 500, name: "夕", startTime: "17:00", isArchived: true };
+    renderBoard(
+      [
+        task({ id: 10, name: INBOX }),
+        task({
+          id: 11,
+          name: COMPLETED,
+          sectionId: FORENOON.id,
+          startedAt: atJst("09:00"),
+          endedAt: atJst("09:20"),
+        }),
+        task({ id: 15, name: NOT_STARTED, sectionId: archivedEvening.id }),
+      ],
+      { sections: [...SECTIONS, archivedEvening] }
+    );
+    selectRow(COMPLETED);
+
+    press("n");
+
+    expect(isSelected(NOT_STARTED)).toBe(true);
+    expect(isSelected(INBOX)).toBe(false);
+  });
+
+  it("現在セクションにも後ろにも未実行がなければ未分類を選ぶ（§5 規則4）", () => {
+    renderBoard([
+      task({ id: 10, name: INBOX }),
+      task({
+        id: 11,
+        name: COMPLETED,
+        sectionId: FORENOON.id,
+        startedAt: atJst("09:00"),
+        endedAt: atJst("09:20"),
+      }),
+      // 後ろのセクションも打ち終えている
+      task({
+        id: 13,
+        name: LATER_COMPLETED,
+        sectionId: AFTERNOON.id,
+        startedAt: atJst("13:10"),
+        endedAt: atJst("13:20"),
+      }),
+    ]);
+    selectRow(COMPLETED);
+
+    press("n");
+
     expect(isSelected(INBOX)).toBe(true);
   });
 
+  // 規則2 と規則3 の**両方**が飛ぶことを見る。午前（今日なら現在セクション）と午後（同じく
+  // 後ろのセクション）の両方に未実行を置き、それでも未分類が選ばれることで対比になる
   it("表示日が今日でなければ現在セクションを定義できず、表示順で最初の未実行へ戻る（§5）", () => {
-    renderBoard(inboxAndSections(), { date: "2026-07-20", today: TEST_DATE, isToday: false });
-    selectRow(COMPLETED);
+    renderBoard(
+      [
+        task({ id: 10, name: INBOX }),
+        task({ id: 11, name: NOT_STARTED, sectionId: FORENOON.id }),
+        task({ id: 13, name: LATER_NOT_STARTED, sectionId: AFTERNOON.id }),
+      ],
+      { date: "2026-07-20", today: TEST_DATE, isToday: false }
+    );
+    selectRow(LATER_NOT_STARTED);
 
     press("n");
 
@@ -241,6 +333,25 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
     // `keepSelection` の未選択フォールバックが探索順を通ることを board 段で見る
     // （実行中を置かないので規則1 では決まらない）
     renderBoard(inboxAndSections());
+
+    expect(isSelected(NOT_STARTED)).toBe(true);
+    expect(isSelected(INBOX)).toBe(false);
+  });
+
+  // `N`・終了打刻の規則3 テストは `selectRow` を先に呼ぶため `keepSelection` の探索を通らない。
+  // オーナー確定④「3か所すべてに適用」の3か所目はここでしか固定できない
+  it("初期選択も現在セクションを打ち終えたら後ろのセクションへ進む（§5 規則3 / FB-109）", () => {
+    renderBoard([
+      task({ id: 10, name: INBOX }),
+      task({
+        id: 11,
+        name: COMPLETED,
+        sectionId: FORENOON.id,
+        startedAt: atJst("09:00"),
+        endedAt: atJst("09:20"),
+      }),
+      task({ id: 13, name: NOT_STARTED, sectionId: AFTERNOON.id }),
+    ]);
 
     expect(isSelected(NOT_STARTED)).toBe(true);
     expect(isSelected(INBOX)).toBe(false);

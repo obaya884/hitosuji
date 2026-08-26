@@ -99,6 +99,10 @@ export const AFTERNOON = sectionOf("午後");
 export const NOT_STARTED = "資料作成";
 export const RUNNING = "定例会議";
 export const COMPLETED = "レビュー";
+/** 現在セクションより後ろ（午後）に置く完了タスク。「後ろも打ち終えている」並びを作る（FB-109） */
+export const LATER_COMPLETED = "議事録送付";
+/** 現在セクションより後ろ（午後）に置く未実行タスク。規則3 の送り先になる（FB-109） */
+export const LATER_NOT_STARTED = "経費精算";
 /** 未分類（インボックス）の未実行タスク。表示順ではリストの先頭に来る（§3.2） */
 export const INBOX = "未分類のメモ";
 
@@ -165,22 +169,29 @@ export const UNCOMPLETE_OK: UndoCompleteResult = { ok: true, snapshot: SNAPSHOT 
 
 type BoardProps = ComponentProps<typeof DailyBoard>;
 
-function boardProps(tasks: readonly Task[], over: Partial<BoardProps>): BoardProps {
+/**
+ * `groups` は差し替えさせない——`tasks` と `sections` から必ず導出する（§3.2）。
+ * 直接渡せると、盤面が `tasks`・`sections` と食い違ったまま緑になる形を作れてしまう
+ */
+type BoardOverrides = Omit<Partial<BoardProps>, "groups">;
+
+function boardProps(tasks: readonly Task[], over: BoardOverrides): BoardProps {
+  const sections = over.sections ?? SECTIONS;
   return {
     date: TEST_DATE,
     today: TEST_DATE,
     isToday: true,
-    groups: groupTasksBySection(tasks, SECTIONS),
     modes: MODES,
     projects: PROJECTS,
-    sections: SECTIONS,
     bundles: BUNDLES,
     staleRunningTask: null,
     ...over,
+    sections,
+    groups: groupTasksBySection(tasks, sections),
   };
 }
 
-export function renderBoard(tasks: readonly Task[] = defaultTasks(), over: Partial<BoardProps> = {}) {
+export function renderBoard(tasks: readonly Task[] = defaultTasks(), over: BoardOverrides = {}) {
   const view = render(<DailyBoard {...boardProps(tasks, over)} />);
   return {
     ...view,

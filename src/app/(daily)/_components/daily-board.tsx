@@ -168,13 +168,20 @@ export function DailyBoard({
     [optimisticGroups]
   );
 
+  // 表示中のセクション順（規則の正は `displaySectionOrder`）。楽観更新後の並びが要るので
+  // 関数ではなく規則を共有し、optimisticGroups から採る
+  const sectionOrder = useMemo(
+    () => optimisticGroups.map((g) => g.section?.id ?? null),
+    [optimisticGroups]
+  );
+
   // 現在セクション（§4.3 の定義＝現在時刻を含むセクション）。現在地の探索（§5）と
   // 見出しの強調（F-121）の両方が要るので、sections 全体を持つここで1回だけ求めて配る
   const currentSectionId = deriveCurrentSectionId(sections, formatClock(now), isToday);
 
   // 選択行は描画時に導出する（§5）。未選択や、削除・日付移動で選択が消えた場合は
   // 「現在地」（§5 の規則）へ自動的に戻る
-  const selectedId = keepSelection(orderedTasks, rawSelectedId, currentSectionId);
+  const selectedId = keepSelection(orderedTasks, rawSelectedId, currentSectionId, sectionOrder);
 
   /** 失敗したときの表示と後始末（規則は `handleActionFailure`）。巻き戻しは各操作が持つ */
   function showFailure(result: ActionFailure) {
@@ -367,7 +374,7 @@ export function DailyBoard({
    * サーバが拒んだら行の巻き戻しに合わせて選択も戻す（§5 / N-01。完了していない以上、選択だけ先へ送らない）
    */
   function finish(task: Task, now: Date) {
-    const next = currentNotStartedId(orderedTasks, currentSectionId) ?? task.id;
+    const next = currentNotStartedId(orderedTasks, currentSectionId, sectionOrder) ?? task.id;
     setSelectedId(next);
 
     run(
@@ -558,9 +565,6 @@ export function DailyBoard({
     // keepSelection が選択を「現在地」（§5）へ再導出し、別タスクへ飛ぶ（FB-50）
     setSelectedId(selectedId);
 
-    // 表示中のセクション順（アーカイブ済み含む）。サーバ確定は displaySectionOrder(sameDay, sections)
-    // で同じ順を作る（画面定義書01 O-6）。ここは楽観更新後の並びを使うため optimisticGroups から採る
-    const sectionOrder = optimisticGroups.map((g) => g.section?.id ?? null);
     const destination = stepMoveDestination(orderedTasks, selectedId, step, sectionOrder);
     if (destination === null) return; // 移動先なし（リスト全体の端など）
 
@@ -593,6 +597,7 @@ export function DailyBoard({
     orderedTasks,
     selectedId,
     currentSectionId,
+    sectionOrder,
     hasPendingUndo: pendingUndo !== null,
     date,
     quickAddRef,

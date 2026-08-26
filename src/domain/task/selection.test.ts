@@ -19,6 +19,10 @@ const CURRENT = 20;
 const EARLIER = 10;
 /** 現在セクションより後ろ（表示順で下）に置くセクション */
 const LATER = 30;
+/** さらに後ろ。規則3 が「後ろのうち表示順で最初」を選ぶことを見るために要る */
+const LAST = 40;
+/** 表示順のセクション（未分類 null を先頭にした回転順。§3.2） */
+const SECTION_ORDER = [null, EARLIER, CURRENT, LATER, LAST];
 
 describe("currentTaskId（画面定義書01 §5: 現在地の規則）", () => {
   it("実行中タスクがあれば、現在セクションの未実行より優先してそれを指す（規則1）", () => {
@@ -27,36 +31,36 @@ describe("currentTaskId（画面定義書01 §5: 現在地の規則）", () => {
       task({ id: 2, startedAt }),
       task({ id: 3, sectionId: CURRENT }),
     ];
-    expect(currentTaskId(tasks, CURRENT)).toBe(2);
+    expect(currentTaskId(tasks, CURRENT, SECTION_ORDER)).toBe(2);
   });
 
-  it("実行中がなければ未実行の探索（規則2〜4）へ落ちる", () => {
+  it("実行中がなければ未実行の探索（規則2〜5）へ落ちる", () => {
     const tasks = [
       task({ id: 1, startedAt, endedAt }),
       task({ id: 2 }), // 未分類（リスト先頭）
       task({ id: 3, sectionId: CURRENT }),
     ];
-    expect(currentTaskId(tasks, CURRENT)).toBe(3);
+    expect(currentTaskId(tasks, CURRENT, SECTION_ORDER)).toBe(3);
   });
 
   it("すべて完了なら現在地はない", () => {
     const tasks = [task({ id: 1, startedAt, endedAt })];
-    expect(currentTaskId(tasks, CURRENT)).toBeNull();
+    expect(currentTaskId(tasks, CURRENT, SECTION_ORDER)).toBeNull();
   });
 
   it("タスクが0件なら現在地はない", () => {
-    expect(currentTaskId([], CURRENT)).toBeNull();
+    expect(currentTaskId([], CURRENT, SECTION_ORDER)).toBeNull();
   });
 });
 
-describe("currentNotStartedId（画面定義書01 §5 規則2〜4: 現在セクション → 未分類 → 表示順全体）", () => {
+describe("currentNotStartedId（画面定義書01 §5 規則2〜5: 現在セクション → 後ろのセクション → 未分類 → 表示順全体）", () => {
   it("未分類がリスト先頭にあっても、現在セクションの未実行を優先する（規則2 / FB-78）", () => {
     const tasks = [
       task({ id: 1 }), // 未分類（トリアージ前のインボックス。表示順では先頭）
       task({ id: 2, sectionId: EARLIER, startedAt, endedAt }),
       task({ id: 3, sectionId: CURRENT }),
     ];
-    expect(currentNotStartedId(tasks, CURRENT)).toBe(3);
+    expect(currentNotStartedId(tasks, CURRENT, SECTION_ORDER)).toBe(3);
   });
 
   it("前のセクションのやり残しより現在セクションを優先する（後ろのセクションも見ない。規則2）", () => {
@@ -65,7 +69,7 @@ describe("currentNotStartedId（画面定義書01 §5 規則2〜4: 現在セク�
       task({ id: 2, sectionId: CURRENT }),
       task({ id: 3, sectionId: LATER }),
     ];
-    expect(currentNotStartedId(tasks, CURRENT)).toBe(2);
+    expect(currentNotStartedId(tasks, CURRENT, SECTION_ORDER)).toBe(2);
   });
 
   it("現在セクション内では表示順で最初の未実行を選ぶ（打刻済みは飛ばす）", () => {
@@ -74,45 +78,98 @@ describe("currentNotStartedId（画面定義書01 §5 規則2〜4: 現在セク�
       task({ id: 2, sectionId: CURRENT }),
       task({ id: 3, sectionId: CURRENT }),
     ];
-    expect(currentNotStartedId(tasks, CURRENT)).toBe(2);
+    expect(currentNotStartedId(tasks, CURRENT, SECTION_ORDER)).toBe(2);
   });
 
-  // 規則3 が規則4 のコードパスで満たされる理由は `currentNotStartedId` のコメント。
-  // その前提（未分類が表示順の先頭）は domain/task/daily-list.test.ts が固定し、
-  // 両者を合成した経路は daily-board.shortcuts.test.tsx が見る
-  it("現在セクションに未実行がなければ未分類の未実行を選ぶ（規則3。未分類はリスト先頭）", () => {
+  it("現在セクションを打ち終えたら、未分類ではなく後ろのセクションへ進む（規則3 / FB-109）", () => {
+    const tasks = [
+      task({ id: 1 }), // 未分類（表示順では先頭にあるが、後ろのセクションに譲る）
+      task({ id: 2, sectionId: CURRENT, startedAt, endedAt }),
+      task({ id: 3, sectionId: LATER }),
+    ];
+    expect(currentNotStartedId(tasks, CURRENT, SECTION_ORDER)).toBe(3);
+  });
+
+  // 未分類を置くのは**規則3 を消したときに落ちる**ようにするため——置かないと規則5 の
+  // フォールバック（表示順で最初の未実行）が同じ答えを返し、テストが何も守らなくなる
+  it("後ろのセクションが複数あれば表示順で最初のものを選ぶ（規則3）", () => {
     const tasks = [
       task({ id: 1 }), // 未分類
-      task({ id: 2, sectionId: EARLIER }), // 現在セクションより前に残った未実行
-      task({ id: 3, sectionId: CURRENT, startedAt, endedAt }),
+      task({ id: 2, sectionId: CURRENT, startedAt, endedAt }),
+      task({ id: 3, sectionId: LATER }),
+      task({ id: 4, sectionId: LAST }), // さらに後ろ。ここまで飛ばさない
     ];
-    expect(currentNotStartedId(tasks, CURRENT)).toBe(1);
+    expect(currentNotStartedId(tasks, CURRENT, SECTION_ORDER)).toBe(3);
   });
 
-  it("現在セクション・未分類のどちらにも未実行がなければ表示順で最初の未実行（規則4）", () => {
+  it("直後の後ろを打ち終えていれば、さらに後ろのセクションまで進む（規則3）", () => {
     const tasks = [
-      task({ id: 1, startedAt, endedAt }), // 未分類だが完了済み
-      task({ id: 2, sectionId: EARLIER }), // 現在セクションより前に残った未実行
-      task({ id: 3, sectionId: CURRENT, startedAt, endedAt }),
+      task({ id: 1 }), // 未分類
+      task({ id: 2, sectionId: CURRENT, startedAt, endedAt }),
+      task({ id: 3, sectionId: LATER, startedAt, endedAt }),
+      task({ id: 4, sectionId: LAST }),
     ];
-    expect(currentNotStartedId(tasks, CURRENT)).toBe(2);
+    // 「後ろ」は直後の1セクションではなく、現在セクションより後ろの全部
+    expect(currentNotStartedId(tasks, CURRENT, SECTION_ORDER)).toBe(4);
   });
 
-  it("規則4 は表示順で最初＝取りこぼした前のセクションへ戻る（後ろへは送らない）", () => {
+  it("前のセクションのやり残しより後ろのセクションを優先する（規則3）", () => {
     const tasks = [
       task({ id: 1, sectionId: EARLIER }), // やり残し
       task({ id: 2, sectionId: CURRENT, startedAt, endedAt }),
       task({ id: 3, sectionId: LATER }),
     ];
-    expect(currentNotStartedId(tasks, CURRENT)).toBe(1);
+    expect(currentNotStartedId(tasks, CURRENT, SECTION_ORDER)).toBe(3);
   });
 
-  it("現在セクションが定まらない（表示日が今日でない）なら規則2 を飛ばし表示順で最初の未実行", () => {
+  // 呼び出し側では起きない不整合入力（有効セクションは必ず表示される §3.2）への防御。
+  // **先頭の未実行も表示順に無いセクションへ置く**——未分類に置くと、防御を外しても
+  // 「表示順の先頭」として同じ答えが返り、テストが何も守らなくなる
+  it("現在セクションが表示順に居なければ規則3 を飛ばす（「後ろ」を定義できない）", () => {
+    const tasks = [
+      task({ id: 1, sectionId: EARLIER }),
+      task({ id: 2, sectionId: LATER }),
+    ];
+    expect(currentNotStartedId(tasks, CURRENT, [null, LATER])).toBe(1);
+  });
+
+  // 規則4 が規則5 のコードパスで満たされる理由は `currentNotStartedId` のコメント。
+  // その前提（未分類が表示順の先頭）は domain/task/daily-list.test.ts が固定し、
+  // 両者を合成した経路は daily-board.shortcuts.test.tsx が見る
+  it("現在セクションにも後ろにも未実行がなければ未分類の未実行を選ぶ（規則4。未分類はリスト先頭）", () => {
+    const tasks = [
+      task({ id: 1 }), // 未分類
+      task({ id: 2, sectionId: EARLIER }), // 現在セクションより前に残った未実行
+      task({ id: 3, sectionId: CURRENT, startedAt, endedAt }),
+      task({ id: 4, sectionId: LATER, startedAt, endedAt }), // 後ろも打ち終えている
+    ];
+    expect(currentNotStartedId(tasks, CURRENT, SECTION_ORDER)).toBe(1);
+  });
+
+  it("現在セクションが表示順の末尾なら後ろは無い（規則3 は空振り。日界をまたぐ最後の枠）", () => {
+    const tasks = [
+      task({ id: 1 }), // 未分類
+      task({ id: 2, sectionId: LAST, startedAt, endedAt }),
+    ];
+    expect(currentNotStartedId(tasks, LAST, SECTION_ORDER)).toBe(1);
+  });
+
+  it("現在セクション・後ろ・未分類のどこにも未実行がなければ表示順で最初の未実行＝前のやり残し（規則5）", () => {
+    const tasks = [
+      task({ id: 1, startedAt, endedAt }), // 未分類だが完了済み
+      task({ id: 2, sectionId: EARLIER }), // 現在セクションより前に残った未実行
+      task({ id: 3, sectionId: CURRENT, startedAt, endedAt }),
+    ];
+    expect(currentNotStartedId(tasks, CURRENT, SECTION_ORDER)).toBe(2);
+  });
+
+  it("現在セクションが定まらない（表示日が今日でない）なら規則2・3 を飛ばし表示順で最初の未実行", () => {
     const tasks = [
       task({ id: 1 }), // 未分類＝表示順で最初の未実行
       task({ id: 2, sectionId: CURRENT }),
+      task({ id: 3, sectionId: LATER }),
     ];
-    expect(currentNotStartedId(tasks, null)).toBe(1);
+    expect(currentNotStartedId(tasks, null, SECTION_ORDER)).toBe(1);
   });
 
   it("スナップショットに残る実行中タスク（終了打刻の対象）を飛ばす（F-211）", () => {
@@ -124,7 +181,7 @@ describe("currentNotStartedId（画面定義書01 §5 規則2〜4: 現在セク�
       task({ id: 2, sectionId: CURRENT, startedAt }), // = いま終了打刻した対象
       task({ id: 3, sectionId: CURRENT }),
     ];
-    expect(currentNotStartedId(tasks, CURRENT)).toBe(3);
+    expect(currentNotStartedId(tasks, CURRENT, SECTION_ORDER)).toBe(3);
   });
 
   it("送り先の未実行タスクがなければ null（呼び出し側は完了行に据え置く）", () => {
@@ -132,11 +189,11 @@ describe("currentNotStartedId（画面定義書01 §5 規則2〜4: 現在セク�
       task({ id: 1, startedAt, endedAt }),
       task({ id: 2, sectionId: CURRENT, startedAt, endedAt }),
     ];
-    expect(currentNotStartedId(tasks, CURRENT)).toBeNull();
+    expect(currentNotStartedId(tasks, CURRENT, SECTION_ORDER)).toBeNull();
   });
 
   it("タスクが0件なら null", () => {
-    expect(currentNotStartedId([], CURRENT)).toBeNull();
+    expect(currentNotStartedId([], CURRENT, SECTION_ORDER)).toBeNull();
   });
 });
 
@@ -215,16 +272,16 @@ describe("selectionAfterRemoval（画面定義書01 §5: 選択行が消えた�
 describe("keepSelection（削除・日付移動の後も選択を保つ）", () => {
   it("選択中のタスクが残っていればそのまま", () => {
     const tasks = [task({ id: 1 }), task({ id: 2 })];
-    expect(keepSelection(tasks, 2, CURRENT)).toBe(2);
+    expect(keepSelection(tasks, 2, CURRENT, SECTION_ORDER)).toBe(2);
   });
 
   it("選択中のタスクが消えたら現在地へ戻す", () => {
     const tasks = [task({ id: 1, startedAt }), task({ id: 3 })];
-    expect(keepSelection(tasks, 99, CURRENT)).toBe(1);
+    expect(keepSelection(tasks, 99, CURRENT, SECTION_ORDER)).toBe(1);
   });
 
   it("未選択なら現在地を選ぶ（未分類より現在セクションの未実行が先）", () => {
     const tasks = [task({ id: 1 }), task({ id: 2, sectionId: CURRENT })];
-    expect(keepSelection(tasks, null, CURRENT)).toBe(2);
+    expect(keepSelection(tasks, null, CURRENT, SECTION_ORDER)).toBe(2);
   });
 });
