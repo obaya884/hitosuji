@@ -163,6 +163,7 @@ function params(
     orderedTasks: TASKS,
     selectedId: RUNNING.id,
     currentSectionId: null,
+    sectionOrder: [null],
     hasPendingUndo: false,
     date: "2026-07-26",
     quickAddRef: { current: quickAdd },
@@ -203,6 +204,7 @@ type StatefulProps = Readonly<{
   initialShowHelp: boolean;
   orderedTasks: readonly Task[];
   currentSectionId: number | null;
+  sectionOrder: readonly (number | null)[];
 }>;
 
 /**
@@ -217,6 +219,7 @@ function useShortcutsWithState(props: StatefulProps) {
     params(props.spies, props.quickAdd, {
       orderedTasks: props.orderedTasks,
       currentSectionId: props.currentSectionId,
+      sectionOrder: props.sectionOrder,
       selectedId,
       setSelectedId,
       setShowHelp,
@@ -231,6 +234,7 @@ function renderStateful(
     showHelp?: boolean;
     orderedTasks?: readonly Task[];
     currentSectionId?: number | null;
+    sectionOrder?: readonly (number | null)[];
   }> = {}
 ) {
   // 既定値は分割代入で与える（?? だと明示した null が既定値に化け、未選択を書けなくなる）
@@ -239,6 +243,7 @@ function renderStateful(
     showHelp = false,
     orderedTasks = TASKS,
     currentSectionId = null,
+    sectionOrder = [null], // 既定の TASKS はすべて未分類
   } = initial;
   const { spies, quickAdd } = makeSpies();
   const view = renderHook(useShortcutsWithState, {
@@ -249,6 +254,7 @@ function renderStateful(
       initialShowHelp: showHelp,
       orderedTasks,
       currentSectionId,
+      sectionOrder,
     },
   });
   return { state: view.result, spies };
@@ -329,7 +335,7 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
       expect(state.current.selectedId).toBe(RUNNING.id);
     });
 
-    it("N は実行中がなく現在セクションも定まらなければ表示順で最初の未実行へジャンプする（§5 規則4）", () => {
+    it("N は実行中がなく現在セクションも定まらなければ表示順で最初の未実行へジャンプする（§5 規則5）", () => {
       const { state } = renderStateful({
         selectedId: LATER.id,
         orderedTasks: [COMPLETED, NEXT_UP, LATER],
@@ -347,11 +353,27 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
         // NEXT_UP・LATER は未分類（リスト先頭のインボックス）
         orderedTasks: [COMPLETED, NEXT_UP, LATER, inCurrentSection],
         currentSectionId: 20,
+        sectionOrder: [null, 20], // 現在セクションを表示順に含める（含めないと防御分岐を黙って通る）
       });
 
       pressKey("n");
 
       expect(state.current.selectedId).toBe(inCurrentSection.id);
+    });
+
+    it("N は表示順のセクションも探索へ渡す（現在セクションを打ち終えたら後ろへ進む。§5 規則3 / FB-109）", () => {
+      const inLaterSection = task({ id: 5, sectionId: 30 });
+      const { state } = renderStateful({
+        selectedId: COMPLETED.id,
+        // 現在セクション（20）に未実行は無く、NEXT_UP は未分類（リスト先頭のインボックス）
+        orderedTasks: [COMPLETED, NEXT_UP, inLaterSection],
+        currentSectionId: 20,
+        sectionOrder: [null, 20, 30],
+      });
+
+      pressKey("n");
+
+      expect(state.current.selectedId).toBe(inLaterSection.id);
     });
 
     it("現在地が無ければ（全件完了）N は選択を変えない（§5: 選択行は常に1つ）", () => {

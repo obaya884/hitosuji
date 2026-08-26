@@ -29,6 +29,7 @@ import {
   FORENOON,
   hold,
   INBOX,
+  LATER_COMPLETED,
   NOT_STARTED,
   NOW,
   OK,
@@ -109,13 +110,36 @@ describe("DailyBoard の打刻（F-201 / F-211 / §7: クライアントの現�
     expect(isSelected(INBOX)).toBe(false);
   });
 
-  it("現在セクションに未実行がなければ送り先は未分類（F-211 / §5 規則3）", async () => {
+  it("現在セクションに未実行がなければ送り先は後ろのセクション（F-211 / §5 規則3 / FB-109）", async () => {
     const gate = hold<DailyActionResult>(OK);
     vi.mocked(finishTaskAction).mockReturnValue(gate.promise);
     renderBoard([
       task({ id: 10, name: INBOX }),
       task({ id: 12, name: RUNNING, sectionId: FORENOON.id, startedAt: atJst("10:00") }),
       task({ id: 13, name: NOT_STARTED, sectionId: AFTERNOON.id }), // 現在セクションより後ろ
+    ]);
+    selectRow(RUNNING);
+
+    await click(within(taskRow(RUNNING)).getByLabelText("終了"));
+
+    expect(isSelected(NOT_STARTED)).toBe(true);
+    expect(isSelected(INBOX)).toBe(false);
+  });
+
+  it("現在セクションにも後ろにも未実行がなければ送り先は未分類（F-211 / §5 規則4）", async () => {
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(finishTaskAction).mockReturnValue(gate.promise);
+    renderBoard([
+      task({ id: 10, name: INBOX }),
+      task({ id: 12, name: RUNNING, sectionId: FORENOON.id, startedAt: atJst("10:00") }),
+      // 後ろのセクションも打ち終えている
+      task({
+        id: 13,
+        name: LATER_COMPLETED,
+        sectionId: AFTERNOON.id,
+        startedAt: atJst("13:10"),
+        endedAt: atJst("13:20"),
+      }),
     ]);
     selectRow(RUNNING);
 
