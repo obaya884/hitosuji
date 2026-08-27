@@ -16,21 +16,30 @@ import {
   NOT_STARTED,
   press,
   renderBoard,
-  ResizeObserverStub,
   RUNNING,
   selectRow,
   setupBoard,
 } from "../_testing/board-helpers";
+import { ResizeObserverStub } from "@/app/_testing/resize-observer";
 import { headingOf, popoverLabels, taskRows } from "../_testing/table-helpers";
 
 vi.mock("../actions", async () => (await import("../_testing/action-mocks")).actionMocks());
 
 setupBoard();
 
-/** 固定領域を観測している ResizeObserver。無ければ計測そのものが配線されていない */
+/**
+ * 上部の板（h1・日付ナビ＋サマリ・クイック追加欄の固定領域。§2）。列見出しとセクション見出しは
+ * この高さを起点に積まれるので、高さを動かすテストはこの要素で `ResizeObserver` を引く
+ */
+function stickyBoard(): HTMLElement {
+  const board = screen.getByRole("heading", { name: "デイリー" }).parentElement;
+  if (board === null) throw new Error("上部の板が見つかりません");
+  return board;
+}
+
+/** 上部の板を観測している ResizeObserver。無ければ計測そのものが配線されていない */
 function stickyObserver(): ResizeObserverStub {
-  if (ResizeObserverStub.latest === null) throw new Error("ResizeObserver が生成されていません");
-  return ResizeObserverStub.latest;
+  return ResizeObserverStub.observing(stickyBoard());
 }
 
 describe("DailyBoard の現在セクションの導出（§3.2 F-121 の強調 / §4.3 の固定候補）", () => {
@@ -86,7 +95,19 @@ describe("DailyBoard の固定領域の高さ（§2 / §5: 追従した行が固
   const tasksWithCommentRow = () =>
     defaultTasks().map((t) => (t.name === RUNNING ? { ...t, comment: "延びた" } : t));
 
-  it("実測した高さを全行の scroll-margin へ配り、変化のたびに追う", () => {
+  /**
+   * 一枚板（§2）。板とリストの境界を示す罫線は**列見出しの下端に1本だけ**で、板の下端には
+   * 引かない（3段の固定で線が並ばないように）。列見出し側が持っていることは daily-list.test.tsx が見る
+   */
+  it("板の下端に罫線を引かない（境界は列見出しの下罫線が示す。§2）", () => {
+    renderBoard();
+
+    expect(stickyBoard().classList.contains("border-b")).toBe(false);
+  });
+
+  // 列見出し・セクション見出しぶんを足した積み上げはリスト側の仕事なので daily-list.test.tsx が見る
+  // （jsdom ではどちらも高さ 0 なので、ここでは板の高さがそのまま行へ届く）
+  it("板の実測した高さを全行の scroll-margin へ配り、変化のたびに追う", () => {
     renderBoard(tasksWithCommentRow());
     expect(taskRows()).toHaveLength(3); // コメント行はタスク行に数えない
     expect(scrollMargins()).toEqual(new Set(["0px"])); // 実測が届く前は 0

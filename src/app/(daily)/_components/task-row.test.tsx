@@ -61,7 +61,7 @@ function renderRow(overrides: Overrides) {
           projectedStart={overrides.projectedStart ?? null}
           // 既定は打刻できる日（今日以前）。未来日の行は「打刻ボタンを出さない」テストが自分で渡す（§7）
           isFutureDate={overrides.isFutureDate ?? false}
-          stickyHeight={overrides.stickyHeight ?? 0}
+          scrollMarginTop={overrides.scrollMarginTop ?? 0}
           {...handlers}
         />
       </tbody>
@@ -297,7 +297,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
     // 選択の面色（`bg-accent-weak`）と追従（`scrollIntoView`）は「どの行が選択行か」の
     // 写像とセットで意味を持つため、2行を描いて比べる形で daily-list.test.tsx が見る
     it("固定領域の高さぶん余白を取り、追従した行が裏に隠れないようにする（§2 / §5）", () => {
-      renderRow({ stickyHeight: 96, task: task({ id: 1, name: "朝食" }) });
+      renderRow({ scrollMarginTop: 96, task: task({ id: 1, name: "朝食" }) });
 
       expect(taskRow("朝食").style.scrollMarginTop).toBe("96px");
     });

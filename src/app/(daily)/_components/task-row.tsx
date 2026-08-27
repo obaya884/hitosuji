@@ -62,8 +62,11 @@ export type TaskRowProps = Readonly<{
   now: Date;
   /** 予想開始時刻の表示（F-120 / §3.3）。出さない行（実行中・完了・今日以外）は null */
   projectedStart: string | null;
-  /** 画面上端の固定領域の高さ（px）。選択行の追従がその裏で止まらないようにする（§2 / §5） */
-  stickyHeight: number;
+  /**
+   * 画面上端の固定領域の高さ（px。板＋列見出し＋貼り付いたセクション見出しの合計）。
+   * 選択行の追従がその裏で止まらないようにする（§2 / §5）
+   */
+  scrollMarginTop: number;
 }>;
 
 // ボタンが示すのは「押したときの動作」: 未実行→開始(再生) / 実行中→終了(停止) / 完了は操作なし(チェック)
@@ -109,7 +112,7 @@ export function TaskRow({
   onEditPunch,
   now,
   projectedStart,
-  stickyHeight,
+  scrollMarginTop,
 }: TaskRowProps) {
   const status = taskStatus(task);
   const actual = actualMinutes(task);
@@ -146,7 +149,7 @@ export function TaskRow({
       ref={rowRef}
       // モード色は行全体のテキスト色に反映する（F-401 / 画面定義書01 §2）。
       // scrollMarginTop は、上方向へ追従したとき行が固定領域（§2）の裏に隠れないための余白
-      style={{ ...colorStyle, scrollMarginTop: stickyHeight }}
+      style={{ ...colorStyle, scrollMarginTop }}
       onClick={() => onSelect(task.id)}
       // コメント行を開くときは下線をそちらに譲る（2本の線でタスクとコメントが分断されないように）
       className={`${

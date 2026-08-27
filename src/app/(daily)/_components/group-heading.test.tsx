@@ -25,6 +25,8 @@ function renderHeading(overrides: Overrides) {
           // 既定は中立の「出さない」とし、依拠するテストが値を明示する（§3.2 / F-110）
           remainingMinutes={overrides.remainingMinutes ?? null}
           currentSectionId={overrides.currentSectionId ?? null}
+          // 貼り付く位置もリスト側が実測して配る（§2）。既定は 0＝板が無い状態
+          top={overrides.top ?? 0}
         />
       </tbody>
     </table>
