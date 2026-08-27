@@ -90,15 +90,20 @@ export function isSelected(target: string | HTMLElement): boolean {
 }
 
 /**
- * セクション見出し行（td が1つ = colSpan の行）。タスク行にも同じセクション名が
- * 併記される（§3.3）ため、まず行の形で見出しだけに絞ってから名前で引く
+ * セクション見出しの**セル**（td が1つ = colSpan の行の、その td）。タスク行にも同じ
+ * セクション名が併記される（§3.3）ため、まず行の形で見出しだけに絞ってから名前で引く。
+ *
+ * **行ではなくセルを返す**のは、地色・罫線・固定（§2）がすべてセル側にあるため——
+ * `<tr>` には `position: sticky` が効かないので、見出しの見た目はセルが持つ
  */
 export function headingOf(label: string): HTMLElement {
   const heading = allRows()
     .filter((tr) => tr.querySelectorAll("td").length === 1)
     .find((tr) => within(tr).queryByText(label) !== null);
   if (heading === undefined) throw new Error(`セクション見出し「${label}」が見つかりません`);
-  return heading;
+  const cell = heading.querySelector("td");
+  if (cell === null) throw new Error(`セクション見出し「${label}」にセルがありません`);
+  return cell;
 }
 
 /** 画面上のすべての `tr`（この表以外の行も含む）。行の形で絞る読み取りが同じ経路を通るために持つ */

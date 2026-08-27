@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import {
-  useEffect,
   useMemo,
   useOptimistic,
   useRef,
@@ -33,6 +32,7 @@ import type { Task, TaskId } from "@/domain/task/task";
 import { PlusIcon } from "@/app/_components/icons";
 import { PendingIndicator } from "@/app/_components/pending-indicator";
 import { DAILY_PATH } from "@/app/_lib/date-href";
+import { useElementHeight } from "@/app/_lib/use-element-height";
 import { useSlowPending } from "@/app/_lib/use-slow-pending";
 import { formatClock } from "@/app/_lib/format";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
@@ -117,9 +117,9 @@ export function DailyBoard({
   // datepicker（F-117）の開閉。日付クリックと G（Go to date）の両方から開くため board で持つ
   const [showDatePicker, setShowDatePicker] = useState(false);
   const quickAddRef = useRef<HTMLInputElement>(null);
-  // 固定領域の高さ。選択行のスクロール追従（§5）が固定領域の裏で止まらないようにするため実測する
-  const stickyRef = useRef<HTMLDivElement>(null);
-  const [stickyHeight, setStickyHeight] = useState(0);
+  // 上部の板（h1・日付ナビ＋サマリ・クイック追加欄）の高さ。列見出し行とセクション見出し行を
+  // この直下へ順に積むので（§2）、リストが `top` と追従の停止位置を組むために実測して配る
+  const [boardRef, boardHeight] = useElementHeight<HTMLDivElement>();
   const router = useRouter();
   // 直前の操作の取り消し（削除 O-8 / 完了の取り消し O-15 で共通の1スロット。O-13）
   const [pendingUndo, setPendingUndo] = useState<PendingUndo | null>(null);
@@ -151,16 +151,6 @@ export function DailyBoard({
 
   // 日界（分）。終了予定・セクション残りの起点を論理日の区切りに合わせる（F-116）
   const dayStartMinutes = useMemo(() => startMinutes(dayStartTimeOf(sections)), [sections]);
-
-  // 固定領域の高さを実測する（内容で変わりうるので ResizeObserver で追う）
-  useEffect(() => {
-    const sticky = stickyRef.current;
-    if (sticky === null) return;
-
-    const observer = new ResizeObserver(() => setStickyHeight(sticky.offsetHeight));
-    observer.observe(sticky);
-    return () => observer.disconnect();
-  }, []);
 
   // 表示順に並んだタスク（選択行モデルの基盤。画面定義書01 §5）
   const orderedTasks = useMemo(
@@ -623,9 +613,10 @@ export function DailyBoard({
         負のマージンで余白ぶんまで背景を広げてから内側で戻す
       */}
       <div
-        ref={stickyRef}
-        // 下端の罫線でリストとの階層を示す（§2。罫線がないとスクロール中に境界が分からない）
-        className="sticky top-0 z-10 -mx-6 -mt-6 border-b border-line-strong bg-paper px-6 pt-6 pb-3"
+        ref={boardRef}
+        // **下端に罫線を引かない**（§2）。列見出し行がこの直下に固定されて1枚の板になり、
+        // 板とリストの境界はその列見出しの下罫線が示す。ここにも引くと線が2本並ぶ
+        className="sticky top-0 z-10 -mx-6 -mt-6 bg-paper px-6 pt-6 pb-3"
       >
         {/* 画面見出し（画面定義書01 §2。S-02/S-03 と揃える） */}
         <h1 className="mb-3 text-lg font-bold">デイリー</h1>
@@ -729,7 +720,7 @@ export function DailyBoard({
         isToday={isToday}
         dayStartMinutes={dayStartMinutes}
         currentSectionId={currentSectionId}
-        stickyHeight={stickyHeight}
+        boardHeight={boardHeight}
       />
     </>
   );

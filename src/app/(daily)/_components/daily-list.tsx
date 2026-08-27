@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 import type { Bundle, BundleId } from "@/domain/bundle/bundle";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import { APP_TIME_ZONE } from "@/domain/shared/time-zone";
@@ -9,7 +9,8 @@ import { formatProjectedStart, projectedStartTimes, sectionSlacks } from "@/doma
 import type { SectionId } from "@/domain/section/section";
 import type { TaskId } from "@/domain/task/task";
 import { showsCommentRow, type EditingCell } from "../_lib/editing";
-import { tableHeadRow } from "@/app/_lib/ui";
+import { useElementHeight } from "@/app/_lib/use-element-height";
+import { tableHeadRule, tableHeadText } from "@/app/_lib/ui";
 import { toSectionOptions } from "../_lib/section-options";
 import { CommentRow, type CommentRowProps } from "./comment-row";
 import { GroupHeading, type GroupHeadingProps } from "./group-heading";
@@ -37,7 +38,6 @@ export type DailyListProps = Pick<
   | "onSelect"
   | "onBeginEdit"
   | "onEndEdit"
-  | "stickyHeight"
 > &
   // コメント行（O-16）はタスク行の下に並べるので、その入口もリストが受け取る
   Pick<CommentRowProps, "onComment"> &
@@ -56,6 +56,11 @@ export type DailyListProps = Pick<
     dayStartMinutes: number;
     /** バンドルの道（F-119 / §3.3）。bundleId → bundle の Map を board が組み、行ごとの解決はここでする */
     bundleById: ReadonlyMap<BundleId, Bundle>;
+    /**
+     * 上部の板（h1・日付ナビ＋サマリ・クイック追加欄）の実測高さ（§2）。
+     * 列見出し行とセクション見出し行をこの直下へ順に積む起点になる
+     */
+    boardHeight: number;
   }>;
 
 // 画面定義書01 §3.2/§3.3
@@ -84,11 +89,19 @@ export function DailyList({
   isToday,
   dayStartMinutes,
   currentSectionId,
-  stickyHeight,
+  boardHeight,
   bundleById,
 }: DailyListProps) {
   const modeById = new Map(modes.map((m) => [m.id, m]));
   const projectById = new Map(projects.map((p) => [p.id, p]));
+
+  // 固定領域は「板 → 列見出し → セクション見出し」の3段（§2）。上ほど手前に置くので、
+  // 各段の `top` は自分より上の段の高さの合計になる。高さを定数で置かない理由は `useElementHeight`
+  const [columnHeadRef, columnHeadHeight] = useElementHeight<HTMLTableRowElement>();
+  const [sectionHeadRef, sectionHeadHeight] = useElementHeight<HTMLTableCellElement>();
+  const sectionHeadTop = boardHeight + columnHeadHeight;
+  // 選択行の追従が避ける高さ（§5）。貼り付いた見出しの裏に行が隠れないよう、3段ぶんを足す
+  const rowScrollMarginTop = sectionHeadTop + sectionHeadHeight;
 
   const projectedStarts = projectedStartLabels(groups, now, isToday, dayStartMinutes);
   // 表示日は「過去・今日・未来」のいずれか1つなので、過去は残り2つの否定で決まる（§3.2 の表示条件）
@@ -121,22 +134,32 @@ export function DailyList({
         {/* 行メニュー（3点リーダーのボタン）の実際の footprint に合わせる（FB-14） */}
         <col className="w-10" />
       </colgroup>
-      {/* 列見出しは画面トップに1つだけ置く（セクションごとに繰り返さない） */}
+      {/*
+        列見出しは画面トップに1つだけ置く（セクションごとに繰り返さない）。板の直下に固定し、
+        その下罫線がそのまま板とリストの境界になる（§2）。**罫線は行ではなくセルが持つ**
+        （`tableHeadRule` の JSDoc。行に置くと貼り付いたセルと一緒に動かない）
+      */}
       <thead>
-        <tr className={tableHeadRow}>
+        <tr ref={columnHeadRef} className={tableHeadText}>
           {/* バンドルの道の列見出しは常設しない（帯にマウスを乗せたときにだけ名前を出す。§3.3） */}
-          <th className="py-2 font-normal" />
-          <th className="py-2 font-normal" />
-          <th className="py-2 font-normal">タスク</th>
-          <th className="py-2 font-normal">プロジェクト</th>
-          <th className="py-2 font-normal">モード</th>
-          <th className="py-2 text-right font-normal">見積</th>
-          <th className="py-2 text-right font-normal">実績</th>
-          <th className="py-2 text-right font-normal">実施時間</th>
-          <th className="py-2 font-normal" />
+          <ColumnHead top={boardHeight} />
+          <ColumnHead top={boardHeight} />
+          <ColumnHead top={boardHeight}>タスク</ColumnHead>
+          <ColumnHead top={boardHeight}>プロジェクト</ColumnHead>
+          <ColumnHead top={boardHeight}>モード</ColumnHead>
+          <ColumnHead top={boardHeight} align="right">
+            見積
+          </ColumnHead>
+          <ColumnHead top={boardHeight} align="right">
+            実績
+          </ColumnHead>
+          <ColumnHead top={boardHeight} align="right">
+            実施時間
+          </ColumnHead>
+          <ColumnHead top={boardHeight} />
         </tr>
       </thead>
-      {groups.map((group) => (
+      {groups.map((group, groupIndex) => (
         <tbody key={group.section?.id ?? "unclassified"}>
           {/* 0件のセクションは見出し行だけを置く（§3.2 / FB-26） */}
           <GroupHeading
@@ -145,6 +168,10 @@ export function DailyList({
               group.section === null ? null : (remainings?.get(group.section.id) ?? null)
             }
             currentSectionId={currentSectionId}
+            top={sectionHeadTop}
+            // 見出しの高さはどれも同じなので先頭の1つだけ測る（先頭は常にある「未分類」＝
+            // 並びが変わっても入れ替わらないので、観測している要素が差し替わらない）
+            cellRef={groupIndex === 0 ? sectionHeadRef : undefined}
           />
           {group.tasks.map((task, index) => {
             const isSelected = task.id === selectedId;
@@ -182,7 +209,7 @@ export function DailyList({
                   onEditPunch={onEditPunch}
                   now={now}
                   projectedStart={projectedStarts?.get(task.id) ?? null}
-                  stickyHeight={stickyHeight}
+                  scrollMarginTop={rowScrollMarginTop}
                 />
                 {showsCommentRow(task, isSelected, editingField) && (
                   <CommentRow
@@ -201,6 +228,28 @@ export function DailyList({
         </tbody>
       ))}
     </table>
+  );
+}
+
+/**
+ * 板の直下に固定する列見出しセル（§2）。**`<tr>` には `position: sticky` が効かない**ので
+ * セル側に付ける。地色（`bg-paper`）は必須——透けると下を流れる行が読めてしまう
+ */
+function ColumnHead({
+  top,
+  align = "left",
+  children,
+}: Readonly<{ top: number; align?: "left" | "right"; children?: ReactNode }>) {
+  return (
+    <th
+      // 重なり順は板（`z-10`）より下・通常の行より上（重なり順の全体像は `ui.ts`）
+      className={`sticky z-2 ${tableHeadRule} bg-paper py-2 font-normal ${
+        align === "right" ? "text-right" : ""
+      }`}
+      style={{ top }}
+    >
+      {children}
+    </th>
   );
 }
 

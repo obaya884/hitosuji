@@ -33,8 +33,27 @@ export const floatPanel =
   // text-ink を明示し、行のモード色（F-401）を継承しないようにする（FB-38）
   "rounded-float border border-line bg-surface text-ink shadow-float";
 
-// 一覧の列見出し行。見出しは従段で、主従は色で示す（00_共通 §1.1）
-export const tableHeadRow = "border-b border-line-strong text-left text-sm text-ink-muted";
+// 一覧の列見出しの文字。見出しは従段で、主従は色で示す（00_共通 §1.1）
+export const tableHeadText = "text-left text-sm text-ink-muted";
+
+/**
+ * 一覧の列見出しの下罫線。**行を固定する表ではセル側に付ける**——`border-collapse: collapse`
+ * では罫線が行に属し、`position: sticky` のセルと一緒に動かないため、貼り付いた瞬間に
+ * 線だけが元の位置へ取り残される（デイリー §2 の3段固定）
+ */
+export const tableHeadRule = "border-b border-line-strong";
+
+// 一覧の列見出し行（固定しない表はこれ1つで足りる）
+export const tableHeadRow = `${tableHeadText} ${tableHeadRule}`;
+
+// 重なり順の全体像（数字が大きいほど手前）。**新しく積むときはこの一覧に足す**——
+// 各コンポーネントに散らすと、どれがどれより上かが1か所からは読めなくなる。
+//   z-30    モーダル（00_共通 §2.3）
+//   z-20    トースト・進行中の合図・ツールチップ（同 §2.2 / §4.2）
+//   z-10    画面上部の固定領域（板）／ポップオーバー・行メニュー等の浮遊面（同 §2.1）
+//   z-2     貼り付いた列見出し行（画面定義書01 §2）
+//   z-1     貼り付いたセクション見出し行（同上。浮遊面より下・通常の行より上）
+//   指定なし 通常の行
 
 // 確定を待つ操作の進行中の合図（00_共通 §4.2）。これは結果ではなく経過なので、
 // トーストの濃い地色は使わず浮遊面＋副次情報の色で結果の通知より弱くする

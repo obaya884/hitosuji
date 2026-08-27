@@ -1,11 +1,12 @@
 // `DailyBoard` のテスト（`daily-board.*.test.tsx`）が共有する土台。**既定は複数のファイルが
 // 使うものだけ**を置く（1ファイルしか使わないヘルパはそのファイルへ）。例外は2つ——
-// `setupBoard` が要るもの（`ResizeObserverStub`）と、組で意味を持つ定数（アクションの成功値）。
+// `setupBoard` が要るもの（jsdom の詰め物の登録）と、組で意味を持つ定数（アクションの成功値）。
 //
 // 置き場の切り分け（テスト戦略定義書 §4）: 表の DOM 読み取り（行・セル・見出し）は
 // `table-helpers.ts`、グループとマスタのフィクスチャは `factories.ts`、画面をまたぐ操作は
 // `@/app/_testing/interactions`。**ここが持つのは盤面に閉じたもの**——jsdom の詰め物、
 // 盤面のフィクスチャ（タスク・時刻・アクションの成功値）、描画、前後処理、操作、保留。
+import { installResizeObserver } from "@/app/_testing/resize-observer";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, vi } from "vitest";
@@ -46,41 +47,6 @@ import { DailyBoard } from "../_components/daily-board";
 import { BUNDLES, MODES, PROJECTS, SECTIONS, sectionOf } from "./factories";
 import { taskRow } from "./table-helpers";
 
-/** jsdom に無い API を局所的に補う（幾何の判定そのものは段3＝ブラウザテスト送り） */
-export class ResizeObserverStub {
-  /**
-   * 直近に生成されたインスタンス（`beforeEach` で毎回 null に戻す）。テストから寸法の変化を
-   * 起こすために持つ。**画面で ResizeObserver を使うのは固定領域の計測1か所だけ**なので
-   * 「直近の1つ」で足りる——2つ目の利用者が入ったら掴む相手を選べるようにする必要がある
-   */
-  static latest: ResizeObserverStub | null = null;
-
-  private readonly callback: ResizeObserverCallback;
-  private target: Element | null = null;
-
-  constructor(callback: ResizeObserverCallback) {
-    this.callback = callback;
-    ResizeObserverStub.latest = this;
-  }
-
-  observe(target: Element): void {
-    this.target = target;
-  }
-  unobserve(): void {}
-  disconnect(): void {}
-
-  /**
-   * 観測対象に高さを与えてコールバックを1回発火する。**jsdom はレイアウトを計算せず
-   * `offsetHeight` が常に 0** なので値は差し込む——ここで見るのは実測の正しさ（段3送り）ではなく、
-   * 測った値が行まで配線されているか。**実装は要素から測る**ので entry は空で渡す
-   * （`entry.contentRect` から読む形へ変えるなら、ここも渡すように直す必要がある）
-   */
-  resizeTo(height: number): void {
-    if (this.target === null) throw new Error("observe されていません");
-    Object.defineProperty(this.target, "offsetHeight", { value: height, configurable: true });
-    this.callback([], this);
-  }
-}
 
 // 打刻の修正（F-203 / `punch-edit`）も表示（`formatClock`）も `APP_TIME_ZONE` 固定の
 // 壁時計で扱うので、テストデータは `atJst` で組む（T-47）。それでも**画面に出る時刻の期待値は
@@ -282,8 +248,7 @@ export function commentInput(): HTMLElement {
  */
 export function setupBoard(): void {
   beforeEach(() => {
-    ResizeObserverStub.latest = null;
-    vi.stubGlobal("ResizeObserver", ResizeObserverStub);
+    installResizeObserver();
     // 選択行のスクロール追従（§5）は jsdom では測れない（幾何は段3送り）。呼び出し自体は通す
     Element.prototype.scrollIntoView = () => {};
     vi.useFakeTimers({ toFake: ["Date"], now: NOW });
