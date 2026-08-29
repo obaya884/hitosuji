@@ -127,7 +127,7 @@ ensure_db_test_database "$db_name"
 
 git worktree add "$wt_dir" -b "$name" "$base"
 
-# vitest.config.ts が TEST_DATABASE_URL を、scripts/dev.sh が DEV_PORT を読む
+# vitest.config.mts が TEST_DATABASE_URL を、scripts/dev.sh が DEV_PORT を読む
 # （どちらもシェルから渡された値が優先）。値は開発用の固定資格情報とポートのみ。
 # npm ci より前に書くのは、上のポート選択がこのファイルを見るため——数分かかる
 # npm ci を挟むと、その間に始まった 2本目が割り当て済みを見られず同じ番号を選ぶ

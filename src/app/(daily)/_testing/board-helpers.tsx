@@ -167,7 +167,7 @@ export function renderBoard(tasks: readonly Task[] = defaultTasks(), over: Board
   };
 }
 
-/** `hold` が積む保険。`setupBoard` の afterEach が未解決の保留をまとめて解決する */
+/** `hold` が積む保険。`setupBoard` / `setupBoardInBrowser` の afterEach が未解決の保留をまとめて解決する */
 const heldGates: (() => Promise<void>)[] = [];
 
 /**
@@ -182,7 +182,7 @@ const heldGates: (() => Promise<void>)[] = [];
  * **型引数は省略しない**。成功値定数は宣言型より狭い初期値を持つため、推論に任せると `T` が
  * `{ ok: true }` へ狭まり、`resolve({ ok: false, ... })` が型エラーになる。
  *
- * **保険を積むのは `setupBoard()` の afterEach** なので、これを呼ばないファイルで使うと
+ * **保険を積むのは `setupBoard()` / `setupBoardInBrowser()` の afterEach** なので、これを呼ばないファイルで使うと
  * 解決漏れがそのまま残り、後続テストが嘘の赤になる。
  *
  * @param settleOnCleanup afterEach の保険で使う値（テスト本体が `resolve` すれば使われない）。
@@ -239,18 +239,37 @@ export function commentInput(): HTMLElement {
 }
 
 /**
- * 盤面テストの前後処理を登録する。**盤面を描くファイルが先頭で1回呼ぶ**。積むのは4つ——
- * ①jsdom に無い API の詰め物（`ResizeObserver` / `scrollIntoView`）②固定時計（`NOW`）
- * ③全 Server Action の既定解決値 ④保留（`hold`）の解決漏れの後始末。
+ * 盤面テストの前後処理を登録する（コンポーネント段）。**盤面を描くファイルが先頭で1回呼ぶ**。
+ * jsdom に無い API の詰め物（`ResizeObserver` / `scrollIntoView`）を敷いたうえで、
+ * 段に依らない前提（`registerBoardHooks`）を積む。
  *
- * **先に `vi.mock("../actions", ...)` を敷いていること**が前提（③が `vi.mocked` を通すため）。
+ * **先に `vi.mock("../actions", ...)` を敷いていること**が前提（`vi.mocked` を通すため）。
  * 忘れると「`mockResolvedValue is not a function`」という原因の読めない失敗になる
  */
 export function setupBoard(): void {
   beforeEach(() => {
     installResizeObserver();
-    // 選択行のスクロール追従（§5）は jsdom では測れない（幾何は段3送り）。呼び出し自体は通す
+    // 選択行のスクロール追従（§5）は jsdom では測れない（幾何はブラウザ段が持つ）。呼び出し自体は通す
     Element.prototype.scrollIntoView = () => {};
+  });
+  registerBoardHooks();
+}
+
+/**
+ * ブラウザ段（`*.browser.test.tsx`）用の前後処理（T-03）。`setupBoard` から**jsdom の詰め物だけを
+ * 外した**もの。実ブラウザには本物の `ResizeObserver` と `scrollIntoView` があり、偽物で潰すと
+ * この段で測りたい幾何そのものが動かなくなる（テスト戦略定義書 §3）
+ */
+export function setupBoardInBrowser(): void {
+  registerBoardHooks();
+}
+
+/**
+ * 段に依らない盤面の前提。①固定時計（`NOW`）②全 Server Action の既定解決値
+ * ③保留（`hold`）の解決漏れの後始末。jsdom の詰め物は呼び出し側（`setupBoard`）が足す
+ */
+function registerBoardHooks(): void {
+  beforeEach(() => {
     vi.useFakeTimers({ toFake: ["Date"], now: NOW });
 
     vi.mocked(addTaskAction).mockResolvedValue(CREATED);
@@ -287,8 +306,9 @@ export function setupBoard(): void {
   afterEach(async () => {
     const gates = heldGates.splice(0, heldGates.length);
     for (const settleGate of gates) await settleGate();
-    // spy（window.confirm）とグローバルスタブ（ResizeObserver）を戻す。偽物が残ると後続が嘘の緑になる。
-    // `Element.prototype.scrollIntoView` の直代入だけは戻らない（jsdom に元の実装が無く、無害なため）
+    // spy（window.confirm）とグローバルスタブ（`setupBoard` 経由なら ResizeObserver）を戻す。
+    // 偽物が残ると後続が嘘の緑になる。`Element.prototype.scrollIntoView` の直代入だけは戻らない
+    // （jsdom に元の実装が無く、無害なため）
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });

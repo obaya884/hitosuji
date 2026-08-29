@@ -17,6 +17,8 @@ if (process.env.TEST_DATABASE_URL === undefined && existsSync(envWorktree)) {
 // テスト戦略は docs/仕様/17_テスト戦略定義書.md 参照
 // - unit: domain 純関数のユニットテスト（*.test.ts）。DBなし・高速・多数
 // - integration: リポジトリ実装×実DB（*.int.test.ts）。db-test(:5433) が必要・少数
+//
+// ブラウザ段（*.browser.test.tsx）はここに置かず vitest.browser.config.mts が持つ（分けた理由は同ファイル）
 export default defineConfig({
   resolve: {
     alias: { "@": path.resolve(import.meta.dirname, "src") },
@@ -49,7 +51,9 @@ export default defineConfig({
           name: "unit",
           environment: "node",
           include: ["src/**/*.test.ts"],
-          exclude: ["src/**/*.int.test.ts"],
+          // `*.browser.test.ts` は命名の誤り（ブラウザ段は `.tsx`）だが、除外しないと node 環境の
+          // この段が拾ってしまう。命名規約を機械で守るための1行
+          exclude: ["src/**/*.int.test.ts", "src/**/*.browser.test.ts"],
         },
       },
       {
@@ -60,6 +64,8 @@ export default defineConfig({
           name: "component",
           environment: "jsdom",
           include: ["src/**/*.test.tsx"],
+          // ブラウザ段のファイルも `*.test.tsx` で終わるため、jsdom 側から明示的に外す
+          exclude: ["src/**/*.browser.test.tsx"],
           setupFiles: ["./src/app/_testing/setup.ts"],
         },
       },

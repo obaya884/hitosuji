@@ -12,6 +12,9 @@
 
 # testing
 /coverage
+# ブラウザ段の実行時出力（T-03。失敗時のスクリーンショットと添付。再現できるので残さない）
+__screenshots__/
+/.vitest-attachments/
 
 # next.js
 /.next/
