@@ -27,7 +27,7 @@ import re
 import subprocess
 import sys
 
-# text/text-summary と並ぶ json-summary reporter の出力（vitest.config.ts）
+# text/text-summary と並ぶ json-summary reporter の出力（vitest.config.mts）
 SUMMARY = "coverage/coverage-summary.json"
 # 行ごとの実行回数。変更箇所カバレッジの判定に使う
 LCOV = "coverage/lcov.info"

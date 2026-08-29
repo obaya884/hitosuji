@@ -29,6 +29,31 @@ jobs:
       - uses: actions/checkout@v7
       - run: sh scripts/docs-check.sh
 
+  # ブラウザテスト段（テスト戦略定義書 §3 / T-03）。Chromium バイナリを要する唯一の段なので
+  # verify とは別ジョブにして並列で回す（verify の所要に足さない。T-118）。DB もサーバも要らない。
+  # 実行タイムゾーンは JST 固定——この段の本番はオーナーの端末だけで、UTC で回す意味がない
+  # （Node 段が UTC・ブラウザ段が JST という §9 の分担そのもの）
+  browser:
+    runs-on: ubuntu-latest
+
+    # permissions はトップレベルの contents: read のまま（docs ジョブと同じ）
+
+    env:
+      TZ: Asia/Tokyo
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      # ブラウザ本体と、ランナーに無い共有ライブラリを入れる（テストが要るのは chromium だけ）
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+
   verify:
     runs-on: ubuntu-latest
 

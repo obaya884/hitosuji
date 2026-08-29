@@ -36,6 +36,13 @@ function renderPopover(overrides: Overrides = {}) {
   return { ...result, onSelect, onClose };
 }
 
+/** パネル本体（`useFlipUp` の ref が付く絶対配置の箱。候補ボタンの親） */
+function panelOf(container: HTMLElement): HTMLElement {
+  const panel = container.firstElementChild;
+  if (!(panel instanceof HTMLElement)) throw new Error("パネルが見つかりません");
+  return panel;
+}
+
 /** 候補ボタンを表示順に返す（区切り線も子要素として並ぶため index は data 属性で引く） */
 function optionButtons(container: HTMLElement): HTMLButtonElement[] {
   return [...container.querySelectorAll<HTMLButtonElement>("[data-option-index]")];
@@ -60,9 +67,19 @@ function activeLabel(container: HTMLElement): string | undefined {
     ?? undefined;
 }
 
-// 幾何（上向き反転）は jsdom では常に「反転しない」偽の緑になるためブラウザ段送り。
-// ここは開閉・候補選択・キー操作（00_共通 §2.1 / F-112）に絞る
+// 幾何（上向き反転）は jsdom では常に「反転しない」偽の緑になるので、ブラウザ段
+// （`@/app/_lib/use-flip-up.browser.test.tsx`）が持つ。ここは開閉・候補選択・キー操作
+// （00_共通 §2.1 / F-112）と、フックが返す位置クラスをパネルへ配線しているかに絞る
 describe("SelectPopover（画面定義書01 O-5 / F-112: 候補をクリックまたは J/K + Enter で選ぶ）", () => {
+  it("`useFlipUp` が返す位置クラスをパネルへ配線する（00_共通 §2.1）", () => {
+    const { container } = renderPopover();
+
+    // 下向きか上向きかの**判定**はブラウザ段の持ち場（jsdom では幾何が全部 0 なので常に下向き）。
+    // ここで見るのは戻り値がパネルの className に届いているかだけ——配線が切れると、
+    // 反転の実装が正しくても本番では効かない
+    expect(panelOf(container).classList.contains("mt-1")).toBe(true);
+  });
+
   it("渡された候補をすべて表示し、先頭に「未設定」の候補が並ぶ（00_共通 §2.4）", () => {
     const { container } = renderPopover();
 
