@@ -82,6 +82,24 @@ function header(label: string): HTMLTableCellElement {
   return screen.getByRole<HTMLTableCellElement>("columnheader", { name: label });
 }
 
+/** 列幅は colgroup が1箇所で持つ（§3）ので、幅の観測点も見出しではなく col を取る */
+function cols(container: HTMLElement): Element[] {
+  return [...container.querySelectorAll("colgroup col")];
+}
+
+/**
+ * 列の幅の宣言（`w-[15%]`）を割合の数値で返す。宣言が無ければ null。実測幅は jsdom では常に 0。
+ * **トークンで完全一致させる**（`hasClass` の JSDoc と同じ理由）——部分一致で見ると
+ * `min-w-[10%]` を幅の宣言として読み、合計の主張が別の数を足し合わせてしまう
+ */
+function widthOf(container: HTMLElement, col: number): number | null {
+  for (const token of cols(container)[col].classList) {
+    const width = /^w-\[(\d+(?:\.\d+)?)%\]$/.exec(token);
+    if (width !== null) return Number(width[1]);
+  }
+  return null;
+}
+
 beforeEach(() => {
   // vi.mock の偽物はファイル内で共有されるため、返り値をテストごとに置き直す
   // （呼び出し履歴は setup.ts の afterEach が消す）
@@ -163,17 +181,41 @@ describe("RoutinesTable（画面定義書02 §3: 一覧の列と表記）", () =
     expect(swatch.style.backgroundColor).toBe(rgbOf(BUNDLES[0].color));
   });
 
-  // §3「収まらない名前は切り詰める」「分類の他の列より幅を広く取る」。実測幅は jsdom では常に 0
-  // なので測らず、切り詰めと幅の指定が付いていることで代える。**指定があることしか言えない**——
-  // 実際には列幅が内容で決まるため切り詰めは発動しない（FB-107。ブラウザ実測で判明）
-  it("バンドル名に切り詰めの指定を持ち、列幅の指定は他の分類列より広い（§3）", () => {
+  // §3「列の幅は全列を割合で宣言し、合計を 100% にする」。実測幅は jsdom では常に 0 なので測れない
+  // が、**宣言の有無と合計は測らなくても真偽が決まる**ので、そこを固定する（宣言が欠ければ列幅が
+  // 内容で決まって切り詰めが効かず、合計が 100 を超えれば今度は固定幅のほうが溢れる。FB-107）
+  it("全列が割合で幅を宣言し、合計は 100%（§3）", () => {
     const { container } = renderTable([routine({ id: 1, bundleId: 1 })]);
 
-    const name = cell(container, 0, COL.bundle).querySelector(".truncate");
-    expect(name?.getAttribute("title")).toBe(BUNDLES[0].name);
-    expect(hasClass(header("バンドル"), "w-44")).toBe(true);
-    expect(hasClass(header("プロジェクト"), "w-28")).toBe(true);
-    expect(hasClass(header("モード"), "w-24")).toBe(true);
+    const table = container.querySelector("table")!;
+    expect(hasClass(table, "table-fixed")).toBe(true);
+    // 割合が何に対する割合かを決めているのは w-full。無いと幅が内容なりになり合計 100% が効かない
+    expect(hasClass(table, "w-full")).toBe(true);
+
+    const widths = cols(container).map((_, col) => widthOf(container, col));
+    expect(widths).toHaveLength(rows(container)[0].cells.length);
+    expect(widths).not.toContain(null);
+    expect(widths.reduce<number>((sum, width) => sum + width!, 0)).toBe(100);
+
+    // colgroup は col 以外の子を持てない。コメントを col と同じ行に書くと空白のテキストノードが
+    // 残り、ブラウザ側の解釈と食い違って hydration エラーになる（実ブラウザで検出した）
+    const children = [...table.querySelector("colgroup")!.childNodes];
+    expect(children.every((child) => child.nodeName === "COL")).toBe(true);
+  });
+
+  // §3「収まらない名前は切り詰める」「分類の他の列より幅を広く取る」
+  it("バンドル名を切り詰め、列幅は他の分類列より広い（§3）", () => {
+    const { container } = renderTable([routine({ id: 1, bundleId: 1 })]);
+
+    const name = cell(container, 0, COL.bundle).querySelector(".truncate")!;
+    expect(name.getAttribute("title")).toBe(BUNDLES[0].name);
+    // 色見本と横に並ぶので、min-w-0 が無いと内容幅より縮まず切り詰めが発火しない（FB-107）
+    expect(hasClass(name, "min-w-0")).toBe(true);
+    // 値ではなく大小で見る（幅を詰め直しても「バンドルが最も広い」だけは崩れないようにする）
+    const bundle = widthOf(container, COL.bundle)!;
+    for (const col of [COL.project, COL.mode, COL.recurrence]) {
+      expect(bundle).toBeGreaterThan(widthOf(container, col)!);
+    }
   });
 
   it("バンドルが未設定なら薄色の `-` を出す（00_共通 §2.4）", () => {

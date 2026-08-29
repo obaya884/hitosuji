@@ -51,20 +51,19 @@ function SortableHeader({
   sortKey,
   sort,
   onSort,
-  className = "",
 }: Readonly<{
   label: string;
   sortKey: RoutineSortKey;
   sort: Readonly<{ key: RoutineSortKey; direction: RoutineSortDirection }>;
   onSort: (key: RoutineSortKey) => void;
-  className?: string;
 }>) {
   const isActive = sort.key === sortKey;
   return (
     <th
       // aria-sort は見出しセル側に持たせる（button ロールでは無効なため）
       aria-sort={isActive ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}
-      className={`py-2 font-normal ${className}`}
+      // 列幅は colgroup が持つ（§3）ので、見出しセルは幅を持たない
+      className="py-2 font-normal"
     >
       {/* 列見出しは語そのものが押せるので下線で示す（00_共通 §2.5） */}
       <button type="button" onClick={() => onSort(sortKey)} className="hover:underline">
@@ -160,50 +159,55 @@ export function RoutinesTable({
     >
       {editing === "new" && form(null)}
 
-      <table className="mt-3 w-full">
+      {/*
+        列幅は colgroup へ集約する（画面定義書02 §3）。**table-auto にしない**——幅が内容で決まると
+        `truncate` が掛ける相手を持てず効かない（FB-107）。デイリー（daily-list.tsx）は同じ形を
+        px で宣言するが、この表は列が多く px では狭いウィンドウに収まらないので割合で持つ
+      */}
+      <table className="mt-3 w-full table-fixed">
+        {/*
+          合計 100%（§3）。thead の並びと1対1なので、列を足すときは両方を動かす。
+          **コメントは col と同じ行に置かない**——間の空白がテキストノードとして残り、
+          colgroup が col 以外の子を持てないため hydration エラーになる
+        */}
+        <colgroup>
+          {/* 名前。折り返せるので、詰めるときはここから融通する */}
+          <col className="w-[18%]" />
+          {/* プロジェクト */}
+          <col className="w-[10%]" />
+          {/* モード */}
+          <col className="w-[8%]" />
+          {/* 繰り返し */}
+          <col className="w-[14%]" />
+          {/* 開始想定 */}
+          <col className="w-[12%]" />
+          {/* 見積 */}
+          <col className="w-[7%]" />
+          {/* バンドル。分類の他の列より広く取る（§3） */}
+          <col className="w-[15%]" />
+          {/* 有効 */}
+          <col className="w-[4%]" />
+          {/* 操作。「編集」「削除」は折り返せない（whitespace-nowrap）ので、
+              最も狭い 1024px でもボタン2つ分（88px）が収まる割合を取る */}
+          <col className="w-[12%]" />
+        </colgroup>
         <thead>
           <tr className={tableHeadRow}>
             <SortableHeader label="名前" sortKey="name" sort={sort} onSort={toggleSort} />
-            <SortableHeader
-              label="プロジェクト"
-              sortKey="project"
-              sort={sort}
-              onSort={toggleSort}
-              className="w-28"
-            />
-            <SortableHeader
-              label="モード"
-              sortKey="mode"
-              sort={sort}
-              onSort={toggleSort}
-              className="w-24"
-            />
-            <SortableHeader
-              label="繰り返し"
-              sortKey="recurrence"
-              sort={sort}
-              onSort={toggleSort}
-              className="w-40"
-            />
+            <SortableHeader label="プロジェクト" sortKey="project" sort={sort} onSort={toggleSort} />
+            <SortableHeader label="モード" sortKey="mode" sort={sort} onSort={toggleSort} />
+            <SortableHeader label="繰り返し" sortKey="recurrence" sort={sort} onSort={toggleSort} />
             <SortableHeader
               label="開始想定"
               sortKey="scheduledStartTime"
               sort={sort}
               onSort={toggleSort}
-              className="w-32"
             />
             {/* 見積は並べ替えの対象外（画面定義書02 §3.1） */}
-            <th className="w-20 py-2 pr-4 text-right font-normal">見積</th>
-            <SortableHeader
-              label="バンドル"
-              sortKey="bundle"
-              sort={sort}
-              onSort={toggleSort}
-              // 分類の他の列より広く取る——値のほかに色見本を抱えるぶん、同じ字数でも先に溢れる
-              className="w-44"
-            />
-            <th className="w-12 py-2 font-normal">有効</th>
-            <th className="w-24 py-2 font-normal" />
+            <th className="py-2 pr-4 text-right font-normal">見積</th>
+            <SortableHeader label="バンドル" sortKey="bundle" sort={sort} onSort={toggleSort} />
+            <th className="py-2 font-normal">有効</th>
+            <th className="py-2 font-normal" />
           </tr>
         </thead>
         <tbody>
@@ -253,8 +257,9 @@ export function RoutinesTable({
                   ) : (
                     <span className="flex items-center gap-1.5">
                       <ColorSwatch color={bundle.color} size="dot" />
-                      {/* 切り詰めは §3 が決める。title は切り詰めた名前の補完（色名は S-03 の関心事） */}
-                      <span className="truncate" title={bundle.name}>
+                      {/* 切り詰めは §3 が決める。title は切り詰めた名前の補完（色名は S-03 の関心事）。
+                          min-w-0 が無いと flex の子は内容幅より縮まず、切り詰めが発火しない */}
+                      <span className="min-w-0 truncate" title={bundle.name}>
                         {bundle.name}
                       </span>
                     </span>
