@@ -5,7 +5,7 @@ import { installResizeObserver, ResizeObserverStub, resizeTo } from "@/app/_test
 import { useElementHeight } from "./use-element-height";
 
 /**
- * 実測そのもの（どの要素が何 px か）はブラウザ段の宿題で、jsdom は `offsetHeight` が常に 0。
+ * 実測そのもの（どの要素が何 px か）はブラウザ段の宿題で、jsdom は高さが常に 0。
  * ここで固定するのは**測る仕組みの側**——観測する相手・更新の伝播・後片付け。
  *
  * 使い手（デイリーの3段の固定領域。画面定義書01 §2）が「板・列見出し・セクション見出し」を
@@ -64,6 +64,15 @@ describe("useElementHeight（画面定義書01 §2: 固定領域の高さを実�
 
     resizeTo(element, 120);
     expect(latest().height).toBe(120);
+  });
+
+  // 丸めると、上の段の実際の下端と下の段の `top` がずれて隙間が開く（FB-111）
+  it("小数の高さを丸めずに返す（整数へ丸めると固定領域の段のあいだに隙間が開く）", () => {
+    const { element, latest } = renderWithElement();
+
+    resizeTo(element, 36.5);
+
+    expect(latest().height).toBe(36.5);
   });
 
   it("複数のインスタンスはそれぞれ自分の要素を測る（3段の固定領域が互いに干渉しない）", () => {

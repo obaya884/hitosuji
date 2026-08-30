@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, type ReactNode } from "react";
+import { Fragment, type ReactNode, type RefObject } from "react";
 import type { Bundle, BundleId } from "@/domain/bundle/bundle";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import { APP_TIME_ZONE } from "@/domain/shared/time-zone";
@@ -97,7 +97,9 @@ export function DailyList({
 
   // 固定領域は「板 → 列見出し → セクション見出し」の3段（§2）。上ほど手前に置くので、
   // 各段の `top` は自分より上の段の高さの合計になる。高さを定数で置かない理由は `useElementHeight`
-  const [columnHeadRef, columnHeadHeight] = useElementHeight<HTMLTableRowElement>();
+  // 測るのは**貼り付くセル**（`<th>`）——`<tr>` と箱が一致しない表があり、行を測ると
+  // 貼り付いた見出しが実際の下端からずれる（FB-111）
+  const [columnHeadRef, columnHeadHeight] = useElementHeight<HTMLTableCellElement>();
   const [sectionHeadRef, sectionHeadHeight] = useElementHeight<HTMLTableCellElement>();
   const sectionHeadTop = boardHeight + columnHeadHeight;
   // 選択行の追従が避ける高さ（§5）。貼り付いた見出しの裏に行が隠れないよう、3段ぶんを足す
@@ -140,9 +142,9 @@ export function DailyList({
         （`tableHeadRule` の JSDoc。行に置くと貼り付いたセルと一緒に動かない）
       */}
       <thead>
-        <tr ref={columnHeadRef} className={tableHeadText}>
+        <tr className={tableHeadText}>
           {/* バンドルの道の列見出しは常設しない（帯にマウスを乗せたときにだけ名前を出す。§3.3） */}
-          <ColumnHead top={boardHeight} />
+          <ColumnHead top={boardHeight} cellRef={columnHeadRef} />
           <ColumnHead top={boardHeight} />
           <ColumnHead top={boardHeight}>タスク</ColumnHead>
           <ColumnHead top={boardHeight}>プロジェクト</ColumnHead>
@@ -238,10 +240,18 @@ export function DailyList({
 function ColumnHead({
   top,
   align = "left",
+  cellRef,
   children,
-}: Readonly<{ top: number; align?: "left" | "right"; children?: ReactNode }>) {
+}: Readonly<{
+  top: number;
+  align?: "left" | "right";
+  /** 高さを測るための ref（§2）。どのセルも行と同じ高さなので、並びが変わらない先頭にだけ渡す */
+  cellRef?: RefObject<HTMLTableCellElement | null>;
+  children?: ReactNode;
+}>) {
   return (
     <th
+      ref={cellRef}
       // 重なり順は板（`z-10`）より下・通常の行より上（重なり順の全体像は `ui.ts`）
       className={`sticky z-2 ${tableHeadRule} bg-paper py-2 font-normal ${
         align === "right" ? "text-right" : ""
