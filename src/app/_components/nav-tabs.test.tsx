@@ -6,8 +6,8 @@ import { NavTabs } from "./nav-tabs";
 
 const TABS = [
   { href: "/masters/sections", label: "セクション" },
-  { href: "/masters/modes", label: "モード" },
   { href: "/masters/projects", label: "プロジェクト" },
+  { href: "/masters/modes", label: "モード" },
 ] as const;
 
 const exactMatch = (path: string, href: string) => path === href;
@@ -23,13 +23,13 @@ describe("NavTabs（画面内タブの汎用描画: 現在地を aria-current=pa
     const links = screen.getAllByRole("link");
     expect(links.map((a) => a.textContent)).toEqual([
       "セクション",
-      "モード",
       "プロジェクト",
+      "モード",
     ]);
     expect(links.map((a) => a.getAttribute("href"))).toEqual([
       "/masters/sections",
-      "/masters/modes",
       "/masters/projects",
+      "/masters/modes",
     ]);
   });
 
