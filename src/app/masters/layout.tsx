@@ -1,6 +1,6 @@
 import { MasterTabs } from "./_components/master-tabs";
 
-// 画面定義書03 §2: セクション / モード / プロジェクトをタブ切替で1画面に集約する
+// 画面定義書03 §2: セクション / プロジェクト / モードをタブ切替で1画面に集約する
 export default function MastersLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <>
