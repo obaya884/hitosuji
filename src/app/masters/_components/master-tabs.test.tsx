@@ -6,20 +6,20 @@ import { MasterTabs } from "./master-tabs";
 
 // 3マスタをタブ切替で1画面に集約する（画面定義書03 §2）。
 // この画面が持つのはタブ定義と現在地の判定式だけで、描画（aria-current の付け方）は NavTabs 側の責務
-describe("MasterTabs（画面定義書03 §2: セクション・モード・プロジェクトのタブ）", () => {
+describe("MasterTabs（画面定義書03 §2: セクション・プロジェクト・モードのタブ）", () => {
   beforeEach(() => {
     pathname.value = "/masters/sections";
   });
 
-  it("3タブをレイアウトの順（セクション → モード → プロジェクト）で対応するパスへ張る", () => {
+  it("3タブをレイアウトの順（セクション → プロジェクト → モード）で対応するパスへ張る", () => {
     render(<MasterTabs />);
 
     expect(
       screen.getAllByRole("link").map((a) => [a.textContent, a.getAttribute("href")])
     ).toEqual([
       ["セクション", "/masters/sections"],
-      ["モード", "/masters/modes"],
       ["プロジェクト", "/masters/projects"],
+      ["モード", "/masters/modes"],
     ]);
   });
 
