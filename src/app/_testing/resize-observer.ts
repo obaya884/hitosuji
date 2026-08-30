@@ -49,13 +49,17 @@ export class ResizeObserverStub {
 
   /**
    * 観測対象に高さを与えてコールバックを1回発火する。**jsdom はレイアウトを計算せず
-   * `offsetHeight` が常に 0** なので値は差し込む——ここで見るのは実測の正しさ（段3送り）ではなく、
+   * 高さが常に 0** なので値は差し込む——ここで見るのは実測の正しさ（段3送り）ではなく、
    * 測った値が行まで配線されているか。**実装は要素から測る**ので entry は空で渡す
-   * （`entry.contentRect` から読む形へ変えるなら、ここも渡すように直す必要がある）
+   * （`entry.contentRect` から読む形へ変えるなら、ここも渡すように直す必要がある）。
+   * 差し込む先は `getBoundingClientRect`——実装が見るのは丸めない高さのため（FB-111）
    */
   resizeTo(height: number): void {
     if (this.target === null) throw new Error("observe されていません");
-    Object.defineProperty(this.target, "offsetHeight", { value: height, configurable: true });
+    Object.defineProperty(this.target, "getBoundingClientRect", {
+      value: () => new DOMRect(0, 0, 0, height),
+      configurable: true,
+    });
     this.callback([], this);
   }
 }

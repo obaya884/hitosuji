@@ -137,7 +137,9 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
   describe("固定領域の積み上げ（§2: 板 → 列見出し → セクション見出し）", () => {
     const columnHeadCells = () => [...document.querySelectorAll<HTMLElement>("thead th")];
     const columnHeadRow = () => document.querySelector("thead tr")!;
-    // 実測は `resizeTo` で差し込む（jsdom の `offsetHeight` は常に 0 なので値は外から与える）
+    /** 高さを測っているセル（先頭の列見出し。行ではなくセルを測る理由は FB-111） */
+    const measuredColumnHead = () => columnHeadCells()[0]!;
+    // 実測は `resizeTo` で差し込む（jsdom はレイアウトを計算しないので値は外から与える）
     const oneTask = () => [morning([task({ id: 1, name: "朝食" })])];
 
     // 固定そのもの。**`top` や地色は sticky を外しても残る**ので、この主張が無いと
@@ -193,15 +195,41 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
     it("セクション見出しは板と列見出しの合計に貼り付く", () => {
       renderList({ groups: oneTask(), boardHeight: 96 });
 
-      resizeTo(columnHeadRow(), 32);
+      resizeTo(measuredColumnHead(), 32);
 
       expect(headingOf("朝").style.top).toBe("128px");
+    });
+
+    /**
+     * 貼り付くのはセルなので、測るのもセル（§2 / FB-111）。`<tr>` の箱はセルの箱と一致しない
+     * ことがあり、行を測ると貼り付いた見出しが列見出しの実際の下端から離れて隙間が開く。
+     * 測るのは先頭の1つだけ（どのセルも行と同じ高さなので観測を増やさない。見出し側と同じ規律）
+     */
+    it("列見出しの高さは行ではなく先頭のセルで測る（§2 / FB-111: 行を測ると下端からずれる）", () => {
+      renderList({ groups: oneTask(), boardHeight: 96 });
+
+      expect(() => ResizeObserverStub.observing(measuredColumnHead())).not.toThrow();
+      expect(() => ResizeObserverStub.observing(columnHeadRow())).toThrow();
+      expect(() => ResizeObserverStub.observing(columnHeadCells()[1]!)).toThrow();
+    });
+
+    // 丸めた高さを積むと、貼り付いた見出しの上に隙間が開いて裏の行が覗く（隙間そのものは
+    // 幾何なのでブラウザ段が測る。ここで見るのは丸めずに積んで配るところまで）
+    it("小数の高さもそのまま積む（§2 / FB-111: 丸めると見出しの上に隙間が開く）", () => {
+      // 板も見出しも実機では端数を持つので、3段すべてを小数で積む
+      renderList({ groups: oneTask(), boardHeight: 96.5 });
+
+      resizeTo(measuredColumnHead(), 36.5);
+      resizeTo(headingOf("朝"), 36.5);
+
+      expect(headingOf("朝").style.top).toBe("133px");
+      expect(taskRow("朝食").style.scrollMarginTop).toBe("169.5px");
     });
 
     it("行の追従は3段すべてを避ける高さで止まる（§5。足し損ねると行が見出しの裏に隠れる）", () => {
       renderList({ groups: oneTask(), boardHeight: 96 });
 
-      resizeTo(columnHeadRow(), 32);
+      resizeTo(measuredColumnHead(), 32);
       resizeTo(headingOf("朝"), 36);
 
       expect(taskRow("朝食").style.scrollMarginTop).toBe("164px");
@@ -214,7 +242,7 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
         boardHeight: 96,
       });
 
-      resizeTo(columnHeadRow(), 32);
+      resizeTo(measuredColumnHead(), 32);
 
       expect([headingOf("未分類").style.top, headingOf("朝").style.top]).toEqual([
         "128px",

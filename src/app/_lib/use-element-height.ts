@@ -10,6 +10,11 @@ import { useEffect, useRef, useState, type RefObject } from "react";
  * 文字サイズの見直しで変わる。定数で置くと、変えた側と追随しなかった側のずれが
  * 「行が見出しの裏に隠れる」形で出るので、`ResizeObserver` で追う。
  *
+ * **高さは小数のまま返す**（`offsetHeight` を使わない）。表のセルの実高は
+ * `border-collapse: collapse` の下では 36.5px のような小数になり、整数へ丸めると
+ * その差がそのまま下の段の `top` のずれになる——**段のあいだに 1px 弱の隙間が開き、
+ * 裏を流れる行が覗く**（FB-111）。
+ *
  * 高さの初期値は 0。**測る前の1描画では固定領域が無いものとして扱われる**が、
  * 追従が起きるのはキー操作の後なので実害はない。
  *
@@ -24,7 +29,7 @@ export function useElementHeight<T extends HTMLElement>(): readonly [RefObject<T
     const element = ref.current;
     if (element === null) return;
 
-    const observer = new ResizeObserver(() => setHeight(element.offsetHeight));
+    const observer = new ResizeObserver(() => setHeight(element.getBoundingClientRect().height));
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
