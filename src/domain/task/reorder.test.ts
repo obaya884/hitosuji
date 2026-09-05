@@ -25,6 +25,13 @@ describe("reorderTask（画面定義書01 O-6 / データモデル定義書 §3.
     expect(r.ok && r.value.sortOrder).toBe(4000);
   });
 
+  // 呼び出し側（`setTaskSection`）は移動対象を含む件数を「末尾」として渡すので、対象が移動先に
+  // いると index が1つ余る。丸めの契約はここが持つ（データモデル定義書 §3.5: 移動先の末尾へ置く）
+  it("要素数を超える index は末尾へ丸める", () => {
+    const r = reorderTask(tasks, 1, { sectionId: 1, index: 3 });
+    expect(r.ok && r.value.sortOrder).toBe(4000);
+  });
+
   it("途中へ移動すると前後の中間値になる", () => {
     const r = reorderTask(tasks, 1, { sectionId: 1, index: 1 });
     expect(r.ok && r.value.sortOrder).toBe(2500); // 2000 と 3000 の中間
