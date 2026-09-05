@@ -1,16 +1,16 @@
 // レビュー画面の導出（S-04 / 画面定義書04 §3）。集計はすべて引数のタスクから導く
 import { sortedBySortOrder } from "./sort-order";
-import { actualMinutes, type Task } from "./task";
-
-/** 実行済みタスク（`started_at` あり）。実績ログ・集計の母集団（§3.3） */
-type StartedTask = Task & Readonly<{ startedAt: Date }>;
+import { actualMinutes, type StartedTask, type Task } from "./task";
 
 function isStarted(task: Task): task is StartedTask {
   return task.startedAt !== null;
 }
 
-/** 実績ログ（F-501 / §3.3）: 実行済みタスクを開始時刻の昇順で並べる */
-export function executionLog(tasks: readonly Task[]): readonly Task[] {
+/**
+ * 実績ログ（F-501 / §3.3）: 実行済みタスクを開始時刻の昇順で並べる。
+ * 絞り込んだ事実を戻り型でも言うので、受け手は開始時刻の null を扱わなくてよい
+ */
+export function executionLog(tasks: readonly Task[]): readonly StartedTask[] {
   return tasks
     .filter(isStarted)
     .sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime());

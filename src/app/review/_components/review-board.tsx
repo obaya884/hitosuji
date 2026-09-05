@@ -6,7 +6,7 @@ import { useEffect } from "react";
 import type { DailyReviewView } from "@/usecases/review/review-usecases";
 import { weekdayIndex } from "@/domain/shared/logical-date";
 import { estimateDiffMinutes, sharePercent, type ActualTotal } from "@/domain/task/review";
-import { actualMinutes, type Task } from "@/domain/task/task";
+import { actualMinutes, type StartedTask, type Task } from "@/domain/task/task";
 import { DateNav } from "@/app/_components/date-nav";
 import { DurationValue } from "@/app/_components/duration-value";
 import { StarIcon } from "@/app/_components/icons";
@@ -101,7 +101,7 @@ function ExecutionLog({
   modes,
   projects,
 }: Readonly<{
-  log: readonly Task[];
+  log: readonly StartedTask[];
   date: string;
   modes: DailyReviewView["modes"];
   projects: DailyReviewView["projects"];
@@ -141,11 +141,6 @@ function ExecutionLog({
   );
 }
 
-/** 打刻時刻。未確定（実行中の終了時刻）は薄色の `--:--`（§3.3）。開始側の null は型の都合（T-121） */
-function clockOrUnset(at: Date | null) {
-  return at === null ? <UnsetTimeMark /> : formatClock(at);
-}
-
 /** 実績ログの1タスク。コメント（F-206）を持つタスクは行が2つになる（§3.3） */
 function LogRow({
   task,
@@ -153,7 +148,7 @@ function LogRow({
   modes,
   projects,
 }: Readonly<{
-  task: Task;
+  task: StartedTask;
   date: string;
   modes: DailyReviewView["modes"];
   projects: DailyReviewView["projects"];
@@ -177,8 +172,10 @@ function LogRow({
         className={`${hasComment ? "" : "border-b border-line"} ${dimmedClass}`}
         style={colorStyle}
       >
+        {/* 未確定の終了時刻（実行中）は薄色の `--:--`（§3.3） */}
         <td className="py-2 font-mono tabular-nums">
-          {clockOrUnset(task.startedAt)}-{clockOrUnset(task.endedAt)}
+          {formatClock(task.startedAt)}-
+          {task.endedAt === null ? <UnsetTimeMark /> : formatClock(task.endedAt)}
         </td>
         <td className="py-2">
           {/* ⭐と名前は flex で縦中央に揃える（`align-middle` だと 16px のアイコンが文字に対して

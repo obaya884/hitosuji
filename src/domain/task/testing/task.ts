@@ -5,7 +5,7 @@
 // `task({ id: 1, estimateMinutes: 30 })` のように**呼び出し側へ書く**こと。既定を
 // 「それらしい値」にすると、本文のどこにも現れない値にテストが寄りかかり読めなくなる。
 import { TEST_DATE } from "../../shared/testing/clock";
-import type { Task } from "../task";
+import type { StartedTask, Task } from "../task";
 
 export function task(over: Partial<Task> & { id: number }): Task {
   return {
@@ -26,4 +26,13 @@ export function task(over: Partial<Task> & { id: number }): Task {
     postponedCount: 0,
     ...over,
   };
+}
+
+/**
+ * 開始打刻のある Task（`StartedTask`）。実績ログのように「実行済みだけ」を受け取る側の
+ * テストで使う。`task()` の戻り型は `startedAt: Date | null` なので、そのままでは渡せない。
+ * `startedAt` の再代入は型を絞るためだけのもので、値は `task()` が入れるものと同じ
+ */
+export function startedTask(over: Partial<Task> & { id: number; startedAt: Date }): StartedTask {
+  return { ...task(over), startedAt: over.startedAt };
 }
