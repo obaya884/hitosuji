@@ -1,6 +1,7 @@
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
 import type { SectionId } from "@/domain/section/section";
 import { type LogicalDate } from "@/domain/shared/logical-date";
+import type { SectionOrder } from "@/domain/task/daily-list";
 import { currentTaskId, moveSelection } from "@/domain/task/selection";
 import { taskStatus } from "@/domain/task/status";
 import type { Task, TaskId } from "@/domain/task/task";
@@ -18,8 +19,8 @@ export type DailyShortcutParams = Readonly<{
   selectedId: TaskId | null;
   /** 現在時刻を含むセクション（§4.3）。`N` の現在地探索（§5）に渡す。今日でなければ null */
   currentSectionId: SectionId | null;
-  /** 表示順のセクション（未分類 null が先頭。§3.2）。`N` の現在地探索の規則3 に渡す */
-  sectionOrder: readonly (SectionId | null)[];
+  /** 表示順のセクション。`N` の現在地探索の規則3 に渡す */
+  sectionOrder: SectionOrder;
   /** 取り消しの保留（Undoトースト表示中）があるか。`U` の切り分けで最優先する（O-13） */
   hasPendingUndo: boolean;
   date: LogicalDate;

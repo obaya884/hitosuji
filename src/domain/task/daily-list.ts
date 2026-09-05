@@ -56,15 +56,21 @@ export function groupTasksBySection(
 
 /**
  * 表示順のセクション ID 列（未分類 null を先頭にした回転順。画面定義書01 §3.2）。
- * Shift+J/K の移動先（画面定義書01 O-6）は表示中のセクション順に一致させる。サーバ確定
- * （`moveTaskByOneStep`）は本関数を使い、presentation の楽観更新（`daily-board`）は同じ規則
- * （`groupTasksBySection` の表示順）を `optimisticGroups` から再現する（関数ではなく規則を共有）。
- * 当日タスクが属するアーカイブ済みセクションも表示されるので移動先に含む（有効セクションのみに絞らない）。
+ * Shift+J/K の移動先（同書 O-6）と現在地の探索（同書 §5 の規則3）が共有する概念。
+ * 当日タスクが属するアーカイブ済みセクションも表示されるので含む（有効セクションのみに絞らない）。
+ */
+export type SectionOrder = readonly (SectionId | null)[];
+
+/**
+ * `SectionOrder` を1日のタスクとセクションから導出する。
+ * サーバ確定（`moveTaskByOneStep`）は本関数を使い、presentation の楽観更新（`daily-board`）は
+ * 同じ規則（`groupTasksBySection` の表示順）を `optimisticGroups` から再現する
+ * （関数ではなく規則を共有）。
  */
 export function displaySectionOrder(
   tasks: readonly Task[],
   sections: readonly Section[]
-): (SectionId | null)[] {
+): SectionOrder {
   return groupTasksBySection(tasks, sections).map((g) => g.section?.id ?? null);
 }
 

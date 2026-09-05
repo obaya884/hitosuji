@@ -2,6 +2,7 @@
 // 表示順は「セクション（start_time 順）→ sort_order」。移動先の前後から中間値を採番する
 import type { SectionId } from "../section/section";
 import { err, ok, type Result } from "../shared/result";
+import type { SectionOrder } from "./daily-list";
 import { placeSortOrder, tasksInSection, type Renumber } from "./sort-order";
 import type { Task, TaskId } from "./task";
 
@@ -50,8 +51,7 @@ export function stepMoveDestination(
   tasks: readonly Task[],
   taskId: TaskId,
   step: 1 | -1,
-  /** 表示順のセクション（未分類を先頭にした並び。null = 未分類） */
-  sectionOrder: readonly (SectionId | null)[]
+  sectionOrder: SectionOrder
 ): Readonly<{ sectionId: SectionId | null; index: number }> | null {
   const target = tasks.find((t) => t.id === taskId);
   if (target === undefined) return null;
@@ -82,8 +82,7 @@ export function moveTaskByStep(
   tasks: readonly Task[],
   taskId: TaskId,
   step: 1 | -1,
-  /** 表示順のセクション（未分類を先頭にした並び。null = 未分類） */
-  sectionOrder: readonly (SectionId | null)[]
+  sectionOrder: SectionOrder
 ): Result<Reorder, ReorderError> {
   const target = tasks.find((t) => t.id === taskId);
   if (target === undefined) return err("task_not_found");

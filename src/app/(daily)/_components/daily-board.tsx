@@ -21,7 +21,7 @@ import {
 } from "@/domain/section/section";
 import { weekdayIndex, type LogicalDate } from "@/domain/shared/logical-date";
 import { APP_TIME_ZONE } from "@/domain/shared/time-zone";
-import type { DailyGroup } from "@/domain/task/daily-list";
+import type { DailyGroup, SectionOrder } from "@/domain/task/daily-list";
 import { stepMoveDestination } from "@/domain/task/reorder";
 import { currentNotStartedId, keepSelection, selectionAfterRemoval } from "@/domain/task/selection";
 import { taskStatus } from "@/domain/task/status";
@@ -160,7 +160,7 @@ export function DailyBoard({
 
   // 表示中のセクション順（規則の正は `displaySectionOrder`）。楽観更新後の並びが要るので
   // 関数ではなく規則を共有し、optimisticGroups から採る
-  const sectionOrder = useMemo(
+  const sectionOrder = useMemo<SectionOrder>(
     () => optimisticGroups.map((g) => g.section?.id ?? null),
     [optimisticGroups]
   );
