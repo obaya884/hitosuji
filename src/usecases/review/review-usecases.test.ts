@@ -84,6 +84,9 @@ describe("listDailyReview（画面定義書04 §3: 指定日の振り返り）",
       today: "2026-07-27",
     });
     expect(view.postponed?.map((t) => t.id)).toEqual([2]);
+    // 同じ未実行タスクが実績ログには出ないこと（§3.3。絞り込み関数を差し替えても検出できるよう
+    // 型任せにせず値でも主張する）
+    expect(view.log.map((t) => t.id)).toEqual([1]);
   });
 
   it("今日は先送り数を出さない（まだ実行されうるため。§3.4）", async () => {

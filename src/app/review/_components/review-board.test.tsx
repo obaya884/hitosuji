@@ -8,7 +8,7 @@ import type { Project } from "@/domain/project/project";
 import { COLOR_PRESETS } from "@/domain/shared/color-presets";
 import { atJst, TEST_DATE } from "@/domain/shared/testing/clock";
 import type { Task } from "@/domain/task/task";
-import { task } from "@/domain/task/testing/task";
+import { startedTask, task } from "@/domain/task/testing/task";
 import type { DailyReviewView } from "@/usecases/review/review-usecases";
 
 import { ReviewBoard } from "./review-board";
@@ -24,7 +24,8 @@ const PROJECTS: readonly Project[] = [
 ];
 
 /** 完了タスク（開始・終了の両方が打刻済み）。実績と差異が確定している行を作る */
-const done = (over: Partial<Task> & { id: number; startedAt: Date; endedAt: Date }) => task(over);
+const done = (over: Partial<Task> & { id: number; startedAt: Date; endedAt: Date }) =>
+  startedTask(over);
 
 function view(over: Partial<DailyReviewView> = {}): DailyReviewView {
   return {
@@ -197,7 +198,7 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
   });
 
   it("実行中の行は終了時刻と実績を薄色の `--:--` にし、差異だけを空にする（実績が確定していない）", () => {
-    renderBoard({ log: [task({ id: 1, estimateMinutes: 20, startedAt: atJst("09:00") })] });
+    renderBoard({ log: [startedTask({ id: 1, estimateMinutes: 20, startedAt: atJst("09:00") })] });
 
     const cells = logRow().cells;
     expect(cells[LOG.clock].textContent).toBe("09:00---:--");

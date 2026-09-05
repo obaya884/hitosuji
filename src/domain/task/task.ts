@@ -28,6 +28,9 @@ export type Task = Readonly<{
   postponedCount: number;
 }>;
 
+/** 実行済みタスク（`started_at` あり）。実績ログ・集計の母集団（画面定義書04 §3.3） */
+export type StartedTask = Task & Readonly<{ startedAt: Date }>;
+
 /**
  * 実績時間（分）。完了タスクのみ求まる（データモデル定義書 §3.5）。
  * 満たない分は切り捨てる（画面定義書01 §3.3: 1分未満の実績は 0:00 と表示する）
