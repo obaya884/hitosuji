@@ -1,6 +1,7 @@
 // 行選択モデル（画面定義書01 §5）
 // リスト上に常に選択行が1つ存在し、各ショートカットは選択行に作用する
 import type { SectionId } from "../section/section";
+import type { SectionOrder } from "./daily-list";
 import { taskStatus } from "./status";
 import type { Task, TaskId } from "./task";
 
@@ -11,7 +12,7 @@ import type { Task, TaskId } from "./task";
 export function currentTaskId(
   orderedTasks: readonly Task[],
   currentSectionId: SectionId | null,
-  sectionOrder: readonly (SectionId | null)[]
+  sectionOrder: SectionOrder
 ): TaskId | null {
   const running = orderedTasks.find((t) => taskStatus(t) === "running");
   if (running !== undefined) return running.id;
@@ -26,13 +27,11 @@ export function currentTaskId(
  * トリアージ前のインボックスへ飛んでしまう（FB-78 / FB-109）。`currentSectionId` が null
  * （表示日が今日でない等）なら規則2・3 を飛ばす。
  * 実行中タスクは見ない（呼び分けは `currentTaskId` と F-211）
- *
- * @param sectionOrder 表示順のセクション（未分類 null を先頭にした回転順。§3.2）
  */
 export function currentNotStartedId(
   orderedTasks: readonly Task[],
   currentSectionId: SectionId | null,
-  sectionOrder: readonly (SectionId | null)[]
+  sectionOrder: SectionOrder
 ): TaskId | null {
   const notStarted = orderedTasks.filter((t) => taskStatus(t) === "not_started");
 
@@ -94,14 +93,13 @@ export function selectionAfterRemoval(
  * `TaskId` / `SectionId` はどちらも素の `number` なので、取り違えても型は捕まえない。
  *
  * @param selectedId いま選ばれている行
- * @param currentSectionId 現在セクション（選択が消えたときの現在地の導出に使う）
- * @param sectionOrder 表示順のセクション（同上。§5 の規則3 が使う）
+ * @param currentSectionId 現在セクション（現在地の導出に使う）
  */
 export function keepSelection(
   orderedTasks: readonly Task[],
   selectedId: TaskId | null,
   currentSectionId: SectionId | null,
-  sectionOrder: readonly (SectionId | null)[]
+  sectionOrder: SectionOrder
 ): TaskId | null {
   if (selectedId !== null && orderedTasks.some((t) => t.id === selectedId)) return selectedId;
   return currentTaskId(orderedTasks, currentSectionId, sectionOrder);
