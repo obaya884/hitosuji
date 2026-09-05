@@ -240,10 +240,24 @@ describe("setTaskSection（O-5: セクションの割り当て）", () => {
 
     await setTaskSection(repo, { taskId: 1, date: TEST_DATE, sectionId: 1 });
 
-    // 末尾（2000 の次）へ採番される。なお件数を自分ごと数えても `neighborsAt` が index を
-    // 丸めるので結果は変わらない——自分を除く条件はここでは観測できない防御
+    // 自分ごと数えた件数を渡しても末尾（2000 の次）に収まる
     const moved = repo.rows.find((t) => t.id === 1);
     expect([moved?.sectionId, moved?.sortOrder]).toEqual([1, 3000]);
+  });
+
+  // 上の鏡像。移動対象が**すでに移動先の末尾にいる**枝で、採番は「自分を除いた末尾 +1000」に
+  // なる（データモデル定義書 §3.5 の「末尾」に自分を数えない）。自分を数えていれば 6000 になる
+  it("すでに末尾にいるタスクを選び直しても末尾のまま（採番は自分を除いた末尾 +1000）", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 1, sortOrder: 1000 }),
+      task({ id: 2, sectionId: 1, sortOrder: 5000 }),
+    ]);
+
+    await setTaskSection(repo, { taskId: 2, date: TEST_DATE, sectionId: 1 });
+
+    // 値は 5000 → 2000 と下がるが、id:1（1000）の後ろなので並び順は末尾のまま
+    const moved = repo.rows.find((t) => t.id === 2);
+    expect([moved?.sectionId, moved?.sortOrder]).toEqual([1, 2000]);
   });
 
   // 採番規則そのものは domain（`reorder.test.ts` / `sort-order.test.ts`）が持つ。ここで見るのは
