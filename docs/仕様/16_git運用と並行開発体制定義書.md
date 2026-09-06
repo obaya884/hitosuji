@@ -2,7 +2,7 @@
 
 - 版数: 1.1
 - 作成日: 2026-07-23（検討ドキュメント「34_AI並行開発体制検討」として起草。2026-07-25 に運用文書へ昇格・改番）
-- 更新日: 2026-08-30
+- 更新日: 2026-09-06
 - 位置づけ: **git/ブランチ運用のルールと、複数タスクを `git worktree` で並行させる開発体制（ヘッド1＋ワーカーN）の契約は本書が正**。CLAUDE.md「git 運用」節と「サブエージェント運用」内の「並行開発（worktree）」小節は本書の要約
 - 関連: [CLAUDE.md](../../CLAUDE.md) / [テスト戦略定義書](./17_テスト戦略定義書.md) / [README](../../README.md)「スキーマ更新（本番マイグレーション）」/ [技術改善バックログ完了記録](../案件/closed_23_技術改善バックログ.md)（T-01・T-06・T-22・T-26）
 
@@ -89,6 +89,7 @@ worktree はファイルを分けるが、次の4つは worktree を作っただ
 - 統合テストは全テーブル TRUNCATE でリセットする設計（`test-db.ts` の `truncateAll`）のため、複数 worktree が同じ DB を同時に叩くと互いのデータを消し合う。そこで **同一 db-test コンテナ（:5433, tmpfs）内に worktree ごとの DB（`hitosuji_test_<task>`）を持つ**（コンテナ追加・ポート追加なし）
 - 仕組み: `scripts/wt-new.sh` が db-test 内に worktree 用 DB を CREATE し、worktree 直下に **`.env.worktree`**（`TEST_DATABASE_URL` 1行。Next.js の自動読み込み対象外の名前）を生成する。`vitest.config.mts` が起動時にこのファイルを読む——ただし**シェルから渡された環境変数が常に優先**（CI は `.env.worktree` が存在しないため完全に無影響）。ワーカーは何も意識せず `npm run test:int` を打てば自分の DB に向く
 - worktree 内の統合テストは従来どおり直列（`fileParallelism: false`）。worktree 間は DB が別なので同時実行できる
+- **worktree 内の「別プロセスどうし」も排他される**（T-65。ワーカーとそのレビュアーが同時にテストを叩く形が常態のため）。`scripts/with-test-db-lock.sh` がワークツリー単位のロックを取り、取れなければ空くまで待つ。詳細は[テスト戦略定義書](./17_テスト戦略定義書.md) §5
 
 ### 3.2 dev サーバは worktree ごと・開発DBは共有
 
