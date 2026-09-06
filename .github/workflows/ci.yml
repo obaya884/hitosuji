@@ -89,6 +89,9 @@ jobs:
       # 既定も UTC だが、既定に頼ると将来変わったときに黙って条件が動く。JST 側は下の
       # 2本目のテスト実行が受け持つ
       TZ: UTC
+      # 下の可視化2種（変更箇所カバレッジ T-38 / 変更行数の内訳 T-126）が使う差分の起点。
+      # push には「変更箇所」の基準がないので空になり、どちらもその分の出力を落とす
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
 
     steps:
       - uses: actions/checkout@v7
@@ -120,11 +123,13 @@ jobs:
 
       # 以降はカバレッジの可視化（FB-49 / T-38）。テストが落ちた場合はここへ来ない
       - name: カバレッジ表を生成する
-        env:
-          # PR のときだけ変更箇所カバレッジを添える（push には「変更箇所」の基準がないので空になる）
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         # --silent は npm のバナー（"> hitosuji@0.1.0 ..."）が markdown に混ざるのを防ぐ
         run: npm run --silent coverage:summary -- "$BASE_SHA" > coverage/summary.md
+
+      # docs 先行の運用では PR 全体の変更行数からコードの増減が読めないので、区分ごとの内訳を
+      # 同じコメントへ足す（T-126）。既存コメントを探す目印は本文の1行目なので、必ず追記側に置く
+      - name: 変更行数の内訳を添える
+        run: sh scripts/diff-breakdown.sh "$BASE_SHA" >> coverage/summary.md
 
       - name: ジョブサマリへ出力する
         run: cat coverage/summary.md >> "$GITHUB_STEP_SUMMARY"
