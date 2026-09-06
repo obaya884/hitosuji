@@ -93,6 +93,7 @@
 | T-65 | 統合テストの同時実行が互いの DB を壊す（偽の赤） | ツール整備 | 中 | 完了 2026-09-06 → 方針①（ロックして待つ）。`with-test-db-lock.sh` が npm test / test:int / test:coverage を包む（PR #160） | [詳細](#t-65) |
 | T-111 | React の警告がテストを緑のまま通すので、`click` の `await` 落ちを機械検出できない | ツール整備 | 中 | 完了 2026-09-06 → console.error を全部テスト失敗にし、逃げ道は expectConsoleError（PR #161） | [詳細](#t-111) |
 | T-138 | 実測でしか固定できない条項が3つ、ブラウザ段の外に残っている | テスト | 中 | 完了 2026-09-06 → ポップオーバー内スクロールと選択行の追従をブラウザ段で固定（3件目は FB-111 で解消済み）。PR #163 | [詳細](#t-138) |
+| T-145 | Dependabot 依存追随（next 16.3.4 セキュリティ patch＋browserslist 4.28.9） | 依存追随 | 中 | 完了（2026-09-07） | [詳細](#t-145) |
 
 ## 詳細
 
@@ -983,6 +984,18 @@
 - 実装上の要点: **この段に Tailwind は無く、貼り付き・パネルのスクロールという測る対象そのものがクラス側にある**ため、幾何に効くクラスだけを実物のクラス名に敷く `(daily)/_testing/geometry-styles.ts` を置いた。[テスト戦略定義書](../仕様/17_テスト戦略定義書.md) §3 に例外の条項を足してある（オーナー裁定）
 - 変異テストは7件。うち1件は**待ち合わせの張り方の欠陥**を露わにした——待ちを `scroll-margin-top` に張っていたため変異が「前提が来ない（NaN）」で落ち、幾何の主張が効いた証拠にならなかった。別の値（見出しの `top`）へ張り替えてやり直している
 - 残件: [T-144](./23_技術改善バックログ.md#t-144)（重なり順の実効検証。同じ盤面をそのまま使える）
+
+### T-145
+
+- 背景: Dependabot の version-update PR 2件（#155・#162）と、セキュリティアラート1件（Dependabot #12 = `browserslist` <= 4.28.6、high・CVSS 7.5・dev scope）。code-scanning のアラートは open 0件だった
+- **マージ（#155、minor-and-patch グループ5件）**: `next` 16.3.1→16.3.4（patch・runtime）、`eslint-config-next` 16.3.1→16.3.4（`next` と同版で揃う）、`@testing-library/react` 16.3.2→16.3.3、`@types/react-dom` 19.2.4→19.2.5、`tsx` 4.23.12→4.23.13（いずれも dev）
+- **マージ（#162、`browserslist` 4.28.6→4.28.9）**: lockfile のみ。アラート #12 を解消する更新
+- 検証: 両 PR とも CI の `verify`（lint・typecheck・build・テスト）と `browser`・`docs` が緑。`verify` が `npm ci` で lockfile 整合まで見ているため、[T-133](./closed_23_技術改善バックログ.md#t-133) と同じくローカル追検証は行っていない
+- 版差分の評価: `next` 16.3.3 はセキュリティ修正リリース（critical 2件）だが、いずれも本アプリには当たらない。①Windows ホストのサーバでの未認証 RCE → 本番は Vercel(Linux)。②Image Optimization API の AVIF 経由の未認証 RCE → `next/image` を使っておらず画像最適化の経路が無い（本書 T-23 で `sharp` を到達不能と判断したのと同じ理由）。16.3.4 はその AVIF 再有効化を含む follow-up
+- `browserslist` の到達可能性: 脆弱経路は**信頼できない `browserslist-stats.json`（カスタム stats）**を読ませたときの `normalizeStats()` のクラッシュ・prototype 書き込み。本リポにカスタム stats は無く dev scope のため到達不能だが、上流に修正版があるので dismiss ではなく更新で解消した
+- 残った差異: `next` 16.3.4 は AVIF の再有効化にあたり `sharp ^0.35.4` を要求するが、`overrides` の `sharp: ^0.35.0`（本書 T-23）が lockfile 上 0.35.3 を保持している。overrides が勝つので `npm ci` は通り、AVIF 経路が未使用のため実害は無い
+- 結果: 挙動変更なし（lockfile と `package.json` のみ）。オープン Dependabot PR 0件・Dependabot アラート 0件・code-scanning アラート 0件
+- 関連: [T-133](./closed_23_技術改善バックログ.md#t-133)（直前の同種の依存追随）/ 本書 T-23（`sharp` を overrides で固定した先例）/ [.claude/skills/dependabot-triage](../../.claude/skills/dependabot-triage/SKILL.md)
 
 ## 旧書式の記録（2026-07-26 以前）
 
