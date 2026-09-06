@@ -11,7 +11,14 @@
 #   Something removed the coverage directory "coverage/.tmp" ...（または生の ENOENT）
 # で異常終了する。メインセッションと verifier のように、別々の主体が同時に叩くと起きる。
 # ロックは coverage/ の外（node_modules/.cache）に置く——中に置くと vitest 自身に消される。
+#
+# テストDB側の排他は別のロック（with-test-db-lock.sh・T-65）が持つ。カバレッジ計測は
+# 統合テストも走らせるため両方が要る——こちらは待たずに落とし（結果が壊れるだけで
+# 待つ意味が無い）、あちらは空くまで待つ。
 set -eu
+
+# 読み込みは cd の前に済ませる（$0 が相対パスのとき、移動した後では解決できなくなる）
+. "$(dirname "$0")/lib/lock.sh"
 
 # ロックはワークツリー単位（worktree ごとに coverage/ も node_modules/ も別）
 # 素の `cd "$(git rev-parse --show-toplevel)"` はリポジトリ外で空文字列の cd になり、
@@ -23,40 +30,25 @@ repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || {
 cd "$repo_root"
 
 lock="node_modules/.cache/hitosuji-coverage.lock"
-mkdir -p "$(dirname "$lock")"
 
-# ロックの実体はシンボリックリンクで、リンク先が保持者の PID。作成と PID の記録が
-# 1操作で済むので「作った直後・PID を書く前」に別プロセスが覗く隙が無い
-busy() {
-  holder=""
-  if [ -n "${1:-}" ]; then
-    holder="（PID ${1}）"
-  fi
-  echo "別のカバレッジ計測${holder}が実行中です。終わってから再実行してください" >&2
+# 待たない（第2引数 0）。同時に走らせると出力が壊れるだけなので、順番待ちさせるより
+# 「いま二重に走っている」を即伝えたほうが早い
+rc=0
+acquire_lock "$lock" 0 "カバレッジ計測" || rc=$?
+# 2 は呼び出し方や環境の誤りで、競合ではない（出し分ける理由は lock.sh の契約）
+if [ "$rc" -eq 2 ]; then
+  exit 2
+fi
+if [ "$rc" -ne 0 ]; then
+  echo "別のカバレッジ計測（PID ${lock_holder_pid:-不明}）が実行中です。終わってから再実行してください" >&2
   echo "  同時に走らせると両方の結果が壊れます（coverage/ を共有するため）" >&2
   echo "  実行中でないのに出る場合は残骸なので消してください: rm -f ${lock}" >&2
   exit 1
-}
-
-if ! ln -s "$$" "$lock" 2>/dev/null; then
-  pid="$(readlink "$lock" 2>/dev/null || true)"
-  if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-    busy "$pid"
-  fi
-  # 前回が異常終了して残ったロック。奪い返すが、rm と ln の2操作なので同時に奪い合うと
-  # 両方が成功しうる（後から rm した側のリンクが残り、先の側は自分が持っていると誤解する）。
-  # 少し置いてから自分のリンクかを確かめ、違えば取得できなかった側として降りる
-  rm -f "$lock"
-  ln -s "$$" "$lock" 2>/dev/null || busy ""
-  sleep 1
-  [ "$(readlink "$lock" 2>/dev/null || true)" = "$$" ] || busy ""
 fi
-# 自分のロックだけを消す（奪われた場合や、実行中に手で消された後に他が取得した場合に、
-# 他人のロックを巻き添えにしない）
-trap 'if [ "$(readlink "$lock" 2>/dev/null || true)" = "$$" ]; then rm -f "$lock"; fi' EXIT
+trap 'release_lock "$lock"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
 status=0
-npx vitest run --coverage --no-file-parallelism "$@" || status=$?
+sh scripts/with-test-db-lock.sh npx vitest run --coverage --no-file-parallelism "$@" || status=$?
 exit "$status"
