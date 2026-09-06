@@ -111,14 +111,36 @@ function allRows(): HTMLElement[] {
   return [...document.querySelectorAll("tr")];
 }
 
+/** ポップオーバーの候補ボタン（表示順）。区切り線（§4.3）も子として並ぶので index の属性で引く */
+function popoverOptions(): HTMLElement[] {
+  return [...document.querySelectorAll<HTMLElement>("[data-option-index]")];
+}
+
 /** ポップオーバーの候補ラベル（表示順） */
 export function popoverLabels(): string[] {
-  return [...document.querySelectorAll("[data-option-index]")].map((b) => b.textContent ?? "");
+  return popoverOptions().map((b) => b.textContent ?? "");
 }
 
 /** 現在値としてチェックが付いた候補のラベル（F-112。チェックは `svg` で描かれる） */
 export function checkedPopoverLabels(): string[] {
-  return [...document.querySelectorAll("[data-option-index]")]
+  return popoverOptions()
     .filter((b) => b.querySelector("svg") !== null)
     .map((b) => b.textContent ?? "");
+}
+
+/**
+ * ポップオーバーのパネル本体（候補ボタンの親＝`useFlipUp` の ref が付く箱）。
+ * **スクロールするのはこの箱**なので、幾何を測るブラウザ段が起点にする
+ */
+export function popoverPanel(): HTMLElement {
+  const panel = popoverOptions()[0]?.closest("div");
+  if (panel === null || panel === undefined) throw new Error("ポップオーバーが開いていません");
+  return panel;
+}
+
+/** いまハイライトされている候補（F-112。選択行と同じく面色で示す） */
+export function activePopoverOption(): HTMLElement {
+  const active = popoverOptions().filter((b) => b.classList.contains("bg-accent-weak"));
+  if (active.length !== 1) throw new Error(`ハイライトされた候補が ${active.length} 件あります`);
+  return active[0]!;
 }
