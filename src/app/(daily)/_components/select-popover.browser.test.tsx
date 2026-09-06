@@ -44,6 +44,8 @@ const OPTIONS: readonly PopoverOption[] = Array.from({ length: 24 }, (_, i) => (
 const FIRST_OPTION_ID = 1;
 /** 一覧の下方にある候補の id。開いた時点で「はみ出した現在値」になる位置に置く */
 const LOWER_OPTION_ID = 20;
+/** 同じ候補の表示順（`OPTIONS` は id 昇順なので id-1）。可視件数を超えていることを前提が見る */
+const LOWER_OPTION_INDEX = LOWER_OPTION_ID - 1;
 
 /** J/K を連打する段数。パネルの表示領域に収まる件数を必ず超える数にする */
 const MOVE_STEPS = 15;
@@ -92,11 +94,20 @@ describe("SelectPopover のスクロール（00_共通 §2.1: アクティブ候
     expect(panel.getBoundingClientRect().bottom).toBeGreaterThan(window.innerHeight);
     // 「ドキュメントを動かさない」は**動かせる**ことが前提（動かせなければ空振りで緑になる）
     expect(document.documentElement.scrollHeight).toBeGreaterThan(window.innerHeight);
+
+    // 以下の3本が「はみ出した候補」を作れること。候補の高さはこの段のフォント（環境で変わる）
+    // 次第なので、可視件数を実測して**動かす段数・現在値の位置がそれを超えている**ことを見る
+    const visibleCount = panel.clientHeight / activePopoverOption().getBoundingClientRect().height;
+    expect(visibleCount).toBeLessThan(MOVE_STEPS);
+    expect(visibleCount).toBeLessThan(LOWER_OPTION_INDEX);
   });
 
   it("開いた直後、下方にある現在値までパネルがスクロールして見える（F-112: 現在値をハイライト）", () => {
     renderPopover(LOWER_OPTION_ID);
 
+    // **どの候補がハイライトされたか**まで見る（初期ハイライトの回帰と、スクロール適用の
+    // 回帰を取り違えないため。`scrollTop > 0` だけだと両方を1つの主張が兼ねてしまう）
+    expect(activePopoverOption().textContent).toBe(`候補${LOWER_OPTION_ID}`);
     expect(popoverPanel().scrollTop).toBeGreaterThan(0);
     expectActiveOptionIsVisible();
   });

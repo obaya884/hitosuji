@@ -7,6 +7,7 @@
 //   1. 積み上げた3段の高さ（板＋列見出し＋セクション見出し）が**実際の固定領域と一致する**こと
 //   2. `scrollIntoView({ block: "nearest" })` ＋ `scroll-margin-top` の停止位置が、
 //      上方向へ戻したときに**その固定領域を避ける**こと
+import { screen } from "@testing-library/react";
 import { userEvent } from "vitest/browser";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -22,17 +23,29 @@ vi.mock("../actions", async () => (await import("../_testing/action-mocks")).act
 
 setupBoardInBrowser();
 
-/** 測る対象は貼り付きそのもの（貼り付かなければ隠れようがない）なので、実物のクラス名に敷く */
+/**
+ * 測る対象は貼り付きそのもの（貼り付かなければ隠れようがない）なので、実物のクラス名に敷く。
+ * `border-collapse` だけはクラスではなく Tailwind の preflight が与えるものだが、**セルの実高が
+ * 端数を持つ条件そのもの**（FB-111）なので実物に合わせる——separate のままだと、端数が出ない
+ * 楽な盤面で「積み上げが一致する」を主張することになる
+ */
 installGeometryStyles(`
   .sticky { position: sticky }
   .top-0 { top: 0 }
+  table { border-collapse: collapse }
   ${ICON_SIZE_CSS}
 `);
 
 /** 画面をスクロールさせるための行数（viewport 800 に対して十分に長い一覧を作る） */
 const ROW_COUNT = 50;
-/** K で戻る段数。戻る途中の行はどれも固定領域の裏から出ていなければならない */
-const UP_STEPS = 20;
+/**
+ * K で戻る段数。戻る途中の行はどれも固定領域の裏から出ていなければならない。
+ * **画面に残る行数より十分に多く取る**——上方向のスクロールが始まるのは画面から出てからで、
+ * 行高はこの段のフォント（環境で変わる）次第。少ないと CI だけ「一度も上へ動かないまま終わる」
+ */
+const UP_STEPS = 45;
+/** 上のうち実際に上スクロールが起きた段の下限。下回ったら、その環境では何も試せていない */
+const MIN_SCROLLING_STEPS = 3;
 /**
  * 一覧の中ほどまで下る段数。**「見えているなら動かさない」を試せるのは中ほどだけ**——先頭
  * （scrollY=0）と末尾はスクロールが clamp され、`block` を `center` 等に変えても動かない
@@ -59,6 +72,23 @@ function selectedRow(): HTMLElement {
   const selected = taskRows().filter((tr) => isSelected(tr));
   if (selected.length !== 1) throw new Error(`選択行が ${selected.length} 件あります`);
   return selected[0]!;
+}
+
+/**
+ * 上部の板（§2 の1段目。h1・日付ナビ＋サマリ・クイック追加欄）。jsdom 段（`daily-board.display`）
+ * と同じく画面見出しから親を引く
+ */
+function stickyBoard(): HTMLElement {
+  const board = screen.getByRole("heading", { name: "デイリー" }).parentElement;
+  if (board === null) throw new Error("上部の板が見つかりません");
+  return board;
+}
+
+/** 列見出しのセル（§2 の2段目）。9セルとも同じ `top` なので先頭で測る */
+function columnHeadCell(): HTMLElement {
+  const cell = document.querySelector<HTMLElement>("thead th");
+  if (cell === null) throw new Error("列見出しが見つかりません");
+  return cell;
 }
 
 /** 固定領域（§2 の3段）の下端。貼り付いた見出しの下端がそのまま境界になる */
@@ -99,13 +129,24 @@ async function pressDownToLastRow() {
 afterEach(() => window.scrollTo(0, 0));
 
 describe("選択行のスクロール追従（画面定義書01 §5: 固定見出しの裏に隠さない。ブラウザ段）", () => {
-  it("段の前提: 見出しが実際に貼り付いている（貼り付かなければ隠れようがなく、何も試していない）", async () => {
+  /**
+   * 貼り付かなければ行は隠れようがなく、以下はどれも何も試していないことになる。
+   * **3段を継ぎ目でつなげて見る**のが要点——見出しの `top` は板の実測高さから来るインライン
+   * style なので、**板が固定を失っても見出しの位置も `scroll-margin-top` も変わらず**、
+   * 下端1点だけを見る主張はすべて緑のまま通ってしまう（そのとき画面では板が流れ去り、
+   * 空いた上部を裏の行が流れる ＝ FB-77 / FB-111 の症状そのもの）
+   */
+  it("段の前提: 3段が画面上端から隙間なく貼り付いている（§2: 板 → 列見出し → セクション見出し）", async () => {
     await renderAndSettle();
     window.scrollTo(0, SCROLLED);
 
-    // 貼り付いていなければスクロールぶん上へ流れ、指定した `top` から外れる
-    const heading = headingOf(UNCATEGORIZED_LABEL);
-    expect(heading.getBoundingClientRect().top).toBeCloseTo(sectionHeadTop(), 1);
+    const board = stickyBoard().getBoundingClientRect();
+    const columnHead = columnHeadCell().getBoundingClientRect();
+    const sectionHead = headingOf(UNCATEGORIZED_LABEL).getBoundingClientRect();
+
+    expect(board.top).toBeCloseTo(0, 1);
+    expect(columnHead.top).toBeCloseTo(board.bottom, 1);
+    expect(sectionHead.top).toBeCloseTo(columnHead.bottom, 1);
   });
 
   it("積み上げた3段の高さが実際の固定領域と一致する（§2 / FB-77）", async () => {
@@ -151,14 +192,18 @@ describe("選択行のスクロール追従（画面定義書01 §5: 固定見�
     await renderAndSettle();
 
     await pressDownToLastRow();
-    const scrolledDown = window.scrollY;
-    expect(scrolledDown).toBeGreaterThan(0); // 前提: 下へスクロールしている
+    expect(window.scrollY).toBeGreaterThan(0); // 前提: 下へスクロールしている
 
     // 1段ずつ戻す。上へはみ出した行を見せるたびに、停止位置が固定領域を避けているかを見る。
     // 崩れた段は**集めてから**主張する——ループ内で落とすと何段目でどれだけ崩れたかが残らない
     const problems: string[] = [];
+    // 上へスクロールが起きた段の数。**画面内に残っている行へ戻るあいだは何も起きない**ので、
+    // これを数えないと「一度も上へ動かないまま UP_STEPS を使い切った」空振りが緑になる
+    let scrollingSteps = 0;
     for (let step = 1; step <= UP_STEPS; step++) {
+      const before = window.scrollY;
       await userEvent.keyboard("k");
+      if (window.scrollY < before) scrollingSteps++;
 
       // 見出しが剥がれると上へ流れ、以降の重なりが常に負＝**全段が空振りしても緑**になる。
       // 段ごとに貼り付きを主張して、その経路を塞ぐ
@@ -173,7 +218,7 @@ describe("選択行のスクロール追従（画面定義書01 §5: 固定見�
     }
 
     expect(problems).toEqual([]);
-    // 前提: 実際に上方向のスクロールが起きている（起きていなければ何も試していない）
-    expect(window.scrollY).toBeLessThan(scrolledDown);
+    // 前提: 実際に上方向のスクロールが起きた段が十分にある（無ければ何も試していない）
+    expect(scrollingSteps).toBeGreaterThanOrEqual(MIN_SCROLLING_STEPS);
   });
 });
