@@ -2,10 +2,12 @@
 // **段と段の継ぎ目に隙間が開くかどうか**を測れるのはこの段だけ。FB-111 の症状——貼り付いた
 // セクション見出しの上に 1px 弱の隙間が開き、裏を流れるタスク行が覗く——を直訳して測る。
 //
-// **この段に Tailwind は無い**ので、実物の `DailyList`（固定も地色もクラス側にある）は描けない。
-// 幾何はインライン style で最小の3段を組む（`use-flip-up.browser.test.tsx` と同じ流儀）。
-// したがってここが守るのは**測り方**（`useElementHeight` が丸めない）まで——どの要素を測り
-// どう積むか（画面定義書01 §2 の3段）は jsdom 段（`daily-list.test.tsx`）が押さえる。
+// **この段に Tailwind は無い**ので、幾何はインライン style で最小の3段を組む
+// （`use-flip-up.browser.test.tsx` と同じ流儀）。したがってここが守るのは**測り方**
+// （`useElementHeight` が丸めない）まで——どの要素を測りどう積むか（画面定義書01 §2 の3段）は
+// jsdom 段（`daily-list.test.tsx`）が押さえ、実物の盤面での積み上げは
+// `(daily)/_components/daily-board.scroll.browser.test.tsx` が測る（T-138。実物を描く場合は
+// 幾何に効くクラスだけを敷いてよい＝テスト戦略定義書 §3 の例外）。
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
