@@ -28,7 +28,7 @@ export type DailyShortcutParams = Readonly<{
   router: Readonly<{ push: (href: string) => void }>;
   setEditing: Dispatch<SetStateAction<EditingCell | null>>;
   setShowHelp: Dispatch<SetStateAction<boolean>>;
-  setSelectedId: Dispatch<SetStateAction<number | null>>;
+  setSelectedId: Dispatch<SetStateAction<TaskId | null>>;
   /** `G`（Go to date）で datepicker を開く（§3.1 / §6） */
   openDatePicker: () => void;
   moveByStep: (step: 1 | -1) => void;

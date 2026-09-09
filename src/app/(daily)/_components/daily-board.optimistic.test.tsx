@@ -241,7 +241,6 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
     renderBoard([task({ id: 11, name: NOT_STARTED, sectionId: FORENOON.id, taskDate: "2026-07-20" })], {
       date: "2026-07-20",
       today: TEST_DATE,
-      isToday: false,
     });
     selectRow(NOT_STARTED);
 

@@ -83,9 +83,12 @@ import { useDailyShortcuts } from "./use-daily-shortcuts";
 
 type Props = Readonly<{
   date: LogicalDate;
-  /** 今日（日界考慮済み。F-116）。datepicker の「今日」強調に渡す（F-117） */
+  /**
+   * 今日（日界考慮済み。F-116）。**表示日が今日か・未来かは `date` との比較でここから導く**
+   * ——両方の材料を持つ以上、導出できる値を prop で二重に受け取らない。
+   * 値そのものは datepicker の「今日」強調にも渡す（F-117）
+   */
   today: LogicalDate;
-  isToday: boolean;
   groups: readonly DailyGroup[];
   modes: readonly Mode[];
   projects: readonly Project[];
@@ -99,7 +102,6 @@ type Props = Readonly<{
 export function DailyBoard({
   date,
   today,
-  isToday,
   groups,
   modes,
   projects,
@@ -139,15 +141,17 @@ export function DailyBoard({
   const slowPending = useSlowPending(commitInFlight);
   const [, startTransition] = useTransition();
 
+  // 表示日と今日の関係（規約は `today` の JSDoc）。子へはここで導いた値を配る
+  const isToday = date === today;
+  // 未来日では打刻を受け付けない（§7）。`LogicalDate` は `YYYY-MM-DD` なので辞書順の比較でよい
+  const isFutureDate = date > today;
+
   // 実行中タスクの経過（F-205）と終了予定時刻（F-104）のため毎分更新する。
   // 当日を表示していないときは終了予定を出さないので、実行中タスクがある場合のみ回す
   const hasRunning = optimisticGroups.some((g) =>
     g.tasks.some((t) => taskStatus(t) === "running")
   );
   const now = useNow(hasRunning || isToday);
-
-  // 未来日では打刻を受け付けない（§7）。`LogicalDate` は `YYYY-MM-DD` なので辞書順の比較でよい
-  const isFutureDate = date > today;
 
   // 日界（分）。終了予定・セクション残りの起点を論理日の区切りに合わせる（F-116）
   const dayStartMinutes = useMemo(() => startMinutes(dayStartTimeOf(sections)), [sections]);
