@@ -516,7 +516,7 @@ describe("RoutineForm（画面定義書02 §4: 繰り返し種別に応じて入
     expect(onCancel).not.toHaveBeenCalled();
   });
 
-  // 送信せず表示だけを変えるその場の選択も止める（§2.3「保存中に始める操作」）——
+  // 送信せず表示だけを変えるその場の選択も止める（00_共通 §2.3「保存中に始める操作」）——
   // 保存中に選び直せると、送信済みの値と画面の表示が食い違う
   it("保存中は繰り返し・曜日・モード/プロジェクトの選択を変えられない", () => {
     setup(routine({ id: 7, recurrenceType: "weekly", weekdays: 0b0000010 }), { isPending: true });
@@ -528,7 +528,7 @@ describe("RoutineForm（画面定義書02 §4: 繰り返し種別に応じて入
     expect(screen.getByLabelText<HTMLSelectElement>("プロジェクト").disabled).toBe(true);
   });
 
-  // 一方でテキスト入力は触れるままにする（失敗して戻ってきたときに入力し直せるように。§2.3「失敗時」）
+  // 一方でテキスト入力は触れるままにする（失敗して戻ってきたときに入力し直せるように。00_共通 §2.3「失敗時」）
   it("保存中でも名前などのテキスト入力は打てる", () => {
     setup(null, { isPending: true });
 

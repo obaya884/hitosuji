@@ -115,7 +115,7 @@ describe("createRoutineFromTask（F-305 / 画面定義書01 §4.1）", () => {
     expect(routines.rows).toHaveLength(0);
   });
 
-  it("ルーチン由来のタスクからは作成しない（§4.1: 変更は S-02 で行う）", async () => {
+  it("ルーチン由来のタスクからは作成しない（画面定義書01 §4.1: 変更は S-02 で行う）", async () => {
     const tasks = inMemoryTaskRepository([task({ id: 1, routineId: 7 })]);
     const routines = inMemoryRoutineRepository();
 
@@ -125,7 +125,7 @@ describe("createRoutineFromTask（F-305 / 画面定義書01 §4.1）", () => {
     expect(routines.rows).toHaveLength(0);
   });
 
-  it("見積もりも実績もないタスクは作成しない（§4.1: 見積もり0分の扱い）", async () => {
+  it("見積もりも実績もないタスクは作成しない（画面定義書01 §4.1: 見積もり0分の扱い）", async () => {
     const tasks = inMemoryTaskRepository([task({ id: 1, estimateMinutes: 0 })]);
     const routines = inMemoryRoutineRepository();
 

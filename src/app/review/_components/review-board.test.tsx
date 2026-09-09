@@ -347,7 +347,7 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
     });
 
     const star = within(logRow().cells[LOG.name]).getByRole("img", { name: "ハイライト" });
-    // 塗りも色トークンもデイリー（§3.3）と同じにする——同じ印が画面ごとに違って見えないため
+    // 塗りも色トークンもデイリー（画面定義書01 §3.3）と同じにする——同じ印が画面ごとに違って見えないため
     expect(star.querySelector("polygon")?.getAttribute("fill")).toBe("currentColor");
     expect(hasClass(star, "text-highlight-mark")).toBe(true);
     // 列は7つのまま（⭐で列を増やしていない）

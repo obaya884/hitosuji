@@ -100,7 +100,7 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
     });
 
     // 抑止そのものは部品（EditableCell）が持つ。ここで見るのは表が `isPending` を
-    // セルへ渡していることと、表の JSX が持つ操作ボタン側の抑止（§6 の②）。
+    // セルへ渡していることと、表の JSX が持つ操作ボタン側の抑止（テスト戦略定義書 §6 の②）。
     // 行内に編集できるセルが1つ（名前）だけの表でも一様に止まる（FB-63）
     it("保存中は行の編集セル・操作ボタンを押せない", async () => {
       const pending = deferredAction();
@@ -128,7 +128,7 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
       ).toHaveProperty("disabled", false);
     });
 
-    // onClose が表の editing を落としているか（§6 の②）。Esc の挙動そのものは部品段が持つ
+    // onClose が表の editing を落としているか（テスト戦略定義書 §6 の②）。Esc の挙動そのものは部品段が持つ
     it("Esc でセルが閉じ、元の表示に戻る", async () => {
       renderTable();
       const input = startEditingCell("プロジェクトA");
@@ -169,7 +169,7 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
       const input = startEditingCell("プロジェクトA");
       fireEvent.change(input, { target: { value: "" } });
       fireEvent.blur(input);
-      // メッセージの表示と isPending の解除は別のタイミングで届く。§2.3 が要求するのは
+      // メッセージの表示と isPending の解除は別のタイミングで届く。00_共通 §2.3 が要求するのは
       // 「同じ行」の抑止だが、実装は isPending を表ごとに1つ持つので他行のセルも止まる。
       // そのため押せる状態に戻るまで待ってからでないと click が無視される
       const otherCell = await waitFor(() => {
@@ -232,7 +232,7 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
       expect(screen.queryByPlaceholderText("プロジェクト名")).toBeNull();
     });
 
-    // onCancel が表の editing を落としているか（§6 の②）。取消・Esc の挙動そのものは部品段が持つ
+    // onCancel が表の editing を落としているか（テスト戦略定義書 §6 の②）。取消・Esc の挙動そのものは部品段が持つ
     it("「取消」で新規行が消える（送信しない）", async () => {
       renderTable();
       clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
@@ -270,12 +270,12 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
 
       expect(screen.getByText("名前を入力してください")).not.toBeNull();
       expect(screen.getByPlaceholderText("プロジェクト名")).not.toBeNull();
-      // 抑止が解けたままにならない＝入力し直して保存できる（§2.3「失敗時」）
+      // 抑止が解けたままにならない＝入力し直して保存できる（00_共通 §2.3「失敗時」）
       expect(screen.getByRole("button", { name: "保存" })).toHaveProperty("disabled", false);
       expect(screen.getByRole("button", { name: "取消" })).toHaveProperty("disabled", false);
     });
 
-    // 表が `isPending` を TableFrame へ渡しているか（§6 の②）。押せると開いていたセルが閉じ、
+    // 表が `isPending` を TableFrame へ渡しているか（テスト戦略定義書 §6 の②）。押せると開いていたセルが閉じ、
     // 失敗が返っても入力し直せなくなる
     it("保存中は「新規追加」を押せない", async () => {
       const pending = deferredAction();

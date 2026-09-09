@@ -398,7 +398,7 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
     expect(router.push).toHaveBeenCalledWith("/?date=2026-07-19");
     expect(router.push).toHaveBeenCalledWith("/?date=2026-07-21");
     expect(router.push).toHaveBeenCalledTimes(2);
-    // 表示日は URL のクエリに持つ（O-1）ので、遷移手段は push だけ
+    // 表示日は URL のクエリに持つ（O-9）ので、遷移手段は push だけ
     expect(otherRouterCalls()).toEqual([]);
   });
 

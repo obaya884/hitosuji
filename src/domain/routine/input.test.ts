@@ -54,8 +54,8 @@ describe("validateRoutineInput（画面定義書02 §4: 必須項目）", () => 
     });
   });
 
-  // 表示は1件ずつ（共通 §4.1）なので、どれを先に返すかで画面に出る文言が決まる
-  it("複数の項目が不正なら、フォームで先に来る項目のエラーを返す（§4 の項目順）", () => {
+  // 表示は1件ずつ（画面定義書01 §4.1）なので、どれを先に返すかで画面に出る文言が決まる
+  it("複数の項目が不正なら、フォームで先に来る項目のエラーを返す（画面定義書02 §4 の項目順）", () => {
     expect(
       validateRoutineInput(input({ scheduledStartTime: "25:00", startDate: "2026-02-30" }))
     ).toEqual({ ok: false, error: "invalid_start_time" });
@@ -90,7 +90,7 @@ describe("validateRoutineInput（画面定義書02 §4: 必須項目）", () => 
   });
 });
 
-describe("validateRoutineInput — 繰り返し種別ごとの必須項目（§4）", () => {
+describe("validateRoutineInput — 繰り返し種別ごとの必須項目（画面定義書02 §4）", () => {
   it("週次は曜日が1つ以上必要", () => {
     expect(validateRoutineInput(input({ recurrenceType: "weekly", weekdays: 0 }))).toEqual({
       ok: false,

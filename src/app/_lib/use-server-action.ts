@@ -48,7 +48,7 @@ export function useServerActionRunner(setError: SetActionError) {
 }
 
 /**
- * Server Action 実行の共通フック。楽観的更新（N-01）をしない画面向け（画面定義書02 §1・03 §1）。
+ * Server Action 実行の共通フック。楽観的更新（N-01）をしない画面向け（画面定義書02 §1・画面定義書03 §1）。
  * 実行前にエラーを消し、完了を待ってから成功なら `onSuccess` を呼び、失敗なら message を
  * エラー表示する。エラーは帯が1つで足りる画面のためにフックが持つ。
  * 楽観的更新ありの画面（デイリー）は別に `run`（`(daily)/_components/daily-board.tsx`）を持つ

@@ -71,7 +71,7 @@ describe("relocationOnStart（画面定義書01 §4.2-a: 開始したタスク�
     expect(startAt0930(moved, applied)).toEqual([]);
   });
 
-  it("中間値が尽きたら移動先セクション全体を振り直す（§3.5 / データモデル定義書 §4.4）", () => {
+  it("中間値が尽きたら移動先セクション全体を振り直す（データモデル定義書 §3.5 / 同書 §4.4）", () => {
     // 09:20 と未実行の間（1000 と 1001）に入る余地が無い
     const t = task({ id: 1, sectionId: null });
     const earlier = punchedAt(2, "09:20", 1000);
@@ -151,7 +151,7 @@ describe("planCarryOver（画面定義書01 §4.2-b: 現在位置より前の未
     const result = planCarryOver([overdue, anchor, later, untouched], sections, "10:00");
 
     // 繰り下げ対象（id=1）だけを、現在セクションの先頭（id=2 の手前）へ間隔採番で差し込む。
-    // 元からある id=2 / id=3 の sort_order は書き換えない（§4.2 の対象外）
+    // 元からある id=2 / id=3 の sort_order は書き換えない（画面定義書01 §4.2 の対象外）
     expect(result).toEqual([{ taskId: 1, sectionId: forenoon.id, sortOrder: 500 }]);
     expect(result.some((r) => r.taskId === 4)).toBe(false);
   });
@@ -506,7 +506,7 @@ describe("relocationOnPunchEdit（画面定義書01 §4.2-c: 開始時刻の修�
     expect(result).toEqual([]);
   });
 
-  it("中間値が尽きたら移動先セクション全体を振り直す（§3.5）", () => {
+  it("中間値が尽きたら移動先セクション全体を振り直す（データモデル定義書 §3.5）", () => {
     const edited = task({ id: 1, sectionId: morning.id, sortOrder: 1000, startedAt: atJst("12:10") });
     const earlier = task({
       id: 2,
@@ -596,7 +596,7 @@ describe("relocationOnUndoPunch（画面定義書01 O-13 / データモデル定
     expect(relocationOnUndoPunch(running, [running], [], "10:00")).toEqual([]);
   });
 
-  it("中間値が尽きたら移動先セクション全体を振り直す（§3.5）", () => {
+  it("中間値が尽きたら移動先セクション全体を振り直す（データモデル定義書 §3.5）", () => {
     const running = task({ id: 1, sectionId: morning.id, sortOrder: 1000, startedAt: started });
     const done = task({ id: 2, sectionId: forenoon.id, sortOrder: 1000, ...completed });
     const planned = task({ id: 3, sectionId: forenoon.id, sortOrder: 1001 });
@@ -622,7 +622,7 @@ describe("relocationOnUndoPunch（画面定義書01 O-15 / データモデル定
     expect(result).toEqual([{ taskId: 1, sectionId: forenoon.id, sortOrder: 1500 }]);
   });
 
-  it("他に実行中タスクがあればその直後（＝現在位置）へ置く（§4.7 / §4.2 の現在位置）", () => {
+  it("他に実行中タスクがあればその直後（＝現在位置）へ置く（データモデル定義書 §4.7 / 画面定義書01 §4.2 の現在位置）", () => {
     const target = task({ id: 1, sectionId: morning.id, sortOrder: 1000, ...completed });
     // 実行中タスクは現在時刻のセクション（午前）ではなく午後にいる
     const running = task({ id: 2, sectionId: afternoon.id, sortOrder: 1000, startedAt: started });
@@ -649,7 +649,7 @@ describe("relocationOnUndoPunch（画面定義書01 O-15 / データモデル定
     expect(relocationOnUndoPunch(target, [target, running], sections, "10:00")).toEqual([]);
   });
 
-  it("実行中タスクの直後で中間値が尽きたら移動先セクション全体を振り直す（§3.5）", () => {
+  it("実行中タスクの直後で中間値が尽きたら移動先セクション全体を振り直す（データモデル定義書 §3.5）", () => {
     const target = task({ id: 1, sectionId: morning.id, sortOrder: 1000, ...completed });
     const running = task({ id: 2, sectionId: afternoon.id, sortOrder: 1000, startedAt: started });
     const planned = task({ id: 3, sectionId: afternoon.id, sortOrder: 1001 });

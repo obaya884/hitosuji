@@ -179,7 +179,7 @@ describe("applyOptimisticAction の即時反映（N-01 / 00_共通 §4）", () =
     expect(find(applied, 13)?.endedAt).toBeNull();
   });
 
-  it("move は表示上の並びと所属だけ変え、sort_order の採番はサーバへ委ねる（O-6 / §3.5）", () => {
+  it("move は表示上の並びと所属だけ変え、sort_order の採番はサーバへ委ねる（O-6 / データモデル定義書 §3.5）", () => {
     const applied = apply({ type: "move", id: 11, destination: { sectionId: 1, index: 0 } });
 
     expect(applied[0].tasks).toEqual([]);

@@ -134,7 +134,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
     });
 
     // 抑止そのものは部品（EditableCell）が持つ。ここで見るのは表が `isPending` を
-    // セルへ渡していることと、表の JSX が持つカラーバー・操作ボタン側の抑止（§6 の②）
+    // セルへ渡していることと、表の JSX が持つカラーバー・操作ボタン側の抑止（テスト戦略定義書 §6 の②）
     it("保存中は行の編集セル・カラーバー・操作ボタンを押せない", async () => {
       const pending = deferredAction();
       vi.mocked(setModeArchivedAction).mockReturnValue(pending.promise);
@@ -166,7 +166,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       );
     });
 
-    // onClose が表の editingId を落としているか（§6 の②「部品のコールバック → 画面の状態」）。
+    // onClose が表の editingId を落としているか（テスト戦略定義書 §6 の②「部品のコールバック → 画面の状態」）。
     // Esc の挙動そのものは editable-cell.test.tsx が持つ
     it("Esc でセルが閉じ、元の表示に戻る", async () => {
       renderTable();
@@ -207,7 +207,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       const input = startEditingCell("モードA");
       fireEvent.change(input, { target: { value: "" } });
       fireEvent.blur(input);
-      // メッセージの表示と isPending の解除は別のタイミングで届く。§2.3 が要求するのは
+      // メッセージの表示と isPending の解除は別のタイミングで届く。00_共通 §2.3 が要求するのは
       // 「同じ行」の抑止だが、実装は isPending を表ごとに1つ持つので他行のセルも止まる。
       // そのため押せる状態に戻るまで待ってからでないと click が無視される
       const otherCell = await waitFor(() => {
@@ -282,7 +282,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       expect(screen.queryByPlaceholderText("モード名")).toBeNull();
     });
 
-    // onCancel が表の editing を落としているか（§6 の②）。取消・Esc の挙動そのものは
+    // onCancel が表の editing を落としているか（テスト戦略定義書 §6 の②）。取消・Esc の挙動そのものは
     // new-row.test.tsx が持つので、ここは行が消えることだけを見る
     it("「取消」で新規行が消える（送信しない）", async () => {
       renderTable();
@@ -315,12 +315,12 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
 
       expect(screen.getByText("色はプリセットから選択してください")).not.toBeNull();
       expect(screen.getByPlaceholderText("モード名")).not.toBeNull();
-      // 抑止が解けたままにならない＝入力し直して保存できる（§2.3「失敗時」）
+      // 抑止が解けたままにならない＝入力し直して保存できる（00_共通 §2.3「失敗時」）
       expect(screen.getByRole("button", { name: "保存" })).toHaveProperty("disabled", false);
       expect(screen.getByRole("button", { name: "取消" })).toHaveProperty("disabled", false);
     });
 
-    // 表が `isPending` を TableFrame へ渡しているか（§6 の②）。押せると開いていたセルが閉じる
+    // 表が `isPending` を TableFrame へ渡しているか（テスト戦略定義書 §6 の②）。押せると開いていたセルが閉じる
     it("保存中は「新規追加」を押せない", async () => {
       const pending = deferredAction();
       vi.mocked(setModeArchivedAction).mockReturnValue(pending.promise);
@@ -339,7 +339,7 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
       expect(screen.getByRole("button", { name: "新規追加" })).toHaveProperty("disabled", false);
     });
 
-    // 送信せず表示だけを変えるその場の選択も止める（§2.3）——送る値と表示が食い違うため
+    // 送信せず表示だけを変えるその場の選択も止める（00_共通 §2.3）——送る値と表示が食い違うため
     it("保存中は新規行の色スウォッチを押せない", async () => {
       const pending = deferredAction();
       vi.mocked(createModeAction).mockReturnValue(pending.promise);

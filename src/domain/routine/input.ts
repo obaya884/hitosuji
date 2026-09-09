@@ -45,7 +45,7 @@ type RecurrenceFields = Readonly<{
   intervalDays: number | null;
 }>;
 
-/** 検証済みの予定（開始想定時刻は正規化済み、繰り返しは §3.4 の正規化を経た保存値） */
+/** 検証済みの予定（開始想定時刻は正規化済み、繰り返しはデータモデル定義書 §3.4 の正規化を経た保存値） */
 export type ValidRoutineSchedule = Readonly<{ scheduledStartTime: string }> & RecurrenceFields;
 
 /** 検証済みの入力（永続化に渡せる形） */
@@ -61,7 +61,7 @@ export type ValidRoutineInput = ValidRoutineSchedule &
   }>;
 
 /**
- * 開始想定時刻と繰り返しを検証する（画面定義書02 §4 / 01 §4.1）。
+ * 開始想定時刻と繰り返しを検証する（画面定義書02 §4 / 画面定義書01 §4.1）。
  * ルーチンフォームとルーチン化ポップオーバーが同じ規則で通る唯一の入口
  */
 export function validateRoutineSchedule(
@@ -89,7 +89,7 @@ export function validateRoutineInput(
   }
 
   // 検証はフォームの項目順（画面定義書02 §4）に沿う。複数が不正なとき、先に直すべき欄の
-  // エラーから出す（表示は1件ずつ。共通 §4.1）
+  // エラーから出す（表示は1件ずつ。画面定義書01 §4.1）
   const schedule = validateRoutineSchedule(input);
   if (!schedule.ok) return schedule;
 

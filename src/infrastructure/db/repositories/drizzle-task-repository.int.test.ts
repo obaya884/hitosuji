@@ -241,7 +241,7 @@ describe("start の割り込み（F-201: 終了・再開タスク生成・開始
     expect(after).toHaveLength(2);
   });
 
-  // 割り込み（§4.2）に振り直し（§3.5）と自動セクション移動（§4.2-a）が同時に伴う経路。
+  // 割り込み（データモデル定義書 §4.2）に振り直し（同書 §3.5）と自動セクション移動（画面定義書01 §4.2-a）が同時に伴う経路。
   // 付帯更新が両方とも非空になるのはここだけなので、5つの更新の合流をここで固定する
   it("振り直しと移動を伴う割り込みで、5つの更新がすべて反映される", async () => {
     const [night] = await db
@@ -491,7 +491,7 @@ describe("duplicateAndStart（F-208 / データモデル定義書 §4.6: 複製�
           bundleId: bundle.id,
         },
       },
-      // 挿入位置に中間値が無かったときの振り直し（§3.5）。挿入より先に当たる
+      // 挿入位置に中間値が無かったときの振り直し（データモデル定義書 §3.5）。挿入より先に当たる
       renumber: [{ taskId: source.id, sortOrder: 3000 }],
     });
 
@@ -504,7 +504,7 @@ describe("duplicateAndStart（F-208 / データモデル定義書 §4.6: 複製�
         estimateMinutes: 18,
         sortOrder: 7000,
         startedAt: null,
-        bundleId: bundle.id, // 割り込みの再開タスクはバンドルを引き継ぐ（§4.8）
+        bundleId: bundle.id, // 割り込みの再開タスクはバンドルを引き継ぐ（データモデル定義書 §4.8）
       })
     );
     expect(after.find((t) => t.id === source.id)?.sortOrder).toBe(3000); // 振り直しも同じトランザクション
@@ -737,8 +737,8 @@ describe("postpone（F-107: 先送り）", () => {
     ]);
   });
 
-  // §3.5: 移動先の日にはその日のぶんが改めて展開されるので紐付けを切る。
-  // §3.6: 元の日のスキップを記録しないと、その日を再表示した時点で §4.1 が展開し直す
+  // データモデル定義書 §3.5: 移動先の日にはその日のぶんが改めて展開されるので紐付けを切る。
+  // 同書 §3.6: 元の日のスキップを記録しないと、その日を再表示した時点で 同書 §4.1 が展開し直す
   it("ルーチン由来なら紐付けを外し、同じトランザクションで元の日のスキップを記録する", async () => {
     const routine = await createRoutine();
     const [target] = await db
@@ -1471,7 +1471,7 @@ describe("relocate（F-113 / データモデル定義書 §4.4: 自動セクシ�
     expect(after[0].sortOrder).toBe(1000); // 1件目の更新も巻き戻っている
   });
 
-  it("start（§4.2-a）: 打刻と移動が同じトランザクションで反映される", async () => {
+  it("start（画面定義書01 §4.2-a）: 打刻と移動が同じトランザクションで反映される", async () => {
     const [night] = await db
       .insert(sections)
       .values([{ name: "夜", startTime: "18:00" }])
@@ -1651,7 +1651,7 @@ describe("undoComplete（F-212 / データモデル定義書 §4.7: 完了の取
     expect(after.sortOrder).toBe(1000);
   });
 
-  it("復帰先の sort_order を他タスクが取っていても書き戻せる（同値を許容。§4.7）", async () => {
+  it("復帰先の sort_order を他タスクが取っていても書き戻せる（同値を許容。データモデル定義書 §4.7）", async () => {
     const [morning] = await db
       .insert(sections)
       .values([{ name: "朝", startTime: "06:00" }])
@@ -1857,7 +1857,7 @@ describe("bundle_id の伝播（データモデル定義書 §4.8 / F-119）", (
     expect(created.bundleId).toBeNull();
   });
 
-  // 先送りは routine_id を外す扱い（§3.5）と揃えてバンドルからも外す。付けたまま移すと
+  // 先送りは routine_id を外す扱い（データモデル定義書 §3.5）と揃えてバンドルからも外す。付けたまま移すと
   // 移動先の日に改めて展開されるぶんと同じバンドルに同名のタスクが2件並んでしまう
   it("先送りはバンドルから外す（routine_id を外す扱いと揃える）", async () => {
     const bundle = await createBundle();

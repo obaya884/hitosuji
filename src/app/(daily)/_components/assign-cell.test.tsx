@@ -67,7 +67,7 @@ describe("AssignCell（画面定義書01 §3.3 / O-5: 割り当ての入口に�
     expect(screen.getByLabelText("プロジェクト（サイト改善）").textContent).toBe("サイト改善");
   });
 
-  // 上の対。記号 `-` は読み上げに向かないので語を当てる（§2.4）。2列への配線は task-row.test.tsx
+  // 上の対。記号 `-` は読み上げに向かないので語を当てる（00_共通 §2.4）。2列への配線は task-row.test.tsx
   it("未設定は名前の位置に語を載せる（読み上げは記号ではなく「〈項目名〉（未設定）」。00_共通 §2.4）", () => {
     renderCell({ label: "モード" });
 

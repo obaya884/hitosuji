@@ -38,7 +38,7 @@ export const SAVE_FAILED = "保存に失敗しました";
 const ENDED_BEFORE_STARTED = "終了時刻は開始時刻より後にしてください";
 
 /**
- * タスク名・見積もり・コメント・モード・プロジェクトの編集（画面定義書01 §3.3・O-5・O-16・§8）。
+ * タスク名・見積もり・コメント・モード・プロジェクトの編集（画面定義書01 §3.3・O-5・O-16・同書 §8）。
  * クライアントは入力検証の2コードだけを引き、サーバは対象の不在も引く
  */
 export const TASK_EDIT_MESSAGES: Record<TaskEditUsecaseError, string> = {
@@ -218,7 +218,7 @@ export const MASTER_MESSAGES: Record<MasterError, string> = {
 };
 
 /**
- * バンドルのメンバー出し入れ（画面定義書05 §4 O-5〜O-6 / §6）。
+ * バンドルのメンバー出し入れ（画面定義書05 §4 O-5〜O-6 / 同書 §6）。
  * `not_found` はマスタ管理と同じ「対象が見つかりません」を引く。
  * `already_in_bundle` はこの操作だけの専用コード
  */

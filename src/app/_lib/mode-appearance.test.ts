@@ -4,8 +4,8 @@ import { modeAppearance, toDimmedClass } from "./mode-appearance";
 
 const work: Mode = { id: 1, name: "仕事", color: "#ef4444", isArchived: false };
 
-// デイリー（画面定義書01 §3.3）とレビュー（同04 §2「モード色は S-01 と同じ」）で共有する規則
-describe("modeAppearance（F-401 / 画面定義書01 §3.3「モード未設定行の色」・04 §2）", () => {
+// デイリー（画面定義書01 §3.3）とレビュー（画面定義書04 §2「モード色は S-01 と同じ」）で共有する規則
+describe("modeAppearance（F-401 / 画面定義書01 §3.3「モード未設定行の色」・画面定義書04 §2）", () => {
   it("モード設定時は行の色を継承させる（グレーにしない）", () => {
     expect(modeAppearance(work)).toStrictEqual({
       isDimmed: false,

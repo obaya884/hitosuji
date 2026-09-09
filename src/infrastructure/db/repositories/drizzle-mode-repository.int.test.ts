@@ -71,8 +71,7 @@ describe("シードの初期データ（データモデル定義書 §5 / 画面
     expect(await db.select().from(modes)).toHaveLength(seeded.length);
   });
 
-  // §5 の「灰」は §3.2 のプリセット名では「グレー」（同じ色を指す）
-  it("投入されるモードの色は §5 のとおり（仕事=青 / 暮らし=緑 / 休憩=灰）", async () => {
+  it("投入されるモードの色はデータモデル定義書 §5 のとおり（仕事=青 / 暮らし=緑 / 休憩=グレー）", async () => {
     await seedMasters(db);
     const colorOf = new Map((await repo.listAll()).map((m) => [m.name, m.color]));
 

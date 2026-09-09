@@ -204,7 +204,7 @@ describe("inlineEditKeyHandler（画面定義書00_共通 §2.3: Enter 保存 / 
   // 複数行入力（コメント欄 O-16）だけ Shift+Enter を改行として通す。1行の入力欄は改行を持たないので
   // 既定（multiline 未指定）では Shift 併用でも確定する——ここを取り違えると
   // タスク名・見積もり・打刻・マスタ管理の全インライン編集が Shift+Enter で確定しなくなる
-  describe("multiline（画面定義書01 O-16 / §6: コメント欄だけ Shift+Enter が改行）", () => {
+  describe("multiline（画面定義書01 O-16 / 同書 §6: コメント欄だけ Shift+Enter が改行）", () => {
     it("multiline 未指定なら Shift+Enter でも確定する（1行入力欄の既定は変えない）", () => {
       const onEnter = vi.fn();
       const handler = inlineEditKeyHandler({ onEnter, onEscape: vi.fn() });

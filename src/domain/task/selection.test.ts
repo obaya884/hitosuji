@@ -21,7 +21,7 @@ const EARLIER = 10;
 const LATER = 30;
 /** さらに後ろ。規則3 が「後ろのうち表示順で最初」を選ぶことを見るために要る */
 const LAST = 40;
-/** 表示順のセクション（未分類 null を先頭にした回転順。§3.2） */
+/** 表示順のセクション（未分類 null を先頭にした回転順。画面定義書01 §3.2） */
 const SECTION_ORDER = [null, EARLIER, CURRENT, LATER, LAST];
 
 describe("currentTaskId（画面定義書01 §5: 現在地の規則）", () => {

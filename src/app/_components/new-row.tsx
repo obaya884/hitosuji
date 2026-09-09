@@ -1,6 +1,6 @@
 "use client";
 
-// 表の新規追加行（画面定義書03 §4 / 05 §4 O-1）。既存行の編集はセルのインライン編集だが、
+// 表の新規追加行（画面定義書03 §4 / 画面定義書05 §4 O-1）。既存行の編集はセルのインライン編集だが、
 // 新規行だけは明示的な保存・取消を置く。
 // 入力欄の並びは表ごとに違うので `renderCells` で受け取り、値は `data-field` から読む（T-44）。
 import type { KeyboardEventHandler, ReactNode } from "react";

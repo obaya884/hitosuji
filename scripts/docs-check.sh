@@ -1,6 +1,6 @@
 #!/bin/sh
-# docs の機械検査（T-36 で台帳3冊の表構造から始まり、T-86 で docs 全体へ拡張した）。
-# 設計は docs/案件/closed_23_技術改善バックログ.md T-86。
+# docs の機械検査（T-36 で台帳3冊の表構造から始まり、T-86 で docs 全体、T-113 で
+# docs を指すコード内の `§` 参照まで広げた）。設計は docs/案件/closed_23_技術改善バックログ.md T-86。
 #
 # 使い方:
 #   npm run docs:check
@@ -19,6 +19,10 @@
 #     ＋「仕様済」なのに参照先が `（未実装 / F-XXX）` のスタブ（過大申告は静かに起きる）
 #   - 台帳23 で種別・優先度が語彙外
 #   - ライブ台帳に完了エントリが残っている（21 の対応済み・見送り／23 の完了）
+#   - コード（`src/**/*.ts(x)`）の `§` 参照が、どの文書を指すか字面から決められない（T-113）
+#     `src/app` 配下は既定（その画面の定義書）で読んで存在しない節を指しているもの、
+#     既定を置けない下位3層は2つ以上の文書を指すファイルに残った裸の参照。規則は
+#     アーキテクチャ定義書 §2「コメントの仕様参照」が正
 #   - 相対リンクの参照先ファイルが無い
 #   - リンクのアンカーが参照先の見出しに無い（`ledger:move` は移す側しか直さないので、
 #     closed_* への移送のたびに被参照リンクが構造的に切れる。それを捕まえるのが本検査の要）
@@ -55,6 +59,15 @@ DOCS = sorted(glob.glob("docs/**/*.md", recursive=True))
 # 参照は docs 内だけでなく CLAUDE.md・README・`.claude/` にも散る（CLAUDE.md「書き方の規約」）。
 # AGENTS.md だけは `next dev` が生成し直すので対象から外す
 TARGETS = DOCS + ["CLAUDE.md", "README.md"] + sorted(glob.glob(".claude/**/*.md", recursive=True))
+# コード内の `§` 参照も docs を指すので同じ検査に載せる（T-113。規則はアーキテクチャ定義書 §2）
+# `isfile` は必須——ブラウザ段のスクリーンショット置き場が `__screenshots__/<テスト名>.tsx/` と
+# **テストファイル名のディレクトリ**になっており、外すと glob がそれを拾って読み込みで落ちる
+SOURCES = sorted(
+    p
+    for pattern in ("src/**/*.ts", "src/**/*.tsx")
+    for p in glob.glob(pattern, recursive=True)
+    if os.path.isfile(p)
+)
 
 # 台帳の所在は1か所にまとめる（ファイル名が変わったときに直す場所を散らさない）。
 # `paired` は「§一覧の行 ＋ §詳細の節」の書式かどうか、`closed_status` はライブ側に
@@ -406,6 +419,180 @@ def check_links(path):
     return out
 
 
+# ---- コード内の仕様参照（§） --------------------------------------------------
+#
+# 規則の正は アーキテクチャ定義書 §2「コメントの仕様参照」。同じ字面が文書ごとに別条項を指す
+# （`§4.2-a` はデータモデル定義書と画面定義書01 の両方に実在する）ため、どちらを指すかを
+# 字面から決められる形に保つ。**裸の `§` を一律には禁じない**——既定の置ける `src/app` では
+# 裸が正しい書き方だから。見るのは次の3つ。
+#
+#   ① 略記（`01 §3.3` / `レビュー §3.5` / `S-05 §2`）— 書き方が2通りに割れて grep が効かなくなる
+#   ② `src/app` で、既定の文書に存在しない節を裸で指している
+#   ③ 2つ以上の文書を指す下位3層のファイルに残った裸の参照
+#
+# **文書名は「その `§` の直前」を見る**（行のどこかではなく）。行のどこかにすると
+# `画面定義書02 §4 / 01 §4.1` の後半が素通りし、①がまさにそれで漏れる。
+# 直前に `文書名 §a・§b` の連なりが来る形（`データモデル定義書 §3.5・§4.4`）は続きとして許す。
+
+# 既定の文書（`src/app` 配下のみ。画面ディレクトリで決まり、配下の `_components` 等が継ぐ）。
+# **当てるのは最長前方一致**なので、辞書の並び順に依存しない
+SCREEN_FILES = (
+    "00_共通.md",
+    "01_デイリーリスト.md",
+    "02_ルーチン管理.md",
+    "03_マスタ管理.md",
+    "04_レビュー.md",
+    "05_バンドル管理.md",
+)
+SCREEN_DOCS = {
+    "src/app/(daily)/": "docs/仕様/13_画面定義書/01_デイリーリスト.md",
+    "src/app/routines/": "docs/仕様/13_画面定義書/02_ルーチン管理.md",
+    "src/app/masters/": "docs/仕様/13_画面定義書/03_マスタ管理.md",
+    "src/app/review/": "docs/仕様/13_画面定義書/04_レビュー.md",
+    "src/app/bundles/": "docs/仕様/13_画面定義書/05_バンドル管理.md",
+    # 画面をまたぐ場所（`src/app` 直下の `_components` / `_lib` / `_testing`）は 00_共通
+    "src/app/": "docs/仕様/13_画面定義書/00_共通.md",
+}
+
+# 文書名 → 文書。`画面定義書00` と `00_共通` は同じ文書（コード中で両方の書き方が使われている）
+SPEC_DOCS = {
+    "要求定義書": "docs/仕様/11_要求定義書.md",
+    "要件定義書": "docs/仕様/12_要件定義書.md",
+    "データモデル定義書": "docs/仕様/14_データモデル定義書.md",
+    "アーキテクチャ定義書": "docs/仕様/15_アーキテクチャ定義書.md",
+    "git運用と並行開発体制定義書": "docs/仕様/16_git運用と並行開発体制定義書.md",
+    "テスト戦略定義書": "docs/仕様/17_テスト戦略定義書.md",
+    "00_共通": "docs/仕様/13_画面定義書/00_共通.md",
+    **{f"画面定義書{d[:2]}": f"docs/仕様/13_画面定義書/{d}" for d in SCREEN_FILES},
+}
+# 長い名前を先に当てる（`画面定義書01` を `画面定義書` で切らないため）
+DOC_NAME = "|".join(sorted(map(re.escape, SPEC_DOCS), key=len, reverse=True))
+# `§a・§b` の連なりは直前の名指しの続きとして扱う（`データモデル定義書 §3.5・§4.4`）
+REF_CHAIN = r"(?:\s*§\d+(?:\.\d+)*(?:-[a-z])?\s*[・/、,]?)*\s*[（(「]?\s*$"
+# `§` の直前が文書名か `同書` か。**行頭からの全文検索ではない**
+NAMED_HEAD = re.compile(rf"(?P<name>{DOC_NAME}|同書){REF_CHAIN}")
+# 文書名のつもりの略記。**`NAMED_HEAD` が当たらなかったときだけ**見る（`画面定義書01` の末尾の
+# `01` を略記と誤認しないため、判定の順序が本質）
+SHORTHAND_HEAD = re.compile(rf"(?:同?0[0-5]|S-0[0-5]|レビュー|デイリー|共通|要件|要求|同){REF_CHAIN}")
+
+# `§3.3` / `§4.2-a`。枝番は親の節番号で在否を見る（枝番は本文中のラベルで見出しにならない）
+SECTION_REF = re.compile(r"§(\d+(?:\.\d+)*)(?:-[a-z])?")
+
+
+def default_doc_of(path):
+    """最長前方一致で既定の文書を引く。下位3層は属する画面が無いので既定を置けない"""
+    hit = max((p for p in SCREEN_DOCS if path.startswith(p)), key=len, default=None)
+    return SCREEN_DOCS[hit] if hit else None
+
+
+def doc_label_of(doc):
+    """`docs/…/01_デイリーリスト.md` → `画面定義書01`（コード中の字面に合わせて示す）"""
+    name = os.path.basename(doc).removesuffix(".md")
+    return "00_共通" if name.startswith("00_") else f"画面定義書{name[:2]}"
+
+
+_sections = {}
+
+
+def sections_of(doc):
+    """見出し（`## 3.` / `### 3.1`）が持つ節番号の集合"""
+    if doc not in _sections:
+        lines, mask = read(doc)
+        found = {
+            m.group(1)
+            for i, line in enumerate(lines)
+            if not mask[i]
+            for m in [re.match(r"^#{2,4}\s+(\d+(?:\.\d+)*)\.?\s", line)]
+            if m
+        }
+        # 節を1つも拾えないのは見出しの書式が変わった合図。**空集合のまま進むと在否検査が
+        # 「どの節も無い」ではなく「全部通る」側へ倒れず、逆に全件を誤検出する**ので落とす
+        if not found:
+            raise SystemExit(f"{doc} から節番号を1つも拾えません（見出しの書式が変わった？）")
+        _sections[doc] = found
+    return _sections[doc]
+
+
+# `同書` の引き受け先を探すための、位置を問わない文書名の検索
+ANY_DOC_NAME = re.compile(DOC_NAME)
+
+
+def spec_refs_of(lines):
+    """`§` 参照を (行番号, 節番号, 宛先の文書, 略記か) で返す。
+
+    **裸かどうかは「その `§` の直前」だけで決める**（行のどこかにすると
+    `画面定義書02 §4 / 01 §4.1` の後半が素通りする）。一方**`同書` の引き受け先は
+    直前までに現れた最後の文書名**——`画面定義書01 O-16 / 同書 §6` のように
+    `§` を伴わない名指しも受けられる必要があるため、こちらは位置を問わずに探す"""
+    out = []
+    last_named = None
+    for i, line in enumerate(lines, start=1):
+        for m in SECTION_REF.finditer(line):
+            head = line[: m.start()]
+            mentioned = ANY_DOC_NAME.findall(head)
+            if mentioned:
+                last_named = SPEC_DOCS[mentioned[-1]]
+            named = NAMED_HEAD.search(head)
+            if named is None:
+                out.append((i, m.group(1), None, SHORTHAND_HEAD.search(head) is not None))
+                continue
+            name = named.group("name")
+            out.append((i, m.group(1), last_named if name == "同書" else SPEC_DOCS[name], False))
+    return out
+
+
+def check_spec_refs(path):
+    """`§` 参照が「どの文書のどの節か」を字面から決められるかを見る。判定は既定の有無で2通り"""
+    out = []
+    refs = spec_refs_of(read(path)[0])
+    default = default_doc_of(path)
+
+    for line_no, section, doc, shorthand in refs:
+        if shorthand:
+            out.append(
+                (path, line_no, f"§{section} の直前が略記。文書名は正式名称で書く（例「画面定義書04 §3.5」）")
+            )
+            continue
+        # 名指しがあるなら、その文書に節が実在するかまで見る（**裸だけを見ていると、
+        # 名前付きの参照＝補記した側が丸ごとノーガードになる**）
+        if doc is not None and section not in sections_of(doc):
+            out.append((path, line_no, f"§{section} が {doc_label_of(doc)} に無い"))
+
+    if default is not None:
+        # 既定があるので裸は許される。**その既定で読むと宛先が無い**ものだけが誤り
+        for line_no, section, doc, shorthand in refs:
+            if doc is not None or shorthand or section in sections_of(default):
+                continue
+            out.append(
+                (
+                    path,
+                    line_no,
+                    f"§{section} の宛先が {doc_label_of(default)}（このファイルの既定）に無い。"
+                    f"別文書なら「データモデル定義書 §{section}」のように § の直前へ文書名を置く",
+                )
+            )
+        return out
+
+    # 下位3層は既定が置けない。**指す文書が1つなら**ファイル内のどこかで示してあれば裸でよく、
+    # **2つ以上なら**各参照に文書名が要る（アーキテクチャ定義書 §2）
+    named_docs = {doc for _, _, doc, _ in refs if doc is not None}
+    if len(named_docs) <= 1:
+        return out
+    docs = "・".join(sorted(doc_label_of(d) for d in named_docs))
+    for line_no, section, doc, shorthand in refs:
+        if doc is not None or shorthand:
+            continue
+        out.append(
+            (
+                path,
+                line_no,
+                f"§{section} の直前に文書名が無い（このファイルは {docs} を指すので各参照に要る。"
+                f"直前が同じ文書なら「同書 §{section}」でよい）",
+            )
+        )
+    return out
+
+
 # ---- Phase 表記の残存（警告） ------------------------------------------------
 
 # 「完了した事項に予定表記を残さない」（CLAUDE.md「書き方の規約」）。
@@ -476,6 +663,14 @@ for path in TARGETS:
     failures += check_links(path)
     warnings += check_phase_wording(path)
 
+# **母集団が空でも「健全です」で通る**のが、この種の検査の一番静かな壊れ方（glob の書き損じ・
+# ディレクトリの改称で起きる）。数を主張してから回す
+if len(SOURCES) < 100:
+    raise SystemExit(f"検査対象のソースが {len(SOURCES)} 件しかありません（glob が壊れている？）")
+
+for path in SOURCES:
+    failures += check_spec_refs(path)
+
 # ライブ側だけが持つ固有の検査（列の記入・語彙）。LEDGERS に併記できないのは、
 # 辞書を組み立てる時点でこれらの関数がまだ定義されていないため
 LEDGER_CHECKS = {"22": (check_requirement_backlog,), "23": (check_tech_backlog,)}
@@ -505,5 +700,5 @@ if failures:
         print(f"  {path}:{line_no}  {reason}", file=sys.stderr)
     sys.exit(1)
 
-print(f"docs は健全です（{len(TARGETS)} ファイルを検査、警告 {len(warnings)} 件）")
+print(f"docs は健全です（docs {len(TARGETS)} / コード {len(SOURCES)} ファイルを検査、警告 {len(warnings)} 件）")
 PY

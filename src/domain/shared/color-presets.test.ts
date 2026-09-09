@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { COLOR_BY_NAME, COLOR_PRESETS, COLOR_VALUES, colorPresetName, isPresetColor } from "./color-presets";
 
 describe("COLOR_PRESETS（画面定義書03 §3.2: プリセット13色と併記する色名）", () => {
-  // 色値と色名の対応そのものが仕様（§3.2 の表）なので、表をそのまま突き合わせて固定する
-  it("色値と色名が §3.2 の表と1:1で対応する（12色＋グレー）", () => {
+  // 色値と色名の対応そのものが仕様（同書 §3.2 の表）なので、表をそのまま突き合わせて固定する
+  it("色値と色名が表と1:1で対応する（12色＋グレー）", () => {
     expect(COLOR_PRESETS).toEqual([
       { value: "#ef4444", name: "赤" },
       { value: "#f97316", name: "オレンジ" },
