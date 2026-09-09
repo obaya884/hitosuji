@@ -680,7 +680,7 @@ describe("DailyBoard の未来日（§7: 今日以前の表示日でだけ打刻
           endedAt: atJst("09:20", NEXT_TEST_DATE),
         }),
       ],
-      { date: NEXT_TEST_DATE, today: TEST_DATE, isToday: false }
+      { date: NEXT_TEST_DATE, today: TEST_DATE }
     );
   }
 
@@ -726,7 +726,7 @@ describe("DailyBoard の未来日（§7: 今日以前の表示日でだけ打刻
     ["過去日", TEST_DATE, NEXT_TEST_DATE],
     ["当日", TEST_DATE, TEST_DATE],
   ])("%s は塞がない（過去日の打刻は深夜作業のために残す）", (_label, date, today) => {
-    renderBoard(defaultTasks(), { date, today, isToday: date === today });
+    renderBoard(defaultTasks(), { date, today });
     selectRow(NOT_STARTED);
 
     press("Enter");

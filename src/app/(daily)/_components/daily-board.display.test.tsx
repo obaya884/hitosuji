@@ -62,13 +62,13 @@ describe("DailyBoard の現在セクションの導出（§3.2 F-121 の強調 /
   });
 
   it("表示日が過去ならどのセクションも強調しない（F-121）", () => {
-    renderBoard(defaultTasks(), { date: "2026-07-20", today: TEST_DATE, isToday: false });
+    renderBoard(defaultTasks(), { date: "2026-07-20", today: TEST_DATE });
 
     expect(highlightedSectionNames()).toEqual([]);
   });
 
   it("未来日でも強調しない（残り時間 F-110 と違って未来へは広げない。§3.2 / FB-104）", () => {
-    renderBoard(defaultTasks(), { date: NEXT_TEST_DATE, today: TEST_DATE, isToday: false });
+    renderBoard(defaultTasks(), { date: NEXT_TEST_DATE, today: TEST_DATE });
 
     expect(highlightedSectionNames()).toEqual([]);
   });
@@ -129,23 +129,42 @@ describe("DailyBoard の表示日に応じた出し分けと警告（§3.1 / §3
   // 移動先が S-04（/review）になっていないことは href でしか判らない（04 §3.1
   // 「S-01 と S-04 の表示日は連動させない」の S-01 側。04 の対は review-board.test.tsx）
   it("日付ナビの移動先は S-01 に閉じる（前日・翌日・今日へ）", () => {
-    renderBoard(defaultTasks(), { date: "2026-07-20", today: TEST_DATE, isToday: false });
+    renderBoard(defaultTasks(), { date: "2026-07-20", today: TEST_DATE });
 
     expect(screen.getByLabelText("前日").getAttribute("href")).toBe("/?date=2026-07-19");
     expect(screen.getByLabelText("翌日").getAttribute("href")).toBe("/?date=2026-07-21");
     expect(screen.getByText("今日へ").getAttribute("href")).toBe("/");
   });
 
-  it("今日以外を表示中は「今日へ」を出す（isToday の配線。§3.1）", () => {
-    renderBoard(defaultTasks(), { date: "2026-07-20", today: TEST_DATE, isToday: false });
+  /**
+   * board が導く「表示日は今日か」（`date === today`）の配り先は、現在セクション（上の describe）と
+   * DateNav・DailySummary・DailyList。**子への配線は1件ずつ置く**——まとめると片方を壊しても
+   * もう片方が緑のまま残る（日界の配線と同じ流儀。下の describe）
+   */
+  it("今日以外を表示中は「今日へ」を出す（DateNav への配線。§3.1）", () => {
+    renderBoard(defaultTasks(), { date: "2026-07-20", today: TEST_DATE });
 
     expect(screen.queryByRole("link", { name: "今日へ" })).not.toBeNull();
   });
 
-  it("今日を表示中は「今日へ」を出さない（isToday の配線。§3.1）", () => {
+  it("今日を表示中は「今日へ」を出さない（DateNav への配線。§3.1）", () => {
     renderBoard();
 
     expect(screen.queryByRole("link", { name: "今日へ" })).toBeNull();
+  });
+
+  // 出す・出さないの規則そのものは子の段（daily-summary / daily-list）が持つ。ここで見るのは
+  // **board が「今日ではない」を配れているか**——渡す値を true に固定しても子の段は緑のまま通る
+  it("今日以外を表示中はサマリの終了予定を出さない（DailySummary への配線。§3.1）", () => {
+    renderBoard(defaultTasks(), { date: "2026-07-20", today: TEST_DATE });
+
+    expect(screen.queryByText("終了予定")).toBeNull();
+  });
+
+  it("今日以外を表示中は予想開始も出さない（DailyList への配線。§3.3）", () => {
+    renderBoard(defaultTasks(), { date: "2026-07-20", today: TEST_DATE });
+
+    expect(cellsOf(taskRow(NOT_STARTED)).time.textContent).toBe("");
   });
 
   /**
@@ -158,7 +177,6 @@ describe("DailyBoard の表示日に応じた出し分けと警告（§3.1 / §3
     renderBoard([task({ id: 9, name: "資料作成", sectionId: FORENOON.id, estimateMinutes: 60 })], {
       date: NEXT_TEST_DATE,
       today: TEST_DATE,
-      isToday: false,
     });
 
     // 午前は 09:00–13:00 の4時間。今日（NOW = 10:30）の枠を測ってしまうと +25:30 になる

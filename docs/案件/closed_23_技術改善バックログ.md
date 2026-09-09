@@ -96,6 +96,8 @@
 | T-145 | Dependabot 依存追随（next 16.3.4 セキュリティ patch＋browserslist 4.28.9） | 依存追随 | 中 | 完了（2026-09-07） | [詳細](#t-145) |
 | T-88 | `dayStartMinutes` の board→子 の配線がテストで無検証（前提が変わったため穴の有無は要再確認） | テスト | 低 | 完了 2026-09-09 → 変異で穴が健在と確認し、サマリ・リストの2配線を board 段で固定 | [詳細](#t-88) |
 | T-140 | `console.error` の網を張った後も、旧来の抑制が9箇所残って網の外に出ている | テスト | 中 | 完了（2026-09-09） | [詳細](#t-140) |
+| T-125 | `isToday` が prop なのに board 内で導出でき、テストで矛盾した日付の組を作れてしまう | 内部設計 | 低 | 完了 2026-09-10 → board 内導出へ寄せ、子2つへの配線を board 段で固定 | [詳細](#t-125) |
+| T-139 | `setSelectedId` が `TaskId` を prop の境界で素の `number` へ広げ直している | 型安全 | 低 | 完了（2026-09-10） | [詳細](#t-139) |
 
 ## 詳細
 
@@ -1024,6 +1026,35 @@
 - **対応（2026-09-09）**: 9箇所すべてを `expectConsoleError(CALL_FAILED_LOG)` へ寄せた。ユニット段の5箇所は方針どおり据え置き（`setupFiles` を持たず網が無いので、テスト戦略定義書 §2 の禁止の前提が成り立たない）
 - 文言の写しを作らないよう、**定数は `_lib/action-result.ts` 側に置いて `console.error` 自身に使わせた**（表示用の `SAVE_FAILED` と同じ流儀）。本番コードの差分はこの2行だけ
 - `use-server-action.test.tsx` の `afterEach(vi.restoreAllMocks)` は console の spy を戻すためだけの存在だったので撤去した（残る `vi.*` は `vi.fn()` のみで `setup.ts` の `clearAllMocks` で足りる）
+
+### T-125
+
+- 背景: `DailyBoard` は `date`（表示日）と `today`（日界考慮済み）を両方 prop で受け取っているのに、そこから導ける `isToday` も**別の prop として**受け取っている（`src/app/(daily)/page.tsx` が `isToday={date === today}` を組んで渡す）。同じ事実を2通りの形で持っている
+- 実害: 小さいが、**テストで矛盾した組を作れる**。`_testing/board-helpers.tsx` の `boardProps` は3つを独立に受けるので、`date > today` なのに `isToday: true` のような本番では起こりえない盤面を組める。[FB-85](./closed_21_ユーザーフィードバック.md#fb-85) で足した未来日のテストが `{ date: NEXT_TEST_DATE, today: TEST_DATE, isToday: false }` と3つを手で整合させているのは、この冗長さの現れ
+- 対応方針: `isToday` prop を落とし、board 内で `date === today` として導出する（FB-85 で足した `isFutureDate = date > today` と同じ形になる）。`page.tsx` の組み立てと `boardProps` の1項目が消え、矛盾した組は型の上で作れなくなる
+- 着手条件: デイリー盤面の props 周りを別件で触るとき。**単独で急ぐ必要はない**
+- 優先度の根拠: 低。現に矛盾した組を持つテストは無く、挙動も変わらない。`isToday` は `DailyList` 側でも受けている（セクション残り時間・予想開始の出し分け）ので、そちらまで含めてどこで導出するかを決める必要があり、prop を1つ消すだけでは済まない
+- 発見: FB-85 の対応（2026-08-09）で `code-quality-reviewer` が指摘。「同種の値なのに `isFutureDate` は board 内導出・`isToday` は prop、と扱いが割れている。board が両方の材料を持つ以上、導出側が正しい」
+- 関連: `src/app/(daily)/_components/daily-board.tsx` / `src/app/(daily)/page.tsx` / `src/app/(daily)/_testing/board-helpers.tsx` / [T-109](./23_技術改善バックログ.md#t-109)（`TaskRow` と `DailyList` の props 過多。props を減らす話として地続き）/ [完了記録](./closed_21_ユーザーフィードバック.md#fb-85) FB-85（発見元）
+
+- **対応（2026-09-10）**: `isToday` prop を落とし、board 内で `isFutureDate` と並べて `date === today` を導出する形にした。`page.tsx` の組み立てと `boardProps` から1項目ずつ消え、矛盾した組は `BoardOverrides` の型の上で作れなくなった。`daily-board.punch.test.tsx` の `it.each` にあった `isToday: date === today`（本番と同じ式をテスト側で再計算して渡す形）も消え、`date` と `today` の関係だけを与えて振る舞いを見る形になっている
+- **`DailyList` / `DailySummary` は対象外とした**——どちらも `today` を受け取っておらず導出できないので、board が判定して配り続ける。起票時の「そちらまで含めてどこで導出するかを決める必要がある」への答えがこれで、経緯は [log_23](./log_23_技術改善バックログ.md) の 2026-09-10 に置いた
+- 副産物: `test-reviewer` が **`isToday` の配り先5つのうち board 段で false 側を検出できるのは2経路だけ**（現在セクションと DateNav）と指摘。`DailySummary` / `DailyList` へ渡す値を `true` に固定しても全段が緑のままだったので、配線ごとに1件ずつテストを足して塞いだ（変異で個別に赤くなることを確認）
+- 残件: `review/page.tsx` に同型の `isToday={date === today}` が残る（`ReviewBoard` は `today` を受け取っていないため prop の追加を伴い、範囲外とした）。Server Component なのでカバレッジ 0% の側にある
+
+### T-139
+
+- 背景: `daily-board.tsx` は選択行の state を `useState<TaskId | null>` と**正しい型で持っている**のに、それを `use-daily-shortcuts.ts` へ渡す prop の型が `setSelectedId: Dispatch<SetStateAction<number | null>>` と素の `number` に広がっている（同ファイル31行目）。[アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md) §4 は ID 型エイリアスの「**適用は全層**——presentation の props・Server Action の引数・`useState` の型でも」と明記しており、そこから外れた1箇所
+- 実害: 無い（`TaskId` は `number` のエイリアスなので安全性は変わらない）。**規約が守ろうとしている「これはどの ID か」が型で読めない**という一点だけ
+- 対応方針: prop の型を `Dispatch<SetStateAction<TaskId | null>>` にする。1行
+- **これは掃き出し済みの1件**（2026-09-06）: `useState` / `Dispatch` / `SetStateAction` と ID らしい prop 名を機械的に洗い、素の `number` が残っていたのは本件のみ。`select-popover.tsx` と `assign-cell.tsx` の `selectedId: number | null` は §4 が明記する**例外**（マスタ種別を跨いで共通化した部品）なので対象外
+- 着手条件: `use-daily-shortcuts.ts` かデイリー盤面の props を別件で触るとき。**単独で急ぐ必要はない**
+- 優先度の根拠: 低。挙動にも安全性にも影響せず、直しても1行。ただし取りこぼしを放置すると「例外なのか漏れなのか」が次に読む人に判別できなくなる（§4 の例外リストが効かなくなる）ので、印は残しておく
+- 発見: [完了記録](./closed_23_技術改善バックログ.md#t-135) T-135 のレビューで `code-quality-reviewer` が差分外の既存分として指摘した。**型が広がる形は [T-121](./closed_23_技術改善バックログ.md#t-121) と同型**（絞った型を境界で広げ直している）だが、あちらと違って到達不能分岐は生まれていない
+- 関連: `src/app/(daily)/_components/use-daily-shortcuts.ts`（31行目）/ [アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md) §4（ID 型の規約と例外）
+
+- **対応（2026-09-10）**: prop の型を `Dispatch<SetStateAction<TaskId | null>>` にした（1行）。`TaskId` は `number` の素の別名なので**構造的に同一の型**で、挙動も型検査結果も変わらない——`expectTypeOf` の類を足しても常に真になる偽陽性にしかならないため、変異テスト・追加テストとも行っていない
+- 起票時の「掃き出し済み」（2026-09-06 の機械的な洗い出しで残るのは本件のみ）は着手時にも成り立っており、`select-popover.tsx` / `assign-cell.tsx`に残る `selectedId: number | null` は[アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md) §4 が明記する例外のまま
 
 ## 旧書式の記録（2026-07-26 以前）
 

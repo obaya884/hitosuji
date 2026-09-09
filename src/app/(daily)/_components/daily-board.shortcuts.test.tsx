@@ -303,7 +303,7 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
         task({ id: 11, name: NOT_STARTED, sectionId: FORENOON.id }),
         task({ id: 13, name: LATER_NOT_STARTED, sectionId: AFTERNOON.id }),
       ],
-      { date: "2026-07-20", today: TEST_DATE, isToday: false }
+      { date: "2026-07-20", today: TEST_DATE }
     );
     selectRow(LATER_NOT_STARTED);
 
@@ -390,7 +390,7 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
    * 気づけないため、ここだけ `date !== today` で描画する
    */
   it("前日・翌日へは表示日（today ではない）を基準に移動する（§6 / O-9）", () => {
-    renderBoard(defaultTasks(), { date: "2026-07-20", today: TEST_DATE, isToday: false });
+    renderBoard(defaultTasks(), { date: "2026-07-20", today: TEST_DATE });
 
     press("H", { shiftKey: true });
     press("L", { shiftKey: true });

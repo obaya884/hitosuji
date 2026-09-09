@@ -146,7 +146,6 @@ function boardProps(tasks: readonly Task[], over: BoardOverrides): BoardProps {
   return {
     date: TEST_DATE,
     today: TEST_DATE,
-    isToday: true,
     modes: MODES,
     projects: PROJECTS,
     bundles: BUNDLES,

@@ -50,7 +50,7 @@ export type DailyListProps = Pick<
     editing: EditingCell | null;
     /** 表示日。セクション残り時間（§3.2）の枠をこの日の論理日に敷く */
     date: LogicalDate;
-    /** 表示日が今日か。予想開始時刻（§3.3）は今日のみ出す */
+    /** 表示日が今日か（`today` は持たないので board が判定して配る）。予想開始時刻（§3.3）は今日のみ出す */
     isToday: boolean;
     /** 日界（分）。セクションの枠を論理日の区切りで測る起点（F-116） */
     dayStartMinutes: number;
