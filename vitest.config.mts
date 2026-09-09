@@ -76,6 +76,8 @@ export default defineConfig({
           environment: "node",
           include: ["src/**/*.int.test.ts"],
           globalSetup: ["./src/infrastructure/db/testing/global-setup.ts"],
+          // 既定の接続をテストDBへ向ける（理由は setup-int.ts）
+          setupFiles: ["./src/infrastructure/db/testing/setup-int.ts"],
           // 全テストが同一DBを共有するため直列実行（TRUNCATE リセットの干渉防止）
           fileParallelism: false,
         },
