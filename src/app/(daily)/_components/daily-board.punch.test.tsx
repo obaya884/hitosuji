@@ -4,7 +4,9 @@
 import { screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { CALL_FAILED_LOG } from "@/app/_lib/action-result";
 import { formatClock, formatDuration } from "@/app/_lib/format";
+import { expectConsoleError } from "@/app/_testing/console-guard";
 import { click } from "@/app/_testing/interactions";
 import { atJst, NEXT_TEST_DATE, TEST_DATE } from "@/domain/shared/testing/clock";
 import type { Task } from "@/domain/task/task";
@@ -624,7 +626,6 @@ describe("DailyBoard の U の切り分け（O-13: 保留 → 実行中 → 完�
   });
 
   it("完了の取り消しが通信できずに終わったら打刻を戻し、Undo も出さない（00_共通 §4.1）", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(undoCompleteAction).mockRejectedValue(new Error("Failed to fetch"));
     renderBoard();
     selectRow(COMPLETED);
@@ -634,6 +635,7 @@ describe("DailyBoard の U の切り分け（O-13: 保留 → 実行中 → 完�
     expect(within(taskRow(COMPLETED)).queryByText(formatClock(atJst("09:00")))).not.toBeNull();
     expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
     expect(screen.queryByText("取り消す")).toBeNull();
+    expectConsoleError(CALL_FAILED_LOG);
   });
 
   it("取り消しの保留は削除と完了の取り消しで共通の1スロット（後から来た削除が置き換える）", async () => {

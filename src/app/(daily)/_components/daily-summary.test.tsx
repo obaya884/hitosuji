@@ -6,6 +6,7 @@ import type { Section } from "@/domain/section/section";
 import { atJst } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
 import { sectionGroup, unclassifiedGroup } from "../_testing/factories";
+import { summaryValueOf } from "../_testing/summary-helpers";
 import { DailySummary } from "./daily-summary";
 
 const MORNING: Section = {
@@ -15,13 +16,6 @@ const MORNING: Section = {
   isArchived: false,
   isDayStart: true,
 };
-
-/** 終了予定・残作業はラベルと値が別 span なので、ラベルの親から値を読む */
-function valueOf(label: string): string {
-  const labelEl = screen.getByText(label);
-  const wrapper = labelEl.parentElement as HTMLElement;
-  return (wrapper.textContent ?? "").replace(label, "").trim();
-}
 
 // 値の式は domain の projection.test.ts が担保済み。ここは「何をいつ出すか」（§3.1）に絞る
 describe("DailySummary（画面定義書01 §3.1 / F-104・F-114: 終了予定・現在・残作業と1日全体の進捗）", () => {
@@ -38,9 +32,9 @@ describe("DailySummary（画面定義書01 §3.1 / F-104・F-114: 終了予定�
     );
 
     // 残作業 = 未完了見積もりの合計（30 + 45）
-    expect(valueOf("残作業")).toBe("1:15");
+    expect(summaryValueOf("残作業")).toBe("1:15");
     // 終了予定 = 現在 + 残作業
-    expect(valueOf("終了予定")).toBe("11:15");
+    expect(summaryValueOf("終了予定")).toBe("11:15");
   });
 
   it("現在時刻は日本時間の HH:MM で出す", () => {
@@ -53,7 +47,7 @@ describe("DailySummary（画面定義書01 §3.1 / F-104・F-114: 終了予定�
       />
     );
 
-    expect(valueOf("現在")).toBe("16:15");
+    expect(summaryValueOf("現在")).toBe("16:15");
   });
 
   it("当日以外は終了予定・現在・残作業を出さない（現在時刻起点の値は別の日に意味を持たない）", () => {
@@ -103,7 +97,7 @@ describe("DailySummary（画面定義書01 §3.1 / F-104・F-114: 終了予定�
       />
     );
 
-    expect(valueOf("残作業")).toBe("0:45");
+    expect(summaryValueOf("残作業")).toBe("0:45");
   });
 
   it("日界を越える終了予定は「翌」を前置して警告色にする（F-104 / §3.1）", () => {

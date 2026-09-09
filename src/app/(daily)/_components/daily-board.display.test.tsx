@@ -1,11 +1,12 @@
 // 盤面テスト（`daily-board.*.test.tsx`）のうち**操作を伴わない表示と配線**を持つファイル
-// （§2 / §3.1 / §3.2 / §4.3 / F-121 / F-209）。現在セクションの導出、固定領域の高さの計測、
-// 表示日に応じた「今日へ」の出し分け、放置タスクの警告バナー。
+// （§2 / §3.1 / §3.2 / §3.3 / §4.3 / F-116 / F-121 / F-209）。現在セクションの導出、
+// 固定領域の高さの計測、表示日に応じた「今日へ」の出し分け、放置タスクの警告バナー、日界の配線。
 // 主題は**描いた結果と、board が導出して配れているか**——操作を起点にするテストは他の5ファイルへ。
 // 唯一の例外はセクション候補の並び（`s` で開かないと読めないため、開く操作だけを使う）。
 import { act, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import type { Section } from "@/domain/section/section";
 import { atJst, NEXT_TEST_DATE, TEST_DATE } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
 
@@ -21,7 +22,8 @@ import {
   setupBoard,
 } from "../_testing/board-helpers";
 import { ResizeObserverStub } from "@/app/_testing/resize-observer";
-import { headingOf, popoverLabels, taskRows } from "../_testing/table-helpers";
+import { summaryValueOf } from "../_testing/summary-helpers";
+import { cellsOf, headingOf, popoverLabels, taskRow, taskRows } from "../_testing/table-helpers";
 
 vi.mock("../actions", async () => (await import("../_testing/action-mocks")).actionMocks());
 
@@ -181,5 +183,51 @@ describe("DailyBoard の表示日に応じた出し分けと警告（§3.1 / §3
     renderBoard();
 
     expect(screen.queryByRole("link", { name: "該当日を開く" })).toBeNull();
+  });
+});
+
+/**
+ * 日界そのものの導出（`dayStartTimeOf` / `offsetFromDayStart`）は domain 段が持つ。
+ * ここで見るのは **board が導出した日界を子へ配れているか**——サマリとリストは別々に受け取るので
+ * 配線ごとに1件ずつ置く（片方を壊しても もう片方は緑になる）。
+ *
+ * 差が出るのは**深夜側（日界より前）を表示しているとき**だけなので、盤面ごと専用に組む。
+ * 既定の `SECTIONS` を触らないのは、見出しの数と現在セクションが動いて他のテストの前提を壊すため
+ */
+describe("DailyBoard の日界の配線（F-116 / §3.1 / §3.3: 日またぎは論理日の区切りで測る）", () => {
+  /** 日界を持たないセクション群（＝日界 00:00）。既定の `SECTIONS` は「朝 06:00」を日界に持つ */
+  const SECTIONS_WITHOUT_DAY_START = SECTIONS.map((s) => ({ ...s, isDayStart: false }));
+
+  /**
+   * 論理日 TEST_DATE のリストを深夜 02:00（＝日界 06:00 の手前）に開き、3時間ぶんの未実行を積む。
+   * 終了予定は暦日 07-27 の 05:00 ＝ 日界 06:00 なら「まだ論理日 07-26 の続き」
+   */
+  function renderLateNightBoard(sections: readonly Section[]): void {
+    vi.setSystemTime(atJst("02:00", NEXT_TEST_DATE));
+    renderBoard([task({ id: 9, name: NOT_STARTED, estimateMinutes: 180 })], { sections });
+  }
+
+  it("日界 06:00 なら終了予定を翌暦日として出す（DailySummary への配線）", () => {
+    renderLateNightBoard(SECTIONS);
+
+    expect(summaryValueOf("終了予定")).toBe("翌 5:00");
+  });
+
+  it("日界 06:00 なら予想開始も翌暦日として出す（DailyList への配線。§3.3）", () => {
+    renderLateNightBoard(SECTIONS);
+
+    expect(cellsOf(taskRow(NOT_STARTED)).time.textContent).toBe("翌 02:00–");
+  });
+
+  /**
+   * 日界だけを外した対照。**この盤面は本番では起こらない**（日界 00:00 なら深夜 02:00 の論理日は
+   * 07-27 なので `isToday` は false になる）が、`dayStartMinutes` 以外を固定して差の出どころを
+   * 1つに絞るために既定のまま描く
+   */
+  it("日界を持たなければ同じ盤面はどちらも当日の時刻", () => {
+    renderLateNightBoard(SECTIONS_WITHOUT_DAY_START);
+
+    expect(summaryValueOf("終了予定")).toBe("5:00");
+    expect(cellsOf(taskRow(NOT_STARTED)).time.textContent).toBe("02:00–");
   });
 });

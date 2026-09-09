@@ -1,8 +1,9 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { failure, type ActionResult } from "./action-result";
+import { CALL_FAILED_LOG, failure, type ActionResult } from "./action-result";
 import { deferredAction } from "@/app/_testing/actions";
+import { expectConsoleError } from "@/app/_testing/console-guard";
 import { router } from "@/app/_testing/next-navigation";
 import { useServerAction } from "./use-server-action";
 
@@ -10,12 +11,6 @@ const ok = (): ActionResult => ({ ok: true });
 
 // マスタ管理・routines は N-01（楽観的更新）の対象外で、保存の完了を待って反映する
 // （画面定義書02 §1・03 §1。両画面とも同文で規定）
-// spy（console.error）を戻す。`setup.ts` の `clearAllMocks` は呼び出し記録しか消さないため、
-// ここで戻さないと以降のテストでも本物のログが黙る
-afterEach(() => {
-  vi.restoreAllMocks();
-});
-
 describe("useServerAction（画面定義書02 §1・03 §1: 保存の完了を待つ。楽観的更新はしない）", () => {
   it("成功なら onSuccess を呼び、エラーは出さない", async () => {
     const onSuccess = vi.fn();
@@ -161,7 +156,6 @@ describe("useServerAction の失敗の扱い（00_共通 §4.1）", () => {
   });
 
   it("拒否（通信断・タイムアウト）も素通りさせず「保存に失敗しました」を出す（FB-64）", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {}); // callAction が出す原因ログを抑える
     const { result } = renderHook(() => useServerAction());
 
     await act(async () => {
@@ -174,10 +168,10 @@ describe("useServerAction の失敗の扱い（00_共通 §4.1）", () => {
     expect(result.current.isPending).toBe(false); // 画面が固まらない
     // 届かなかった以上、取り直しに行っても また失敗するだけなので行かない
     expect(router.refresh).not.toHaveBeenCalled();
+    expectConsoleError(CALL_FAILED_LOG); // 画面には出さない原因は握り潰さずログへ出す
   });
 
   it("拒否のあとも次の操作を実行できる（run が壊れない）", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
     const onSuccess = vi.fn();
     const { result } = renderHook(() => useServerAction());
 
@@ -192,5 +186,8 @@ describe("useServerAction の失敗の扱い（00_共通 §4.1）", () => {
 
     expect(onSuccess).toHaveBeenCalledOnce();
     expect(result.current.error).toBeNull();
+    // 1本目の拒否が残す原因ログを回収する。**件数は見ていない**（一致した記録は全件抜かれる）——
+    // 成功時に出さないことはユニット段（action-result.test.ts）が持つ
+    expectConsoleError(CALL_FAILED_LOG);
   });
 });

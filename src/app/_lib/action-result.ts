@@ -22,6 +22,14 @@ export type UnreachableFailure = FailedActionResult & Readonly<{ unreachable: tr
 export type ActionFailure = FailedActionResult & Readonly<{ unreachable?: true }>;
 
 /**
+ * 拒否の原因をコンソールへ残すときの文言（`callAction`）。**画面には出ない**ので、
+ * 出たことを主張するのはテストだけ——`expectConsoleError(CALL_FAILED_LOG)` で受ける
+ * （テスト戦略定義書 §2「ログは抑制するだけで終えない」）。
+ * 表示用の文言（`SAVE_FAILED`）と同じく、写しを作らないよう1か所に置く
+ */
+export const CALL_FAILED_LOG = "Server Action の呼び出しに失敗しました";
+
+/**
  * Server Action の呼び出しを包み、**拒否を失敗の結果へ落とす**（画面定義書00_共通 §4.1）。
  * これを通すことで、呼び出し側は「`ok: false` を見る」1経路だけを扱えばよくなる——
  * 各画面の実行関数に `try/catch` を書き足す形にしないのは、Server Action を呼ぶ箇所が増えるたび
@@ -35,7 +43,7 @@ export async function callAction<T extends ActionResult>(
     return await action();
   } catch (error) {
     // ユーザーにはトーストで伝わる（§4.1）が、原因は文言に出ないのでコンソールへ残す
-    console.error("Server Action の呼び出しに失敗しました", error);
+    console.error(CALL_FAILED_LOG, error);
     return { ok: false, message: SAVE_FAILED, unreachable: true };
   }
 }

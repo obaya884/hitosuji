@@ -5,6 +5,8 @@
 import { screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { CALL_FAILED_LOG } from "@/app/_lib/action-result";
+import { expectConsoleError } from "@/app/_testing/console-guard";
 import { click, clickWithoutServer } from "@/app/_testing/interactions";
 import { TEST_DATE } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
@@ -142,7 +144,6 @@ describe("DailyBoard の削除と取り消し（O-8 / F-115）", () => {
   // Undo の保留は成功時だけ置く（`callAction` の内側）。拒否でも置いてしまうと、
   // 実際には消えていない行の「取り消す」が押せる（00_共通 §4.1 / FB-64）
   it("削除が通信できずに終わったら行を戻し、Undo も出さない（00_共通 §4.1）", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(deleteTaskAction).mockRejectedValue(new Error("Failed to fetch"));
     renderBoard();
     selectRow(NOT_STARTED);
@@ -154,10 +155,10 @@ describe("DailyBoard の削除と取り消し（O-8 / F-115）", () => {
     expect(screen.queryByText("取り消す")).toBeNull();
     // 選択の巻き戻しも `onFailure`（`callAction` の外）に置く。内側だと通信断でだけ走らない（FB-64）
     expect(isSelected(NOT_STARTED)).toBe(true);
+    expectConsoleError(CALL_FAILED_LOG);
   });
 
   it("削除の取り消しが通信できずに終わってもエラートーストを出す（00_共通 §4.1）", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(restoreTaskAction).mockRejectedValue(new Error("Failed to fetch"));
     renderBoard();
     selectRow(NOT_STARTED);
@@ -166,6 +167,7 @@ describe("DailyBoard の削除と取り消し（O-8 / F-115）", () => {
     await click(screen.getByText("取り消す"));
 
     expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
+    expectConsoleError(CALL_FAILED_LOG);
   });
 
   it("打刻済みタスクの削除は確認を挟み、キャンセルすると削除しない（O-8）", async () => {
@@ -457,7 +459,6 @@ describe("DailyBoard の通知と行メニュー（画面定義書01 §8 / O-7 /
   });
 
   it("ルーチン化が通信できずに終わったら完了通知を出さない（00_共通 §4.1）", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(createRoutineFromTaskAction).mockRejectedValue(new Error("Failed to fetch"));
     renderBoard();
 
@@ -466,6 +467,7 @@ describe("DailyBoard の通知と行メニュー（画面定義書01 §8 / O-7 /
 
     expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
     expect(screen.queryByText(/ルーチン化しました/)).toBeNull();
+    expectConsoleError(CALL_FAILED_LOG);
   });
 
   it("完了通知トーストは × で閉じられる（00_共通 §2.2）", async () => {

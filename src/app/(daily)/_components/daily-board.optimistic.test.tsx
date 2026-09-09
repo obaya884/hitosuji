@@ -4,6 +4,8 @@
 import { screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { CALL_FAILED_LOG } from "@/app/_lib/action-result";
+import { expectConsoleError } from "@/app/_testing/console-guard";
 import { click, clickWithoutServer } from "@/app/_testing/interactions";
 import { router } from "@/app/_testing/next-navigation";
 import { atJst, TEST_DATE } from "@/domain/shared/testing/clock";
@@ -112,7 +114,6 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
   });
 
   it("通信できずに終わった打刻も素通りさせず、トーストを出して巻き戻す（00_共通 §4.1 / FB-64）", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {}); // callAction が出す原因ログを抑える
     vi.mocked(startTaskAction).mockRejectedValue(new Error("Failed to fetch"));
     renderBoard();
 
@@ -122,6 +123,7 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
     expect(within(taskRow(NOT_STARTED)).queryByLabelText("開始")).not.toBeNull();
     // 届かなかった以上、取り直しに行っても また失敗するだけなので行かない（§4.1）
     expect(router.refresh).not.toHaveBeenCalled();
+    expectConsoleError(CALL_FAILED_LOG); // 画面には出さない原因は握り潰さずログへ出す
   });
 
   // `router` は偽物なので観測できるのは**取り直しを要求したところまで**。
@@ -306,7 +308,6 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
   // 選択の戻しは `run` の onFailure（callAction の外側）にある。内側に置くと通信断のときだけ
   // 走らず、行だけ巻き戻って選択が送り先に残る（00_共通 §4.1 / FB-64）
   it("通信できずに終わった終了打刻でも選択を打刻した行へ戻す（F-211 / §5 / 00_共通 §4.1）", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(finishTaskAction).mockRejectedValue(new Error("Failed to fetch"));
     renderBoard();
     selectRow(RUNNING);
@@ -316,6 +317,7 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
     expect(within(taskRow(RUNNING)).queryByLabelText("終了")).not.toBeNull();
     expect(isSelected(RUNNING)).toBe(true);
     expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
+    expectConsoleError(CALL_FAILED_LOG);
   });
 
   it("終了打刻の拒否は、打刻前に選んでいた別の行ではなく打刻した行へ戻す（F-211 / §5）", async () => {
