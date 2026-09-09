@@ -5,7 +5,9 @@
 import { act, fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { CALL_FAILED_LOG } from "@/app/_lib/action-result";
 import { formatClock } from "@/app/_lib/format";
+import { expectConsoleError } from "@/app/_testing/console-guard";
 import { atJst, NEXT_TEST_DATE, TEST_DATE } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
 
@@ -72,7 +74,6 @@ describe("DailyBoard のクイック追加（§3.4 / F-102）", () => {
   // 生成系（runSelectingCreated）の拒否経路。楽観的に出した行が残ると、存在しないタスクが
   // 画面に居座る（00_共通 §4.1 / FB-64）
   it("追加が通信できずに終わったら楽観的に出した行を消す（00_共通 §4.1）", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(addTaskAction).mockRejectedValue(new Error("Failed to fetch"));
     renderBoard();
 
@@ -83,6 +84,7 @@ describe("DailyBoard のクイック追加（§3.4 / F-102）", () => {
 
     expect(rowNames()).toEqual([NOT_STARTED, RUNNING, COMPLETED]);
     expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
+    expectConsoleError(CALL_FAILED_LOG);
   });
 
   it("空のままの Enter は何もしない（§8）", () => {
