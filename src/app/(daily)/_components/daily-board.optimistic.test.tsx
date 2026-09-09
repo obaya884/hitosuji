@@ -121,7 +121,7 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
 
     expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
     expect(within(taskRow(NOT_STARTED)).queryByLabelText("開始")).not.toBeNull();
-    // 届かなかった以上、取り直しに行っても また失敗するだけなので行かない（§4.1）
+    // 届かなかった以上、取り直しに行っても また失敗するだけなので行かない（00_共通 §4.1）
     expect(router.refresh).not.toHaveBeenCalled();
     expectConsoleError(CALL_FAILED_LOG); // 画面には出さない原因は握り潰さずログへ出す
   });
@@ -136,7 +136,7 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
     await click(within(taskRow(NOT_STARTED)).getByLabelText("開始"));
     await gate.resolve({ ok: false, message: "タスクが見つかりませんでした" });
 
-    // 消えた行が画面に残り、触るたび同じ失敗を繰り返す状態にしない（§4.1）
+    // 消えた行が画面に残り、触るたび同じ失敗を繰り返す状態にしない（00_共通 §4.1）
     expect(screen.queryByText("タスクが見つかりませんでした")).not.toBeNull();
     expect(router.refresh).toHaveBeenCalledOnce();
   });
@@ -236,7 +236,7 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
   });
 
   // O-17: 状態も日付も問わない。終了予定（F-104）等の「今日だけ」の規律は、
-  // 現在時刻から導出する値の話であって、保存された宣言であるハイライトには及ばない（要件 §5.1）
+  // 現在時刻から導出する値の話であって、保存された宣言であるハイライトには及ばない（要件定義書 §5.1）
   it("今日以外を表示中でもハイライトを付け外しできる（表示日を問わない）", () => {
     renderBoard([task({ id: 11, name: NOT_STARTED, sectionId: FORENOON.id, taskDate: "2026-07-20" })], {
       date: "2026-07-20",

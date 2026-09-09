@@ -1,6 +1,6 @@
 // タスクの自動セクション移動（F-113）
 // 挙動の契約は画面定義書01 §4.2、書き換わる列と採番は データモデル定義書 §4.4 が正。
-// §4.2 が定める2つの位置（現在位置・開始時刻順の位置）もここが持つ——
+// 画面定義書01 §4.2 が定める2つの位置（現在位置・開始時刻順の位置）もここが持つ——
 // 開始時刻順の位置は複製して開始（F-208 / O-14）からも引かれる
 import { groupTasksBySection, orderTasksForDisplay } from "./daily-list";
 import { sectionAt, type Section, type SectionId } from "../section/section";

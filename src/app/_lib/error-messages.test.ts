@@ -158,7 +158,7 @@ const EXPECTED_ROUTINE_FROM_TASK: Record<CreateRoutineFromTaskError, string> = {
 };
 
 /**
- * マスタ管理（画面定義書03 §3.1 のバリデーション・§3.2 の色プリセット・§4.1 の物理削除）。
+ * マスタ管理（画面定義書03 §3.1 のバリデーション・同書 §3.2 の色プリセット・同書 §4.1 の物理削除）。
  * `Record<MasterError, string>` にしているので、ドメインへエラーコードを足したらこのテストが
  * 型エラーで落ちる（文言の決め忘れを防ぐ）
  */
@@ -175,7 +175,7 @@ const EXPECTED_MASTER: Record<MasterError, string> = {
   has_references: "参照しているデータがあるため削除できません",
 };
 
-/** バンドルのメンバー出し入れ（画面定義書05 §4 O-5〜O-6 / §6） */
+/** バンドルのメンバー出し入れ（画面定義書05 §4 O-5〜O-6 / 同書 §6） */
 const EXPECTED_BUNDLE_MEMBER: Record<BundleMemberError, string> = {
   not_found: "対象が見つかりません（すでに削除されている可能性があります）",
   already_in_bundle: "このルーチンは別のバンドルに入っています（一覧を取り直してください）",
@@ -212,7 +212,7 @@ describe("エラー文言辞書（T-49: クライアントとサーバが同じ�
     expect(MASTER_MESSAGES).toEqual(EXPECTED_MASTER);
   });
 
-  it("バンドルのメンバー出し入れ（画面定義書05 §4 O-5〜O-6 / §6）の対応表が期待どおり", () => {
+  it("バンドルのメンバー出し入れ（画面定義書05 §4 O-5〜O-6 / 同書 §6）の対応表が期待どおり", () => {
     expect(BUNDLE_MEMBER_MESSAGES).toEqual(EXPECTED_BUNDLE_MEMBER);
   });
 

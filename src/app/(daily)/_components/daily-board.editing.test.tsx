@@ -204,7 +204,7 @@ describe("DailyBoard のクイック追加（§3.4 / F-102）", () => {
 
     expect(rowNames()).toEqual([NOT_STARTED, RUNNING, COMPLETED]);
     expect(screen.queryByText("タスク名を入力してください")).not.toBeNull();
-    // 生成系も打刻系と同じ後始末（§4.1）を通ること。この行が無いと、失敗の扱いが
+    // 生成系も打刻系と同じ後始末（00_共通 §4.1）を通ること。この行が無いと、失敗の扱いが
     // `handleActionFailure` を通らない実装に戻っても緑のまま通る
     expect(router.refresh).toHaveBeenCalledOnce();
   });

@@ -32,7 +32,7 @@ export function startConsoleErrorGuard(): void {
   // 最後のテストの `afterEach` より後（`afterAll`・遅延タイマー・未解決 Promise）に出たものは
   // どのテストにも属さないまま捨てられる。ファイルの終わりでもう一度回収する。
   // **この1行だけはテストで守れない**（自分より後に走るものを in-band で主張できない）ため、
-  // 消しても全段が緑のままになる。担保は変異とコミットメッセージの記録（§10）
+  // 消しても全段が緑のままになる。担保は変異とコミットメッセージの記録（テスト戦略定義書 §10）
   afterAll(assertNoConsoleError);
 }
 
@@ -48,7 +48,7 @@ export function assertNoConsoleError(): void {
     `テスト中に console.error が出力されました（テスト戦略定義書 §4）。` +
       `act のスコープが閉じていない兆候です（\`click\` の \`await\` 落ちが典型）。` +
       `直前のテストから遅れて出たものがここで回収されることもあります。` +
-      `意図した出力なら expectConsoleError で受けてください（§2）。\n` +
+      `意図した出力なら expectConsoleError で受けてください（テスト戦略定義書 §2）。\n` +
       messages.join("\n"),
   );
 }

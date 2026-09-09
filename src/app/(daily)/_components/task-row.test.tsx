@@ -513,7 +513,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
       expect(screen.getByRole("textbox")).toHaveProperty("value", "朝食");
     });
 
-    it("入力欄から離れたら確定する（§2.3「確定」）", () => {
+    it("入力欄から離れたら確定する（00_共通 §2.3「確定」）", () => {
       const { onRename, onEndEdit } = renderRow({
         editing: "name",
         task: task({ id: 1, name: "朝食" }),
@@ -527,7 +527,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
       expect(onEndEdit).toHaveBeenCalledOnce();
     });
 
-    it("Enter でも確定する（§2.3「確定」）", () => {
+    it("Enter でも確定する（00_共通 §2.3「確定」）", () => {
       const { onRename, onEndEdit } = renderRow({
         editing: "name",
         task: task({ id: 1, name: "朝食" }),
@@ -541,7 +541,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
       expect(onEndEdit).toHaveBeenCalledOnce();
     });
 
-    it("Esc は取消（値を送らずに閉じる。§2.3「取消」）", () => {
+    it("Esc は取消（値を送らずに閉じる。00_共通 §2.3「取消」）", () => {
       const { onRename, onEndEdit } = renderRow({
         editing: "name",
         task: task({ id: 1, name: "朝食" }),
@@ -719,7 +719,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
     });
   });
 
-  describe("セクションの併記（O-5 / §4.3）", () => {
+  describe("セクションの併記（O-5 / §3.3）", () => {
     it("タスク名の右にセクション名を併記し、クリックで選択を開く", () => {
       const { onBeginEdit } = renderRow({ task: task({ id: 1, name: "朝食", sectionId: 100 }) });
 

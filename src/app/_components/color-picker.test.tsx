@@ -7,7 +7,7 @@ import { clickWithoutServer } from "@/app/_testing/interactions";
 import { ColorBarButton, ColorPickerPopover } from "./color-picker";
 
 // 色の選び方はモード（S-03）とバンドル（S-05）が共有する部品で決まる（画面定義書03 §3.2 /
-// 05 §4 O-1・O-2）。**観点を部品段に置く**——画面側のテストだけに置くと、その画面を整理した
+// 画面定義書05 §4 O-1・O-2）。**観点を部品段に置く**——画面側のテストだけに置くと、その画面を整理した
 // ときに共有部品の観点ごと落ちる
 const RED = COLOR_BY_NAME["赤"];
 const BLUE = COLOR_BY_NAME["青"];
@@ -126,7 +126,7 @@ describe("ColorPickerPopover（画面定義書03 §3.2: プリセット13色・�
   });
 });
 
-describe("ColorBarButton（画面定義書03 §3.2 / 05 §4 O-1・O-2: 色見本を押して選ぶ）", () => {
+describe("ColorBarButton（画面定義書03 §3.2 / 画面定義書05 §4 O-1・O-2: 色見本を押して選ぶ）", () => {
   function renderButton(props: Partial<Parameters<typeof ColorBarButton>[0]> = {}) {
     const onOpen = vi.fn();
     render(

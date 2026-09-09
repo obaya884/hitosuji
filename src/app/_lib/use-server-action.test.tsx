@@ -10,8 +10,8 @@ import { useServerAction } from "./use-server-action";
 const ok = (): ActionResult => ({ ok: true });
 
 // マスタ管理・routines は N-01（楽観的更新）の対象外で、保存の完了を待って反映する
-// （画面定義書02 §1・03 §1。両画面とも同文で規定）
-describe("useServerAction（画面定義書02 §1・03 §1: 保存の完了を待つ。楽観的更新はしない）", () => {
+// （画面定義書02 §1・画面定義書03 §1。両画面とも同文で規定）
+describe("useServerAction（画面定義書02 §1・画面定義書03 §1: 保存の完了を待つ。楽観的更新はしない）", () => {
   it("成功なら onSuccess を呼び、エラーは出さない", async () => {
     const onSuccess = vi.fn();
     const { result } = renderHook(() => useServerAction());

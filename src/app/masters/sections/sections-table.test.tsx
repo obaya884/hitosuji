@@ -88,7 +88,7 @@ const archiveButtonOf = (name: string): HTMLElement =>
 
 /**
  * 薄さは**擬似クラス由来（`disabled:opacity-*`）でも拾う**——「薄くない」の主張を
- * `hasClass(el, "opacity-40")` だけで書くと、§2.5 が禁じた擬似クラス書きに戻したときに
+ * `hasClass(el, "opacity-40")` だけで書くと、00_共通 §2.5 が禁じた擬似クラス書きに戻したときに
  * トークンが `disabled:opacity-40` になって主張が素通りする（否定側専用）。
  */
 const isDimmedAnyhow = (el: HTMLElement): boolean =>
@@ -304,7 +304,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
     });
 
     // 抑止そのものは部品（EditableCell）が持つ。ここで見るのは表が `isPending` を
-    // **2つのセルそれぞれへ**渡していることと、表の JSX が持つ日界ラジオ・操作ボタンの抑止（§6 の②）
+    // **2つのセルそれぞれへ**渡していることと、表の JSX が持つ日界ラジオ・操作ボタンの抑止（テスト戦略定義書 §6 の②）
     it("保存中は行の両方のセル・日界ラジオ・操作ボタンを押せない", async () => {
       const pending = deferredAction();
       vi.mocked(updateSectionAction).mockReturnValue(pending.promise);
@@ -345,7 +345,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
       ).toHaveProperty("disabled", false);
     });
 
-    // onClose が表の editing を落としているか（§6 の②）。開始時刻セルは display 付き
+    // onClose が表の editing を落としているか（テスト戦略定義書 §6 の②）。開始時刻セルは display 付き
     // （`06:00–12:00` の枠表示）なので、閉じたときに枠表示へ戻ることまで見る
     it("Esc で開始時刻セルが閉じ、導出込みの枠表示に戻る", async () => {
       renderTable();
@@ -399,7 +399,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
       const input = startEditingCell("セクションA");
       fireEvent.change(input, { target: { value: "改名後" } });
       fireEvent.blur(input);
-      // メッセージの表示と isPending の解除は別のタイミングで届く。§2.3 が要求するのは
+      // メッセージの表示と isPending の解除は別のタイミングで届く。00_共通 §2.3 が要求するのは
       // 「同じ行」の抑止だが、実装は isPending を表ごとに1つ持つので他行のセルも止まる。
       // そのため押せる状態に戻るまで待ってからでないと click が無視される
       const otherCell = await waitFor(() => {
@@ -513,12 +513,12 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
 
       expect(screen.getByText("開始時刻を HH:MM 形式で入力してください")).not.toBeNull();
       expect(screen.getByPlaceholderText("セクション名")).not.toBeNull();
-      // 抑止が解けたままにならない＝入力し直して保存できる（§2.3「失敗時」）
+      // 抑止が解けたままにならない＝入力し直して保存できる（00_共通 §2.3「失敗時」）
       expect(screen.getByRole("button", { name: "保存" })).toHaveProperty("disabled", false);
       expect(screen.getByRole("button", { name: "取消" })).toHaveProperty("disabled", false);
     });
 
-    // onCancel が表の editing を落としているか（§6 の②）。取消・Esc の挙動そのものは部品段が持つ
+    // onCancel が表の editing を落としているか（テスト戦略定義書 §6 の②）。取消・Esc の挙動そのものは部品段が持つ
     it("「取消」で新規行が消える（送信しない）", async () => {
       renderTable();
       clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
@@ -532,7 +532,7 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
       expect(createSectionAction).not.toHaveBeenCalled();
     });
 
-    // 表が `isPending` を TableFrame へ渡しているか（§6 の②）。押せると開いていたセルが閉じる
+    // 表が `isPending` を TableFrame へ渡しているか（テスト戦略定義書 §6 の②）。押せると開いていたセルが閉じる
     it("保存中は「新規追加」を押せない", async () => {
       const pending = deferredAction();
       vi.mocked(archiveSectionAction).mockReturnValue(pending.promise);

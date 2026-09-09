@@ -304,7 +304,7 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
         return;
       }
 
-      // ルーチン由来なら移動と元の日のスキップ記録が不可分（§3.6）。
+      // ルーチン由来なら移動と元の日のスキップ記録が不可分（データモデル定義書 §3.6）。
       // 記録できないまま移すと、元の日を再表示した時点で同じタスクが再展開される
       await db.transaction(async (tx) => {
         await tx.update(tasks).set(moved).where(eq(tasks.id, id));

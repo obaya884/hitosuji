@@ -281,7 +281,7 @@ function pressAll(target: Window | Element = window, extraInit: KeyboardEventIni
   }
 }
 
-/** キーの target になる実要素（§6 の除外規則の検証用） */
+/** キーの target になる実要素（00_共通 §3 の除外規則の検証用） */
 function renderFocusTargets() {
   const { container } = render(
     <>
@@ -656,7 +656,7 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
     });
   });
 
-  describe("インライン編集の開始（§6 R / E / B / F / M / P / S）", () => {
+  describe("インライン編集の開始（§6 R / E / B / F / M / P / S / C）", () => {
     // 打刻時刻の修正は打刻済みの側だけ（§3.3）なので、全キーが通るのは完了タスクを選択中のとき
     it.each(EDIT_KEYS)("%s は選択行の %s の編集を開く", (key, field) => {
       const { spies } = renderShortcuts({ selectedId: COMPLETED.id });
@@ -802,7 +802,7 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
     });
   });
 
-  describe("ショートカットの無効化（00_共通 §3 / §6 の除外規則）", () => {
+  describe("ショートカットの無効化（00_共通 §3 / 画面定義書01 §6 の除外規則）", () => {
     it("インライン編集・選択ポップオーバー表示中は全ショートカットを無効にする（00_共通 §3 / F-112）", () => {
       const { spies } = renderShortcuts({ editing: { taskId: RUNNING.id, field: "name" } });
 

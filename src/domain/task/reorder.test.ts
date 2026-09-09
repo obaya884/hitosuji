@@ -136,7 +136,7 @@ describe("moveTaskByStep（画面定義書01 §6: Shift+J/K で1つずつ移動�
   });
 
   it("リスト全体の先頭・末尾では動かさない（振り直しも伴わない）", () => {
-    // 現在位置をそのまま返す＝セクションも採番も変えず、renumber は空配列（§3.5）
+    // 現在位置をそのまま返す＝セクションも採番も変えず、renumber は空配列（データモデル定義書 §3.5）
     expect(moveTaskByStep(tasks, 1, -1, [1, 2])).toEqual({
       ok: true,
       value: { taskId: 1, sectionId: 1, sortOrder: 1000, renumber: [] },

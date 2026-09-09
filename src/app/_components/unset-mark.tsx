@@ -8,7 +8,7 @@ export function UnsetMark() {
   return <span className="text-ink-faint">{UNSET_MARK}</span>;
 }
 
-/** 時間の値の未設定・未確定を示す薄色の記号（同 §2.4）。0分の値は `duration-value.tsx` 経由で来る */
+/** 時間の値の未設定・未確定を示す薄色の記号（同書 §2.4）。0分の値は `duration-value.tsx` 経由で来る */
 export function UnsetTimeMark() {
   return <span className="text-ink-faint">{UNSET_TIME_MARK}</span>;
 }

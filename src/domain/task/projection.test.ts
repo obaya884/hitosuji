@@ -90,7 +90,7 @@ describe("projectedStartTimes（F-120 / データモデル定義書 §4.3: 未�
     expect(projectedStartTimes(tasks, atJst("09:00")).get(2)).toEqual(atJst("09:00"));
   });
 
-  it("未実行行より後ろに実行中タスクがあっても、その残りは起点に含める（§4.3 の式）", () => {
+  it("未実行行より後ろに実行中タスクがあっても、その残りは起点に含める（データモデル定義書 §4.3 の式）", () => {
     const tasks = [
       task({ id: 1, estimateMinutes: 45 }),
       task({ id: 2, estimateMinutes: 30, startedAt: atJst("08:50") }), // 経過10分・残り20分
@@ -217,7 +217,7 @@ describe("formatProjectedStart（F-120 / 画面定義書01 §3.3 の `HH:MM-` �
   });
 });
 
-describe("F-120: 積み上げの結果が日をまたぐ場合の見え方（§4.3 + 画面定義書01 §3.1・§3.3）", () => {
+describe("F-120: 積み上げの結果が日をまたぐ場合の見え方（データモデル定義書 §4.3 + 画面定義書01 §3.1・§3.3）", () => {
   it("翌 01:30 に達する予想開始は `翌 01:30-` になる", () => {
     const now = atJst("22:00");
     const tasks = [
@@ -487,7 +487,7 @@ describe("sectionSlacks の endAt（F-110: セクション枠の終了時刻を�
 });
 
 describe("sectionSlacks（F-110: セクションの残り時間 / データモデル定義書 §4.3）", () => {
-  // 有効セクションは24時間を敷き詰める（§3.1）ので、最後の枠は次の日界まで伸びる:
+  // 有効セクションは24時間を敷き詰める（データモデル定義書 §3.1）ので、最後の枠は次の日界まで伸びる:
   // 朝 06:00–09:00（3h）/ 午前 09:00–13:00（4h）/ 午後 13:00–翌06:00（17h）
   const MORNING = 1;
   const FORENOON = 2;
@@ -499,7 +499,7 @@ describe("sectionSlacks（F-110: セクションの残り時間 / データモ�
   ];
 
   /**
-   * グループは実際の集約（§3.2）で組む——各セクションの `tasks` と `endTime` が要るため。
+   * グループは実際の集約（画面定義書01 §3.2）で組む——各セクションの `tasks` と `endTime` が要るため。
    * 表示日は `now` と同じ日（＝今日を表示している状態）を既定にする
    */
   function slacksOf(tasks: readonly Task[], now: Date, sections = SECTIONS) {
@@ -686,7 +686,7 @@ describe("sectionSlacks（F-110: セクションの残り時間 / データモ�
 
     // 午前: 10:00 から60分 → 11:00。13:00 まで120分
     expect(slacks.get(FORENOON)?.slackMinutes).toBe(120);
-    // 午後: 13:00 から60分 → 14:00。枠の終わりは回転に依らず次の開始＝翌06:00（§3.1）なので16時間
+    // 午後: 13:00 から60分 → 14:00。枠の終わりは回転に依らず次の開始＝翌06:00（データモデル定義書 §3.1）なので16時間
     expect(slacks.get(AFTERNOON)?.slackMinutes).toBe(16 * 60);
     // 朝は回転で末尾へ回り、枠も翌 06:00–09:00 になる（タスクが無いので枠まるごと）
     expect(slacks.get(MORNING)?.slackMinutes).toBe(3 * 60);

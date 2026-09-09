@@ -20,7 +20,7 @@ describe("formatDuration（画面定義書01 §3.3: 1分未満の実績は 0:00�
   });
 });
 
-describe("formatSignedDuration（画面定義書04 §3.3 / 01 §3.2: 差の向きを符号で示す。0 は符号なし）", () => {
+describe("formatSignedDuration（画面定義書04 §3.3 / 画面定義書01 §3.2: 差の向きを符号で示す。0 は符号なし）", () => {
   it("正は `+`・負は `-` を付ける", () => {
     expect(formatSignedDuration(10)).toBe("+0:10");
     expect(formatSignedDuration(-90)).toBe("-1:30");

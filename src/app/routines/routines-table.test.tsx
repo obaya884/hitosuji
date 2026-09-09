@@ -650,7 +650,7 @@ describe("RoutinesTable（画面定義書02 §5: 有効/無効・削除・編集
     });
   });
 
-  // §2.3「失敗時」——失敗して戻ってきたら入力し直せる（抑止が解けたままにならない）
+  // 00_共通 §2.3「失敗時」——失敗して戻ってきたら入力し直せる（抑止が解けたままにならない）
   it("保存に失敗したらフォームを残し、保存・取消を再び押せる状態へ戻す", async () => {
     vi.mocked(createRoutineAction).mockResolvedValue({ ok: false, message: "保存に失敗しました" });
     renderTable([]);

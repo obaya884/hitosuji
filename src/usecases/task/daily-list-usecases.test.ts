@@ -80,7 +80,7 @@ describe("addTask（F-102 / 画面定義書01 §3.4: クイック追加）", () 
     expect(result.ok && result.value.sortOrder).toBe(1000);
   });
 
-  it("空白のみの名前では作らない（§8: 何もしない）", async () => {
+  it("空白のみの名前では作らない（画面定義書01 §8: 何もしない）", async () => {
     const repo = inMemoryRepo();
     expect(await addTask(repo, { date: TEST_DATE, name: "   " })).toEqual({
       ok: false,
@@ -103,7 +103,7 @@ describe("renameTask（F-102: タスク名のインライン編集）", () => {
     expect(repo.rows[0].name).toBe("新名");
   });
 
-  it("空の名前では改名しない（§8: 確定不可）", async () => {
+  it("空の名前では改名しない（画面定義書01 §8: 確定不可）", async () => {
     const repo = inMemoryRepo([task({ id: 1, name: "旧名" })]);
     expect(await renameTask(repo, 1, "  ")).toEqual({ ok: false, error: "name_required" });
     expect(repo.rows[0].name).toBe("旧名");
@@ -123,7 +123,7 @@ describe("updateTaskEstimate（F-103: 見積もりのインライン編集）", 
     expect(repo.rows[0].estimateMinutes).toBe(0);
   });
 
-  it("非数値・負値では保存しない（§8: 確定不可）", async () => {
+  it("非数値・負値では保存しない（画面定義書01 §8: 確定不可）", async () => {
     const repo = inMemoryRepo([task({ id: 1, estimateMinutes: 30 })]);
     expect(await updateTaskEstimate(repo, 1, "-10")).toEqual({
       ok: false,
@@ -166,7 +166,7 @@ describe("setTaskHighlight（F-118 / O-17: ハイライトの付け外し）", (
     expect(repo.rows[0].highlighted).toBe(false);
   });
 
-  // 状態を問わない（§5.1 F-118）。完了しても外れないのと同じく、完了行にも付けられる
+  // 状態を問わない（要件定義書 §5.1 F-118）。完了しても外れないのと同じく、完了行にも付けられる
   it("完了したタスクにも付けられる", async () => {
     const completed = task({
       id: 1,
@@ -178,7 +178,7 @@ describe("setTaskHighlight（F-118 / O-17: ハイライトの付け外し）", (
     expect(repo.rows[0].highlighted).toBe(true);
   });
 
-  // 上限を設けない（§5.1 F-118）。何本目でも同じように付く
+  // 上限を設けない（要件定義書 §5.1 F-118）。何本目でも同じように付く
   it("本数の上限がなく、複数のタスクに付けられる", async () => {
     const repo = inMemoryRepo([task({ id: 1 }), task({ id: 2 }), task({ id: 3 })]);
     for (const id of [1, 2, 3]) await setTaskHighlight(repo, id, true);

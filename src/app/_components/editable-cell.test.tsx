@@ -60,7 +60,7 @@ describe("EditableCell（画面定義書03 §4「編集方式」/ 00_共通 §2.
   });
 
   describe("編集中", () => {
-    it("現在値を入れた入力欄になり、そのまま打てるようフォーカスが移る（§4「編集方式」）", () => {
+    it("現在値を入れた入力欄になり、そのまま打てるようフォーカスが移る（画面定義書03 §4「編集方式」）", () => {
       renderCell({ isEditing: true });
 
       const input = screen.getByDisplayValue("モードA");

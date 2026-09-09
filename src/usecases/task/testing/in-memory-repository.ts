@@ -155,7 +155,7 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
     // 複製して開始（F-208 / データモデル定義書 §4.6）。割り込みなら終了・再開タスク生成も伴う
     duplicateAndStart: async (command: DuplicateAndStartCommand) => {
       const { newTask, startedAt, interruption } = command;
-      // 振り直しは挿入位置を空ける処理なので、本物と同じくどの挿入よりも先に当てる（§3.5）
+      // 振り直しは挿入位置を空ける処理なので、本物と同じくどの挿入よりも先に当てる（データモデル定義書 §3.5）
       applyRenumber(command.renumber);
       if (interruption !== null) patch(interruption.runningTaskId, { endedAt: interruption.endedAt });
       // **複製 → 再開タスクの順に挿入する**（本物と同じ順。逆にすると id の採番順が入れ替わる）

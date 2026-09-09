@@ -26,7 +26,7 @@ function renderFrame(
   return render(
     <TableFrame
       // **既定値へ落とさず「渡されたか」で分ける**——`?? 既定` にすると説明文なし
-      // （バンドル管理 S-05 §2）を渡せず、その分岐の検証が書けなくなる
+      // （画面定義書05 §2）を渡せず、その分岐の検証が書けなくなる
       description={"description" in props ? props.description : "並び順は名前順です。"}
       // 既定は「渡さない」（本数を出すのはルーチン管理だけ。画面定義書02 §3）
       countLabel={props.countLabel}
@@ -56,9 +56,9 @@ describe("TableFrame（画面定義書02 §3 / 画面定義書03 §3・§4: 説�
     expect(screen.getByText("マスタA")).not.toBeNull();
   });
 
-  // 説明文を持たない表もある（バンドル管理 S-05 §2「見出し行には『＋ 新規追加』だけを置き、
+  // 説明文を持たない表もある（画面定義書05 §2「見出し行には『＋ 新規追加』だけを置き、
   // 説明文は書かない」）。空の段落を置くと、無い説明のぶん見出し行が間延びする
-  it("説明文を渡さなければ説明の段落を描かず、「新規追加」は残る（05 §2）", () => {
+  it("説明文を渡さなければ説明の段落を描かず、「新規追加」は残る（画面定義書05 §2）", () => {
     const { container } = renderFrame({ description: undefined });
 
     expect(container.querySelectorAll("p")).toHaveLength(0);
@@ -170,7 +170,7 @@ describe("TableFrame（画面定義書02 §3 / 画面定義書03 §3・§4: 説�
       expect(count.compareDocumentPosition(button)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     });
 
-    // 文字の段は**メタ**（00_共通 §1.1）。値が確定しているので薄色の未設定表記（同 §2.4）は使わない
+    // 文字の段は**メタ**（00_共通 §1.1）。値が確定しているので薄色の未設定表記（同書 §2.4）は使わない
     it("本数はメタの段で出し、未設定の薄色にはしない", () => {
       renderFrame({ countLabel: COUNT });
       const count = screen.getByText(COUNT);
@@ -215,7 +215,7 @@ describe("TableFrame（画面定義書02 §3 / 画面定義書03 §3・§4: 説�
   });
 
   // この画面の更新はすべて「確定を待つ操作」なので、応答待ちがそのまま合図の対象になる
-  // （画面定義書02 §1 / 03 §1・00_共通 §4.2）。**猶予そのものの契約は `useSlowPending` 側**で、
+  // （画面定義書02 §1 / 画面定義書03 §1・00_共通 §4.2）。**猶予そのものの契約は `useSlowPending` 側**で、
   // ここで見るのは「`isPending` を合図へ配線できているか」と見た目の条項
   describe("進行中の合図（00_共通 §4.2）", () => {
     const indicator = () => screen.queryByRole("status");

@@ -66,14 +66,14 @@ describe("ArchivedSection（画面定義書03 §4: アーカイブ済みは折�
     expect(onRestore).toHaveBeenCalledExactlyOnceWith(2);
   });
 
-  it("参照0件の行にだけ「削除」を出す（§4.1: 参照がある行にはボタン自体を出さない）", () => {
+  it("参照0件の行にだけ「削除」を出す（画面定義書03 §4.1: 参照がある行にはボタン自体を出さない）", () => {
     renderSection({ deletableIds: [2] });
 
     expect(within(rowOf("マスタA")).queryByRole("button", { name: "削除" })).toBeNull();
     expect(within(rowOf("マスタB")).getByRole("button", { name: "削除" })).not.toBeNull();
   });
 
-  it("削除は2段階の確認を経てその行の id を渡す（§4.1）", () => {
+  it("削除は2段階の確認を経てその行の id を渡す（画面定義書03 §4.1）", () => {
     const onDelete = vi.fn();
     renderSection({ deletableIds: [1, 2], onDelete });
     const row = rowOf("マスタA");

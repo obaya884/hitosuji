@@ -31,7 +31,7 @@ describe("SHORTCUTS（画面定義書01 §6 からキー表記・並び・ニー
     ]);
   });
 
-  it("§6 本表の括弧書きがある行にだけニーモニックを付ける（同§6「由来を併記する」）", () => {
+  it("§6 本表の括弧書きがある行にだけニーモニックを付ける（§6「由来を併記する」）", () => {
     const mnemonics = SHORTCUTS.filter((shortcut) => shortcut.mnemonic !== undefined).map(
       (shortcut) => [shortcut.label, shortcut.mnemonic]
     );

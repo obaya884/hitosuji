@@ -120,7 +120,7 @@ describe("BundleMembersTable（画面定義書05 §3.2: メンバー表の並び
     expect(screen.queryByRole("button", { name: "06:30" })).toBeNull();
   });
 
-  it("モード未設定は共通 §2.4 の表記にする（薄色の `-`）", () => {
+  it("モード未設定は 00_共通 §2.4 の表記にする（薄色の `-`）", () => {
     renderTable([routine({ id: 1, bundleId: 1, modeId: null })]);
 
     const cell = screen.getByText("-");

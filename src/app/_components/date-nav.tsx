@@ -75,7 +75,7 @@ export function DateNav({ date, weekday, isToday, basePath, picker }: Props) {
       >
         <ChevronRightIcon className="h-3 w-3" />
       </Link>
-      {/* 今日以外を表示中のみ表示する。ボタンの有無自体が「今日以外」を示す（上の §3.1 の両画面とも） */}
+      {/* 今日以外を表示中のみ表示する。ボタンの有無自体が「今日以外」を示す（画面定義書01 §3.1・画面定義書04 §3.1 とも） */}
       {!isToday && (
         <Link href={basePath} className={btnSecondary}>
           今日へ

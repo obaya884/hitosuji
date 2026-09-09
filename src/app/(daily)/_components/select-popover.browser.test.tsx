@@ -25,7 +25,7 @@ const PAGE_TAIL_HEIGHT = 1200;
 
 /**
  * 測る対象はパネルの箱そのもの（はみ出しが起きなければ何も測れない）なので、実物のクラス名に敷く。
- * 候補を1行1件にするのは §2.1「候補は1行に収める」を実物の flex/w-full の代わりに満たすため
+ * 候補を1行1件にするのは 00_共通 §2.1「候補は1行に収める」を実物の flex/w-full の代わりに満たすため
  */
 installGeometryStyles(`
   .max-h-64 { max-height: ${PANEL_MAX_HEIGHT}px }

@@ -1,4 +1,4 @@
-// 表示フォーマット（画面定義書01 §3.3）と、時刻入力の正規化（同§3.3）
+// 表示フォーマット（画面定義書01 §3.3）と、時刻入力の正規化（同書 §3.3）
 import { parseClockTime } from "@/domain/task/punch-edit";
 import { APP_TIME_ZONE, zonedParts } from "@/domain/shared/time-zone";
 
@@ -14,7 +14,7 @@ export function formatDuration(minutes: number): string {
 /**
  * 基準からの差を符号付きで表す。**差が無い（0）ときは符号を付けない**——符号は差の向きを
  * 示す記号なので、離れていない値に付けると「短く済んだ」「余裕がある」と読み違える。
- * 規則の本体は画面定義書04 §3.3（レビューの差異）にあり、01 §3.2（セクション残り時間）がこれを引く
+ * 規則の本体は画面定義書04 §3.3（レビューの差異）にあり、画面定義書01 §3.2（セクション残り時間）がこれを引く
  */
 export function formatSignedDuration(minutes: number): string {
   const sign = minutes > 0 ? "+" : minutes < 0 ? "-" : "";

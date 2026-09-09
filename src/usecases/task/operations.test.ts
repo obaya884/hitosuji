@@ -397,7 +397,7 @@ describe("duplicateAndStartTask（F-208: 複製して開始）", () => {
     expect(resume?.bundleId).toBe(9); // 割り込み相手（バンドル9）から引き継ぐ
   });
 
-  it("移動先に未実行タスクがあれば、複製タスクと再開タスクはその前へ連続して入る（§4.6 / C-7）", async () => {
+  it("移動先に未実行タスクがあれば、複製タスクと再開タスクはその前へ連続して入る（データモデル定義書 §4.6 / C-7）", async () => {
     const repo = inMemoryTaskRepository([
       task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }), // 完了（複製元）
       // 午前: 打刻済み（1000）→ 未実行（2000）。複製と再開はこの間に入る
@@ -412,7 +412,7 @@ describe("duplicateAndStartTask（F-208: 複製して開始）", () => {
     expect(repo.rows.find((t) => t.id === 3)?.sortOrder).toBe(2000); // 未実行は動かない
   });
 
-  it("実行中タスクが無くても、中間値が尽きたら移動先セクションを振り直す（§3.5）", async () => {
+  it("実行中タスクが無くても、中間値が尽きたら移動先セクションを振り直す（データモデル定義書 §3.5）", async () => {
     const repo = inMemoryTaskRepository([
       task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }), // 完了（複製元）
       task({ id: 2, sectionId: 2, sortOrder: 1000, startedAt, endedAt: now }), // 午前・打刻済み
@@ -426,7 +426,7 @@ describe("duplicateAndStartTask（F-208: 複製して開始）", () => {
     expect(repo.rows.find((t) => t.id === 3)?.sortOrder).toBe(3000); // 振り直された
   });
 
-  it("2行分の中間値が尽きたら移動先セクションを振り直す（§3.5）", async () => {
+  it("2行分の中間値が尽きたら移動先セクションを振り直す（データモデル定義書 §3.5）", async () => {
     const repo = inMemoryTaskRepository([
       task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }), // 完了（複製元）
       task({ id: 2, sectionId: 2, estimateMinutes: 30, startedAt, sortOrder: 1000 }), // 実行中
@@ -538,7 +538,7 @@ describe("postponeTask（F-107: 先送り）", () => {
   });
 
   // データモデル定義書 §3.5: 移動先の日にはその日のぶんが改めて展開されるので紐付けは切る。
-  // §3.6: 元の日はスキップとして記録する（記録しないとその日に再展開されて戻ってくる）
+  // 同書 §3.6: 元の日はスキップとして記録する（記録しないとその日に再展開されて戻ってくる）
   it("ルーチン由来なら紐付けが外れ、元の日はスキップになる", async () => {
     const repo = inMemoryTaskRepository([task({ id: 1, routineId: 10 })]);
 
@@ -554,7 +554,7 @@ describe("postponeTask（F-107: 先送り）", () => {
     expect(repo.skips).toEqual([]);
   });
 
-  // 紐付けが外れた以上、移動先で削除してもその日のスキップは記録されない（§3.5）
+  // 紐付けが外れた以上、移動先で削除してもその日のスキップは記録されない（データモデル定義書 §3.5）
   it("先送りしたタスクを削除しても、移動先の日のスキップは増えない", async () => {
     const repo = inMemoryTaskRepository([task({ id: 1, routineId: 10 })]);
 

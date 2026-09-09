@@ -5,7 +5,7 @@ import { useDismiss } from "@/app/_lib/use-dismiss";
 import { floatPanel, tooltipBubble } from "@/app/_lib/ui";
 import { COLOR_PRESETS, colorPresetName } from "@/domain/shared/color-presets";
 
-/** 新規追加行の既定色（プリセットの先頭＝赤。画面定義書03 §3.2 / 05 §4 O-1） */
+/** 新規追加行の既定色（プリセットの先頭＝赤。画面定義書03 §3.2 / 画面定義書05 §4 O-1） */
 export const DEFAULT_COLOR = COLOR_PRESETS[0].value;
 
 /** 色見本の寸法。画面ごとの見え方の違いはここに集約する（呼び出し側に寸法クラスを書かない） */
@@ -46,7 +46,7 @@ export function ColorSwatch({
 
 /**
  * 色見本を押すとプリセット選択（`ColorPickerPopover`）がその場に開くトリガー
- * （画面定義書03 §3.2 / 05 §4 O-1・O-2）。マスタ管理とバンドル管理が共有する——
+ * （画面定義書03 §3.2 / 画面定義書05 §4 O-1・O-2）。マスタ管理とバンドル管理が共有する——
  * 同じ操作を画面ごとに書き写すと、片方だけ直る事故が起きるため。
  * **開閉の状態は呼び出し側が持つ**（同じ表の中で開いているセルを1つに保つのは表の責務）
  */
@@ -92,7 +92,7 @@ export function ColorBarButton({
 }
 
 /**
- * カラーバーを押すと開くプリセット13色の選択（画面定義書03 §3.2 / 05 §4 O-2）。
+ * カラーバーを押すと開くプリセット13色の選択（画面定義書03 §3.2 / 画面定義書05 §4 O-2）。
  * S-03（モード）と S-05（バンドル）が共有する部品——同じ挙動を2画面で別々に持つと
  * 片方だけ直る事故が起きるため、共通部品として独立させてある（F-119 実装時に切り出し）。
  * S-01 の SelectPopover（`(daily)/_components/select-popover.tsx`）と同じ作り

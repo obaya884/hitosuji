@@ -114,7 +114,7 @@ describe("currentSectionId（画面定義書01 §3.2 現在セクションの強
     expect(currentSectionId(sections, "00:00", true)).toBe(midnight.id);
   });
 
-  it("先頭セクションの開始より前の時刻は、日をまたいで続く最後のセクションが current（§4.3 の固定項目もこの定義に従う）", () => {
+  it("先頭セクションの開始より前の時刻は、日をまたいで続く最後のセクションが current（画面定義書01 §4.3 の固定項目もこの定義に従う）", () => {
     const withoutMidnight = [morning, forenoon]; // 06:00 / 09:00
     expect(currentSectionId(withoutMidnight, "03:00", true)).toBe(forenoon.id);
     expect(currentSectionId(sections, "23:59", true)).toBe(forenoon.id);

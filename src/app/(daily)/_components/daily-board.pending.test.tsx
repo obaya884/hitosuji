@@ -98,7 +98,7 @@ describe("確定を待つ操作（00_共通 §4.2）", () => {
       expect(indicator()).toBeNull();
     });
 
-    // §4.2 の「合図の消え方」は成功に限定していない。失敗でも消えないと合図が残り続ける
+    // 00_共通 §4.2 の「合図の消え方」は成功に限定していない。失敗でも消えないと合図が残り続ける
     it("失敗で終わっても合図は消え、エラートーストと同時には出ない", async () => {
       const gate = hold<DailyActionResult>(OK);
       vi.mocked(postponeTaskAction).mockReturnValue(gate.promise);
@@ -138,7 +138,7 @@ describe("確定を待つ操作（00_共通 §4.2）", () => {
     });
 
     // 条項は「**同時に出るときは**同じ列に積む」。別の置き場に出すと画面上で重なるので、
-    // トーストを出したまま合図を出して、両方が同じ親に並ぶことを見る（§4.2「合図の見た目・位置」）
+    // トーストを出したまま合図を出して、両方が同じ親に並ぶことを見る（00_共通 §4.2「合図の見た目・位置」）
     it("トーストと同時に出るときは同じ列に積む", async () => {
       renderBoard();
       selectRow(NOT_STARTED);
@@ -218,7 +218,7 @@ describe("確定を待つ操作（00_共通 §4.2）", () => {
 
       expect(vi.mocked(restoreTaskAction)).not.toHaveBeenCalled();
       expect(screen.queryByRole("button", { name: "取り消す" })).not.toBeNull();
-      // 「何も起きない（**エラーは出さない**）」の後半（§4.2）
+      // 「何も起きない（**エラーは出さない**）」の後半（00_共通 §4.2）
       expect(screen.queryByText("保存に失敗しました")).toBeNull();
       await gate.resolve(OK);
     });

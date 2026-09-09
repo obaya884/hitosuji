@@ -188,7 +188,7 @@ describe("startTask の割り込み（F-201 / データモデル定義書 §4.2�
     );
   });
 
-  // F-118: 割り込みで生まれる再開タスクも「同じ仕事の続き」なのでハイライトを引き継ぐ（§4.2）
+  // F-118: 割り込みで生まれる再開タスクも「同じ仕事の続き」なのでハイライトを引き継ぐ（データモデル定義書 §4.2）
   it("割り込まれたタスクがハイライトされていれば、再開タスクも引き継ぐ", async () => {
     const repo = inMemoryTaskRepository([
       task({ id: 1, startedAt, sortOrder: 1000, highlighted: true }),
@@ -248,7 +248,7 @@ describe("startTask の割り込み（F-201 / データモデル定義書 §4.2�
     );
   });
 
-  it("中間値が尽きたら振り直しを伴って再開タスクを挟む（§3.5 の renumber を start へ渡す）", async () => {
+  it("中間値が尽きたら振り直しを伴って再開タスクを挟む（データモデル定義書 §3.5 の renumber を start へ渡す）", async () => {
     const repo = inMemoryTaskRepository([
       task({ id: 1, startedAt, sortOrder: 1000 }),
       task({ id: 2, sortOrder: 2000 }), // 開始タスク
@@ -328,7 +328,7 @@ describe("undoStart（F-210: 開始打刻の取り消し）", () => {
     expect(await undo(repo, 99)).toEqual({ ok: false, error: "task_not_found" });
   });
 
-  it("今日のタスクは現在時刻を含むセクションの先頭へ並べ直す（§4.5）", async () => {
+  it("今日のタスクは現在時刻を含むセクションの先頭へ並べ直す（データモデル定義書 §4.5）", async () => {
     const sections: Section[] = [
       { id: 1, name: "午前", startTime: "09:00", isArchived: false },
       { id: 2, name: "夜", startTime: "18:00", isArchived: false },
@@ -341,7 +341,7 @@ describe("undoStart（F-210: 開始打刻の取り消し）", () => {
     expect(repo.rows[0].startedAt).toBeNull();
   });
 
-  it("今日以外のタスクは並べ直さず打刻のクリアだけ行う（§4.5）", async () => {
+  it("今日以外のタスクは並べ直さず打刻のクリアだけ行う（データモデル定義書 §4.5）", async () => {
     const sections: Section[] = [{ id: 2, name: "夜", startTime: "18:00", isArchived: false }];
     const repo = inMemoryTaskRepository([
       task({ id: 1, taskDate: "2026-07-25", sectionId: 1, startedAt }),
@@ -377,7 +377,7 @@ describe("undoComplete（F-212: 完了の取り消し）", () => {
     sections: readonly Section[] = []
   ) => undoComplete(depsOf(repo, sections), { taskId, nowClock, today });
 
-  it("完了タスクの started_at・ended_at をともに null に戻して未実行にする（§4.7）", async () => {
+  it("完了タスクの started_at・ended_at をともに null に戻して未実行にする（データモデル定義書 §4.7）", async () => {
     const repo = inMemoryTaskRepository([task({ id: 1, ...completed })]);
 
     expect((await undo(repo, 1)).ok).toBe(true);
@@ -386,7 +386,7 @@ describe("undoComplete（F-212: 完了の取り消し）", () => {
     expect(taskStatus(repo.rows[0])).toBe("not_started");
   });
 
-  it("復帰に要る4列（打刻2列・セクション・並び順）を返す（§4.7）", async () => {
+  it("復帰に要る4列（打刻2列・セクション・並び順）を返す（データモデル定義書 §4.7）", async () => {
     const repo = inMemoryTaskRepository([
       task({ id: 1, sectionId: 1, sortOrder: 1500, ...completed }),
     ]);
@@ -410,7 +410,7 @@ describe("undoComplete（F-212: 完了の取り消し）", () => {
     expect(await undo(repo, 99)).toEqual({ ok: false, error: "task_not_found" });
   });
 
-  it("今日のタスクは現在位置（現在時刻を含むセクションの未実行先頭）へ並べ直す（§4.7）", async () => {
+  it("今日のタスクは現在位置（現在時刻を含むセクションの未実行先頭）へ並べ直す（データモデル定義書 §4.7）", async () => {
     const sections: Section[] = [
       { id: 1, name: "午前", startTime: "09:00", isArchived: false },
       { id: 2, name: "夜", startTime: "18:00", isArchived: false },
@@ -424,7 +424,7 @@ describe("undoComplete（F-212: 完了の取り消し）", () => {
     expect(repo.rows[0].endedAt).toBeNull();
   });
 
-  it("他に実行中タスクがあればその直後へ置く（§4.7）", async () => {
+  it("他に実行中タスクがあればその直後へ置く（データモデル定義書 §4.7）", async () => {
     const sections: Section[] = [
       { id: 1, name: "午前", startTime: "09:00", isArchived: false },
       { id: 2, name: "夜", startTime: "18:00", isArchived: false },
@@ -444,7 +444,7 @@ describe("undoComplete（F-212: 完了の取り消し）", () => {
     expect(repo.rows[2]).toMatchObject({ sectionId: 1, sortOrder: 2000 });
   });
 
-  it("未分類（section_id IS NULL）の完了タスクも現在位置へ移し、スナップショットは null を保つ（§4.7）", async () => {
+  it("未分類（section_id IS NULL）の完了タスクも現在位置へ移し、スナップショットは null を保つ（データモデル定義書 §4.7）", async () => {
     const sections: Section[] = [{ id: 2, name: "夜", startTime: "18:00", isArchived: false }];
     const repo = inMemoryTaskRepository([task({ id: 1, sectionId: null, ...completed })]);
 
@@ -459,7 +459,7 @@ describe("undoComplete（F-212: 完了の取り消し）", () => {
 
   // 今日以外は過去日・未来日のいずれも並べ直さない（現在位置・これから領域が定義できないため）
   it.each(["2026-07-25", "2026-07-27"])(
-    "今日以外（%s）のタスクは並べ直さず打刻のクリアだけ行う（§4.7）",
+    "今日以外（%s）のタスクは並べ直さず打刻のクリアだけ行う（データモデル定義書 §4.7）",
     async (taskDate) => {
       const sections: Section[] = [{ id: 2, name: "夜", startTime: "18:00", isArchived: false }];
       const repo = inMemoryTaskRepository([task({ id: 1, taskDate, sectionId: 1, ...completed })]);
@@ -471,7 +471,7 @@ describe("undoComplete（F-212: 完了の取り消し）", () => {
     }
   );
 
-  it("中断・割り込みへの波及なし: 再開タスクと直前の完了タスクは残す（§4.7）", async () => {
+  it("中断・割り込みへの波及なし: 再開タスクと直前の完了タスクは残す（データモデル定義書 §4.7）", async () => {
     // 並べ直しが起きる条件（今日・有効セクションあり）で、波及しないことを確かめる
     const sections: Section[] = [{ id: 2, name: "夜", startTime: "18:00", isArchived: false }];
     const repo = inMemoryTaskRepository([
@@ -506,7 +506,7 @@ describe("restoreCompletion（F-212: 完了の取り消しの取り消し）", (
     sortOrder: 1500,
   } as const;
 
-  it("スナップショットの4列だけを書き戻して完了状態へ復帰させる（§4.7）", async () => {
+  it("スナップショットの4列だけを書き戻して完了状態へ復帰させる（データモデル定義書 §4.7）", async () => {
     // 取り消し済み（未実行で別セクションへ移った状態）から復帰させる
     const uncompleted = task({ id: 1, sectionId: 9, sortOrder: 4000 });
     const repo = inMemoryTaskRepository([uncompleted]);
@@ -523,14 +523,14 @@ describe("restoreCompletion（F-212: 完了の取り消しの取り消し）", (
     expect(taskStatus(repo.rows[0])).toBe("completed");
   });
 
-  it("未分類（section_id IS NULL）へも戻せる（§4.7）", async () => {
+  it("未分類（section_id IS NULL）へも戻せる（データモデル定義書 §4.7）", async () => {
     const repo = inMemoryTaskRepository([task({ id: 1, sectionId: 2, sortOrder: 4000 })]);
 
     expect((await restoreCompletion(repo, { ...snapshot, sectionId: null })).ok).toBe(true);
     expect(repo.rows[0].sectionId).toBeNull();
   });
 
-  it("復帰までの間に他タスクが同じ sort_order を取っていてもそのまま書き戻す（§4.7）", async () => {
+  it("復帰までの間に他タスクが同じ sort_order を取っていてもそのまま書き戻す（データモデル定義書 §4.7）", async () => {
     const other = task({ id: 2, sectionId: 3, sortOrder: 1500 }); // 取り消し中に同値を取った未実行タスク
     const repo = inMemoryTaskRepository([task({ id: 1, sectionId: 9, sortOrder: 4000 }), other]);
 

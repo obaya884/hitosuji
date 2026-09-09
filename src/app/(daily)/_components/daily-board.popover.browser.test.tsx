@@ -4,7 +4,7 @@
 // `editing !== null` ガードだけで、`select-popover.tsx` の `stopPropagation` を外しても緑のまま。
 // **2枚目の盾をこちらが押さえる**（実測: 同じ変異でこの段だけが赤くなる）。
 //
-// 再現には**本物のキー入力**が要る（§3。`fireEvent` では実ブラウザでも緑のまま）。
+// 再現には**本物のキー入力**が要る（同書 §3。`fireEvent` では実ブラウザでも緑のまま）。
 import { userEvent } from "vitest/browser";
 import { describe, expect, it, vi } from "vitest";
 

@@ -18,7 +18,7 @@ export const UNSET_TIME_MARK = "--:--";
  */
 export const UNSET_LABEL = "未設定";
 
-/** 集計（レビュー §3.5）のグループ行ラベル。語は上と同じで、括弧は行ラベルであることを示す */
+/** 集計（画面定義書04 §3.5）のグループ行ラベル。語は上と同じで、括弧は行ラベルであることを示す */
 export const UNSET_GROUP_LABEL = `（${UNSET_LABEL}）`;
 
 /**
