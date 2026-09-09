@@ -16,6 +16,14 @@ export function createTestDb(): { db: TestDb; pool: Pool } {
   return { db, pool };
 }
 
+/**
+ * どのテーブルにも実在しない id。テーブルの種類を問わず使う（不在は id 型に依らないため）。
+ * **採番と衝突しない大きな値**にする——`truncateAll` が `RESTART IDENTITY` で採番を 1 へ戻すので、
+ * 実在する id は常に小さい側に寄る。**`int4` の範囲は超えないこと**——超えると Postgres が
+ * 22003 で投げ、「対象が無い」経路を通らずに例外で落ちる
+ */
+export const MISSING_ID = 999_999;
+
 // 全テーブルを空にする（beforeEach で呼ぶ。古典学派: テスト間の状態を実DBごとリセット）
 export async function truncateAll(db: TestDb): Promise<void> {
   await db.execute(
