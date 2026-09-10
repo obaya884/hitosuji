@@ -196,7 +196,7 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
                   <td className="w-10 py-1.5 pl-1">
                     <ColorSwatch color={bundle.color} size="narrow" />
                   </td>
-                  <td className="py-1.5 pr-1">
+                  <td className="py-1.5 pr-1 text-main">
                     <span className="flex items-center justify-between gap-2">
                       {/* ボタンなのは一覧を Tab で触れる状態に保つため（行の onClick はキーボードに届かない）。
                           選択は行と二重に持つ——`setSelectedId` は冪等で、行のバブリング頼みにすると
@@ -208,7 +208,7 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
                       >
                         {bundle.name}
                       </button>
-                      <span className="text-sm text-ink-muted">
+                      <span className="text-sub text-ink-muted">
                         {bundles.memberCounts[bundle.id] ?? 0}
                       </span>
                     </span>
@@ -230,7 +230,7 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
                 <td className="w-10 py-1.5 pl-1">
                   <ColorSwatch color={bundle.color} size="narrow" dimmed />
                 </td>
-                <td className="py-1.5">{bundle.name}</td>
+                <td className="py-1.5 text-main">{bundle.name}</td>
               </>
             )}
             onRestore={(id) => runPanel(() => setBundleArchivedAction(id, false))}
@@ -241,12 +241,12 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
 
       <div className="mt-4 pl-4">
         {selectedBundle === null ? (
-          <p className="text-sm text-ink-muted">バンドルがありません</p>
+          <p className="text-sub text-ink-muted">バンドルがありません</p>
         ) : (
           <>
             <header className="flex items-center gap-3 border-b border-line pb-3">
               {headerColorCell(selectedBundle)}
-              <div className="text-base font-medium">{headerNameCell(selectedBundle)}</div>
+              <div className="text-main font-medium">{headerNameCell(selectedBundle)}</div>
               <button
                 type="button"
                 onClick={() => runPanel(() => setBundleArchivedAction(selectedBundle.id, true))}

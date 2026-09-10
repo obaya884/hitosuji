@@ -48,7 +48,7 @@ export function ReviewBoard({
   return (
     <>
       {/* 画面見出し（画面定義書00 §1） */}
-      <h1 className="text-lg font-bold">レビュー</h1>
+      <h1 className="text-heading font-bold">レビュー</h1>
 
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
         <DateNav
@@ -58,14 +58,14 @@ export function ReviewBoard({
           basePath={REVIEW_PATH}
         />
         {/* サマリ（§3.2）。数値が主・ラベルは従（00_共通 §1.1。S-01 のサマリと揃える） */}
-        <p className="tabular-nums">
-          <span className="text-sm text-ink-muted">実行 </span>
+        <p className="text-main tabular-nums">
+          <span className="text-sub text-ink-muted">実行 </span>
           {log.length}件
-          <span className="ml-3 text-sm text-ink-muted">実績 </span>
+          <span className="ml-3 text-sub text-ink-muted">実績 </span>
           {formatDuration(totalMinutes)}
           {postponed !== null && (
             <>
-              <span className="ml-3 text-sm text-ink-muted">先送り </span>
+              <span className="ml-3 text-sub text-ink-muted">先送り </span>
               {postponed.length}件
             </>
           )}
@@ -108,9 +108,9 @@ function ExecutionLog({
 }>) {
   return (
     <section className="mt-6">
-      <h2 className="text-sm font-medium">実績ログ</h2>
+      <h2 className="text-sub font-medium">実績ログ</h2>
       {log.length === 0 ? (
-        <p className="mt-3 text-sm text-ink-muted">実行したタスクはありません</p>
+        <p className="mt-3 text-sub text-ink-muted">実行したタスクはありません</p>
       ) : (
         <table className="mt-2 w-full">
           <thead>
@@ -173,11 +173,11 @@ function LogRow({
         style={colorStyle}
       >
         {/* 未確定の終了時刻（実行中）は薄色の `--:--`（§3.3） */}
-        <td className="py-2 font-mono tabular-nums">
+        <td className="py-2 font-mono text-main tabular-nums">
           {formatClock(task.startedAt)}-
           {task.endedAt === null ? <UnsetTimeMark /> : formatClock(task.endedAt)}
         </td>
-        <td className="py-2">
+        <td className="py-2 text-main">
           {/* ⭐と名前は flex で縦中央に揃える（`align-middle` だと 16px のアイコンが文字に対して
               わずかに浮く）。デイリー側の印はセクション併記の流し込みに乗るので事情が違う */}
           <div className="flex items-center">
@@ -202,15 +202,15 @@ function LogRow({
             </Link>
           </div>
         </td>
-        <td className="py-2 text-sm">{project?.name ?? <UnsetMark />}</td>
-        <td className="py-2 text-sm">{mode?.name ?? <UnsetMark />}</td>
-        <td className="py-2 pr-4 text-right font-mono tabular-nums">
+        <td className="py-2 text-sub">{project?.name ?? <UnsetMark />}</td>
+        <td className="py-2 text-sub">{mode?.name ?? <UnsetMark />}</td>
+        <td className="py-2 pr-4 text-right font-mono text-main tabular-nums">
           <DurationValue minutes={task.estimateMinutes} />
         </td>
-        <td className="py-2 pr-4 text-right font-mono tabular-nums">
+        <td className="py-2 pr-4 text-right font-mono text-main tabular-nums">
           {actual === null ? <UnsetTimeMark /> : formatDuration(actual)}
         </td>
-        <td className={`py-2 text-right font-mono tabular-nums ${isOver ? "text-danger" : ""}`}>
+        <td className={`py-2 text-right font-mono text-main tabular-nums ${isOver ? "text-danger" : ""}`}>
           {diff === null ? "" : formatSignedDuration(diff)}
         </td>
       </tr>
@@ -219,7 +219,7 @@ function LogRow({
         <tr className={`border-b border-line ${dimmedClass}`} style={colorStyle}>
           {/* 折り返す幅はタスク名列に揃える（§3.3。S-01 と同じ）。右側は空セルで埋める */}
           <td />
-          <td className="pb-2 text-sm whitespace-pre-wrap opacity-80">{task.comment}</td>
+          <td className="pb-2 text-sub whitespace-pre-wrap opacity-80">{task.comment}</td>
           <td colSpan={5} />
         </tr>
       )}
@@ -231,11 +231,11 @@ function LogRow({
 function Postponed({ tasks }: Readonly<{ tasks: readonly Task[] }>) {
   return (
     <section className="mt-8">
-      <h2 className="text-sm font-medium">先送り（{tasks.length}件）</h2>
+      <h2 className="text-sub font-medium">先送り（{tasks.length}件）</h2>
       {tasks.length === 0 ? (
-        <p className="mt-2 text-sm text-ink-muted">先送りはありません</p>
+        <p className="mt-2 text-sub text-ink-muted">先送りはありません</p>
       ) : (
-        <ul className="mt-2 space-y-1">
+        <ul className="mt-2 space-y-1 text-main">
           {tasks.map((task) => (
             <li key={task.id}>{task.name}</li>
           ))}
@@ -259,21 +259,21 @@ function ActualTotals({
 }>) {
   return (
     <section className="min-w-64">
-      <h2 className="text-sm font-medium">{heading}</h2>
+      <h2 className="text-sub font-medium">{heading}</h2>
       {totals.length === 0 ? (
-        <p className="mt-2 text-sm text-ink-muted">集計する実績がありません</p>
+        <p className="mt-2 text-sub text-ink-muted">集計する実績がありません</p>
       ) : (
         <table className="mt-2 w-full">
           <tbody>
             {totals.map((row) => (
               <tr key={row.key ?? "none"} className="border-b border-line">
-                <td className="py-2">
+                <td className="py-2 text-main">
                   {row.key === null ? UNSET_GROUP_LABEL : (nameOf(row.key) ?? "")}
                 </td>
-                <td className="w-16 py-2 pr-4 text-right font-mono tabular-nums">
+                <td className="w-16 py-2 pr-4 text-right font-mono text-main tabular-nums">
                   {formatDuration(row.minutes)}
                 </td>
-                <td className="w-12 py-2 text-right font-mono tabular-nums text-ink-muted">
+                <td className="w-12 py-2 text-right font-mono text-sub text-ink-muted tabular-nums">
                   {sharePercent(row.minutes, totalMinutes)}%
                 </td>
               </tr>

@@ -74,7 +74,7 @@ export function CommentRow({
           />
         ) : (
           // 補助表記なのでセクションの併記（§3.3）と同じ扱い（モード色を乗せて弱める）
-          <p className={`whitespace-pre-wrap text-sm ${dimmedClass} opacity-80`}>{task.comment}</p>
+          <p className={`whitespace-pre-wrap text-sub ${dimmedClass} opacity-80`}>{task.comment}</p>
         )}
       </td>
       <td colSpan={6} />

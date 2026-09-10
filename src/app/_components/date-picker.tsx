@@ -104,7 +104,7 @@ export function DatePicker({ date, today, onSelect, onClose }: Props) {
         >
           <ChevronLeftIcon className="h-3 w-3" />
         </button>
-        <span className="text-sm font-medium tabular-nums">
+        <span className="text-sub font-medium tabular-nums">
           {view.year}年 {view.month}月
         </span>
         <button
@@ -118,7 +118,7 @@ export function DatePicker({ date, today, onSelect, onClose }: Props) {
       </div>
 
       {/* 曜日ヘッダ（月曜始まり） */}
-      <div className="grid grid-cols-7 text-center text-xs text-ink-faint">
+      <div className="grid grid-cols-7 text-center text-meta text-ink-faint">
         {WEEKDAY_LABELS.map((label) => (
           <span key={label} className="py-1">
             {label}
@@ -140,7 +140,7 @@ export function DatePicker({ date, today, onSelect, onClose }: Props) {
               type="button"
               aria-current={isSelected ? "date" : undefined}
               onClick={() => onSelect(cell)}
-              className={`m-0.5 h-8 rounded-control text-sm tabular-nums hover:bg-accent-weak ${
+              className={`m-0.5 h-8 rounded-control text-sub tabular-nums hover:bg-accent-weak ${
                 isSelected
                   ? "bg-accent font-medium text-white"
                   : isToday

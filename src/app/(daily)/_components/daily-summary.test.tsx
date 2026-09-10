@@ -158,9 +158,9 @@ describe("DailySummary（画面定義書01 §3.1 / F-104・F-114: 終了予定�
       />
     );
 
-    // TaskProgress の既定はメタ（text-xs）なので、サマリ側が主段を渡していないと落ちる
+    // TaskProgress の既定はメタ（text-meta）なので、サマリ側が主段を渡していないと落ちる
     const progress = screen.getByText("1/1");
-    expect(progress.classList.contains("text-base")).toBe(true);
-    expect(progress.classList.contains("text-xs")).toBe(false);
+    expect(progress.classList.contains("text-main")).toBe(true);
+    expect(progress.classList.contains("text-meta")).toBe(false);
   });
 });

@@ -27,7 +27,7 @@ export function ArchivedSection<T extends { id: number }>({
 
   return (
     <details className="mt-6">
-      <summary className="cursor-pointer text-sm text-ink-muted">
+      <summary className="cursor-pointer text-sub text-ink-muted">
         アーカイブ済み（{archived.length}）
       </summary>
       <table className="mt-2 w-full">

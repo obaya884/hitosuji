@@ -80,7 +80,7 @@ export function BundleMembersTable({
       {error !== null && <p className={`mb-2 ${noticeDanger}`}>{error}</p>}
 
       {members.length === 0 ? (
-        <p className="text-sm text-ink-muted">まだルーチンが入っていません</p>
+        <p className="text-sub text-ink-muted">まだルーチンが入っていません</p>
       ) : (
         <table className="w-full">
           <thead>
@@ -106,18 +106,18 @@ export function BundleMembersTable({
                   // routines-table.tsx:198-200 と同じ理由）
                   className={`border-b border-line ${member.isActive ? "" : "text-ink-faint"}`}
                 >
-                  <td className="py-2">
+                  <td className="py-2 text-main">
                     <Link href={`/routines?edit=${member.id}`} className="hover:underline">
                       {member.name}
                     </Link>
                   </td>
-                  <td className="py-2 text-sm">{mode?.name ?? <UnsetMark />}</td>
-                  <td className="py-2 text-sm">{describeRecurrence(member)}</td>
-                  <td className="py-2 pr-4 text-right font-mono tabular-nums">
+                  <td className="py-2 text-sub">{mode?.name ?? <UnsetMark />}</td>
+                  <td className="py-2 text-sub">{describeRecurrence(member)}</td>
+                  <td className="py-2 pr-4 text-right font-mono text-main tabular-nums">
                     <DurationValue minutes={member.estimateMinutes} />
                   </td>
                   {/* 読むだけ（直すのは S-02。O-7） */}
-                  <td className="py-2 font-mono tabular-nums">{member.scheduledStartTime}</td>
+                  <td className="py-2 font-mono text-main tabular-nums">{member.scheduledStartTime}</td>
                   <td className="py-2 text-right whitespace-nowrap">
                     <button
                       type="button"
@@ -147,7 +147,7 @@ export function BundleMembersTable({
 
         {isAddingOpen &&
           (candidates.length === 0 ? (
-            <p className="mt-1 text-sm text-ink-muted">追加できるルーチンがありません。</p>
+            <p className="mt-1 text-sub text-ink-muted">追加できるルーチンがありません。</p>
           ) : (
             <ul className="mt-1 divide-y divide-line rounded-control border border-line">
               {candidates.map((candidate) => (
@@ -156,7 +156,7 @@ export function BundleMembersTable({
                     type="button"
                     onClick={() => addMember(candidate.id)}
                     disabled={isPending}
-                    className="flex w-full items-center justify-between gap-3 px-2 py-1 text-left text-sm hover:bg-accent-weak disabled:hover:bg-transparent"
+                    className="flex w-full items-center justify-between gap-3 px-2 py-1 text-left text-sub hover:bg-accent-weak disabled:hover:bg-transparent"
                   >
                     <span>{candidate.name}</span>
                     <span className="font-mono text-ink-muted">

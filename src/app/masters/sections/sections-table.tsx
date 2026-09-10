@@ -162,9 +162,9 @@ export function SectionsTable({ ranges, archived, deletableIds }: Props) {
                     onChange={() => run(() => setDayStartSectionAction(row.id))}
                   />
                 </td>
-                <td className="py-2">{nameCell(row)}</td>
-                <td className="py-2">{startTimeCell(row)}</td>
-                <td className="py-2 font-mono tabular-nums text-ink-muted">
+                <td className="py-2 text-main">{nameCell(row)}</td>
+                <td className="py-2 text-main">{startTimeCell(row)}</td>
+                <td className="py-2 font-mono text-main text-ink-muted tabular-nums">
                   {formatDuration(sectionCapacityMinutes(row.startTime, row.endTime))}
                 </td>
                 <td className="py-2 text-right whitespace-nowrap">
@@ -192,8 +192,8 @@ export function SectionsTable({ ranges, archived, deletableIds }: Props) {
         isPending={isPending}
         renderCells={(row) => (
           <>
-            <td className="py-2">{row.name}</td>
-            <td className="w-40 py-2 font-mono tabular-nums">{row.startTime}</td>
+            <td className="py-2 text-main">{row.name}</td>
+            <td className="w-40 py-2 font-mono text-main tabular-nums">{row.startTime}</td>
           </>
         )}
         onRestore={(id) => run(() => restoreSectionAction(id))}

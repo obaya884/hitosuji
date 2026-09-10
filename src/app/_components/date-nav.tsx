@@ -49,7 +49,7 @@ export function DateNav({ date, weekday, isToday, basePath, picker }: Props) {
             onClick={() => picker.onOpenChange(!picker.open)}
             aria-haspopup="dialog"
             aria-expanded={picker.open}
-            className="rounded-control px-2 py-1 font-mono text-sm font-medium tabular-nums hover:bg-accent-weak"
+            className="rounded-control px-2 py-1 font-mono text-sub font-medium tabular-nums hover:bg-accent-weak"
           >
             {label}
           </button>
@@ -66,7 +66,7 @@ export function DateNav({ date, weekday, isToday, basePath, picker }: Props) {
           )}
         </div>
       ) : (
-        <span className="px-2 py-1 font-mono text-sm font-medium tabular-nums">{label}</span>
+        <span className="px-2 py-1 font-mono text-sub font-medium tabular-nums">{label}</span>
       )}
       <Link
         href={dateHref(basePath, date, 1)}

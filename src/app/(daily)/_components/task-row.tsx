@@ -187,7 +187,7 @@ export function TaskRow({
           </button>
         )}
       </td>
-      <td className="py-2.5">
+      <td className="py-2.5 text-main">
         {editing === "name" ? (
           <input
             autoFocus
@@ -210,7 +210,7 @@ export function TaskRow({
         {editing !== "name" && (
           <>
             {/* セクションの併記はタスク名セルに残す */}
-            <span className="relative ml-2 inline-block text-sm">
+            <span className="relative ml-2 inline-block text-sub">
               {/* セクション選択ポップオーバー（O-5） */}
               <button
                 type="button"
@@ -274,7 +274,7 @@ export function TaskRow({
         onSelect={(id) => onAssign(task, "mode", id)}
         onClose={onEndEdit}
       />
-      <td className="py-2.5 text-right font-mono tabular-nums">
+      <td className="py-2.5 text-right font-mono text-main tabular-nums">
         {editing === "estimate" ? (
           <input
             autoFocus
@@ -295,7 +295,7 @@ export function TaskRow({
           </button>
         )}
       </td>
-      <td className={`py-2.5 text-right font-mono tabular-nums ${dimmedClass}`}>
+      <td className={`py-2.5 text-right font-mono text-main tabular-nums ${dimmedClass}`}>
         {actual !== null && (
           <span className={isOverEstimate(actual, task) ? "text-danger" : ""}>
             → {formatDuration(actual)}
@@ -308,7 +308,7 @@ export function TaskRow({
           </span>
         )}
       </td>
-      <td className={`py-2.5 text-right font-mono tabular-nums ${dimmedClass}`}>
+      <td className={`py-2.5 text-right font-mono text-main tabular-nums ${dimmedClass}`}>
         {/* 開始・終了時刻のインライン修正（F-203）。未打刻のタスクは編集させない */}
         {task.startedAt !== null &&
           (editingPunchAt !== null ? (

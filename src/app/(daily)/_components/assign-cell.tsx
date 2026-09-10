@@ -37,7 +37,7 @@ export function AssignCell({
   onClose,
 }: AssignCellProps) {
   return (
-    <td className={`relative py-2.5 text-sm ${toDimmedClass(isDimmed)}`}>
+    <td className={`relative py-2.5 text-sub ${toDimmedClass(isDimmed)}`}>
       <button
         type="button"
         onClick={onOpen}

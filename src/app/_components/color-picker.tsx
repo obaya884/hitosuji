@@ -85,7 +85,7 @@ export function ColorBarButton({
       >
         <ColorSwatch color={color} size={size} />
       </button>
-      {showName && <span className="text-sm text-ink-muted">{colorPresetName(color)}</span>}
+      {showName && <span className="text-sub text-ink-muted">{colorPresetName(color)}</span>}
       {isOpen && <ColorPickerPopover selected={color} onSelect={onSelect} onClose={onClose} />}
     </span>
   );

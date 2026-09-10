@@ -4,7 +4,7 @@ import { MasterTabs } from "./_components/master-tabs";
 export default function MastersLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <>
-      <h1 className="text-lg font-bold">マスタ管理</h1>
+      <h1 className="text-heading font-bold">マスタ管理</h1>
       <MasterTabs />
       {children}
     </>

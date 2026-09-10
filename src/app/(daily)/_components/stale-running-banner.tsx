@@ -16,7 +16,7 @@ export function StaleRunningBanner({ task }: Props) {
     <div className={`mt-3 ${noticeDanger}`}>
       前日以前の実行中タスクがあります:{" "}
       <span className="font-medium">{task.name}</span>
-      <span className="ml-2 font-mono text-xs tabular-nums">
+      <span className="ml-2 font-mono text-meta tabular-nums">
         {formatLogicalDate(task.taskDate, weekdayIndex(task.taskDate))}
         {task.startedAt !== null && ` ${formatClock(task.startedAt)}〜`}
       </span>

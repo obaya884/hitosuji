@@ -96,7 +96,7 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
   return (
     <div
       ref={ref}
-      className={`absolute right-0 z-10 w-64 space-y-2 p-3 text-left text-sm ${positionClass} ${floatPanel}`}
+      className={`absolute right-0 z-10 w-64 space-y-2 p-3 text-left text-sub ${positionClass} ${floatPanel}`}
     >
       <p className="font-medium">ルーチン化</p>
 
@@ -107,7 +107,7 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
             type="button"
             onClick={() => updateChoice({ recurrenceType: type })}
             aria-pressed={choice.recurrenceType === type}
-            className={`rounded-control border px-2 py-1 text-xs ${
+            className={`rounded-control border px-2 py-1 text-meta ${
               choice.recurrenceType === type
                 ? "border-accent bg-accent-weak font-medium"
                 : "border-line hover:bg-accent-weak"
@@ -128,7 +128,7 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
                 key={preset.label}
                 type="button"
                 onClick={() => updateChoice({ weekdays: preset.mask })}
-                className="rounded-control border border-line px-2 py-1 text-xs hover:bg-accent-weak"
+                className="rounded-control border border-line px-2 py-1 text-meta hover:bg-accent-weak"
               >
                 {preset.label}
               </button>
@@ -143,7 +143,7 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
                   updateChoice({ weekdays: toggleWeekday(choice.weekdays ?? 0, bit) })
                 }
                 aria-pressed={((choice.weekdays ?? 0) & (1 << bit)) !== 0}
-                className={`h-6 w-6 rounded-control border text-xs ${
+                className={`h-6 w-6 rounded-control border text-meta ${
                   ((choice.weekdays ?? 0) & (1 << bit)) !== 0
                     ? "border-accent bg-accent-weak font-medium"
                     : "border-line hover:bg-accent-weak"
@@ -164,7 +164,7 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
               onChange={(e) => updateChoice({ weekInterval: Number(e.target.value) })}
               className={`w-14 ${inputBase}`}
             />
-            <span className="text-xs text-ink-muted">週おき（1=毎週）</span>
+            <span className="text-meta text-ink-muted">週おき（1=毎週）</span>
           </label>
         </div>
       )}
@@ -180,7 +180,7 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
             onChange={(e) => updateChoice({ monthDay: Number(e.target.value) })}
             className={`w-16 ${inputBase}`}
           />
-          <span className="text-xs text-ink-muted">月末超過は月末に丸めます</span>
+          <span className="text-meta text-ink-muted">月末超過は月末に丸めます</span>
         </label>
       )}
 
@@ -213,15 +213,15 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
           className={`w-20 font-mono tabular-nums ${inputBase}`}
         />
         {derivedSection !== undefined && (
-          <span className="text-xs text-ink-muted">({derivedSection.name})</span>
+          <span className="text-meta text-ink-muted">({derivedSection.name})</span>
         )}
       </label>
 
-      {error !== null && <p className="text-xs text-danger">{error}</p>}
+      {error !== null && <p className="text-meta text-danger">{error}</p>}
 
       <div className="flex items-center justify-between pt-1">
         {/* 元タスクは今日のリストに既にあるため、展開は翌日から（§4.1） */}
-        <span className="text-xs text-ink-muted">明日から展開</span>
+        <span className="text-meta text-ink-muted">明日から展開</span>
         <button type="button" onClick={submit} className={btnPrimary}>
           作成
         </button>

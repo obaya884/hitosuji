@@ -49,12 +49,12 @@ export function TableFrame({
   return (
     <section className="mt-4">
       <div className="flex items-center">
-        {description !== undefined && <p className="text-xs text-ink-muted">{description}</p>}
+        {description !== undefined && <p className="text-meta text-ink-muted">{description}</p>}
         {/* ml-auto は本数とボタンをまとめた側に置く（説明文・本数の有無に関わらず右端が動かない） */}
         <div className="ml-auto flex shrink-0 items-center gap-3">
           {/* 本数は増減するので tabular-nums で桁幅を止める（レビューのサマリ・タスク進捗と同じ） */}
           {countLabel !== undefined && (
-            <p className="text-xs text-ink-muted tabular-nums">{countLabel}</p>
+            <p className="text-meta text-ink-muted tabular-nums">{countLabel}</p>
           )}
           <button
             onClick={onAddNew}
