@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { CheckIcon } from "@/app/_components/icons";
 import { isOperableKeyEvent } from "@/app/_lib/keyboard";
-import { floatPanel } from "@/app/_lib/ui";
+import { floatPanel, hoverSurface } from "@/app/_lib/ui";
 import { useDismiss } from "@/app/_lib/use-dismiss";
 import { useFlipUp } from "@/app/_lib/use-flip-up";
 import { revealedScrollTop } from "../_lib/popover-scroll";
@@ -119,7 +119,7 @@ export function SelectPopover({ options, selectedId, onSelect, onClose }: Props)
                 onSelect(option.id);
                 onClose();
               }}
-              className={`flex w-full items-center gap-2 px-3 py-1 text-left text-sub hover:bg-accent-weak ${
+              className={`flex w-full items-center gap-2 px-3 py-1 text-left text-sub ${hoverSurface} ${
                 index === activeIndex ? "bg-accent-weak" : ""
               } ${isCurrentValue ? "font-medium" : ""}`}
             >

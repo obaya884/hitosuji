@@ -16,22 +16,47 @@ export const BODY_TEXT_STEPS = ["text-main", "text-sub", "text-meta"] as const;
 
 export type BodyTextStep = (typeof BODY_TEXT_STEPS)[number];
 
-export const btnPrimary =
-  "rounded-control bg-accent px-3 py-1 text-sub font-medium text-white hover:bg-accent-hover disabled:hover:bg-accent";
+// ホバーの合図の断片（00_共通 §2.5）。**下の部品定数に載らない押せる要素**——一覧の名前・
+// 列見出し・ポップオーバーの候補・日付ピッカーの日など、それぞれ固有のクラスを持つもの——が
+// 自分のクラスに足して使う。`linkAccent` のような完成品を当てると色やサイズまで上書きして
+// しまうため、合図だけを切り出してある。**直書きは `eslint.config.mjs` が禁じている**。
+// アイコン・ナビはここに無い（同書 §2.5・lint の対象外）。
+//
+// `disabled:` を必ず組にしているのは、保存中の一時的な無効では**合図を出さないだけ**にする
+// 規約を押せる要素すべてで満たすため。無効にならない要素に載っても効かないが、あとから
+// `disabled` を足したときに追随を忘れずに済む。
 
+/** 語の合図: 下線を出す。文字色は変えない */
+export const hoverWord = "hover:underline disabled:no-underline";
+
+/**
+ * 面の合図: 弱いアクセント面を敷く。保存中は敷かない。
+ * **無効になりうる要素では、地色を持たないこと**——戻し先が `transparent` なので、
+ * 地色を持つ要素に付けると無効時のホバーでその地色まで消える。地色を持つ要素を無効にするなら
+ * 下の `hoverSurfaceOnAccent` か、戻し先を自分で書く（`btnSecondary` がその形）
+ */
+export const hoverSurface = "hover:bg-accent-weak disabled:hover:bg-transparent";
+
+/** `bg-accent` を持つ面の合図: 地色を一段濃くし、保存中は元の地色へ戻す */
+export const hoverSurfaceOnAccent = "hover:bg-accent-hover disabled:hover:bg-accent";
+
+export const btnPrimary = `rounded-control bg-accent px-3 py-1 text-sub font-medium text-white ${hoverSurfaceOnAccent}`;
+
+// 戻し先が `bg-surface`（自分の地色）なので上の断片に載らない——`hoverSurface` は
+// 地色を持たない要素向けで、当てると無効時のホバーで地色が消える
 export const btnSecondary =
   "rounded-control border border-line bg-surface px-3 py-1 text-sub text-ink hover:bg-accent-weak disabled:hover:bg-surface";
 
 // 部品（リンク状のボタン・入力欄）は本文のサイズを継承させず自分で持つ
 // ——本文は見出し/主/従/メタの4段（00_共通 §1.1）だが、部品はその外側なので継承すると置かれた場所で大小が変わる
-export const linkAccent = "text-sub text-accent hover:underline disabled:no-underline";
+export const linkAccent = `text-sub text-accent ${hoverWord}`;
 
 // 副次的な操作リンク（アーカイブ・復元・外す等）。色は地味なままホバーでは下線を出す
 // ——地の色が薄いぶん色の変化量が小さく、押せることの合図として弱いため（FB-100）
-export const linkMuted = "text-sub text-ink-muted hover:underline disabled:no-underline";
+export const linkMuted = `text-sub text-ink-muted ${hoverWord}`;
 
 // 取り消せない操作（マスタの物理削除）の確定ボタン
-export const linkDanger = "text-sub text-danger hover:underline disabled:no-underline";
+export const linkDanger = `text-sub text-danger ${hoverWord}`;
 
 // 恒久的な無効（いまの状態では押せない）の薄さ（00_共通 §2.5）。
 // **`disabled:` の擬似クラスでは使わない**——同じ属性に保存中の無効も乗るため書き分けられない

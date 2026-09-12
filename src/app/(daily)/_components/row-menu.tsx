@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { EllipsisIcon } from "@/app/_components/icons";
-import { disabledPermanent, floatPanel } from "@/app/_lib/ui";
+import { disabledPermanent, floatPanel, hoverSurface } from "@/app/_lib/ui";
 import { useDismiss } from "@/app/_lib/use-dismiss";
 import { useFlipUp } from "@/app/_lib/use-flip-up";
 
@@ -54,7 +54,7 @@ export function RowMenu({ items }: Readonly<{ items: readonly RowMenuItem[] }>) 
               }}
               // 項目の無効はすべて恒久的（ルーチン由来はルーチン化不可・中断は実行中のみ 等。
               // 一覧は `task-row.tsx`）なので条件で薄さを当てる（00_共通 §2.5）
-              className={`block w-full px-3 py-1 text-left text-sub text-ink hover:bg-accent-weak disabled:hover:bg-transparent ${
+              className={`block w-full px-3 py-1 text-left text-sub text-ink ${hoverSurface} ${
                 item.disabled === true ? disabledPermanent : ""
               }`}
             >

@@ -15,7 +15,7 @@ import { dateHref, DAILY_PATH, REVIEW_PATH } from "@/app/_lib/date-href";
 import { formatClock, formatDuration, formatSignedDuration } from "@/app/_lib/format";
 import { isGlobalShortcutEvent } from "@/app/_lib/keyboard";
 import { modeAppearance } from "@/app/_lib/mode-appearance";
-import { tableHeadRow } from "@/app/_lib/ui";
+import { hoverWord, tableHeadRow } from "@/app/_lib/ui";
 import { UNSET_GROUP_LABEL } from "@/app/_lib/unset";
 
 /**
@@ -197,7 +197,7 @@ function LogRow({
               </span>
             )}
             {/* 修正は S-01 の過去日表示で行う（O-2 / §1）。モード色を消さないよう下線のみで示す */}
-            <Link href={dateHref(DAILY_PATH, date)} className="hover:underline">
+            <Link href={dateHref(DAILY_PATH, date)} className={hoverWord}>
               {task.name}
             </Link>
           </div>

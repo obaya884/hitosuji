@@ -14,7 +14,7 @@ import {
 import { ColorSwatch } from "@/app/_components/color-picker";
 import { sectionAt, type Section } from "@/domain/section/section";
 import { useServerAction } from "@/app/_lib/use-server-action";
-import { linkAccent, linkMuted, tableHeadRow } from "@/app/_lib/ui";
+import { hoverWord, linkAccent, linkMuted, tableHeadRow } from "@/app/_lib/ui";
 import { DurationValue } from "@/app/_components/duration-value";
 import { TableFrame } from "@/app/_components/table-frame";
 import { UnsetMark } from "@/app/_components/unset-mark";
@@ -66,7 +66,7 @@ function SortableHeader({
       className="py-2 font-normal"
     >
       {/* 列見出しは語そのものが押せるので下線で示す（00_共通 §2.5） */}
-      <button type="button" onClick={() => onSort(sortKey)} className="hover:underline">
+      <button type="button" onClick={() => onSort(sortKey)} className={hoverWord}>
         {label}
         <span className={isActive ? "ml-1" : "ml-1 invisible"} aria-hidden>
           {isActive && sort.direction === "desc" ? "▼" : "▲"}

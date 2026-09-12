@@ -1,7 +1,7 @@
 "use client";
 
 import { useDismiss } from "@/app/_lib/use-dismiss";
-import { floatPanel } from "@/app/_lib/ui";
+import { floatPanel, hoverWord } from "@/app/_lib/ui";
 import { SHORTCUTS } from "../_lib/shortcuts";
 
 type Props = Readonly<{ onClose: () => void }>;
@@ -22,7 +22,7 @@ export function ShortcutHelp({ onClose }: Props) {
       >
         <div className="flex items-baseline justify-between">
           <h2 className="text-sub font-medium">キーボードショートカット</h2>
-          <button type="button" onClick={onClose} className="text-meta text-ink-muted hover:underline">
+          <button type="button" onClick={onClose} className={`text-meta text-ink-muted ${hoverWord}`}>
             閉じる（Esc）
           </button>
         </div>

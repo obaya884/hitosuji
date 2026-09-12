@@ -15,7 +15,7 @@ import type { Bundle } from "@/domain/bundle/bundle";
 import type { Mode } from "@/domain/mode/mode";
 import { describeRecurrence, type Routine, type RoutineId } from "@/domain/routine/routine";
 import { bundleCandidates, bundleMembers } from "@/domain/bundle/members";
-import { linkAccent, linkMuted, noticeDanger, tableHeadRow } from "@/app/_lib/ui";
+import { hoverSurface, hoverWord, linkAccent, linkMuted, noticeDanger, tableHeadRow } from "@/app/_lib/ui";
 import { useDismiss } from "@/app/_lib/use-dismiss";
 import type { useServerActionRunner } from "@/app/_lib/use-server-action";
 import { DurationValue } from "@/app/_components/duration-value";
@@ -107,7 +107,7 @@ export function BundleMembersTable({
                   className={`border-b border-line ${member.isActive ? "" : "text-ink-faint"}`}
                 >
                   <td className="py-2 text-main">
-                    <Link href={`/routines?edit=${member.id}`} className="hover:underline">
+                    <Link href={`/routines?edit=${member.id}`} className={hoverWord}>
                       {member.name}
                     </Link>
                   </td>
@@ -156,7 +156,7 @@ export function BundleMembersTable({
                     type="button"
                     onClick={() => addMember(candidate.id)}
                     disabled={isPending}
-                    className="flex w-full items-center justify-between gap-3 px-2 py-1 text-left text-sub hover:bg-accent-weak disabled:hover:bg-transparent"
+                    className={`flex w-full items-center justify-between gap-3 px-2 py-1 text-left text-sub ${hoverSurface}`}
                   >
                     <span>{candidate.name}</span>
                     <span className="font-mono text-ink-muted">

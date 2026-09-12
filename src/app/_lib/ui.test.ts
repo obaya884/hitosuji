@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import * as ui from "./ui";
-import { BODY_TEXT_STEPS, disabledPermanent, linkAccent, linkMuted } from "./ui";
+import { BODY_TEXT_STEPS, disabledPermanent, hoverSurface, hoverSurfaceOnAccent } from "./ui";
 
 /**
  * 名前の接頭辞で対象を引く（`link*` = 語のリンク / `btn*` = 面のボタン）。手書きの一覧に
@@ -24,6 +24,9 @@ function classConstants(pick: (entry: [string, string]) => boolean): [string, st
 
 const wordLinks = constantsNamed("link");
 const surfaceButtons = constantsNamed("btn");
+// 合図の断片も**接頭辞で引く**（`link*` / `btn*` と同じ流儀）。断片を足せば自動で検査に載る
+const wordSignals = constantsNamed("hoverWord");
+const surfaceSignals = constantsNamed("hoverSurface");
 
 /**
  * 部品が自分の文字サイズを持っていることを固定する（画面定義書00_共通 §1.1「対象外」）。
@@ -43,6 +46,9 @@ const SIZELESS = {
   tableHeadRule: "罫線だけを持つ",
   disabledPermanent: "濃さだけを持つ",
   bottomCenterStack: "置き場所だけを持つ",
+  hoverWord: "ホバーの合図だけを持つ（載せる要素が自分の段を持つ）",
+  hoverSurface: "ホバーの合図だけを持つ（載せる要素が自分の段を持つ）",
+  hoverSurfaceOnAccent: "ホバーの合図だけを持つ（載せる要素が自分の段を持つ）",
 };
 
 describe("ui のクラス定数（画面定義書00_共通 §1.1: 対象外の部品は自分のサイズを自分で持つ）", () => {
@@ -55,6 +61,11 @@ describe("ui のクラス定数（画面定義書00_共通 §1.1: 対象外の�
       expect(className.split(" ").filter((c) => steps.includes(c))).toHaveLength(1);
     }
   );
+
+  it("SIZELESS の名前はすべて実在する（改名・削除でこの検査が空振りしない）", () => {
+    const defined = classConstants(() => true).map(([name]) => name);
+    expect(Object.keys(SIZELESS).filter((name) => !defined.includes(name))).toEqual([]);
+  });
 
   it.each(Object.entries(SIZELESS))("%s はサイズを持たないのが正しい（%s）", (name) => {
     const [, className] = classConstants(([n]) => n === name)[0];
@@ -70,13 +81,15 @@ describe("ui のクラス定数（画面定義書00_共通 §1.1: 対象外の�
  * 「下線と色変化を混ぜない」「保存中は合図だけ消す」という規則は動かないため。
  */
 describe("ui のクラス定数（画面定義書00_共通 §2.5: 押せること・押せないことの示し方）", () => {
-  it.each(wordLinks)("%s は語のリンクなので、ホバーで下線を出し文字色は変えない", (_n, cls) => {
+  // 部品（`link*`）と断片（`hoverWord`）に同じ規則が掛かる。`link*` は断片から組まれているので、
+  // 分けて書くと同じ主張を2回することになる
+  it.each([...wordLinks, ...wordSignals])("%s は語なので、ホバーで下線を出し文字色も面も変えない", (_n, cls) => {
     const tokens = cls.split(" ");
     expect(tokens).toContain("hover:underline");
-    expect(tokens).not.toContainEqual(expect.stringMatching(/^hover:text-/));
+    expect(tokens).not.toContainEqual(expect.stringMatching(/^hover:(text|bg)-/));
   });
 
-  it.each(wordLinks)("%s は保存中の無効でホバーの合図だけを消し、濃淡は変えない", (_n, cls) => {
+  it.each([...wordLinks, ...wordSignals])("%s は保存中の無効でホバーの合図だけを消し、濃淡は変えない", (_n, cls) => {
     const tokens = cls.split(" ");
     expect(tokens).toContain("disabled:no-underline");
     expect(tokens).not.toContainEqual(expect.stringMatching(/^disabled:(opacity-|text-)/));
@@ -95,6 +108,43 @@ describe("ui のクラス定数（画面定義書00_共通 §2.5: 押せるこ�
     const tokens = cls.split(" ");
     expect(tokens).not.toContain("hover:underline");
     expect(tokens).not.toContainEqual(expect.stringMatching(/^disabled:(opacity-|text-)/));
+  });
+
+  // 面の断片。`btn*` と違い**自分では地色を持たない**ので、戻し先を自分からは導けない
+  // （`btn*` の検査が見ている「元の地色へ戻す」はここでは掛けられない）
+  it.each(surfaceSignals)("%s は面の合図なので、背景で示し下線は出さない", (_n, cls) => {
+    const tokens = cls.split(" ");
+    expect(tokens).toContainEqual(expect.stringMatching(/^hover:bg-/));
+    expect(tokens).toContainEqual(expect.stringMatching(/^disabled:hover:bg-/));
+    expect(tokens).not.toContain("hover:underline");
+    expect(tokens).not.toContainEqual(expect.stringMatching(/^disabled:(opacity-|text-)/));
+  });
+
+  // 断片は**素の見た目を持たない**のが定義。混ざると常時その見た目になり、載せた全要素へ漏れる
+  // （素の `underline` を混ぜれば例外1 の見せ方が全画面の語リンクへ広がる）
+  it.each([...wordSignals, ...surfaceSignals])("%s は合図だけを持つ", (_n, cls) => {
+    expect(cls.split(" ").filter((token) => !/^(?:hover|disabled):/.test(token))).toEqual([]);
+  });
+
+  // 戻し先は断片ごとに一意に決まる（`ui.ts` が適用条件を書いている）。**在ることだけを見ると、
+  // 保存中のホバーで面が出る／地色が消える、という条項の逆をやっても緑で通る**
+  it("hoverSurface は地色を持たない要素向けなので、保存中は面を出さない", () => {
+    expect(hoverSurface.split(" ")).toContain("disabled:hover:bg-transparent");
+  });
+
+  it("hoverSurfaceOnAccent は bg-accent の面向けなので、保存中は元の地色へ戻す", () => {
+    expect(hoverSurfaceOnAccent.split(" ")).toContain("disabled:hover:bg-accent");
+  });
+
+  // §1.1 側の `SIZELESS` と同じ役目。**接頭辞は手書きなので、そこから外れた定数は
+  // どの it.each にも載らず無検査になる**（`menuItem = "... hover:bg-accent-weak"` のような形）
+  it("ホバーの合図を持つ定数は、必ず語か面のどちらかの検査に載る", () => {
+    const covered = ["link", "btn", "hoverWord", "hoverSurface"];
+    const uncovered = classConstants(([, cls]) => cls.includes("hover:"))
+      .filter(([name]) => !covered.some((prefix) => name.startsWith(prefix)))
+      .map(([name]) => name);
+
+    expect(uncovered).toEqual([]);
   });
 
   it("恒久的な無効は不透明度だけで表す（文字色を流用せず、擬似クラスにも載せない）", () => {

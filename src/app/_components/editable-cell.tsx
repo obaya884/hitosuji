@@ -5,7 +5,7 @@
 // ここへ寄せる（T-44）。表に残るのは「何を送るか」の配線だけ。
 import type { ReactNode } from "react";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
-import { inputBase } from "@/app/_lib/ui";
+import { hoverWord, inputBase } from "@/app/_lib/ui";
 
 /** インライン編集で扱う値の種類。見た目（幅・字面）はここから導く */
 export type InlineInputType = "text" | "time";
@@ -55,7 +55,7 @@ export function EditableCell({
         onClick={onStartEditing}
         className={`${
           type === "time" ? "font-mono tabular-nums" : "text-left"
-        } hover:underline disabled:no-underline`}
+        } ${hoverWord}`}
       >
         {display ?? value}
       </button>
