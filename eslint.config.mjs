@@ -102,46 +102,76 @@ const toPattern = (words) =>
 const LOOSE = toPattern(UNSET_WORDS_LOOSE);
 const EXACT = toPattern(UNSET_WORDS_EXACT);
 
-const unsetVocabularyConfig = {
+/**
+ * ホバーの合図（00_共通 §2.5）を直書きさせない（T-134）。定数に載ったものは `ui.test.ts` が
+ * 守るが、**定数を経由しない直書きは誰も見ていなかった**。
+ *
+ * 禁じるのは**畳めるもの**だけ——語の下線・面の背景・`disabled:` の打ち消しは `ui.ts` の
+ * 定数に持てる。`hover:text-` / `hover:border-` は挙げていない: アイコン・ナビゲーションは
+ * 置かれた面ごとに地の色が違い1つに畳めないので、条項が「定数化せず個別に書く」と決めている。
+ */
+const HOVER_SIGNAL = "hover:(?:no-)?underline|hover:bg-|disabled:";
+
+const HOVER_SIGNAL_MESSAGE =
+  "ホバーの合図と保存中の無効は直書きせず src/app/_lib/ui.ts の定数（hoverWord / hoverSurface / hoverSurfaceStrong、または link* / btn*）を使ってください（画面定義書00_共通 §2.5）";
+
+const hoverSignalRules = [
+  { selector: `Literal[value=/${HOVER_SIGNAL}/]`, message: HOVER_SIGNAL_MESSAGE },
+  { selector: `TemplateElement[value.raw=/${HOVER_SIGNAL}/]`, message: HOVER_SIGNAL_MESSAGE },
+];
+
+const unsetVocabularyRules = [
+  // 文字列として書いた場合（`label: "未設定"` / `aria-label="モード（未設定）"` 等）。
+  // 正規表現の属性マッチは文字列値にしか当たらないので、数値リテラルには誤爆しない
+  { selector: `Literal[value=/${LOOSE}/]`, message: UNSET_VOCABULARY_MESSAGE },
+  { selector: `Literal[value=/^(${EXACT})$/]`, message: UNSET_VOCABULARY_MESSAGE },
+  // JSX の子として書いた場合（`<option value="">なし</option>`＝FB-57 の実際の犯人）。
+  // 文字列リテラルではないので上のセレクタでは捕まらない
+  { selector: `JSXText[value=/${LOOSE}/]`, message: UNSET_VOCABULARY_MESSAGE },
+  { selector: `JSXText[value=/^\\s*(${EXACT})\\s*$/]`, message: UNSET_VOCABULARY_MESSAGE },
+  // テンプレートリテラルに埋め込んだ場合（`` `${label}（未設定）` ``＝読み上げ語の組み立て。
+  // FB-57 の現場そのものの形なので、ここをコピーした新しいセルが最も踏みやすい）
+  { selector: `TemplateElement[value.raw=/${LOOSE}/]`, message: UNSET_VOCABULARY_MESSAGE },
+
+  // 以下は**語ではなく形**で縛る。FB-57 の実際の壊れ方は既存の語のコピーではなく
+  // **その場での発明**（「なし」「モードなし」「プロジェクトなし」が別々に生えた）で、
+  // 語のリストではリストに無い語（「設定なし」等）を止められないため。
+  {
+    selector:
+      'ObjectExpression:has(Property[key.name="id"][value.raw="null"]) > Property[key.name="label"] > Literal',
+    message: `未設定の候補（id: null）のラベルは直書きせず ${"src/app/_lib/unset.ts"} の定数を使ってください（画面定義書00_共通 §2.4）`,
+  },
+  {
+    selector:
+      'JSXElement[openingElement.name.name="option"]:has(JSXAttribute[name.name="value"][value.value=""]) > JSXText',
+    message:
+      "未設定へ戻す <option> のラベルは直書きせず src/app/_lib/unset.ts の定数を使ってください（画面定義書00_共通 §2.4）",
+  },
+];
+
+// ESLint は rule options をマージせず上書きするので、**同じファイルに掛かる no-restricted-syntax は
+// 1つの配列でなければならない**（別 config を重ねると消える）。適用範囲がファイル単位で分かれるため、
+// 規則は配列として持ち、config ごとに組み替える。**規則を足すときは上のどちらかの配列へ足す**
+const appRestrictedSyntaxConfig = {
   files: ["src/app/**/*.ts", "src/app/**/*.tsx"],
   ignores: [
     "src/app/_lib/unset.ts",
+    // 合図の定数そのものを持つ場所。未設定の規則は掛けたいので、下の config で掛け直す
+    "src/app/_lib/ui.ts",
     "src/app/**/*.test.ts",
     "src/app/**/*.test.tsx",
     "src/app/**/_testing/**",
   ],
-  // ESLint は rule options をマージせず上書きするので、`src/app` の no-restricted-syntax は
-  // ここが占有する。別の構文規制を足すときはこの配列へ足す（別 config を重ねると消える）
   rules: {
-    "no-restricted-syntax": [
-      "error",
-      // 文字列として書いた場合（`label: "未設定"` / `aria-label="モード（未設定）"` 等）。
-      // 正規表現の属性マッチは文字列値にしか当たらないので、数値リテラルには誤爆しない
-      { selector: `Literal[value=/${LOOSE}/]`, message: UNSET_VOCABULARY_MESSAGE },
-      { selector: `Literal[value=/^(${EXACT})$/]`, message: UNSET_VOCABULARY_MESSAGE },
-      // JSX の子として書いた場合（`<option value="">なし</option>`＝FB-57 の実際の犯人）。
-      // 文字列リテラルではないので上のセレクタでは捕まらない
-      { selector: `JSXText[value=/${LOOSE}/]`, message: UNSET_VOCABULARY_MESSAGE },
-      { selector: `JSXText[value=/^\\s*(${EXACT})\\s*$/]`, message: UNSET_VOCABULARY_MESSAGE },
-      // テンプレートリテラルに埋め込んだ場合（`` `${label}（未設定）` ``＝読み上げ語の組み立て。
-      // FB-57 の現場そのものの形なので、ここをコピーした新しいセルが最も踏みやすい）
-      { selector: `TemplateElement[value.raw=/${LOOSE}/]`, message: UNSET_VOCABULARY_MESSAGE },
+    "no-restricted-syntax": ["error", ...unsetVocabularyRules, ...hoverSignalRules],
+  },
+};
 
-      // 以下は**語ではなく形**で縛る。FB-57 の実際の壊れ方は既存の語のコピーではなく
-      // **その場での発明**（「なし」「モードなし」「プロジェクトなし」が別々に生えた）で、
-      // 語のリストではリストに無い語（「設定なし」等）を止められないため。
-      {
-        selector:
-          'ObjectExpression:has(Property[key.name="id"][value.raw="null"]) > Property[key.name="label"] > Literal',
-        message: `未設定の候補（id: null）のラベルは直書きせず ${"src/app/_lib/unset.ts"} の定数を使ってください（画面定義書00_共通 §2.4）`,
-      },
-      {
-        selector:
-          'JSXElement[openingElement.name.name="option"]:has(JSXAttribute[name.name="value"][value.value=""]) > JSXText',
-        message:
-          "未設定へ戻す <option> のラベルは直書きせず src/app/_lib/unset.ts の定数を使ってください（画面定義書00_共通 §2.4）",
-      },
-    ],
+// `ui.ts` はホバーの合図の置き場そのものなので、そこだけ合図の規則を外す
+const uiRestrictedSyntaxConfig = {
+  files: ["src/app/_lib/ui.ts"],
+  rules: {
+    "no-restricted-syntax": ["error", ...unsetVocabularyRules],
   },
 };
 
@@ -172,7 +202,8 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   ...layerRules,
-  unsetVocabularyConfig,
+  appRestrictedSyntaxConfig,
+  uiRestrictedSyntaxConfig,
   unsetMarkRenderingConfig,
   // Override default ignores of eslint-config-next.
   globalIgnores([

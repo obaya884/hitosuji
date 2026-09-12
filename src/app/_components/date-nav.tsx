@@ -7,7 +7,7 @@ import { ChevronLeftIcon, ChevronRightIcon } from "@/app/_components/icons";
 import { DatePicker } from "@/app/_components/date-picker";
 import { dateHref } from "@/app/_lib/date-href";
 import { formatLogicalDate } from "@/app/_lib/format";
-import { btnSecondary } from "@/app/_lib/ui";
+import { btnSecondary, hoverSurface } from "@/app/_lib/ui";
 
 type Props = Readonly<{
   date: string;
@@ -49,7 +49,7 @@ export function DateNav({ date, weekday, isToday, basePath, picker }: Props) {
             onClick={() => picker.onOpenChange(!picker.open)}
             aria-haspopup="dialog"
             aria-expanded={picker.open}
-            className="rounded-control px-2 py-1 font-mono text-sub font-medium tabular-nums hover:bg-accent-weak"
+            className={`rounded-control px-2 py-1 font-mono text-sub font-medium tabular-nums ${hoverSurface}`}
           >
             {label}
           </button>

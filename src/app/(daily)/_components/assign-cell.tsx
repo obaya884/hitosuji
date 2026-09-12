@@ -3,6 +3,7 @@
 import { UnsetMark } from "@/app/_components/unset-mark";
 import { toDimmedClass } from "@/app/_lib/mode-appearance";
 import { UNSET_LABEL } from "@/app/_lib/unset";
+import { hoverWord } from "@/app/_lib/ui";
 import { SelectPopover, type PopoverOption } from "./select-popover";
 
 export type AssignCellProps = Readonly<{
@@ -42,7 +43,7 @@ export function AssignCell({
         type="button"
         onClick={onOpen}
         aria-label={`${label}（${name ?? UNSET_LABEL}）`}
-        className="block max-w-full truncate text-left hover:underline"
+        className={`block max-w-full truncate text-left ${hoverWord}`}
       >
         {name ?? <UnsetMark />}
       </button>

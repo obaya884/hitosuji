@@ -52,6 +52,9 @@ export function Toast({
         <button
           type="button"
           onClick={onAction}
+          // 濃い地色の上では色の変化が読み取れないので、常時下線を出してホバーで外す。
+          // 1か所しか無いので定数にせず、ここで条項を引く
+          // eslint-disable-next-line no-restricted-syntax -- 00_共通 §2.5 例外1
           className="font-medium text-white underline hover:no-underline"
         >
           {actionLabel}

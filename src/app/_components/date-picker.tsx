@@ -11,7 +11,7 @@ import {
 } from "@/domain/shared/month-grid";
 import { ChevronLeftIcon, ChevronRightIcon } from "@/app/_components/icons";
 import { isOperableKeyEvent } from "@/app/_lib/keyboard";
-import { floatPanel } from "@/app/_lib/ui";
+import { floatPanel, hoverSurface } from "@/app/_lib/ui";
 import { useDismiss } from "@/app/_lib/use-dismiss";
 import { useFlipUp } from "@/app/_lib/use-flip-up";
 
@@ -100,7 +100,7 @@ export function DatePicker({ date, today, onSelect, onClose }: Props) {
           type="button"
           aria-label="前月"
           onClick={() => setFocused((d) => shiftMonthKeepingDay(d, -1))}
-          className="rounded-control p-1 text-ink-muted hover:bg-accent-weak"
+          className={`rounded-control p-1 text-ink-muted ${hoverSurface}`}
         >
           <ChevronLeftIcon className="h-3 w-3" />
         </button>
@@ -111,7 +111,7 @@ export function DatePicker({ date, today, onSelect, onClose }: Props) {
           type="button"
           aria-label="翌月"
           onClick={() => setFocused((d) => shiftMonthKeepingDay(d, 1))}
-          className="rounded-control p-1 text-ink-muted hover:bg-accent-weak"
+          className={`rounded-control p-1 text-ink-muted ${hoverSurface}`}
         >
           <ChevronRightIcon className="h-3 w-3" />
         </button>
@@ -140,7 +140,7 @@ export function DatePicker({ date, today, onSelect, onClose }: Props) {
               type="button"
               aria-current={isSelected ? "date" : undefined}
               onClick={() => onSelect(cell)}
-              className={`m-0.5 h-8 rounded-control text-sub tabular-nums hover:bg-accent-weak ${
+              className={`m-0.5 h-8 rounded-control text-sub tabular-nums ${hoverSurface} ${
                 isSelected
                   ? "bg-accent font-medium text-white"
                   : isToday

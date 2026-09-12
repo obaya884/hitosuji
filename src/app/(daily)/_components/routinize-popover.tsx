@@ -17,7 +17,7 @@ import type { Section } from "@/domain/section/section";
 import type { Task } from "@/domain/task/task";
 import { routineFromTaskErrorMessage } from "@/app/_lib/error-messages";
 import { formatClock, normalizeClockInput } from "@/app/_lib/format";
-import { btnPrimary, floatPanel, inputBase } from "@/app/_lib/ui";
+import { btnPrimary, floatPanel, hoverSurface, inputBase } from "@/app/_lib/ui";
 import { useDismiss } from "@/app/_lib/use-dismiss";
 import { useFlipUp } from "@/app/_lib/use-flip-up";
 
@@ -110,7 +110,7 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
             className={`rounded-control border px-2 py-1 text-meta ${
               choice.recurrenceType === type
                 ? "border-accent bg-accent-weak font-medium"
-                : "border-line hover:bg-accent-weak"
+                : `border-line ${hoverSurface}`
             }`}
           >
             {RECURRENCE_LABELS[type]}
@@ -128,7 +128,7 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
                 key={preset.label}
                 type="button"
                 onClick={() => updateChoice({ weekdays: preset.mask })}
-                className="rounded-control border border-line px-2 py-1 text-meta hover:bg-accent-weak"
+                className={`rounded-control border border-line px-2 py-1 text-meta ${hoverSurface}`}
               >
                 {preset.label}
               </button>
@@ -146,7 +146,7 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
                 className={`h-6 w-6 rounded-control border text-meta ${
                   ((choice.weekdays ?? 0) & (1 << bit)) !== 0
                     ? "border-accent bg-accent-weak font-medium"
-                    : "border-line hover:bg-accent-weak"
+                    : `border-line ${hoverSurface}`
                 }`}
               >
                 {label}

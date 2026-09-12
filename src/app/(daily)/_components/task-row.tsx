@@ -13,7 +13,7 @@ import { CheckIcon, CommentIcon, PlayIcon, StarIcon, StopIcon } from "@/app/_com
 import { formatClock, formatDuration } from "@/app/_lib/format";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { modeAppearance } from "@/app/_lib/mode-appearance";
-import { disabledPermanent, inputBase } from "@/app/_lib/ui";
+import { disabledPermanent, hoverSurfaceOnAccent, hoverWord, inputBase } from "@/app/_lib/ui";
 import { UNCATEGORIZED_LABEL } from "@/app/_lib/unset";
 import { showsCommentRow, type EditField } from "../_lib/editing";
 import { toModeOptions, toProjectOptions } from "../_lib/master-options";
@@ -176,7 +176,7 @@ export function TaskRow({
             }
             className={`flex h-7 w-7 items-center justify-center rounded-full ${
               status === "running"
-                ? "bg-accent text-white hover:bg-accent-hover"
+                ? `bg-accent text-white ${hoverSurfaceOnAccent}`
                 : status === "completed"
                   ? // 完了は操作なし＝恒久的な無効なので薄くする（00_共通 §2.5）
                     `text-ink-muted ${disabledPermanent}`
@@ -200,7 +200,7 @@ export function TaskRow({
           <button
             type="button"
             onClick={() => onBeginEdit(task, "name")}
-            className="text-left hover:underline"
+            className={`text-left ${hoverWord}`}
           >
             {task.name}
           </button>
@@ -215,7 +215,7 @@ export function TaskRow({
               <button
                 type="button"
                 onClick={() => onBeginEdit(task, "section")}
-                className={`hover:underline ${dimmedClass} opacity-80`}
+                className={`${hoverWord} ${dimmedClass} opacity-80`}
               >
                 {sections.find((s) => s.id === task.sectionId)?.name ?? UNCATEGORIZED_LABEL}
               </button>
@@ -289,7 +289,7 @@ export function TaskRow({
           <button
             type="button"
             onClick={() => onBeginEdit(task, "estimate")}
-            className="hover:underline"
+            className={hoverWord}
           >
             <DurationValue minutes={task.estimateMinutes} />
           </button>
@@ -328,7 +328,7 @@ export function TaskRow({
               <button
                 type="button"
                 onClick={() => onBeginEdit(task, "startedAt")}
-                className="hover:underline"
+                className={hoverWord}
               >
                 {formatClock(task.startedAt)}
               </button>
@@ -337,7 +337,7 @@ export function TaskRow({
                 <button
                   type="button"
                   onClick={() => onBeginEdit(task, "endedAt")}
-                  className="hover:underline"
+                  className={hoverWord}
                 >
                   {formatClock(task.endedAt)}
                 </button>

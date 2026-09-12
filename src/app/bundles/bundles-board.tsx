@@ -16,7 +16,7 @@
 // 画面に出す」に反する）。新しい Server Action を実行するとき（`errorSinkFor` の null）だけは
 // 無条件にクリアする——それは実際に新しい応答を待ち始める瞬間なので、古い通知を残す理由が無い
 import { useState } from "react";
-import { linkMuted } from "@/app/_lib/ui";
+import { hoverSurface, linkMuted } from "@/app/_lib/ui";
 import { useServerActionRunner } from "@/app/_lib/use-server-action";
 import type { Bundle, BundleId } from "@/domain/bundle/bundle";
 import type { Mode } from "@/domain/mode/mode";
@@ -190,7 +190,7 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
                   // 選択の当たり判定は行全体（§3.1）
                   onClick={() => setSelectedId(bundle.id)}
                   className={`cursor-pointer border-b border-line ${
-                    bundle.id === selectedBundle?.id ? "bg-accent-weak" : "hover:bg-accent-weak"
+                    bundle.id === selectedBundle?.id ? "bg-accent-weak" : hoverSurface
                   }`}
                 >
                   <td className="w-10 py-1.5 pl-1">
