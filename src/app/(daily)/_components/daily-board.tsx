@@ -623,7 +623,7 @@ export function DailyBoard({
         className="sticky top-0 z-10 -mx-6 -mt-6 bg-paper px-6 pt-6 pb-3"
       >
         {/* 画面見出し（画面定義書01 §2。S-02/S-03 と揃える） */}
-        <h1 className="mb-3 text-lg font-bold">デイリー</h1>
+        <h1 className="mb-3 text-heading font-bold">デイリー</h1>
 
         {/* 日付ナビ＋サマリ（画面定義書01 §2）。
             サマリは日付の直後へ左寄せで続ける（§3.1 / FB-22）。? だけ右端に置く */}
@@ -645,7 +645,7 @@ export function DailyBoard({
             type="button"
             onClick={() => setShowHelp(true)}
             aria-label="キーボードショートカット"
-            className="ml-auto text-xs text-ink-faint hover:text-ink"
+            className="ml-auto text-meta text-ink-faint hover:text-ink"
           >
             ?
           </button>

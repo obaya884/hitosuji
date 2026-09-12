@@ -23,7 +23,7 @@ export function DeleteButton({ onDelete, disabled }: Props) {
 
   return (
     <span className="whitespace-nowrap">
-      <span className="text-xs text-ink-muted">本当に削除？</span>
+      <span className="text-meta text-ink-muted">本当に削除？</span>
       <button
         onClick={() => {
           setConfirming(false);

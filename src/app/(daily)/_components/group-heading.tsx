@@ -62,11 +62,11 @@ export function GroupHeading({
         style={{ top }}
       >
         <span className="flex items-center gap-2">
-          <span className="text-sm font-bold tracking-wide">
+          <span className="text-sub font-bold tracking-wide">
             {group.section === null ? UNCATEGORIZED_LABEL : group.section.name}
           </span>
           {group.section !== null && (
-            <span className="font-mono text-xs text-ink-muted tabular-nums">
+            <span className="font-mono text-meta text-ink-muted tabular-nums">
               {group.section.startTime}
               {group.endTime !== null && `–${group.endTime}`}
             </span>
@@ -79,7 +79,7 @@ export function GroupHeading({
                 <TaskProgress tasks={group.tasks} />
               </span>
               {/* 時間合計（完了は実績・未完了は見積もり） / セクション枠（F-110。日付・時刻に依らず表示する） */}
-              <span className="ml-1 text-xs text-ink-muted tabular-nums">
+              <span className="ml-1 text-meta text-ink-muted tabular-nums">
                 合計{" "}
                 <span className="font-mono">
                   <DurationValue minutes={total} />
@@ -88,7 +88,7 @@ export function GroupHeading({
               </span>
               {/* 残り時間（F-110 / FB-34）: 溢れていると警告色（FB-31 / FB-32） */}
               {remaining !== null && (
-                <span className="text-xs text-ink-muted tabular-nums">
+                <span className="text-meta text-ink-muted tabular-nums">
                   残り{" "}
                   <span className={`font-mono ${remaining < 0 ? "text-danger" : ""}`}>
                     {formatSignedDuration(remaining)}

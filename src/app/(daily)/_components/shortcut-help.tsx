@@ -21,18 +21,18 @@ export function ShortcutHelp({ onClose }: Props) {
         className={`max-h-full w-full max-w-lg overflow-y-auto p-4 ${floatPanel}`}
       >
         <div className="flex items-baseline justify-between">
-          <h2 className="text-sm font-medium">キーボードショートカット</h2>
-          <button type="button" onClick={onClose} className="text-xs text-ink-muted hover:underline">
+          <h2 className="text-sub font-medium">キーボードショートカット</h2>
+          <button type="button" onClick={onClose} className="text-meta text-ink-muted hover:underline">
             閉じる（Esc）
           </button>
         </div>
-        <table className="mt-3 w-full text-sm">
+        <table className="mt-3 w-full text-sub">
           <tbody>
             {SHORTCUTS.map((shortcut) => (
               <tr key={shortcut.label} className="border-b border-line last:border-0">
                 {/* ニーモニック由来はキーの側に置く（画面定義書01 §6）。表は列幅が内容で決まる
                     ので、w-56 だけでは折り返しを止められない（FB-107 と同型）→ nowrap で確定させる */}
-                <td className="w-56 py-1 pr-2 align-top font-mono text-xs whitespace-nowrap">
+                <td className="w-56 py-1 pr-2 align-top font-mono text-meta whitespace-nowrap">
                   {shortcut.label}
                   {shortcut.mnemonic !== undefined && (
                     <span className="font-sans text-ink-muted">（{shortcut.mnemonic}）</span>

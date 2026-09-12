@@ -42,7 +42,7 @@ export function Toast({
 
   return (
     <div
-      className={`flex items-center gap-3 rounded-float px-4 py-2 text-sm text-paper shadow-float ${
+      className={`flex items-center gap-3 rounded-float px-4 py-2 text-sub text-paper shadow-float ${
         // エラーは地色で区別する（Undo の通知と同じ見た目だと失敗に気づきにくいため）
         variant === "error" ? "bg-danger" : "bg-ink"
       }`}

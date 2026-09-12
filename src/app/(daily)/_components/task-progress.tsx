@@ -1,3 +1,4 @@
+import type { BodyTextStep } from "@/app/_lib/ui";
 import type { Task } from "@/domain/task/task";
 import { taskProgress } from "@/domain/task/daily-list";
 
@@ -9,8 +10,8 @@ export function TaskProgress({
   tasks,
   barWidth = "w-20",
   /** サマリ行（§3.1）の数値は主、セクション見出し（§3.2）はメタ（00_共通 §1.1） */
-  textSize = "text-xs",
-}: Readonly<{ tasks: readonly Task[]; barWidth?: string; textSize?: string }>) {
+  textSize = "text-meta",
+}: Readonly<{ tasks: readonly Task[]; barWidth?: string; textSize?: BodyTextStep }>) {
   const { done, total } = taskProgress(tasks);
 
   return (

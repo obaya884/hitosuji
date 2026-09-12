@@ -175,7 +175,7 @@ describe("TableFrame（画面定義書02 §3 / 画面定義書03 §3・§4: 説�
       renderFrame({ countLabel: COUNT });
       const count = screen.getByText(COUNT);
 
-      expect(hasClass(count, "text-xs")).toBe(true);
+      expect(hasClass(count, "text-meta")).toBe(true);
       expect(hasClass(count, "text-ink-muted")).toBe(true);
       expect(hasClass(count, "text-ink-faint")).toBe(false);
     });

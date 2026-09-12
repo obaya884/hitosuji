@@ -17,7 +17,7 @@ export default async function BundlesPage() {
 
   return (
     <>
-      <h1 className="text-lg font-bold">バンドル</h1>
+      <h1 className="text-heading font-bold">バンドル</h1>
       <BundlesBoard
         bundles={bundles}
         routines={routines}

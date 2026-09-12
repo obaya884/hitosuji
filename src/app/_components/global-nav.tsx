@@ -27,7 +27,7 @@ export function GlobalNav() {
       {/* ロゴ＝ホーム。今日のデイリー（日付なしのルート）へ戻る（FB-45） */}
       <Link
         href="/"
-        className="mb-6 block px-3 text-base font-bold tracking-wide text-ink"
+        className="mb-6 block px-3 text-main font-bold tracking-wide text-ink"
       >
         Hitosuji
       </Link>
@@ -37,7 +37,7 @@ export function GlobalNav() {
             <Link
               href={item.href}
               aria-current={isCurrent(pathname, item.href) ? "page" : undefined}
-              className={`block rounded-control px-3 py-2 text-sm ${
+              className={`block rounded-control px-3 py-2 text-sub ${
                 isCurrent(pathname, item.href)
                   ? "bg-accent-weak font-medium text-ink"
                   : "text-ink-muted hover:text-ink"

@@ -511,6 +511,17 @@ describe("ReviewBoard（画面定義書04 §3.5: モード別・プロジェク�
     expect(projectRows[0].cells[TOTAL.share].textContent).toBe("18%");
   });
 
+  // この表では**モード名・プロジェクト名が行の見出し**なので主段（00_共通 §1.1 が §3.5 を名指しで
+  // 例示している）。構成比は名前でも時間の値でもないので主段には入らず、従段に置く
+  it("集計は名前と実績時間が主段、構成比は従段（00_共通 §1.1）", () => {
+    renderBoard({ totalMinutes: 100, modeTotals: [{ key: 1, minutes: 64 }] });
+
+    const [row] = bodyRows(sectionOf("モード別集計"));
+    expect(row.cells[TOTAL.name].className).toContain("text-main");
+    expect(row.cells[TOTAL.minutes].className).toContain("text-main");
+    expect(row.cells[TOTAL.share].className).toContain("text-sub");
+  });
+
   it("未設定のまとまりは行のラベルとして「（未設定）」と書く（00_共通 §2.4）", () => {
     renderBoard({ totalMinutes: 60, modeTotals: [{ key: null, minutes: 60 }] });
 

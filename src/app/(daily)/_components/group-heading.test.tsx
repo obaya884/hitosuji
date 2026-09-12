@@ -111,7 +111,7 @@ describe("GroupHeading（画面定義書01 §3.2: セクション見出し行）
     });
 
     const progress = within(headingOf("朝")).getByText("1/1");
-    expect(progress.classList.contains("text-xs")).toBe(true);
+    expect(progress.classList.contains("text-meta")).toBe(true);
   });
 
   it("0件のグループは見出しだけを置き、進捗・時間合計・残り時間を出さない（FB-25/FB-26）", () => {

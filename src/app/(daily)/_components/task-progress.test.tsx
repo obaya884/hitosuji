@@ -68,19 +68,27 @@ describe("TaskProgress（F-114: タスク消化の進捗。画面定義書01 §3
 
     const { track, label } = parts(container);
     expect(hasClass(track, "w-20")).toBe(true);
-    expect(hasClass(label, "text-xs")).toBe(true);
+    expect(hasClass(label, "text-meta")).toBe(true);
   });
 
   it("バー幅と文字サイズは呼び出し側が差し替えられる（§3.1 のサマリ行の数値は主段）", () => {
     const { container } = render(
-      <TaskProgress tasks={[todo(1)]} barWidth="w-40" textSize="text-base" />
+      <TaskProgress tasks={[todo(1)]} barWidth="w-40" textSize="text-main" />
     );
 
     const { track, label } = parts(container);
     // 差し替え先がバーと文字それぞれに効いていること（取り違えを検出する）
     expect(hasClass(track, "w-40")).toBe(true);
     expect(hasClass(track, "w-20")).toBe(false);
-    expect(hasClass(label, "text-base")).toBe(true);
-    expect(hasClass(label, "text-xs")).toBe(false);
+    expect(hasClass(label, "text-main")).toBe(true);
+    expect(hasClass(label, "text-meta")).toBe(false);
+  });
+
+  it("段外のサイズは受け口が拒む（00_共通 §1.1「4段の外のサイズは書けない」）", () => {
+    // 型でしか防げないので、**型が緩んだら赤になる**形で書く——`textSize?: BodyTextStep` を
+    // `?: string` へ戻すと「未使用の @ts-expect-error」で `tsc --noEmit` が落ちる
+    // （テストファイルの型を見るのは typecheck だけ。テスト戦略定義書 §9）
+    // @ts-expect-error 段外のサイズは渡せない
+    render(<TaskProgress tasks={[todo(1)]} textSize="text-huge" />);
   });
 });

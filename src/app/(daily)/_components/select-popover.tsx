@@ -119,7 +119,7 @@ export function SelectPopover({ options, selectedId, onSelect, onClose }: Props)
                 onSelect(option.id);
                 onClose();
               }}
-              className={`flex w-full items-center gap-2 px-3 py-1 text-left text-sm hover:bg-accent-weak ${
+              className={`flex w-full items-center gap-2 px-3 py-1 text-left text-sub hover:bg-accent-weak ${
                 index === activeIndex ? "bg-accent-weak" : ""
               } ${isCurrentValue ? "font-medium" : ""}`}
             >
@@ -137,7 +137,7 @@ export function SelectPopover({ options, selectedId, onSelect, onClose }: Props)
               {option.hint !== undefined && (
                 // 見出し §3.2 と同じ時間帯表記（弱色・等幅）で右寄せに付記する（FB-46）。
                 // 付記は詰めずに名前側を省略させるため shrink させない
-                <span className="ml-auto shrink-0 font-mono text-xs text-ink-muted tabular-nums">
+                <span className="ml-auto shrink-0 font-mono text-meta text-ink-muted tabular-nums">
                   {option.hint}
                 </span>
               )}

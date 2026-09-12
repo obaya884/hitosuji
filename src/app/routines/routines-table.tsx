@@ -227,7 +227,7 @@ export function RoutinesTable({
                 className={`border-b border-line ${routine.isActive ? "" : "text-ink-faint"}`}
               >
                 <td
-                  className="py-2"
+                  className="py-2 text-main"
                   // モード色を名前の文字色に反映する（S-01と同じ表現。画面定義書02 §3）
                   style={
                     routine.isActive && mode !== undefined ? { color: mode.color } : undefined
@@ -235,21 +235,21 @@ export function RoutinesTable({
                 >
                   {routine.name}
                 </td>
-                <td className="py-2 text-sm">{project?.name ?? <UnsetMark />}</td>
-                <td className="py-2 text-sm">{mode?.name ?? <UnsetMark />}</td>
-                <td className="py-2 text-sm">{describeRecurrence(routine)}</td>
-                <td className="py-2 tabular-nums">
+                <td className="py-2 text-sub">{project?.name ?? <UnsetMark />}</td>
+                <td className="py-2 text-sub">{mode?.name ?? <UnsetMark />}</td>
+                <td className="py-2 text-sub">{describeRecurrence(routine)}</td>
+                <td className="py-2 text-main tabular-nums">
                   <span className="font-mono">{routine.scheduledStartTime}</span>
                   {/* 併記するセクション名は従（00_共通 §1.1。S-01 のタスク名に添えるセクション名と同じ） */}
                   {section !== undefined && (
-                    <span className="ml-1 text-sm text-ink-muted">({section.name})</span>
+                    <span className="ml-1 text-sub text-ink-muted">({section.name})</span>
                   )}
                 </td>
-                <td className="py-2 pr-4 text-right font-mono tabular-nums">
+                <td className="py-2 pr-4 text-right font-mono text-main tabular-nums">
                   {/* 1分以上が必須（画面定義書02 §5）なので `--:--` は出ないが、同じ部品を通す */}
                   <DurationValue minutes={routine.estimateMinutes} />
                 </td>
-                <td className="py-2 text-sm">
+                <td className="py-2 text-sub">
                   {/* バンドル色にモード色のような主段の表現は乗せない（画面定義書02 §3。
                       モード色が乗るのは名前列だけ） */}
                   {bundle === undefined ? (
@@ -314,7 +314,7 @@ export function RoutinesTable({
       </table>
 
       {routines.length === 0 && editing === null && (
-        <p className="mt-4 text-sm text-ink-muted">ルーチンはまだありません。</p>
+        <p className="mt-4 text-sub text-ink-muted">ルーチンはまだありません。</p>
       )}
 
       {/* key で行ごとにフォームを作り直す（別の行を開いたとき入力を持ち越さない） */}

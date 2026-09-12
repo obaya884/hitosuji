@@ -87,7 +87,7 @@ export function ProjectsTable({ active, archived, deletableIds }: Props) {
         <tbody>
           {active.map((project) => (
             <tr key={project.id} className="border-b border-line">
-              <td className="py-2">{nameCell(project)}</td>
+              <td className="py-2 text-main">{nameCell(project)}</td>
               <td className="py-2 text-right whitespace-nowrap">
                 <button
                   onClick={() => run(() => setProjectArchivedAction(project.id, true))}
@@ -104,14 +104,14 @@ export function ProjectsTable({ active, archived, deletableIds }: Props) {
       </table>
 
       {active.length === 0 && editingId === null && (
-        <p className="mt-4 text-sm text-ink-muted">プロジェクトはまだありません。</p>
+        <p className="mt-4 text-sub text-ink-muted">プロジェクトはまだありません。</p>
       )}
 
       <ArchivedSection
         archived={archived}
         deletableIds={deletableIds}
         isPending={isPending}
-        renderCells={(project) => <td className="py-2">{project.name}</td>}
+        renderCells={(project) => <td className="py-2 text-main">{project.name}</td>}
         onRestore={(id) => run(() => setProjectArchivedAction(id, false))}
         onDelete={(id) => run(() => deleteProjectAction(id))}
       />

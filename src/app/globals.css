@@ -1,10 +1,11 @@
 @import "tailwindcss";
 
 @theme {
-  /* デフォルトパレット・影・角丸を無効化（置換漏れのクラスはビルドで生成されない） */
+  /* デフォルトパレット・影・角丸・文字サイズを無効化（置換漏れのクラスはビルドで生成されない） */
   --color-*: initial;
   --shadow-*: initial;
   --radius-*: initial;
+  --text-*: initial;
 
   /* 面 */
   --color-paper: #fafaf8; /* ページ背景（紙白） */
@@ -43,6 +44,17 @@
      generic monospace にフォールバックし、中国語字形（宋体等）で描画される */
   --font-mono: var(--font-plex-mono), ui-monospace, "Hiragino Sans",
     "Noto Sans JP", monospace;
+
+  /* 文字サイズ4段（00_共通 §1.1）。**行の高さも段に持たせる**——font-size だけを差し替えると
+     行間が継承元のまま残り、段を変えても行の高さが追随しない */
+  --text-heading: 1.125rem; /* 見出し: 画面見出し（h1）だけ */
+  --text-heading--line-height: calc(1.75 / 1.125);
+  --text-main: 1rem; /* 主: 行の名前と、時間の値すべて */
+  --text-main--line-height: calc(1.5 / 1);
+  --text-sub: 0.875rem; /* 従: 分類・コメント・列見出し・フォーム */
+  --text-sub--line-height: calc(1.25 / 0.875);
+  --text-meta: 0.75rem; /* メタ: 従に添える補足 */
+  --text-meta--line-height: calc(1 / 0.75);
 
   /* 紙面の幅（ヘッダナビと本文で共有し、必ず一致させる） */
   --container-page: 84rem;

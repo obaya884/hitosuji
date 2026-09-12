@@ -138,7 +138,7 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
           {active.map((mode) => (
             <tr key={mode.id} className="border-b border-line">
               <td className="py-2">{colorCell(mode)}</td>
-              <td className="py-2">{nameCell(mode)}</td>
+              <td className="py-2 text-main">{nameCell(mode)}</td>
               <td className="py-2 text-right whitespace-nowrap">
                 <button
                   onClick={() => run(() => setModeArchivedAction(mode.id, true))}
@@ -163,10 +163,10 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
             <td className="w-48 py-2">
               <span className="inline-flex items-center gap-2">
                 <ColorSwatch color={mode.color} size="bar" dimmed />
-                <span className="text-sm">{colorPresetName(mode.color)}</span>
+                <span className="text-sub">{colorPresetName(mode.color)}</span>
               </span>
             </td>
-            <td className="py-2">{mode.name}</td>
+            <td className="py-2 text-main">{mode.name}</td>
           </>
         )}
         onRestore={(id) => run(() => setModeArchivedAction(id, false))}

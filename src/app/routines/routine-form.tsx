@@ -94,8 +94,8 @@ export function RoutineForm({
   return (
     <div className="mt-3 rounded-float border border-line bg-surface p-3">
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="text-sm">
-          <span className="text-xs text-ink-muted">名前</span>
+        <label className="text-sub">
+          <span className="text-meta text-ink-muted">名前</span>
           <input
             autoFocus
             value={name}
@@ -106,8 +106,8 @@ export function RoutineForm({
         </label>
 
         <div className="grid grid-cols-2 gap-3">
-          <label className="text-sm">
-            <span className="text-xs text-ink-muted">プロジェクト</span>
+          <label className="text-sub">
+            <span className="text-meta text-ink-muted">プロジェクト</span>
             <select
               value={projectId ?? ""}
               disabled={isPending}
@@ -124,8 +124,8 @@ export function RoutineForm({
               ))}
             </select>
           </label>
-          <label className="text-sm">
-            <span className="text-xs text-ink-muted">モード</span>
+          <label className="text-sub">
+            <span className="text-meta text-ink-muted">モード</span>
             <select
               value={modeId ?? ""}
               disabled={isPending}
@@ -144,8 +144,8 @@ export function RoutineForm({
       </div>
 
       <fieldset className="mt-3">
-        <legend className="text-xs text-ink-muted">繰り返し</legend>
-        <div className="mt-1 flex flex-wrap gap-3 text-sm">
+        <legend className="text-meta text-ink-muted">繰り返し</legend>
+        <div className="mt-1 flex flex-wrap gap-3 text-sub">
           {(Object.keys(RECURRENCE_LABELS) as RecurrenceType[]).map((type) => (
             <label key={type} className="flex items-center gap-1">
               <input
@@ -162,7 +162,7 @@ export function RoutineForm({
         </div>
 
         {recurrenceType === "weekly" && (
-          <div className="mt-2 space-y-2 text-sm">
+          <div className="mt-2 space-y-2 text-sub">
             {/* 曜日の入力補助（画面定義書02 §4）。押すと該当曜日だけが選択された状態になる */}
             <div className="flex flex-wrap gap-2">
               {WEEKDAY_PRESETS.map((preset) => (
@@ -192,7 +192,7 @@ export function RoutineForm({
               ))}
             </div>
             <label className="block">
-              <span className="text-xs text-ink-muted">週間隔</span>
+              <span className="text-meta text-ink-muted">週間隔</span>
               <input
                 type="number"
                 min={1}
@@ -201,13 +201,13 @@ export function RoutineForm({
                 onChange={(e) => setWeekInterval(e.target.value)}
                 className={`ml-2 w-16 ${inputBase}`}
               />
-              <span className="ml-2 text-xs text-ink-muted">週おき（1=毎週・2=隔週）</span>
+              <span className="ml-2 text-meta text-ink-muted">週おき（1=毎週・2=隔週）</span>
             </label>
           </div>
         )}
 
         {recurrenceType === "monthly" && (
-          <label className="mt-2 block text-sm">
+          <label className="mt-2 block text-sub">
             <input
               type="number"
               min={1}
@@ -216,14 +216,14 @@ export function RoutineForm({
               onChange={(e) => setMonthDay(e.target.value)}
               className={`w-16 ${inputBase}`}
             />
-            <span className="ml-2 text-xs text-ink-muted">
+            <span className="ml-2 text-meta text-ink-muted">
               日（31日など存在しない月は月末に丸めます）
             </span>
           </label>
         )}
 
         {recurrenceType === "interval" && (
-          <label className="mt-2 block text-sm">
+          <label className="mt-2 block text-sub">
             <input
               type="number"
               min={1}
@@ -231,7 +231,7 @@ export function RoutineForm({
               onChange={(e) => setIntervalDays(e.target.value)}
               className={`w-16 ${inputBase}`}
             />
-            <span className="ml-2 text-xs text-ink-muted">日ごと（開始日が起算日）</span>
+            <span className="ml-2 text-meta text-ink-muted">日ごと（開始日が起算日）</span>
           </label>
         )}
       </fieldset>
@@ -240,8 +240,8 @@ export function RoutineForm({
         {/* 開始日・終了日は一覧に列を持たないが繰り返しの期間なので、繰り返しの入力群に続ける
             （画面定義書02 §4） */}
         <div className="grid grid-cols-2 gap-3">
-          <label className="text-sm">
-            <span className="text-xs text-ink-muted">開始日</span>
+          <label className="text-sub">
+            <span className="text-meta text-ink-muted">開始日</span>
             <input
               type="date"
               value={startDate}
@@ -249,8 +249,8 @@ export function RoutineForm({
               className={`mt-1 w-full ${inputBase}`}
             />
           </label>
-          <label className="text-sm">
-            <span className="text-xs text-ink-muted">終了日（任意）</span>
+          <label className="text-sub">
+            <span className="text-meta text-ink-muted">終了日（任意）</span>
             <input
               type="date"
               value={endDate}
@@ -261,8 +261,8 @@ export function RoutineForm({
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <label className="text-sm">
-            <span className="text-xs text-ink-muted">開始想定時刻</span>
+          <label className="text-sub">
+            <span className="text-meta text-ink-muted">開始想定時刻</span>
             <input
               type="time"
               value={scheduledStartTime}
@@ -270,8 +270,8 @@ export function RoutineForm({
               className={`mt-1 w-full ${inputBase}`}
             />
           </label>
-          <label className="text-sm">
-            <span className="text-xs text-ink-muted">見積もり（分）</span>
+          <label className="text-sub">
+            <span className="text-meta text-ink-muted">見積もり（分）</span>
             <input
               type="number"
               min={1}
@@ -284,8 +284,8 @@ export function RoutineForm({
       </div>
 
       {/* 2列に並べる相手がいないので枠は作らない（グリッドにすると右半分が常に空く） */}
-      <label className="mt-3 block text-sm">
-        <span className="text-xs text-ink-muted">バンドル</span>
+      <label className="mt-3 block text-sub">
+        <span className="text-meta text-ink-muted">バンドル</span>
         <select
           value={bundleId ?? ""}
           disabled={isPending}

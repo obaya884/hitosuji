@@ -30,7 +30,7 @@ export default async function RoutinesPage({
 
   return (
     <>
-      <h1 className="text-lg font-bold">ルーチン</h1>
+      <h1 className="text-heading font-bold">ルーチン</h1>
       <RoutinesTable
         routines={routines}
         bundles={[...bundleView.active]}
