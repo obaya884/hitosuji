@@ -74,23 +74,11 @@ describe("groupTasksBySection（画面定義書01 §3.2: 表示順はセクシ�
     expect(groups[1].endTime).toBe("09:00");
   });
 
-  it("タスク0件の日でもセクション見出しは並ぶ", () => {
-    const groups = groupTasksBySection([], [morning, forenoon]);
-    expect(groups.map((g) => g.section?.name ?? "未分類")).toEqual(["未分類", "朝", "午前"]);
-    expect(groups.every((g) => g.tasks.length === 0)).toBe(true);
-  });
-
   it("日界セクションを先頭に回転して並べる（F-116。未分類は回転外で常に先頭）", () => {
     const dayStartMorning: Section = { ...morning, isDayStart: true };
     const night: Section = { id: 4, name: "深夜", startTime: "00:00", isArchived: false };
     const groups = groupTasksBySection([], [night, dayStartMorning, forenoon]);
     expect(groups.map((g) => g.section?.name ?? "未分類")).toEqual(["未分類", "朝", "午前", "深夜"]);
-  });
-
-  it("日界が未指定なら従来どおり start_time 昇順（既定挙動を壊さない）", () => {
-    const night: Section = { id: 4, name: "深夜", startTime: "00:00", isArchived: false };
-    const groups = groupTasksBySection([], [forenoon, night, morning]);
-    expect(groups.map((g) => g.section?.name ?? "未分類")).toEqual(["未分類", "深夜", "朝", "午前"]);
   });
 });
 

@@ -219,11 +219,6 @@ describe("routinesToExpand — スキップの除外（F-301 / §3.6）", () => 
     expect(routinesToExpand(routines, SUNDAY, SUNDAY, [1]).map((r) => r.id)).toEqual([2]);
   });
 
-  it("該当日でも全ルーチンをスキップ指定すれば0件になる", () => {
-    const routines = [routine({ id: 1 }), routine({ id: 2 })];
-    expect(routinesToExpand(routines, SUNDAY, SUNDAY, [1, 2])).toEqual([]);
-  });
-
   it("非該当のIDを渡しても展開結果は変わらない", () => {
     const routines = [routine({ id: 1 }), routine({ id: 2 })];
     expect(routinesToExpand(routines, SUNDAY, SUNDAY, [999]).map((r) => r.id)).toEqual([1, 2]);

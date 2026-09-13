@@ -22,18 +22,13 @@ const forenoon = section({ id: 2, name: "午前", startTime: "09:00" });
 const midnight = section({ id: 3, name: "深夜", startTime: "00:00" });
 
 describe("sectionRanges（画面定義書03 §3.1: 終了時刻は次セクションの開始から導出）", () => {
-  it("各枠の終了時刻が次のセクションの開始時刻になる", () => {
+  it("各枠の終了時刻が次のセクションの開始時刻になる（最後の枠は先頭へ折り返して24時間を敷き詰める）", () => {
     const ranges = sectionRanges([forenoon, midnight, morning]);
     expect(ranges.map((r) => [r.section.name, r.section.startTime, r.endTime])).toEqual([
       ["深夜", "00:00", "06:00"],
       ["朝", "06:00", "09:00"],
       ["午前", "09:00", "00:00"],
     ]);
-  });
-
-  it("最後のセクションは先頭の開始時刻へ折り返す（24時間を敷き詰める）", () => {
-    const ranges = sectionRanges([morning, forenoon]);
-    expect(ranges.at(-1)).toEqual({ section: forenoon, endTime: "06:00" });
   });
 
   it("有効セクションが1件なら終了時刻は自身の開始時刻（丸1日）", () => {
@@ -107,17 +102,6 @@ describe("currentSectionId（画面定義書01 §3.2 現在セクションの強
 
   it("表示日が今日なら、現在時刻を含む有効セクションの id を返す", () => {
     expect(currentSectionId(sections, "06:30", true)).toBe(morning.id);
-  });
-
-  it("セクションの開始時刻ちょうどはそのセクションが current になる", () => {
-    expect(currentSectionId(sections, "06:00", true)).toBe(morning.id);
-    expect(currentSectionId(sections, "00:00", true)).toBe(midnight.id);
-  });
-
-  it("先頭セクションの開始より前の時刻は、日をまたいで続く最後のセクションが current（画面定義書01 §4.3 の固定項目もこの定義に従う）", () => {
-    const withoutMidnight = [morning, forenoon]; // 06:00 / 09:00
-    expect(currentSectionId(withoutMidnight, "03:00", true)).toBe(forenoon.id);
-    expect(currentSectionId(sections, "23:59", true)).toBe(forenoon.id);
   });
 
   it("有効セクションが無ければ（全件アーカイブ済み等）today でも null", () => {

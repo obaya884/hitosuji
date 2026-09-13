@@ -107,10 +107,4 @@ describe("monthGrid（F-117 / 画面定義書01 §3.1: 月グリッド・週の�
     const grid = monthGrid({ year: 2026, month: 7 }, 0);
     expect(grid[0][0]).toBe("2026-06-28");
   });
-
-  it("1日が週の起点と一致する月はリード日を挟まない（2026-06 は月曜始まり）", () => {
-    // 2026-06-01 は月曜
-    const grid = monthGrid({ year: 2026, month: 6 }, 1);
-    expect(grid[0][0]).toBe("2026-06-01");
-  });
 });

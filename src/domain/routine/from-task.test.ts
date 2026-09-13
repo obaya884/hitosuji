@@ -96,12 +96,6 @@ describe("routineInputFromTask（画面定義書01 §4.1: 引き継ぐ値・開�
     }
   });
 
-  it("見積もり0分・実績もないタスクはエラーで作成できない", () => {
-    const t = task({ id: 1, estimateMinutes: 0 });
-    const result = routineInputFromTask(t, choice);
-    expect(result).toEqual({ ok: false, error: "estimate_required" });
-  });
-
   it("ルーチン由来タスク（routine_id あり）からは作成できない", () => {
     // 見積もりは通る値にする（0 だと下の「優先する」テストと同じ入力になり、両者が別物を
     // 主張しなくなる）

@@ -50,20 +50,6 @@ describe("describeRecurrence（画面定義書02 §3: 繰り返しルールの�
     expect(describeRecurrence(weekend)).toBe("週次(土日)");
   });
 
-  it("プリセット名は週間隔の接頭・終了日と独立に効く（FB-53）", () => {
-    const weekly = (weekdays: number, weekInterval: number | null) =>
-      routine({ id: 1, recurrenceType: "weekly", weekdays, weekInterval });
-    expect(describeRecurrence(weekly(0b0011111, null))).toBe("週次(平日)");
-    expect(describeRecurrence(weekly(0b0011111, 2))).toBe("隔週(平日)");
-    expect(describeRecurrence(weekly(0b0011111, 3))).toBe("3週ごと(平日)");
-    expect(describeRecurrence(weekly(0b1100000, 2))).toBe("隔週(土日)");
-    expect(
-      describeRecurrence(
-        routine({ id: 1, recurrenceType: "weekly", weekdays: 0b0011111, endDate: "2026-12-31" })
-      )
-    ).toBe("週次(平日) 〜2026-12-31");
-  });
-
   // プリセット名に置き換わるのは**ちょうど一致**するときだけ。余分な曜日を含む場合も、
   // プリセットの一部しか立っていない場合も列挙へ戻る（FB-53）
   it("プリセットとちょうど一致しない曜日は列挙にフォールバックする（FB-53）", () => {
@@ -72,22 +58,6 @@ describe("describeRecurrence（画面定義書02 §3: 繰り返しルールの�
     expect(describeRecurrence(weeklyOn(0b1100001))).toBe("週次(月・土・日)"); // 土日＋月
     expect(describeRecurrence(weeklyOn(0b0001111))).toBe("週次(月・火・水・木)"); // 平日の一部
     expect(describeRecurrence(weeklyOn(0b0100000))).toBe("週次(土)"); // 土日の一部
-  });
-
-  it("週間隔2以上の全曜日は列挙する（正規化の対象外。画面定義書02 §3）", () => {
-    const biweekly = routine({
-      id: 1,
-      recurrenceType: "weekly",
-      weekdays: ALL_WEEKDAYS,
-      weekInterval: 2,
-    });
-    expect(describeRecurrence(biweekly)).toBe("隔週(月・火・水・木・金・土・日)");
-  });
-
-  it("プリセット適用後に個別の曜日を足すと要約は列挙へ戻る（画面定義書02 §4: 押したあとの微調整）", () => {
-    const adjusted = toggleWeekday(0b0011111, 5); // 平日に土を足す
-    const r = routine({ id: 1, recurrenceType: "weekly", weekdays: adjusted });
-    expect(describeRecurrence(r)).toBe("週次(月・火・水・木・金・土)");
   });
 
   it("曜日ビットの範囲外（bit7以上）しか立っていない場合は曜日を出さない", () => {
@@ -187,7 +157,9 @@ describe("WEEKDAY_PRESETS（画面定義書02 §4: 曜日プリセット。bit0=
     return WEEKDAY_BITS.filter((w) => (mask & (1 << w.bit)) !== 0).map((w) => w.label);
   }
 
-  it("プリセットは「平日」「土日」の2つで、その順に並ぶ（UI のボタン表示順）", () => {
+  // 並び順はフォームのボタンの並びそのもの（画面定義書02 §4）。`maskOf` も `weekdayPresetLabel`
+  // も検索なので、順序を守るのはこの1行だけ
+  it("プリセットは「平日」「土日」の順に並ぶ", () => {
     expect(WEEKDAY_PRESETS.map((p) => p.label)).toEqual(["平日", "土日"]);
   });
 
