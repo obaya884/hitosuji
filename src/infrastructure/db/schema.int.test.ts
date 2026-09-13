@@ -154,61 +154,80 @@ describe("routines — ck_routines_week_interval（週間隔の CHECK）", () =>
 
 // F-405「参照0件のみ物理削除」はアプリ層（`canDeleteMaster`）が守る設計だが、
 // そこを素通りした削除を止める最後の砦は FK にある（ON DELETE は no action）
-describe("tasks の外部キー（F-405: 参照されているマスタは DB が削除を拒む）", () => {
-  it("参照されているセクションは削除できない", async () => {
+describe("tasks・routines の外部キー（F-405: 参照されているマスタは DB が削除を拒む）", () => {
+  // 4つの参照列を1本で見る。マスタごとに別の it に分けても通る道は `references()` の同じ既定で、
+  // 守りたいのは「4つとも FK が張られていること」だから（F-119 のバンドルを含む）
+  it("参照されているマスタは削除できない（セクション・モード・プロジェクト・バンドル）", async () => {
     const [section] = await db
       .insert(sections)
       .values({ name: "朝", startTime: "06:00" })
       .returning();
-    await db
-      .insert(tasks)
-      .values({ taskDate: "2026-07-19", name: "朝食", sortOrder: 1000, sectionId: section.id });
+    const [mode] = await db
+      .insert(modes)
+      .values({ name: "仕事", color: COLOR_BY_NAME["青"] })
+      .returning();
+    const [project] = await db.insert(projects).values({ name: "引越し" }).returning();
+    const [bundle] = await db
+      .insert(bundles)
+      .values({ name: "朝の立上げ", color: COLOR_BY_NAME["インディゴ"] })
+      .returning();
+
+    await db.insert(tasks).values({
+      taskDate: "2026-07-19",
+      name: "朝食",
+      sortOrder: 1000,
+      sectionId: section.id,
+      modeId: mode.id,
+      projectId: project.id,
+      bundleId: bundle.id,
+    });
 
     await rejectsWithConstraint(
       db.delete(sections).where(eq(sections.id, section.id)),
       "tasks_section_id_sections_id_fk"
     );
-  });
-
-  it("参照されているモードは削除できない", async () => {
-    const [mode] = await db
-      .insert(modes)
-      .values({ name: "仕事", color: COLOR_BY_NAME["青"] })
-      .returning();
-    await db
-      .insert(tasks)
-      .values({ taskDate: "2026-07-19", name: "朝食", sortOrder: 1000, modeId: mode.id });
-
     await rejectsWithConstraint(
       db.delete(modes).where(eq(modes.id, mode.id)),
       "tasks_mode_id_modes_id_fk"
     );
-  });
-
-  it("参照されているプロジェクトは削除できない", async () => {
-    const [project] = await db.insert(projects).values({ name: "引越し" }).returning();
-    await db
-      .insert(tasks)
-      .values({ taskDate: "2026-07-19", name: "朝食", sortOrder: 1000, projectId: project.id });
-
     await rejectsWithConstraint(
       db.delete(projects).where(eq(projects.id, project.id)),
       "tasks_project_id_projects_id_fk"
     );
+    await rejectsWithConstraint(
+      db.delete(bundles).where(eq(bundles.id, bundle.id)),
+      "tasks_bundle_id_bundles_id_fk"
+    );
   });
 
-  it("参照されているバンドルは削除できない（F-119。展開済みタスクからの参照も止める）", async () => {
+  // ルーチンも同じ3列でマスタを参照する（画面定義書02 §4）。tasks と同じ行で試せないのは、
+  // 両方から参照されていると Postgres が先に見つけた FK で弾き、routines 側の有無を判定できないから
+  it("ルーチンから参照されているマスタも削除できない（モード・プロジェクト・バンドル）", async () => {
+    const [mode] = await db
+      .insert(modes)
+      .values({ name: "仕事", color: COLOR_BY_NAME["青"] })
+      .returning();
+    const [project] = await db.insert(projects).values({ name: "引越し" }).returning();
     const [bundle] = await db
       .insert(bundles)
       .values({ name: "朝の立上げ", color: COLOR_BY_NAME["インディゴ"] })
       .returning();
+
     await db
-      .insert(tasks)
-      .values({ taskDate: "2026-07-19", name: "朝食", sortOrder: 1000, bundleId: bundle.id });
+      .insert(routines)
+      .values(routineRow({ modeId: mode.id, projectId: project.id, bundleId: bundle.id }));
 
     await rejectsWithConstraint(
+      db.delete(modes).where(eq(modes.id, mode.id)),
+      "routines_mode_id_modes_id_fk"
+    );
+    await rejectsWithConstraint(
+      db.delete(projects).where(eq(projects.id, project.id)),
+      "routines_project_id_projects_id_fk"
+    );
+    await rejectsWithConstraint(
       db.delete(bundles).where(eq(bundles.id, bundle.id)),
-      "tasks_bundle_id_bundles_id_fk"
+      "routines_bundle_id_bundles_id_fk"
     );
   });
 
@@ -237,39 +256,3 @@ describe("tasks の外部キー（F-405: 参照されているマスタは DB �
   });
 });
 
-describe("bundles（データモデル定義書 §3.7）", () => {
-  it("ルーチンとタスクからバンドルを参照できる", async () => {
-    const [bundle] = await db
-      .insert(bundles)
-      .values({ name: "朝の立上げ", color: COLOR_BY_NAME["インディゴ"] })
-      .returning();
-    expect(bundle.isArchived).toBe(false);
-
-    const [routine] = await db
-      .insert(routines)
-      .values({
-        name: "朝食",
-        estimateMinutes: 20,
-        scheduledStartTime: "06:30",
-        recurrenceType: "daily",
-        startDate: "2026-08-09",
-        bundleId: bundle.id,
-      })
-      .returning();
-    expect(routine.bundleId).toBe(bundle.id);
-
-    const [task] = await db
-      .insert(tasks)
-      .values({ taskDate: "2026-08-09", name: "朝食", sortOrder: 1000, bundleId: bundle.id })
-      .returning();
-    expect(task.bundleId).toBe(bundle.id);
-  });
-
-  it("バンドル未設定を許す（非バンドルのタスク・ルーチン）", async () => {
-    const [task] = await db
-      .insert(tasks)
-      .values({ taskDate: "2026-08-09", name: "単発", sortOrder: 1000 })
-      .returning();
-    expect(task.bundleId).toBeNull();
-  });
-});

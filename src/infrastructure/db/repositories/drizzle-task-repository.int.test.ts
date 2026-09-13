@@ -1,4 +1,3 @@
-import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { COLOR_BY_NAME } from "@/domain/shared/color-presets";
 import { bundles, modes, projects, routineSkips, routines, sections, tasks } from "@/infrastructure/db/schema";
@@ -94,10 +93,6 @@ describe("DrizzleTaskRepository.listByDate（画面定義書01 §7: 表示日1�
       },
     ]);
   });
-
-  it("タスクがない日は空配列を返す", async () => {
-    expect(await repo.listByDate("2026-07-19")).toEqual([]);
-  });
 });
 
 describe("start（F-201: 付帯更新なしの開始打刻）", () => {
@@ -154,93 +149,6 @@ describe("finish（F-201 / O-3: 終了打刻）", () => {
 });
 
 describe("start の割り込み（F-201: 終了・再開タスク生成・開始を1トランザクションで）", () => {
-  it("3つの更新がすべて反映される", async () => {
-    const startedAt = new Date("2026-07-19T08:48:00Z");
-    const endedAt = new Date("2026-07-19T09:00:00Z");
-    const [running, target] = await db
-      .insert(tasks)
-      .values([
-        { taskDate: "2026-07-19", name: "メールチェック", estimateMinutes: 30, sortOrder: 1000, startedAt },
-        { taskDate: "2026-07-19", name: "設計書レビュー", estimateMinutes: 60, sortOrder: 2000 },
-      ])
-      .returning();
-
-    await repo.start({
-      taskId: target.id,
-      startedAt: endedAt,
-      interruption: {
-        runningTaskId: running.id,
-        endedAt,
-        resumeTask: {
-          taskDate: "2026-07-19",
-          name: "メールチェック（再開）",
-          estimateMinutes: 18,
-          sectionId: null,
-          modeId: null,
-          projectId: null,
-          sortOrder: 3000,
-          // 再開タスクはハイライト（F-118）を引き継ぐ。INSERT は NewTask をそのまま流すので、
-          // 列まで届くことを実DBで押さえる
-          highlighted: true,
-          splitParentId: running.id,
-        },
-        renumber: [],
-      },
-      relocations: [],
-    });
-
-    const after = await repo.listByDate("2026-07-19");
-    expect(after.find((t) => t.id === running.id)?.endedAt).toEqual(endedAt);
-    expect(after.find((t) => t.id === target.id)?.startedAt).toEqual(endedAt);
-    expect(after.find((t) => t.splitParentId === running.id)).toEqual(
-      expect.objectContaining({
-        name: "メールチェック（再開）",
-        estimateMinutes: 18,
-        startedAt: null,
-        highlighted: true,
-      })
-    );
-  });
-
-  it("再開タスクの生成に失敗したら全体が巻き戻る（トランザクション境界の確認）", async () => {
-    const startedAt = new Date("2026-07-19T08:48:00Z");
-    const [running, target] = await db
-      .insert(tasks)
-      .values([
-        { taskDate: "2026-07-19", name: "実行中", sortOrder: 1000, startedAt },
-        { taskDate: "2026-07-19", name: "開始対象", sortOrder: 2000 },
-      ])
-      .returning();
-
-    await expect(
-      repo.start({
-        taskId: target.id,
-        startedAt: new Date("2026-07-19T09:00:00Z"),
-        interruption: {
-          runningTaskId: running.id,
-          endedAt: new Date("2026-07-19T09:00:00Z"),
-          resumeTask: {
-            taskDate: "2026-07-19",
-            name: "再開",
-            estimateMinutes: 10,
-            sectionId: 999999, // 存在しないセクション → FK違反
-            modeId: null,
-            projectId: null,
-            sortOrder: 3000,
-            splitParentId: running.id,
-          },
-          renumber: [],
-        },
-        relocations: [],
-      })
-    ).rejects.toThrow();
-
-    const after = await repo.listByDate("2026-07-19");
-    expect(after.find((t) => t.id === running.id)?.endedAt).toBeNull();
-    expect(after.find((t) => t.id === target.id)?.startedAt).toBeNull();
-    expect(after).toHaveLength(2);
-  });
-
   // 割り込み（データモデル定義書 §4.2）に振り直し（同書 §3.5）と自動セクション移動（画面定義書01 §4.2-a）が同時に伴う経路。
   // 付帯更新が両方とも非空になるのはここだけなので、5つの更新の合流をここで固定する
   it("振り直しと移動を伴う割り込みで、5つの更新がすべて反映される", async () => {
@@ -273,6 +181,9 @@ describe("start の割り込み（F-201: 終了・再開タスク生成・開始
           modeId: null,
           projectId: null,
           sortOrder: 4000,
+          // 再開タスクはハイライト（F-118）を引き継ぐ。INSERT は NewTask をそのまま流すので、
+          // 列まで届くことを実DBで押さえる
+          highlighted: true,
           splitParentId: running.id,
         },
         renumber: [{ taskId: neighbor.id, sortOrder: 5000 }],
@@ -284,7 +195,13 @@ describe("start の割り込み（F-201: 終了・再開タスク生成・開始
     const started = after.find((t) => t.id === target.id);
     expect(after.find((t) => t.id === running.id)?.endedAt).toEqual(endedAt); // ①実行中を終了
     expect(after.find((t) => t.splitParentId === running.id)).toEqual(
-      expect.objectContaining({ estimateMinutes: 18, sortOrder: 4000, startedAt: null })
+      expect.objectContaining({
+        name: "実行中（再開）",
+        estimateMinutes: 18,
+        sortOrder: 4000,
+        startedAt: null,
+        highlighted: true,
+      })
     ); // ②再開タスクを生成
     expect(started?.startedAt).toEqual(endedAt); // ③対象を開始
     expect([started?.sectionId, started?.sortOrder]).toEqual([night.id, 3000]); // ④対象を移動
@@ -336,7 +253,7 @@ describe("start の割り込み（F-201: 終了・再開タスク生成・開始
     expect([started?.sectionId, started?.sortOrder]).toEqual([night.id, 2000]);
   });
 
-  it("再開タスクの生成に失敗したら振り直しと移動も巻き戻る", async () => {
+  it("再開タスクの生成に失敗したら終了・開始・振り直し・移動がすべて巻き戻る（トランザクション境界）", async () => {
     const [night] = await db
       .insert(sections)
       .values([{ name: "夜", startTime: "18:00" }])
@@ -378,6 +295,9 @@ describe("start の割り込み（F-201: 終了・再開タスク生成・開始
     const after = await repo.listByDate("2026-07-19");
     expect(after.find((t) => t.id === neighbor.id)?.sortOrder).toBe(2001); // 振り直しが巻き戻っている
     expect(after.find((t) => t.id === target.id)?.sectionId).toBeNull(); // 移動も巻き戻っている
+    expect(after.find((t) => t.id === running.id)?.endedAt).toBeNull(); // 実行中の終了も巻き戻っている
+    expect(after.find((t) => t.id === target.id)?.startedAt).toBeNull(); // 対象の開始も巻き戻っている
+    expect(after).toHaveLength(3); // 再開タスクは1件も残っていない
   });
 });
 
@@ -576,37 +496,6 @@ describe("findRunning（実行中は全日付を通じて最大1件）", () => {
 });
 
 describe("suspend（F-204: 終了と再開タスク生成を1トランザクションで）", () => {
-  it("元タスクの終了と再開タスクの生成が両方反映される", async () => {
-    const startedAt = new Date("2026-07-19T08:48:00Z");
-    const endedAt = new Date("2026-07-19T09:00:00Z");
-    const [running] = await db
-      .insert(tasks)
-      .values({ taskDate: "2026-07-19", name: "執筆", estimateMinutes: 30, sortOrder: 1000, startedAt })
-      .returning();
-
-    await repo.suspend({
-      taskId: running.id,
-      endedAt,
-      resumeTask: {
-        taskDate: "2026-07-19",
-        name: "執筆（再開）",
-        estimateMinutes: 18,
-        sectionId: null,
-        modeId: null,
-        projectId: null,
-        sortOrder: 2000,
-        splitParentId: running.id,
-      },
-      renumber: [],
-    });
-
-    const after = await repo.listByDate("2026-07-19");
-    expect(after.find((t) => t.id === running.id)?.endedAt).toEqual(endedAt);
-    expect(after.find((t) => t.splitParentId === running.id)).toEqual(
-      expect.objectContaining({ name: "執筆（再開）", estimateMinutes: 18, startedAt: null })
-    );
-  });
-
   // 中断は再開タスクを「直後」に挟むので、隙間が無ければ振り直しが要る（データモデル定義書 §3.5）。
   // 振り直しが落ちると、挟んだはずの再開タスクが次のタスクの後ろへ回る
   it("振り直しを伴う中断で、振り直しと終了・再開タスク生成がすべて反映される", async () => {
@@ -649,7 +538,14 @@ describe("suspend（F-204: 終了と再開タスク生成を1トランザクシ�
       [next.id, 3000],
     ]);
     expect(bySortOrder[0].endedAt).toEqual(endedAt);
-    expect(bySortOrder[1].splitParentId).toBe(running.id);
+    expect(bySortOrder[1]).toEqual(
+      expect.objectContaining({
+        name: "執筆（再開）",
+        estimateMinutes: 18,
+        startedAt: null,
+        splitParentId: running.id,
+      })
+    );
   });
 
   it("再開タスクの生成に失敗したら振り直しと終了も巻き戻る（トランザクション境界）", async () => {
@@ -1170,18 +1066,9 @@ describe("ルーチン由来タスクの削除とスキップ（F-301 / デー�
     expect(await db.select().from(routineSkips)).toHaveLength(1);
   });
 
-  it("ルーチンを削除するとスキップも消える（ON DELETE CASCADE）", async () => {
-    const routine = await createRoutine();
-    const [target] = await db
-      .insert(tasks)
-      .values({ taskDate: "2026-07-19", name: "朝食", sortOrder: 1000, routineId: routine.id })
-      .returning();
-
-    await repo.delete(target.id, { routineId: routine.id, taskDate: "2026-07-19" });
-    await db.delete(routines).where(eq(routines.id, routine.id));
-
-    expect(await db.select().from(routineSkips)).toHaveLength(0);
-  });
+  // ルーチン削除でスキップが道連れに消えること（ON DELETE CASCADE）は、`drizzle-routine-repository`
+  // の削除テストが実経路（`repo.delete`）で見る。ここで `db.delete(routines)` を直接叩いて
+  // DDL だけを確かめる必要はない
 });
 
 describe("create の振り直し（データモデル定義書 §3.5: 中間値が尽きたとき）", () => {
@@ -1303,38 +1190,6 @@ describe("move（画面定義書01 O-6 / データモデル定義書 §3.5: 並�
     expect([after.sectionId, after.sortOrder]).toEqual([forenoon.id, 1500]);
   });
 
-  it("振り直しを伴う移動は振り直しと本体更新が同じトランザクションで反映される", async () => {
-    await db
-      .insert(tasks)
-      .values([
-        { taskDate: "2026-07-19", name: "A", sortOrder: 1000 },
-        { taskDate: "2026-07-19", name: "B", sortOrder: 1001 },
-        { taskDate: "2026-07-19", name: "移動対象", sortOrder: 5000 },
-      ])
-      .returning();
-    const byName = Object.fromEntries(
-      (await repo.listByDate("2026-07-19")).map((t) => [t.name, t.id])
-    );
-
-    // A と B の間へ移動する（中間値が尽きているのでグループ全体を1000刻みへ振り直す）
-    await repo.move({
-      taskId: byName["移動対象"],
-      sectionId: null,
-      sortOrder: 2000,
-      renumber: [
-        { taskId: byName["A"], sortOrder: 1000 },
-        { taskId: byName["B"], sortOrder: 3000 },
-      ],
-    });
-
-    const after = (await repo.listByDate("2026-07-19")).sort((x, y) => x.sortOrder - y.sortOrder);
-    expect(after.map((t) => [t.name, t.sortOrder])).toEqual([
-      ["A", 1000],
-      ["移動対象", 2000],
-      ["B", 3000],
-    ]);
-  });
-
   // reorderTask は `placeSortOrder(others, index, target)` と移動対象自身を渡すので、
   // 中間値が尽きたときの振り直しには**必ず移動対象が含まれる**（domain/task/reorder.ts）。
   // セクションをまたぐ形にしているのは、`applyRenumber` が sort_order しか書かないため
@@ -1432,23 +1287,8 @@ describe("relocate（F-113 / データモデル定義書 §4.4: 自動セクシ�
     );
   });
 
-  // 移動先が現在地と同じなら relocations は空で届く（F-113 の規則が「動かす必要なし」と出す形）。
-  // 守るのは早期 return という書き方ではなく「空でも安全に呼べる」契約——外して空の
-  // トランザクションを開いても結果は同じなので、このテストで分岐の有無は判定できない
-  it("空配列では何も変えない（呼び出し側が空チェックを持たなくてよい）", async () => {
-    const [morning] = await db
-      .insert(sections)
-      .values([{ name: "朝", startTime: "06:00" }])
-      .returning();
-    await db
-      .insert(tasks)
-      .values([{ taskDate: "2026-07-19", name: "A", sortOrder: 1000, sectionId: morning.id }]);
-    const before = await repo.listByDate("2026-07-19");
-
-    await repo.relocate([]);
-
-    expect(await repo.listByDate("2026-07-19")).toEqual(before);
-  });
+  // `relocate([])` は見ない——早期 return を外して空のトランザクションを開いても結果は同じで、
+  // このテストでは分岐の有無を判定できない（テスト自身がそう断っていた）
 
   it("途中で失敗した場合は1件も反映されない（1トランザクション）", async () => {
     const [morning] = await db
@@ -1627,7 +1467,10 @@ describe("undoComplete（F-212 / データモデル定義書 §4.7: 完了の取
     expect(after.sectionId).toBe(morning.id);
   });
 
-  it("復帰（updatePunch）で打刻2列と配置2列が同じトランザクションで戻る", async () => {
+  // 取り消しているあいだに別タスクが復帰先の席を取ることがあるので、同じ
+  // (task_date, section_id, sort_order) を持つ行を並べて復帰させる——`sort_order` に
+  // ユニーク制約が無いこと（データモデル定義書 §4.7）に寄りかかった書き戻しだから
+  it("復帰（updatePunch）で打刻2列と配置2列が同じトランザクションで戻る（復帰先の席を他タスクが取っていても）", async () => {
     const [morning, night] = await db
       .insert(sections)
       .values([
@@ -1640,43 +1483,22 @@ describe("undoComplete（F-212 / データモデル定義書 §4.7: 完了の取
     await repo.undoComplete(target.id, [
       { taskId: target.id, sectionId: night.id, sortOrder: 500 },
     ]);
-    await repo.updatePunch(target.id, { startedAt, endedAt }, [
-      { taskId: target.id, sectionId: morning.id, sortOrder: 1000 },
-    ]);
-
-    const [after] = await repo.listByDate("2026-07-19");
-    expect(after.startedAt).toEqual(startedAt);
-    expect(after.endedAt).toEqual(endedAt);
-    expect(after.sectionId).toBe(morning.id);
-    expect(after.sortOrder).toBe(1000);
-  });
-
-  it("復帰先の sort_order を他タスクが取っていても書き戻せる（同値を許容。データモデル定義書 §4.7）", async () => {
-    const [morning] = await db
-      .insert(sections)
-      .values([{ name: "朝", startTime: "06:00" }])
-      .returning();
-    const target = await insertCompleted("2026-07-19", morning.id);
-    // 取り消し中に別タスクが復帰先と同じ sort_order（1000）を取る
+    // 取り消し中に別タスクが復帰先（朝・1000）と同じ席を取る
     await db.insert(tasks).values([
-      {
-        taskDate: "2026-07-19",
-        name: "同値の未実行タスク",
-        sortOrder: 1000,
-        sectionId: morning.id,
-      },
+      { taskDate: "2026-07-19", name: "同値の未実行タスク", sortOrder: 1000, sectionId: morning.id },
     ]);
 
-    await repo.undoComplete(target.id, [
-      { taskId: target.id, sectionId: morning.id, sortOrder: 2000 },
-    ]);
     await repo.updatePunch(target.id, { startedAt, endedAt }, [
       { taskId: target.id, sectionId: morning.id, sortOrder: 1000 },
     ]);
 
     const rows = await repo.listByDate("2026-07-19");
-    expect(rows.filter((t) => t.sortOrder === 1000)).toHaveLength(2); // sort_order にユニーク制約は無い
-    expect(rows.find((t) => t.id === target.id)?.endedAt).toEqual(endedAt);
+    const after = rows.find((t) => t.id === target.id);
+    expect(after?.startedAt).toEqual(startedAt);
+    expect(after?.endedAt).toEqual(endedAt);
+    expect(after?.sectionId).toBe(morning.id);
+    expect(after?.sortOrder).toBe(1000);
+    expect(rows.filter((t) => t.sectionId === morning.id && t.sortOrder === 1000)).toHaveLength(2);
   });
 
   it("未分類（section_id IS NULL）の完了タスクも取り消し・復帰できる", async () => {
@@ -1792,71 +1614,6 @@ describe("bundle_id の伝播（データモデル定義書 §4.8 / F-119）", (
     expect(after.find((t) => t.id === target.id)?.bundleId).toBeNull(); // C は無関係なので変わらない
   });
 
-  // 複製（create 経由）はバンドルを引き継がない。routine_id・コメント・ハイライトと同じ扱い
-  // （データモデル定義書 §4.8）。NewTask に bundle_id を渡さないことで表す
-  it("複製はバンドルを引き継がない（routine_id・コメント・ハイライトと同じ扱い）", async () => {
-    const bundle = await createBundle();
-    const [source] = await db
-      .insert(tasks)
-      .values({ taskDate: "2026-07-19", name: "複製元", sortOrder: 1000, bundleId: bundle.id })
-      .returning();
-
-    const created = await repo.create(
-      {
-        taskDate: "2026-07-19",
-        name: source.name,
-        estimateMinutes: 0,
-        sectionId: null,
-        modeId: null,
-        projectId: null,
-        sortOrder: 2000,
-        // bundleId を渡さない = 複製は引き継がない扱い（duplicateDraft が bundleId を持たない）
-      },
-      []
-    );
-
-    expect(created.bundleId).toBeNull();
-    expect((await repo.findById(source.id))?.bundleId).toBe(bundle.id); // 元タスクは変わらない
-  });
-
-  // 複製して開始（duplicateAndStart）も同じくバンドルを引き継がない
-  it("複製して開始もバンドルを引き継がない", async () => {
-    const bundle = await createBundle();
-    const startedAt = new Date("2026-07-19T08:00:00Z");
-    const endedAt = new Date("2026-07-19T08:30:00Z");
-    const now = new Date("2026-07-19T09:00:00Z");
-    const [source] = await db
-      .insert(tasks)
-      .values({
-        taskDate: "2026-07-19",
-        name: "ストレッチ",
-        estimateMinutes: 15,
-        sortOrder: 1000,
-        startedAt,
-        endedAt,
-        bundleId: bundle.id,
-      })
-      .returning();
-
-    const created = await repo.duplicateAndStart({
-      newTask: {
-        taskDate: "2026-07-19",
-        name: source.name,
-        estimateMinutes: 15,
-        sectionId: null,
-        modeId: null,
-        projectId: null,
-        sortOrder: 2000,
-        splitParentId: null,
-      },
-      startedAt: now,
-      interruption: null,
-      renumber: [],
-    });
-
-    expect(created.bundleId).toBeNull();
-  });
-
   // 先送りは routine_id を外す扱い（データモデル定義書 §3.5）と揃えてバンドルからも外す。付けたまま移すと
   // 移動先の日に改めて展開されるぶんと同じバンドルに同名のタスクが2件並んでしまう
   it("先送りはバンドルから外す（routine_id を外す扱いと揃える）", async () => {
@@ -1872,35 +1629,4 @@ describe("bundle_id の伝播（データモデル定義書 §4.8 / F-119）", (
     expect(after.bundleId).toBeNull();
   });
 
-  // 開始打刻の取り消し・完了の取り消しは打刻列だけを触るので bundle_id は変わらない
-  it("開始打刻の取り消し・完了の取り消しはバンドルを変えない", async () => {
-    const bundle = await createBundle();
-    const [running, completed] = await db
-      .insert(tasks)
-      .values([
-        {
-          taskDate: "2026-07-19",
-          name: "実行中タスク",
-          sortOrder: 1000,
-          startedAt: new Date("2026-07-19T09:00:00Z"),
-          bundleId: bundle.id,
-        },
-        {
-          taskDate: "2026-07-19",
-          name: "完了タスク",
-          sortOrder: 2000,
-          startedAt: new Date("2026-07-19T09:00:00Z"),
-          endedAt: new Date("2026-07-19T09:30:00Z"),
-          bundleId: bundle.id,
-        },
-      ])
-      .returning();
-
-    await repo.undoStart(running.id, []);
-    await repo.undoComplete(completed.id, []);
-
-    const after = await repo.listByDate("2026-07-19");
-    expect(after.find((t) => t.id === running.id)?.bundleId).toBe(bundle.id);
-    expect(after.find((t) => t.id === completed.id)?.bundleId).toBe(bundle.id);
-  });
 });

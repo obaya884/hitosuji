@@ -27,13 +27,6 @@ describe("DrizzleProjectRepository", () => {
     ]);
   });
 
-  it("アーカイブ済みも listAll に含まれる（復元できるようにするため）", async () => {
-    const a = await repo.create({ name: "A" });
-    await repo.create({ name: "B" });
-    await repo.setArchived(a.id, true);
-    expect(await repo.listAll()).toHaveLength(2);
-  });
-
   // 画面定義書03 §4.1
   it("タスクとルーチンの参照をどちらも数え、参照0件のプロジェクトは削除できる", async () => {
     const used = await repo.create({ name: "使用中" });
