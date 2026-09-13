@@ -98,7 +98,9 @@ describe("DrizzleRoutineRepository", () => {
     expect(await repo.findById(created.id + 1)).toBeNull();
   });
 
-  it("削除しても展開済みタスクは routine_id を NULL にして残る（画面定義書02 O-4）", async () => {
+  // 後始末は DDL の ON DELETE が全部やる。`routine_skips.routine_id` は NOT NULL なので
+  // CASCADE を落とすと SET NULL にも倒れられず、**ルーチンの削除そのものが FK 違反で失敗する**
+  it("削除すると展開済みタスクは routine_id を NULL にして残り（画面定義書02 O-4）、スキップは道連れに消える（F-301 / データモデル定義書 §3.6）", async () => {
     const created = await repo.create(input());
     await repo.expand([
       {
@@ -113,6 +115,7 @@ describe("DrizzleRoutineRepository", () => {
         sortOrder: 1000,
       },
     ]);
+    await db.insert(routineSkips).values({ routineId: created.id, taskDate: "2026-07-20" });
 
     await repo.delete(created.id);
 
@@ -120,6 +123,7 @@ describe("DrizzleRoutineRepository", () => {
     expect(remaining).toHaveLength(1);
     expect(remaining[0].routineId).toBeNull();
     expect(await db.select().from(routines)).toHaveLength(0);
+    expect(await db.select().from(routineSkips)).toHaveLength(0);
   });
 
   // データモデル定義書 §4.8: バンドルは展開のときに写した値なので、由来のルーチンが消えても
@@ -246,13 +250,8 @@ describe("expand（F-301: 冪等INSERT）", () => {
     );
   });
 
-  it("ルーチン由来でないタスクは冪等制約の対象外（同名でも共存できる）", async () => {
-    await db.insert(tasks).values([
-      { taskDate: "2026-07-19", name: "手動タスク", sortOrder: 1000 },
-      { taskDate: "2026-07-19", name: "手動タスク", sortOrder: 2000 },
-    ]);
-    expect(await taskRepo.listByDate("2026-07-19")).toHaveLength(2);
-  });
+  // 冪等制約が効くのは `routine_id` が非 NULL の行だけ。NULL の行を並べても Postgres の一意索引は
+  // NULL を互いに相異なるものとして扱うため、部分述語の有無に関わらず通る（＝そこは測れない）
 
   // FB-99: 先送りは紐付けを外して移る（データモデル定義書 §3.5）ので、移動先の日の展開を吸わない。
   // 紐付けを保ったまま移す実装に戻すと、ここが 0 件展開に落ちる

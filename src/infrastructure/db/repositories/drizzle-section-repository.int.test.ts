@@ -42,7 +42,7 @@ describe("DrizzleSectionRepository", () => {
     expect(all).toHaveLength(2);
   });
 
-  it("update は名前と開始時刻を書き換え、updated_at を現在時刻で埋める", async () => {
+  it("update は名前と開始時刻を書き換える", async () => {
     const created = await repo.create({ name: "朝", startTime: "06:00" });
 
     await repo.update(created.id, { name: "早朝", startTime: "05:30" });
@@ -50,11 +50,22 @@ describe("DrizzleSectionRepository", () => {
     const [after] = await db.select().from(sections);
     expect(after.name).toBe("早朝");
     expect(after.startTime).toBe("05:30:00");
-    // updated_at はアプリ層が設定する（データモデル定義書 §3 共通カラム）。
-    // 挿入時の既定値は DB の now()・更新時はアプリの new Date() で**時刻源が2つある**ため、
-    // コンテナとホストの時計が数ミリ秒前後して挿入時より前になりうる（T-31）。
-    // そこで大小関係は見ず「更新時に現在時刻で埋め直されている」ことだけを確かめる
-    expect(Math.abs(Date.now() - after.updatedAt.getTime())).toBeLessThan(60_000);
+  });
+
+  // updated_at はアプリ層が更新時に設定する（データモデル定義書 §3 共通カラム）。
+  // 「現在時刻の近傍にあること」では列に `defaultNow()` がある以上いつでも緑になるので、
+  // **いったん遠い過去へ倒してから**更新が埋め直すことを見る（時計のずれを踏まずに済む）
+  it("update は updated_at を埋め直す", async () => {
+    const created = await repo.create({ name: "朝", startTime: "06:00" });
+    await db
+      .update(sections)
+      .set({ updatedAt: new Date("2000-01-01T00:00:00Z") })
+      .where(eq(sections.id, created.id));
+
+    await repo.update(created.id, { name: "早朝", startTime: "05:30" });
+
+    const [after] = await db.select().from(sections);
+    expect(after.updatedAt.getUTCFullYear()).not.toBe(2000);
   });
 
   it("setArchived はアーカイブと復元の両方に使える", async () => {

@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { COLOR_BY_NAME, COLOR_VALUES } from "@/domain/shared/color-presets";
-import { modes, routines, tasks } from "@/infrastructure/db/schema";
+import { COLOR_BY_NAME } from "@/domain/shared/color-presets";
+import { routines, tasks } from "@/infrastructure/db/schema";
 import { createTestDb, truncateAll } from "@/infrastructure/db/testing/test-db";
 import { seedMasters } from "@/infrastructure/db/seed";
 import { createModeRepository } from "./drizzle-mode-repository";
@@ -61,16 +61,8 @@ describe("物理削除の判定（画面定義書03 §4.1）", () => {
 });
 
 describe("シードの初期データ（データモデル定義書 §5 / 画面定義書03 §3.2）", () => {
-  it("投入されるモードの色はすべてプリセットに含まれる（画面から編集できる）", async () => {
-    await seedMasters(db);
-    const seeded = await repo.listAll();
-    expect(seeded.length).toBeGreaterThan(0);
-    for (const mode of seeded) {
-      expect(COLOR_VALUES, `${mode.name} の色 ${mode.color}`).toContain(mode.color);
-    }
-    expect(await db.select().from(modes)).toHaveLength(seeded.length);
-  });
-
+  // 色は `COLOR_BY_NAME` で固定する。値は定義上プリセットの要素なので、プリセットに
+  // 含まれることを別に走査しても `seed.ts` が同じ表から引いている形の写しにしかならない
   it("投入されるモードの色はデータモデル定義書 §5 のとおり（仕事=青 / 暮らし=緑 / 休憩=グレー）", async () => {
     await seedMasters(db);
     const colorOf = new Map((await repo.listAll()).map((m) => [m.name, m.color]));
