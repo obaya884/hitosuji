@@ -1,14 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { APP_TIME_ZONE, fromZonedClock, zonedParts } from "./time-zone";
 
-// 夏時間を持つゾーン。運用タイムゾーン（Asia/Tokyo）には無いが、ずれを瞬間ごとに引く実装を固定する
+// 運用タイムゾーンは Asia/Tokyo 固定（`APP_TIME_ZONE`。要件定義書 §2.2 / F-116）。その値そのものは
+// 下の各テストが JST の壁時計を期待値に持つことで固定される。
+// NEW_YORK は夏時間を持つゾーン。運用タイムゾーンには無いが、ずれを瞬間ごとに引く実装を固定する
 const NEW_YORK = "America/New_York";
-
-describe("APP_TIME_ZONE（F-116 / データモデル定義書 §1: 運用タイムゾーンは日本時間）", () => {
-  it("Asia/Tokyo を指す", () => {
-    expect(APP_TIME_ZONE).toBe("Asia/Tokyo");
-  });
-});
 
 describe("zonedParts（絶対時刻を指定タイムゾーンの壁時計として読む）", () => {
   it("UTC の日付をまたぐ瞬間も JST の壁時計で読む", () => {

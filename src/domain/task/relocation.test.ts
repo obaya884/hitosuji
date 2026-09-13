@@ -207,19 +207,6 @@ describe("planCarryOver（画面定義書01 §4.2-b: 現在位置より前の未
     expect(idsInOrder).toEqual([1, 2]);
   });
 
-  it("移動先セクションでは元からあるタスクより前に置かれる", () => {
-    const overdue = task({ id: 1, sectionId: morning.id, sortOrder: 1000 });
-    const anchor = task({ id: 2, sectionId: forenoon.id, sortOrder: 1000 });
-
-    const result = planCarryOver([overdue, anchor], sections, "10:00");
-
-    const overdueRelocation = result.find((r) => r.taskId === 1)!;
-    // overdue は anchor より小さい sortOrder で割り込む。anchor 自身は動かさない
-    expect(overdueRelocation.sectionId).toBe(forenoon.id);
-    expect(overdueRelocation.sortOrder).toBeLessThan(anchor.sortOrder);
-    expect(result.some((r) => r.taskId === 2)).toBe(false);
-  });
-
   it("現在時刻を含む有効セクションが無い場合は空配列", () => {
     const overdue = task({ id: 1, sectionId: morning.id, sortOrder: 1000 });
     const result = planCarryOver([overdue], [], "10:00");
@@ -304,42 +291,10 @@ describe("planCarryOver（画面定義書01 §4.2-b: 現在位置より前の未
   });
 });
 
+// 規則c は規則a と同じ `relocationInStartOrder` へ素通しする（relocation.ts）。共通の挙動は
+// 上の relocationOnStart の describe が見るので、ここは規則c でしか作れない形（行に修正前の
+// 打刻が残っている）と、そこでしか測れない境界だけを見る。
 describe("relocationOnPunchEdit（画面定義書01 §4.2-c: 開始時刻の修正で移動）", () => {
-  it("修正後の時刻を含むセクションへ、開始時刻順の位置で移す", () => {
-    // 午後には 12:00 と 13:00 の完了タスクがある。12:10 へ直した行はその間に入る
-    const edited = task({
-      id: 1,
-      sectionId: forenoon.id,
-      sortOrder: 1000,
-      startedAt: atJst("12:10"),
-      endedAt: atJst("12:40"),
-    });
-    const earlier = task({
-      id: 2,
-      sectionId: afternoon.id,
-      sortOrder: 1000,
-      startedAt: atJst("12:00"),
-      endedAt: atJst("12:05"),
-    });
-    const later = task({
-      id: 3,
-      sectionId: afternoon.id,
-      sortOrder: 2000,
-      startedAt: atJst("13:00"),
-      endedAt: atJst("14:00"),
-    });
-
-    const result = relocationOnPunchEdit(
-      edited,
-      [edited, earlier, later],
-      sections,
-      atJst("12:10"),
-      "12:10"
-    );
-
-    expect(result).toEqual([{ taskId: 1, sectionId: afternoon.id, sortOrder: 1500 }]);
-  });
-
   it("位置は修正後の時刻で決まり、行に残っている修正前の時刻は見ない", () => {
     // 行は修正前（08:00）のまま。本番も打刻列を書き換える前の行を渡す（punch-usecases）
     const edited = task({
@@ -398,157 +353,6 @@ describe("relocationOnPunchEdit（画面定義書01 §4.2-c: 開始時刻の修�
     );
 
     expect(result).toEqual([{ taskId: 1, sectionId: afternoon.id, sortOrder: 2000 }]);
-  });
-
-  it("未実行タスクは打刻済みタスクより後ろとして扱い、その直前に入る", () => {
-    const edited = task({ id: 1, sectionId: morning.id, sortOrder: 1000, startedAt: atJst("12:10") });
-    const done = task({
-      id: 2,
-      sectionId: afternoon.id,
-      sortOrder: 1000,
-      startedAt: atJst("12:00"),
-      endedAt: atJst("12:05"),
-    });
-    const planned = task({ id: 3, sectionId: afternoon.id, sortOrder: 2000 });
-
-    const result = relocationOnPunchEdit(
-      edited,
-      [edited, done, planned],
-      sections,
-      atJst("12:10"),
-      "12:10"
-    );
-
-    expect(result).toEqual([{ taskId: 1, sectionId: afternoon.id, sortOrder: 1500 }]);
-  });
-
-  it("完了タスクも移動対象にする（時刻を直したなら位置も直す）", () => {
-    const edited = task({
-      id: 1,
-      sectionId: morning.id,
-      sortOrder: 1000,
-      ...completed,
-      startedAt: atJst("12:10"),
-      endedAt: atJst("12:40"),
-    });
-
-    const result = relocationOnPunchEdit(edited, [edited], sections, atJst("12:10"), "12:10");
-
-    expect(result).toEqual([{ taskId: 1, sectionId: afternoon.id, sortOrder: 1000 }]);
-  });
-
-  it("同じセクションに留まる場合でも、開始時刻順の位置へ置き直す", () => {
-    // 午後の末尾にいる 12:10 の行を、12:00 と 13:00 の間へ戻す
-    const edited = task({
-      id: 1,
-      sectionId: afternoon.id,
-      sortOrder: 3000,
-      startedAt: atJst("12:10"),
-      endedAt: atJst("12:40"),
-    });
-    const earlier = task({
-      id: 2,
-      sectionId: afternoon.id,
-      sortOrder: 1000,
-      startedAt: atJst("12:00"),
-      endedAt: atJst("12:05"),
-    });
-    const later = task({
-      id: 3,
-      sectionId: afternoon.id,
-      sortOrder: 2000,
-      startedAt: atJst("13:00"),
-      endedAt: atJst("14:00"),
-    });
-
-    const result = relocationOnPunchEdit(
-      edited,
-      [edited, earlier, later],
-      sections,
-      atJst("12:10"),
-      "12:10"
-    );
-
-    expect(result).toEqual([{ taskId: 1, sectionId: afternoon.id, sortOrder: 1500 }]);
-  });
-
-  it("既に正しい位置なら何もしない（冪等）", () => {
-    const edited = task({
-      id: 1,
-      sectionId: afternoon.id,
-      sortOrder: 1500,
-      startedAt: atJst("12:10"),
-      endedAt: atJst("12:40"),
-    });
-    const earlier = task({
-      id: 2,
-      sectionId: afternoon.id,
-      sortOrder: 1000,
-      startedAt: atJst("12:00"),
-      endedAt: atJst("12:05"),
-    });
-    const later = task({
-      id: 3,
-      sectionId: afternoon.id,
-      sortOrder: 2000,
-      startedAt: atJst("13:00"),
-      endedAt: atJst("14:00"),
-    });
-
-    const result = relocationOnPunchEdit(
-      edited,
-      [edited, earlier, later],
-      sections,
-      atJst("12:10"),
-      "12:10"
-    );
-
-    expect(result).toEqual([]);
-  });
-
-  it("中間値が尽きたら移動先セクション全体を振り直す（データモデル定義書 §3.5）", () => {
-    const edited = task({ id: 1, sectionId: morning.id, sortOrder: 1000, startedAt: atJst("12:10") });
-    const earlier = task({
-      id: 2,
-      sectionId: afternoon.id,
-      sortOrder: 1000,
-      startedAt: atJst("12:00"),
-      endedAt: atJst("12:05"),
-    });
-    const later = task({
-      id: 3,
-      sectionId: afternoon.id,
-      sortOrder: 1001,
-      startedAt: atJst("13:00"),
-      endedAt: atJst("14:00"),
-    });
-
-    const result = relocationOnPunchEdit(
-      edited,
-      [edited, earlier, later],
-      sections,
-      atJst("12:10"),
-      "12:10"
-    );
-
-    expect(result).toEqual([
-      { taskId: 1, sectionId: afternoon.id, sortOrder: 2000 },
-      { taskId: 3, sectionId: afternoon.id, sortOrder: 3000 },
-    ]);
-  });
-
-  it("未分類（section_id IS NULL）からも移る", () => {
-    const edited = task({ id: 1, sectionId: null, sortOrder: 1000, startedAt: atJst("12:10") });
-
-    const result = relocationOnPunchEdit(edited, [edited], sections, atJst("12:10"), "12:10");
-
-    expect(result).toEqual([{ taskId: 1, sectionId: afternoon.id, sortOrder: 1000 }]);
-  });
-
-  it("有効なセクションが1つも無ければ何もしない", () => {
-    const edited = task({ id: 1, sectionId: morning.id, sortOrder: 1000, startedAt: atJst("12:10") });
-
-    expect(relocationOnPunchEdit(edited, [edited], [], atJst("12:10"), "12:10")).toEqual([]);
   });
 });
 
@@ -611,17 +415,11 @@ describe("relocationOnUndoPunch（画面定義書01 O-13 / データモデル定
   });
 });
 
+// O-13 と同じ関数で、取り消す対象自身を `others` から除いてから判定するため、対象が実行中か
+// 完了かで通る道は変わらない。他に実行中タスクが無い側は上の O-13 の describe が、実行中が
+// 未分類で現在位置が定まらない枝は planCarryOver の describe が見るので、ここは実行中タスクが
+// 在る側だけを見る。
 describe("relocationOnUndoPunch（画面定義書01 O-15 / データモデル定義書 §4.7: 完了の取り消しの戻し先）", () => {
-  it("他に実行中タスクが無ければ、現在時刻を含むセクションの未実行先頭へ置く", () => {
-    const target = task({ id: 1, sectionId: morning.id, sortOrder: 1000, ...completed });
-    const done = task({ id: 2, sectionId: forenoon.id, sortOrder: 1000, ...completed });
-    const planned = task({ id: 3, sectionId: forenoon.id, sortOrder: 2000 });
-
-    const result = relocationOnUndoPunch(target, [target, done, planned], sections, "10:00");
-
-    expect(result).toEqual([{ taskId: 1, sectionId: forenoon.id, sortOrder: 1500 }]);
-  });
-
   it("他に実行中タスクがあればその直後（＝現在位置）へ置く（データモデル定義書 §4.7 / 画面定義書01 §4.2 の現在位置）", () => {
     const target = task({ id: 1, sectionId: morning.id, sortOrder: 1000, ...completed });
     // 実行中タスクは現在時刻のセクション（午前）ではなく午後にいる
@@ -642,13 +440,6 @@ describe("relocationOnUndoPunch（画面定義書01 O-15 / データモデル定
     expect(result).toEqual([{ taskId: 1, sectionId: afternoon.id, sortOrder: 2000 }]);
   });
 
-  it("実行中タスクが未分類のままなら空配列（並べ直さない）", () => {
-    const target = task({ id: 1, sectionId: morning.id, sortOrder: 1000, ...completed });
-    const running = task({ id: 2, sectionId: null, sortOrder: 1000, startedAt: started });
-
-    expect(relocationOnUndoPunch(target, [target, running], sections, "10:00")).toEqual([]);
-  });
-
   it("実行中タスクの直後で中間値が尽きたら移動先セクション全体を振り直す（データモデル定義書 §3.5）", () => {
     const target = task({ id: 1, sectionId: morning.id, sortOrder: 1000, ...completed });
     const running = task({ id: 2, sectionId: afternoon.id, sortOrder: 1000, startedAt: started });
@@ -661,15 +452,5 @@ describe("relocationOnUndoPunch（画面定義書01 O-15 / データモデル定
       { taskId: 1, sectionId: afternoon.id, sortOrder: 2000 },
       { taskId: 3, sectionId: afternoon.id, sortOrder: 3000 },
     ]);
-  });
-
-  it("実行中タスクの直後に既にいれば空配列（移動不要）", () => {
-    const running = task({ id: 2, sectionId: afternoon.id, sortOrder: 1000, startedAt: started });
-    const target = task({ id: 1, sectionId: afternoon.id, sortOrder: 1500, ...completed });
-    const planned = task({ id: 3, sectionId: afternoon.id, sortOrder: 2000 });
-
-    const result = relocationOnUndoPunch(target, [target, running, planned], sections, "10:00");
-
-    expect(result).toEqual([]);
   });
 });

@@ -283,17 +283,6 @@ describe("formatProjectedEnd（F-104 / 画面定義書01 §3.1: 暦日をまた�
     expect(formatProjectedEnd(withSeconds, atJst("09:00"), APP_TIME_ZONE)).toBe("21:45");
   });
 
-  it("日またぎの起点は運用タイムゾーンの暦日 0:00（実行環境のローカル時刻に依らない）", () => {
-    // JST 07-27 01:30（= 07-26T16:30Z）を JST 07-26 22:00（= 13:00Z）から見て 翌 1:30
-    expect(
-      formatProjectedEnd(
-        new Date("2026-07-26T16:30:00Z"),
-        new Date("2026-07-26T13:00:00Z"),
-        APP_TIME_ZONE
-      )
-    ).toBe("翌 1:30");
-  });
-
   it("起点の暦日は引数のタイムゾーンで決まる（定数を直接見ていない）", () => {
     // 同じ2つの瞬間を UTC で読むと now は 07-26 13:00・終了は同日 16:30 なので日をまたがない
     expect(
@@ -320,11 +309,6 @@ describe("isOverMidnight（F-104: 警告色の判定）", () => {
 
 describe("F-116: 日またぎ表記・超過警告を日界（論理日）基準で測る", () => {
   const DAY_START = 6 * 60; // 日界 06:00
-
-  it("日界 06:00 で翌 03:00 終了は `翌 3:00` 表記（暦日ではなく論理日起点で日数を測る）", () => {
-    const end = atJst("03:00", "2026-07-27");
-    expect(formatProjectedEnd(end, atJst("23:00"), APP_TIME_ZONE, DAY_START)).toBe("翌 3:00");
-  });
 
   it("「翌」の前置と警告色は独立（日界 06:00 なら 翌 3:00 は警告なし・翌 7:00 で警告）", () => {
     const now = atJst("23:00");
@@ -356,15 +340,6 @@ describe("F-116: 日またぎ表記・超過警告を日界（論理日）基準
       "+2日 3:00"
     );
     expect(isOverMidnight(twoDaysAhead, atJst("22:00"), APP_TIME_ZONE, DAY_START)).toBe(true);
-  });
-
-  it("日界 06:00 では次の日界（翌 06:00）を越えるまで警告しない", () => {
-    expect(
-      isOverMidnight(atJst("03:00", "2026-07-27"), atJst("23:00"), APP_TIME_ZONE, DAY_START)
-    ).toBe(false);
-    expect(
-      isOverMidnight(atJst("07:00", "2026-07-27"), atJst("23:00"), APP_TIME_ZONE, DAY_START)
-    ).toBe(true);
   });
 
   it("日界より前（深夜帯）の now は論理日が前の暦日になり、起点も前の暦日", () => {

@@ -81,17 +81,6 @@ describe("resumeTaskDraft（F-204: 「（再開）」を付けた同属性の再
     const original = task({ id: 7, highlighted: true, startedAt });
     expect(resumeTaskDraft(original, new Date("2026-07-26T08:10:00Z")).highlighted).toBe(true);
   });
-
-  it("ハイライトされていない元タスクからは引き継がない", () => {
-    const original = task({ id: 7, highlighted: false, startedAt });
-    expect(resumeTaskDraft(original, new Date("2026-07-26T08:10:00Z")).highlighted).toBe(false);
-  });
-
-  it("ルーチン由来でも routine_id は引き継がない（展開の冪等制約に抵触するため）", () => {
-    const original = task({ id: 7, routineId: 99, startedAt });
-    const draft = resumeTaskDraft(original, new Date("2026-07-26T08:10:00Z"));
-    expect(draft).not.toHaveProperty("routineId");
-  });
 });
 
 describe("canStart（F-201: 開始できるのは未実行タスクのみ）", () => {

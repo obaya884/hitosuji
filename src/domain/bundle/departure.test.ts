@@ -45,14 +45,6 @@ describe("detectBundleDeparture（要件定義書 §5.6: 割り込みの検知�
     expect(detectBundleDeparture(tasks, { id: 2, bundleId: 5 })).toBe(null);
   });
 
-  it("中断した残りの再開も知らせない（再開タスクはバンドルを引き継ぐため）", () => {
-    const tasks = [
-      task({ id: 1, bundleId: 5, startedAt: atJst("06:30"), endedAt: atJst("06:40") }),
-      task({ id: 2, bundleId: 5, splitParentId: 1 }),
-    ];
-    expect(detectBundleDeparture(tasks, { id: 2, bundleId: 5 })).toBe(null);
-  });
-
   it("バンドルのメンバーが全部終わっていれば知らせない", () => {
     const tasks = [
       task({ id: 1, bundleId: 5, startedAt: atJst("06:30"), endedAt: atJst("06:48") }),

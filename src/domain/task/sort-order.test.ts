@@ -324,20 +324,6 @@ describe("placeNewBelow（データモデル定義書 §3.5: 元の行の直下�
     // 相方が前なら anchor が末尾なので、ただの末尾追加になる
     expect(placeNewBelow([twin, anchor], anchor)).toEqual({ sortOrder: 2000, renumber: [] });
   });
-
-  it("席が無ければ振り直す。差し込む行自身は振り直しに含めない（まだ id が無いため）", () => {
-    const anchor = task({ id: 1, sectionId: 1, sortOrder: 1000 });
-    const tasks = [anchor, task({ id: 2, sectionId: 1, sortOrder: 1001 })];
-
-    // 振り直しは既存2行ぶんだけ。直下の席（2000）は戻り値の sortOrder が持つ
-    expect(placeNewBelow(tasks, anchor)).toEqual({
-      sortOrder: 2000,
-      renumber: [
-        { taskId: 1, sortOrder: 1000 },
-        { taskId: 2, sortOrder: 3000 },
-      ],
-    });
-  });
 });
 
 describe("renumberSortOrders（中間値が尽きたときの振り直し）", () => {

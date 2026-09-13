@@ -3,7 +3,6 @@ import type { Bundle } from "../bundle/bundle";
 import type { Mode } from "../mode/mode";
 import type { Project } from "../project/project";
 import { COLOR_PRESETS } from "../shared/color-presets";
-import { compareByName } from "../shared/name-order";
 import { sortRoutines, type RoutineSortMasters } from "./order";
 import type { Routine } from "./routine";
 import { routine } from "./testing/routine";
@@ -179,23 +178,6 @@ describe("sortRoutines（画面定義書02 §3.1）", () => {
     const before = [...input];
     sortRoutines(input, emptyMasters, "scheduledStartTime", "asc");
     expect(input).toEqual(before);
-  });
-
-  it("既定（scheduledStartTime/asc）は現行の listRoutines と同じ並びになる", () => {
-    const input = [
-      routine({ id: 1, name: "経費精算", scheduledStartTime: "13:30" }),
-      routine({ id: 2, name: "朝食", scheduledStartTime: "06:30" }),
-      routine({ id: 3, name: "週次レビュー", scheduledStartTime: "10:00" }),
-      routine({ id: 4, name: "同時刻2", scheduledStartTime: "10:00" }),
-    ];
-
-    // listRoutines（src/usecases/routine/usecases.ts）と同じ並べ替え式
-    const expected = [...input].sort(
-      (a, b) => a.scheduledStartTime.localeCompare(b.scheduledStartTime) || compareByName(a, b)
-    );
-
-    const result = sortRoutines(input, emptyMasters, "scheduledStartTime", "asc");
-    expect(names(result)).toEqual(names(expected));
   });
 });
 

@@ -245,18 +245,14 @@ describe("selectionAfterRemoval（画面定義書01 §5: 選択行が消えた�
     expect(selectionAfterRemoval(tasks, 3)).toBe(2);
   });
 
-  it("直後が完了でも状態を問わずそれを選ぶ", () => {
-    const tasks = [task({ id: 1 }), task({ id: 2, startedAt, endedAt }), task({ id: 3 })];
-    expect(selectionAfterRemoval(tasks, 1)).toBe(2);
-  });
-
-  it("直後が実行中でも状態を問わずそれを選ぶ", () => {
-    const tasks = [task({ id: 1 }), task({ id: 2, startedAt }), task({ id: 3 })];
-    expect(selectionAfterRemoval(tasks, 1)).toBe(2);
-  });
-
-  it("直後がセクションをまたいでいてもそのまま選ぶ（送り先は表示順だけで決まる）", () => {
-    const tasks = [task({ id: 1, sectionId: CURRENT }), task({ id: 2, sectionId: LATER })];
+  // 送り先は表示順だけで決まり、状態もセクションも見ない（画面定義書01 §5）。`currentTaskId`
+  // との呼び分けがここなので、状態・セクションを混ぜた1件で両方まとめて固定する
+  it("直後の行は状態・セクションを問わずそのまま選ぶ", () => {
+    const tasks = [
+      task({ id: 1, sectionId: CURRENT }),
+      task({ id: 2, sectionId: LATER, startedAt, endedAt }),
+      task({ id: 3, sectionId: LATER }),
+    ];
     expect(selectionAfterRemoval(tasks, 1)).toBe(2);
   });
 
