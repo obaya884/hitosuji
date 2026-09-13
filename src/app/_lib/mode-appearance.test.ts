@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Mode } from "@/domain/mode/mode";
-import { modeAppearance, toDimmedClass } from "./mode-appearance";
+import { modeAppearance } from "./mode-appearance";
 
 const work: Mode = { id: 1, name: "仕事", color: "#ef4444", isArchived: false };
 
@@ -30,12 +30,5 @@ describe("modeAppearance（F-401 / 画面定義書01 §3.3「モード未設定�
       dimmedClass: "",
       colorStyle: { color: "#ef4444" },
     });
-  });
-});
-
-describe("toDimmedClass（判定だけを受け取る側＝`AssignCell` の入口）", () => {
-  it("真なら副次情報の色、偽なら何も付けない", () => {
-    expect(toDimmedClass(true)).toBe("text-ink-muted");
-    expect(toDimmedClass(false)).toBe("");
   });
 });

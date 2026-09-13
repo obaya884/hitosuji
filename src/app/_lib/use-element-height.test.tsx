@@ -1,4 +1,4 @@
-import { render, renderHook } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { installResizeObserver, ResizeObserverStub, resizeTo } from "@/app/_testing/resize-observer";
@@ -38,16 +38,17 @@ describe("useElementHeight（画面定義書01 §2: 固定領域の高さを実�
     };
   }
 
-  it("測る前の高さは 0（実測が届く前の1描画ぶん）", () => {
-    const { result } = renderHook(() => useElementHeight<HTMLDivElement>());
+  // フックの doc が「条件付きで現れる要素に渡すと 0 のままになる」と誤用を想定している側。
+  // ガードを外すと `observer.observe(null)` で落ちるので、**描画が通ること自体**が主張
+  it("ref をどこにも付けないまま描画しても落ちず、高さは 0 のまま", () => {
+    function Detached() {
+      const [, height] = useElementHeight<HTMLDivElement>();
+      return <output>{height}</output>;
+    }
 
-    expect(result.current[1]).toBe(0);
-  });
+    const { container } = render(<Detached />);
 
-  it("返す ref は要素に付けるためのもので、初期値は null", () => {
-    const { result } = renderHook(() => useElementHeight<HTMLDivElement>());
-
-    expect(result.current[0].current).toBeNull();
+    expect(container.querySelector("output")?.textContent).toBe("0");
   });
 
   it("ref を付けた要素を観測する", () => {

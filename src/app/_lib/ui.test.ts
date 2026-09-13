@@ -175,22 +175,35 @@ describe("文字サイズのトークン（画面定義書00_共通 §1.1）", (
     expect(css).toMatch(/^\s*--text-\*:\s*initial;/m);
   });
 
-  it("4段が 見出し・主・従・メタ の値で定義されている（並びは大きい順に読ませる約束）", () => {
-    expect(declarations("")).toEqual([
-      ["heading", "1.125rem"],
-      ["main", "1rem"],
-      ["sub", "0.875rem"],
-      ["meta", "0.75rem"],
-    ]);
+  // 値そのものは写さない——トークンの値を変えるのは意図的な設計変更で、写せば二重記帳になる。
+  // 代わりに**値どうしの関係**（序列と、行の高さの分母）を見る。計算後の大きさを実際に測るのは
+  // ブラウザ段の仕事で、まだ無い（T-148）
+  it("4段が 見出し・主・従・メタ の順で、大きいものから並んでいる", () => {
+    const steps = declarations("");
+    expect(steps.map(([step]) => step)).toEqual(["heading", "main", "sub", "meta"]);
+
+    const rems = steps.map(([, value]) => Number.parseFloat(value));
+    expect(rems).toEqual([...rems].sort((a, b) => b - a));
   });
 
   it("各段が行の高さも持つ（font-size だけ差し替えると行間が継承元のまま残る）", () => {
-    expect(declarations("--line-height")).toEqual([
-      ["heading", "calc(1.75 / 1.125)"],
-      ["main", "calc(1.5 / 1)"],
-      ["sub", "calc(1.25 / 0.875)"],
-      ["meta", "calc(1 / 0.75)"],
+    expect(declarations("--line-height").map(([step]) => step)).toEqual(
+      declarations("").map(([step]) => step)
+    );
+  });
+
+  // 行の高さは `calc(<行送り> / <その段の font-size>)` の比で書く。段の値を動かしたときに
+  // **分母を直し忘れる**と、行間だけが前の比のまま残る（値を写さないぶんここで塞ぐ）
+  it("行の高さの分母は、その段の font-size と一致する", () => {
+    // 分母は単位なしの数値（`calc(1.5 / 1)`）、font-size は `rem` 付きなので数値で突き合わせる
+    const denominators = declarations("--line-height").map(([step, value]) => [
+      step,
+      Number.parseFloat(value.match(/calc\([^/]+\/\s*([^)]+)\)/)?.[1] ?? "NaN"),
     ]);
+
+    expect(denominators).toEqual(
+      declarations("").map(([step, value]) => [step, Number.parseFloat(value)])
+    );
   });
 
   it("本文の受け口は見出しを除く3段（h1 は本文の中で選ぶものではない）", () => {

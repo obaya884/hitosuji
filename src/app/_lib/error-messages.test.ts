@@ -8,7 +8,6 @@ import type {
 import type { TaskEditUsecaseError } from "@/usecases/task/daily-list-usecases";
 import type { TaskOperationError } from "@/usecases/task/operations";
 import type { PunchUsecaseError } from "@/usecases/task/punch-usecases";
-import type { ReorderUsecaseError } from "@/usecases/task/reorder-usecases";
 import {
   BUNDLE_MEMBER_MESSAGES,
   type BundleMemberError,
@@ -27,6 +26,11 @@ import {
   taskActionErrorMessage,
 } from "./error-messages";
 
+// 文言を写した表を辞書ごとに置く。**キーの過不足は実装側の `Record<エラーコード, string>` が
+// typecheck で捕まえるが、キーと文言の組の取り違えは型では捕まらない**（`not_found` の文言を
+// `has_references` のものにする、等）。画面定義書03 §4 と画面定義書05 §6 は `not_found` の文言を
+// 原文のまま条項として引いているので、ここは docs とコードの突き合わせでもある。
+// 辞書とこの表を単一の正とする決めは FB-72（文言カタログを画面定義書に持たせない）。
 const EXPECTED_TASK_EDIT: Record<TaskEditUsecaseError, string> = {
   name_required: "タスク名を入力してください",
   invalid_estimate: "見積もりは分（0以上の整数）で入力してください",
@@ -47,10 +51,6 @@ const EXPECTED_PUNCH_EDIT: Record<PunchEditError, string> = {
   no_started_at: "開始時刻のないタスクに終了時刻は設定できません",
   ended_before_started: "終了時刻は開始時刻より後にしてください",
   future_time: "現在時刻までの時刻を入力してください",
-};
-
-const EXPECTED_REORDER: Record<ReorderUsecaseError, string> = {
-  task_not_found: "タスクが見つかりませんでした",
 };
 
 const EXPECTED_OPERATION: Record<TaskOperationError, string> = {
@@ -141,27 +141,7 @@ const EXPECTED_ROUTINE: Record<RoutineUsecaseError, string> = {
   routine_not_found: "ルーチンが見つかりませんでした",
 };
 
-/**
- * ルーチン化（F-305 / 画面定義書01 §4.1）。**全コードに文言がある**——既定文言へ落ちる
- * 経路は無い（FB-71 で型を実際に起こる失敗だけに絞った）
- */
-const EXPECTED_ROUTINE_FROM_TASK: Record<CreateRoutineFromTaskError, string> = {
-  task_not_found: "タスクが見つかりませんでした",
-  estimate_required: "見積もりを入力してからルーチン化してください",
-  routine_derived_task:
-    "ルーチン由来のタスクはルーチン化できません（ルーチン画面で編集してください）",
-  weekdays_required: "曜日を1つ以上選んでください",
-  invalid_week_interval: "週間隔は1〜53の整数で入力してください",
-  invalid_start_time: "開始想定時刻を HH:MM 形式で入力してください",
-  invalid_interval_days: "間隔は1日以上で入力してください",
-  invalid_month_day: "日は1〜31で入力してください",
-};
-
-/**
- * マスタ管理（画面定義書03 §3.1 のバリデーション・同書 §3.2 の色プリセット・同書 §4.1 の物理削除）。
- * `Record<MasterError, string>` にしているので、ドメインへエラーコードを足したらこのテストが
- * 型エラーで落ちる（文言の決め忘れを防ぐ）
- */
+/** マスタ管理（画面定義書03 §3.1 の検証・同書 §3.2 の色プリセット・同書 §4.1 の物理削除） */
 const EXPECTED_MASTER: Record<MasterError, string> = {
   name_required: "名前を入力してください",
   invalid_start_time: "開始時刻を HH:MM 形式で入力してください",
@@ -181,30 +161,36 @@ const EXPECTED_BUNDLE_MEMBER: Record<BundleMemberError, string> = {
   already_in_bundle: "このルーチンは別のバンドルに入っています（一覧を取り直してください）",
 };
 
+/**
+ * ルーチン化（F-305 / 画面定義書01 §4.1）。**全コードに文言がある**——既定文言へ落ちる
+ * 経路は無い（FB-71 で型を実際に起こる失敗だけに絞った）
+ */
+const EXPECTED_ROUTINE_FROM_TASK: Record<CreateRoutineFromTaskError, string> = {
+  task_not_found: "タスクが見つかりませんでした",
+  estimate_required: "見積もりを入力してからルーチン化してください",
+  routine_derived_task:
+    "ルーチン由来のタスクはルーチン化できません（ルーチン画面で編集してください）",
+  weekdays_required: "曜日を1つ以上選んでください",
+  invalid_week_interval: "週間隔は1〜53の整数で入力してください",
+  invalid_start_time: "開始想定時刻を HH:MM 形式で入力してください",
+  invalid_interval_days: "間隔は1日以上で入力してください",
+  invalid_month_day: "日は1〜31で入力してください",
+};
+
 describe("エラー文言辞書（T-49: クライアントとサーバが同じ辞書を参照する）", () => {
   it("タスク編集（画面定義書01 §3.3・同書 §8）の対応表が期待どおり", () => {
     expect(TASK_EDIT_MESSAGES).toEqual(EXPECTED_TASK_EDIT);
-  });
-
-  it("打刻とその取り消し（F-201 / F-203 / F-210 / F-212）の対応表が期待どおり", () => {
-    expect(PUNCH_MESSAGES).toEqual(EXPECTED_PUNCH);
   });
 
   it("打刻修正（F-203）の対応表が期待どおり", () => {
     expect(PUNCH_EDIT_MESSAGES).toEqual(EXPECTED_PUNCH_EDIT);
   });
 
-  it("並び替え・セクション割り当て（O-6 / O-5）の対応表が期待どおり", () => {
-    expect(REORDER_MESSAGES).toEqual(EXPECTED_REORDER);
-  });
+  // 打刻・操作・複製して開始の3辞書は、下の「操作種別 → 辞書」の走査が
+  // `EXPECTED_PUNCH` / `EXPECTED_OPERATION` / `EXPECTED_DUPLICATE_AND_START` と
+  // 突き合わせるので、ここに同じ対応表を置かない
 
-  it("中断・複製・先送り・削除（F-204 / F-111 / F-107 / O-8）の対応表が期待どおり", () => {
-    expect(OPERATION_MESSAGES).toEqual(EXPECTED_OPERATION);
-  });
-
-  // 複製して開始（F-208）の辞書は非公開なので、対応表は下の「操作種別 → 辞書」の describe が固定する
-
-  it("ルーチン入力の検証（画面定義書02 §4）の対応表が期待どおり（コードの過不足も含めて固定する）", () => {
+  it("ルーチン入力の検証（画面定義書02 §4）の対応表が期待どおり", () => {
     expect(ROUTINE_MESSAGES).toEqual(EXPECTED_ROUTINE);
   });
 
@@ -229,6 +215,9 @@ describe("エラー文言辞書（T-49: クライアントとサーバが同じ�
   });
 });
 
+// **この describe だけでは文言は守れない**——多くは実装が同じ定数・スプレッドを共有しているため
+// 現状つねに真で、将来ばらしたときに落ちる炭鉱のカナリアとして置いてある。文言そのものを固定して
+// いるのは上の対応表と、下の「操作種別 → 辞書」の走査
 describe("同じコードは経路が違っても同じ文言を出す（FB-72: 辞書を分けて写した結果の食い違いを防ぐ）", () => {
   it("ended_before_started はクライアントの打刻修正でもサーバの打刻でも同じ（FB-72 ①）", () => {
     expect(PUNCH_EDIT_MESSAGES.ended_before_started).toBe(PUNCH_MESSAGES.ended_before_started);

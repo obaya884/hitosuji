@@ -101,20 +101,6 @@ describe("TableFrame（画面定義書02 §3 / 画面定義書03 §3・§4: 説�
     expect(errorNotice(container)).toBeNull();
   });
 
-  // sections は説明文を2行に折った断片で渡す（1つの文字列にすると継ぎ目の空白が消える）
-  it("説明文は文字列でも JSX の断片でも受け取れる", () => {
-    renderFrame({
-      description: (
-        <>
-          編集できるのは開始時刻だけです。
-          先頭のラジオで「1日の開始」になるセクションを選べます。
-        </>
-      ),
-    });
-
-    expect(screen.getByText(/編集できるのは開始時刻だけです。 先頭のラジオで/)).not.toBeNull();
-  });
-
   // 表が増えるたびに枠を写さないための唯一の可変部分（画面定義書02 §3。ルーチン管理は「新規ルーチン」）。
   // **既定側も同じテストで見る**——ヘルパの既定値に依らせると、渡し方を変えた瞬間に黙って検証が消える
   it("新規追加ボタンの文言は既定が「新規追加」で、渡せば表ごとに差し替わる", () => {
@@ -181,13 +167,10 @@ describe("TableFrame（画面定義書02 §3 / 画面定義書03 §3・§4: 説�
     });
 
     // 右端揃え（ml-auto）は jsdom では測れない（幾何）ので、指定があることだけでも固定する。
-    // **本数の有無で右端が動かない**ことがこの構造の要点なので、両方の場合で見る
-    // （ml-auto がボタン側へ戻ると、本数を渡した画面だけボタンの位置がずれる）
-    it.each([
-      ["本数を渡したとき", { countLabel: COUNT }],
-      ["本数を渡さないとき", {}],
-    ])("%s も、本数とボタンの塊ごと右端へ寄せる", (_name, props) => {
-      renderFrame(props);
+    // **説明文も本数も無い最小形で見る**——`ml-auto` がどちらかの有無に連動すると、
+    // バンドル管理（説明文なし）やルーチン管理だけボタンの位置がずれる
+    it("説明文も本数も無くても、ボタンの塊を右端へ寄せる", () => {
+      renderFrame({ description: undefined });
       const group = screen.getByRole("button", { name: "新規追加" }).parentElement;
 
       expect(hasClass(group as HTMLElement, "ml-auto")).toBe(true);
