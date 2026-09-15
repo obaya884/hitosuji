@@ -53,36 +53,14 @@ describe("formatClock（画面定義書01 §3.3: 打刻時刻は日本時間 HH:
   });
 });
 
+// `HH:MM` の解釈そのもの（区切りなし・範囲外・余剰・空文字・トリム）は `parseClockTime` が持ち、
+// `domain/task/punch-edit.test.ts` が網羅する。ここで足しているのはゼロ埋めと `Result` → `null` の変換
 describe("normalizeClockInput（画面定義書01 §3.3: 区切りなし入力の正規化）", () => {
-  it("区切りなし入力（4桁・3桁）を HH:MM へ整形する", () => {
-    expect(normalizeClockInput("0805")).toBe("08:05");
+  it("解釈できたらゼロ埋めして HH:MM を返す", () => {
     expect(normalizeClockInput("805")).toBe("08:05");
   });
 
-  it("区切りあり入力（1桁時）も HH:MM へ整形する", () => {
-    expect(normalizeClockInput("8:05")).toBe("08:05");
-  });
-
-  it("すでに HH:MM の入力はそのまま通す", () => {
-    expect(normalizeClockInput("23:59")).toBe("23:59");
-  });
-
-  it("範囲外（24時台・60分台）は null", () => {
+  it("解釈できなければ null を返す（Result を潰す）", () => {
     expect(normalizeClockInput("24:00")).toBeNull();
-    expect(normalizeClockInput("12:60")).toBeNull();
-  });
-
-  it("余剰つきの入力（末尾に文字・秒付き）は null", () => {
-    expect(normalizeClockInput("09:05x")).toBeNull();
-    expect(normalizeClockInput("12:34:56")).toBeNull();
-  });
-
-  it("空文字・空白のみは null", () => {
-    expect(normalizeClockInput("")).toBeNull();
-    expect(normalizeClockInput("   ")).toBeNull();
-  });
-
-  it("前後の空白はトリムしてから解釈する", () => {
-    expect(normalizeClockInput("  0805  ")).toBe("08:05");
   });
 });

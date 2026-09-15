@@ -1,7 +1,7 @@
-// ブラウザ段（テスト戦略定義書 §3 / T-03）。jsdom 段（`use-flip-up.test.tsx`）は
-// offsetHeight・getBoundingClientRect() が常に 0 を返すため**常に下向き**の状態しか作れず、
-// 反転そのものを検証できない。判定式の境界は純関数のユニット段（`flip-up.test.ts`）が網羅する
-// ので、この段が持つのは**実測の配線**——どの要素を測っているか、いつ測るか——の2点だけ。
+// ブラウザ段（テスト戦略定義書 §3 / T-03）。**このフックに jsdom 段は置かない**——
+// offsetHeight・getBoundingClientRect() が常に 0 を返すため常に下向きの状態しか作れず、
+// 何を壊しても緑になる。判定式の境界は純関数のユニット段（`flip-up.test.ts`）が網羅するので、
+// この段が持つのは**実測の配線**——どの要素を測っているか、いつ測るか。
 import { render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 

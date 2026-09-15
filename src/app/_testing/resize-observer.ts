@@ -18,7 +18,14 @@ export class ResizeObserverStub {
     ResizeObserverStub.instances.push(this);
   }
 
+  /**
+   * **本物と同じく非要素を拒む**。実装が ref の null ガードを落とすと本物は
+   * `TypeError` を投げるので、素通しにすると「落ちるはずの変異が緑で通る」偽物になる
+   */
   observe(target: Element): void {
+    if (!(target instanceof Element)) {
+      throw new TypeError("ResizeObserver.observe: Argument 1 is not an Element");
+    }
     this.target = target;
   }
   unobserve(): void {
