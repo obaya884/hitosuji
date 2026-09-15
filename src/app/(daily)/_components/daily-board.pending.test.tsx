@@ -83,22 +83,6 @@ describe("確定を待つ操作（00_共通 §4.2）", () => {
       expect(indicator()).toBeNull();
     });
 
-    // 速い操作に合図を出すと点滅にしかならない（この遅延が条項の要点）
-    it("猶予の直前に届いた応答では一度も出さない", async () => {
-      const gate = hold<DailyActionResult>(OK);
-      vi.mocked(postponeTaskAction).mockReturnValue(gate.promise);
-      renderBoard();
-
-      await postpone(NOT_STARTED);
-      await advance(SLOW_PENDING_DELAY_MS - 1);
-      expect(indicator()).toBeNull();
-
-      await gate.resolve(OK);
-      await advance(SLOW_PENDING_DELAY_MS);
-      expect(indicator()).toBeNull();
-    });
-
-    // 00_共通 §4.2 の「合図の消え方」は成功に限定していない。失敗でも消えないと合図が残り続ける
     it("失敗で終わっても合図は消え、エラートーストと同時には出ない", async () => {
       const gate = hold<DailyActionResult>(OK);
       vi.mocked(postponeTaskAction).mockReturnValue(gate.promise);

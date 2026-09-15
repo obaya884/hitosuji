@@ -17,7 +17,9 @@ const MORNING: Section = {
   isDayStart: true,
 };
 
-// 値の式は domain の projection.test.ts が担保済み。ここは「何をいつ出すか」（§3.1）に絞る
+// 値の式は domain の projection.test.ts が担保済み。ここは「何をいつ出すか」（§3.1）に絞る。
+// 日界の起点計算も値の式なので同様で、この画面が `dayStartMinutes` を渡しているかは
+// `daily-board.display.test.tsx` の配線テストが見る
 describe("DailySummary（画面定義書01 §3.1 / F-104・F-114: 終了予定・現在・残作業と1日全体の進捗）", () => {
   it("当日表示では終了予定・現在・残作業を並べる", () => {
     // 終了予定の日またぎは論理日の暦日 0:00 起点で測る（起点は JST。T-47）
@@ -116,6 +118,24 @@ describe("DailySummary（画面定義書01 §3.1 / F-104・F-114: 終了予定�
     expect(value?.classList.contains("text-danger")).toBe(true);
   });
 
+  // 警告色の側も日界を見る。上の2件は `dayStartMinutes={0}` なので、日界の引数を 0 に固定する
+  // 変異を通してしまう——**非ゼロの日界でだけ判定が変わる入力**をここで置く
+  it("警告色の判定も日界を起点にする（日界 06:00 なら翌 05:00 はまだ越えていない。F-116）", () => {
+    render(
+      <DailySummary
+        groups={[unclassifiedGroup([task({ id: 1, estimateMinutes: 360 })])]}
+        now={atJst("23:00")}
+        isToday
+        dayStartMinutes={360}
+      />
+    );
+
+    // 翌 05:00 は次の日界（翌 06:00）の手前。日界を 0 とみなすと暦日をまたいだ時点で警告色になる
+    const value = screen.queryByText("翌 5:00");
+    expect(value).not.toBeNull();
+    expect(value?.classList.contains("text-danger")).toBe(false);
+  });
+
   it("日界内に収まる終了予定は警告色にしない", () => {
     render(
       <DailySummary
@@ -128,23 +148,6 @@ describe("DailySummary（画面定義書01 §3.1 / F-104・F-114: 終了予定�
 
     const value = screen.queryByText("23:30");
     expect(value).not.toBeNull();
-    expect(value?.classList.contains("text-danger")).toBe(false);
-  });
-
-  it("日界（F-116）を起点に日またぎと超過を測る（深夜は前の論理日の続き）", () => {
-    // 日界 06:00・深夜 02:00 → 論理日は前の暦日（07-26）なので 07-27 03:00 は「翌」側
-    render(
-      <DailySummary
-        groups={[unclassifiedGroup([task({ id: 1, estimateMinutes: 60 })])]}
-        now={atJst("02:00", "2026-07-27")}
-        isToday
-        dayStartMinutes={360}
-      />
-    );
-
-    const value = screen.queryByText("翌 3:00");
-    expect(value).not.toBeNull();
-    // 次の日界（07-27 06:00）は越えないので警告色にしない
     expect(value?.classList.contains("text-danger")).toBe(false);
   });
 

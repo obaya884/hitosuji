@@ -350,29 +350,9 @@ describe("DailyBoard のインライン編集の検証（§8 / 00_共通 §2.3�
   // （**引数の一部だけを調べるときだけ**使う道具。入力の HH:MM が `APP_TIME_ZONE` の壁時計として
   // 解釈された結果を見たいため）
 
-  // FB-83 の症状を通しで固定する。日界（06:00）が 00:00 以外だと論理日は暦日をまたぐので、
-  // 深夜側に打刻したタスクを「前の晩」へ直せるかどうかは実打刻の暦日に引きずられてはいけない
-  it("深夜側に打刻したタスクの開始時刻を、前の晩の時刻へ直せる（FB-83 / §3.3）", () => {
-    vi.setSystemTime(atJst("02:30", NEXT_TEST_DATE)); // 論理日 TEST_DATE の深夜側
-    renderBoard([
-      task({
-        id: 12,
-        name: RUNNING,
-        sectionId: FORENOON.id,
-        startedAt: atJst("02:00", NEXT_TEST_DATE),
-      }),
-    ]);
-    selectRow(RUNNING);
-
-    press("b");
-    commit(punchInput(), "2340");
-
-    // 論理日 TEST_DATE の 23:40（＝実打刻の暦日である翌日ではない）
-    expect(vi.mocked(updateTaskPunchAction).mock.calls[0][1].startedAt).toEqual(atJst("23:40"));
-  });
-
-  // 上のテストは日界を 0 にしても通る（23:40 はどちらの規則でも同じ暦日）。日界そのものの
-  // 配線は、日界より前＝翌暦日へ送られる時刻でしか見えない
+  // FB-83（深夜に開いたまま前の晩の時刻を入れられる）の規則そのものは `punch-edit.ts` の担当で
+  // `domain/task/punch-edit.test.ts` が持つ。盤面が日界を渡しているかは、**日界より前＝翌暦日へ
+  // 送られる時刻でしか見えない**ので下の1件で見る
   it("日界より前の時刻は論理日の翌暦日として送る（F-116 / §3.3）", () => {
     vi.setSystemTime(atJst("10:00", NEXT_TEST_DATE)); // 前日のリストを翌朝に開いている
     renderBoard();

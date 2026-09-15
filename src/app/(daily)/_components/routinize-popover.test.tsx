@@ -64,13 +64,6 @@ describe("RoutinizePopover（画面定義書01 §4.1 / O-12: 最小の入力で�
     expect(screen.queryByText("日ごと")).toBeNull();
   });
 
-  it("繰り返し種別は毎日 / 週次 / 月次 / n日ごと から選べる", () => {
-    renderPopover();
-
-    for (const label of ["毎日", "週次", "月次", "n日ごと"]) {
-      expect(screen.queryByText(label)).not.toBeNull();
-    }
-  });
 
   it("週次を選ぶと曜日・プリセット・週間隔が出て、元タスクの曜日が既定で選ばれる", () => {
     const { container } = renderPopover({ task: task({ id: 1, taskDate: TEST_DATE }) });

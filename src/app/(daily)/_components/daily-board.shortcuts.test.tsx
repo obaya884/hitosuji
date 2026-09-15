@@ -35,7 +35,6 @@ import {
   selectRow,
   setupBoard,
 } from "../_testing/board-helpers";
-import { SECTIONS } from "../_testing/factories";
 import { isSelected, rowNames, taskRow } from "../_testing/table-helpers";
 
 vi.mock("../actions", async () => (await import("../_testing/action-mocks")).actionMocks());
@@ -194,6 +193,9 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
     expect(isSelected(INBOX)).toBe(false);
   });
 
+  // 盤面段が見るのは `sectionOrder` への結線だけ（並びは `optimisticGroups` を `.map()` で写す）。
+  // 「後ろ」の中身——回転順や、アーカイブ済みセクションを含むかどうか——は並びの作り手である
+  // `groupTasksBySection` が決めるので `domain/task/daily-list.test.ts` の担当
   it("現在セクションに未実行がなければ後ろのセクションへ進む（未分類より先。§5 規則3 / FB-109）", () => {
     // 規則3 は実グルーピング（`groupTasksBySection`）を通す board 段でしか結合を確かめられない
     renderBoard([
@@ -207,59 +209,6 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
       }),
       task({ id: 13, name: NOT_STARTED, sectionId: AFTERNOON.id }), // 現在セクションより後ろ
     ]);
-    selectRow(COMPLETED);
-
-    press("n");
-
-    expect(isSelected(NOT_STARTED)).toBe(true);
-    expect(isSelected(INBOX)).toBe(false);
-  });
-
-  // 「後ろ」は §3.2 の**回転順**（日界を先頭に `(start_time − 日界 + 24h) % 24h` 昇順）であって
-  // start_time の大小ではない。共有フィクスチャは日界が 朝06:00 で回転が恒等なので差が出ず、
-  // 日界より前の深夜セクションを足したときだけ両者を識別できる
-  it("「後ろ」は回転順で決まる（深夜セクションは日界より前でも表示順の末尾。§5 規則3 / F-116）", () => {
-    const midnight = { id: 400, name: "深夜", startTime: "02:00", isArchived: false };
-    renderBoard(
-      [
-        task({ id: 10, name: INBOX }),
-        task({
-          id: 11,
-          name: COMPLETED,
-          sectionId: FORENOON.id,
-          startedAt: atJst("09:00"),
-          endedAt: atJst("09:20"),
-        }),
-        task({ id: 14, name: NOT_STARTED, sectionId: midnight.id }),
-      ],
-      { sections: [...SECTIONS, midnight] }
-    );
-    selectRow(COMPLETED);
-
-    press("n");
-
-    expect(isSelected(NOT_STARTED)).toBe(true);
-    expect(isSelected(INBOX)).toBe(false);
-  });
-
-  // アーカイブ済みセクションも当日タスクが属していれば同じ回転順で表示される（§3.2）ので、
-  // 規則3 の「後ろ」にも入る
-  it("後ろがアーカイブ済みセクションでもそこへ進む（§5 規則3 / §3.2）", () => {
-    const archivedEvening = { id: 500, name: "夕", startTime: "17:00", isArchived: true };
-    renderBoard(
-      [
-        task({ id: 10, name: INBOX }),
-        task({
-          id: 11,
-          name: COMPLETED,
-          sectionId: FORENOON.id,
-          startedAt: atJst("09:00"),
-          endedAt: atJst("09:20"),
-        }),
-        task({ id: 15, name: NOT_STARTED, sectionId: archivedEvening.id }),
-      ],
-      { sections: [...SECTIONS, archivedEvening] }
-    );
     selectRow(COMPLETED);
 
     press("n");

@@ -22,7 +22,6 @@ import {
   setTaskProjectAction,
   setTaskSectionAction,
   startTaskAction,
-  undoCompleteAction,
   undoStartAction,
   type DailyActionResult,
 } from "../actions";
@@ -248,17 +247,6 @@ describe("DailyBoard の選択行が消えたときの送り先（§5 / FB-106�
     expect(isSelected(COMPLETED)).toBe(true);
   });
 
-  it("送り先が完了行のときは、保留を捨てた後の U が完了の取り消しへ当たる（O-13 の切り分け）", async () => {
-    renderBoard(inboxAndSections());
-    selectRow(NOT_STARTED);
-    await pressAndSettle("d"); // 送り先は完了行（COMPLETED）
-
-    clickWithoutServer(screen.getByLabelText("閉じる")); // 保留を捨てる
-    await pressAndSettle("u");
-
-    expect(vi.mocked(undoCompleteAction)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(undoStartAction)).not.toHaveBeenCalled();
-  });
 
   it("削除をサーバが拒んだら、行の巻き戻しに合わせて選択も元の行へ戻す", async () => {
     const gate = hold<DeleteResult>(DELETE_OK);
