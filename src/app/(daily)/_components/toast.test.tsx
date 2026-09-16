@@ -26,12 +26,15 @@ describe("Toast（画面定義書00_共通 §2.2: undo/info は5秒・error は8
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  // undo と同じ5秒だが `AUTO_DISMISS_MS` の別の行なので、undo のテストでは代替できない
   it("info も5秒で自動消去する", () => {
     const onClose = vi.fn();
     render(<Toast message="保存しました" variant="info" onClose={onClose} />);
 
-    vi.advanceTimersByTime(5000);
+    vi.advanceTimersByTime(4999);
+    expect(onClose).not.toHaveBeenCalled();
 
+    vi.advanceTimersByTime(1);
     expect(onClose).toHaveBeenCalledOnce();
   });
 

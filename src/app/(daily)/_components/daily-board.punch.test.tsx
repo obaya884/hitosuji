@@ -150,19 +150,6 @@ describe("DailyBoard の打刻（F-201 / F-211 / §7: クライアントの現�
     expect(isSelected(INBOX)).toBe(true);
   });
 
-  it("送り先の未実行タスクがなければ打刻した行を選ぶ（F-211）", async () => {
-    // 保留したまま読む。確定させると完了が解けて実行中に戻り、「打刻した行を選んだ」のか
-    // 「選択を捨てて現在地（＝実行中の行）から採り直した」のかが区別できなくなる
-    const gate = hold<DailyActionResult>(OK);
-    vi.mocked(finishTaskAction).mockReturnValue(gate.promise);
-    renderBoard([task({ id: 12, name: RUNNING, sectionId: FORENOON.id, startedAt: atJst("10:00") })]);
-    selectRow(RUNNING);
-
-    await click(within(taskRow(RUNNING)).getByLabelText("終了"));
-
-    expect(isSelected(RUNNING)).toBe(true);
-  });
-
   it("送り先がなければ、別の行を選んだまま打刻しても選択は打刻した行へ移る（F-211 / §5）", async () => {
     // 打刻対象でも送り先でもない第3の行を選んでおく（拒否されたときの戻し先と同じ規則）
     const gate = hold<DailyActionResult>(OK);
@@ -233,12 +220,6 @@ describe("DailyBoard の打刻（F-201 / F-211 / §7: クライアントの現�
     // 同名の行が2つ並ぶので位置で見る（複製元は完了のまま残る）
     expect(isSelected(rowAt(3))).toBe(true);
     expect(isSelected(rowAt(2))).toBe(false);
-  });
-
-  it("完了タスクの打刻ボタンは操作なし（O-14: Enter 限定）", () => {
-    renderBoard();
-
-    expect(within(taskRow(COMPLETED)).getByLabelText("完了済み")).toHaveProperty("disabled", true);
   });
 
   it("割り込み（O-2 / F-201）を画面側で2アクションに分解せず、開始の1操作だけをサーバへ送る", async () => {

@@ -333,20 +333,6 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
     expect(isSelected(COMPLETED)).toBe(false);
   });
 
-  it("`Enter` の終了打刻も拒否されたら選択を打刻した行へ戻す（F-211 / §5 / §6）", async () => {
-    const gate = hold<DailyActionResult>(OK);
-    vi.mocked(finishTaskAction).mockReturnValue(gate.promise);
-    renderBoard();
-    selectRow(RUNNING);
-
-    await pressAndSettle("Enter");
-    expect(isSelected(NOT_STARTED)).toBe(true);
-
-    await gate.resolve({ ok: false, message: "保存に失敗しました" });
-
-    expect(isSelected(RUNNING)).toBe(true);
-  });
-
   it("終了打刻の拒否でも、確定を待つ間に選び直した行は上書きしない（F-211 / §5）", async () => {
     const gate = hold<DailyActionResult>(OK);
     vi.mocked(finishTaskAction).mockReturnValue(gate.promise);

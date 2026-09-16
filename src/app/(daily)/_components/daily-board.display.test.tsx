@@ -2,7 +2,6 @@
 // （§2 / §3.1 / §3.2 / §3.3 / §4.3 / F-116 / F-121 / F-209）。現在セクションの導出、
 // 固定領域の高さの計測、表示日に応じた「今日へ」の出し分け、放置タスクの警告バナー、日界の配線。
 // 主題は**描いた結果と、board が導出して配れているか**——操作を起点にするテストは他の5ファイルへ。
-// 唯一の例外はセクション候補の並び（`s` で開かないと読めないため、開く操作だけを使う）。
 import { act, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -15,15 +14,13 @@ import {
   defaultTasks,
   FORENOON,
   NOT_STARTED,
-  press,
   renderBoard,
   RUNNING,
-  selectRow,
   setupBoard,
 } from "../_testing/board-helpers";
 import { ResizeObserverStub } from "@/app/_testing/resize-observer";
 import { summaryValueOf } from "../_testing/summary-helpers";
-import { cellsOf, headingOf, popoverLabels, taskRow, taskRows } from "../_testing/table-helpers";
+import { cellsOf, headingOf, taskRow, taskRows } from "../_testing/table-helpers";
 
 vi.mock("../actions", async () => (await import("../_testing/action-mocks")).actionMocks());
 
@@ -73,14 +70,8 @@ describe("DailyBoard の現在セクションの導出（§3.2 F-121 の強調 /
     expect(highlightedSectionNames()).toEqual([]);
   });
 
-  it("セクション選択の候補先頭に「現在のセクションへ」を出す（O-5 / §4.3）", () => {
-    renderBoard();
-    selectRow(NOT_STARTED);
-
-    press("s");
-
-    expect(popoverLabels()[0]).toBe(`現在のセクションへ（${FORENOON.name}）`);
-  });
+  // 候補の中身（固定項目の文言・並び）は `_lib/section-options.test.ts` と `daily-list.test.tsx` が
+  // 持つ。盤面が `currentSectionId` を渡しているかは、上の見出しの強調が同じ導出で落ちる
 });
 
 // 実測（board）と `scroll-margin` への写像（task-row）は各段が持つが、その中間——
@@ -139,14 +130,10 @@ describe("DailyBoard の表示日に応じた出し分けと警告（§3.1 / §3
   /**
    * board が導く「表示日は今日か」（`date === today`）の配り先は、現在セクション（上の describe）と
    * DateNav・DailySummary・DailyList。**子への配線は1件ずつ置く**——まとめると片方を壊しても
-   * もう片方が緑のまま残る（日界の配線と同じ流儀。下の describe）
+   * もう片方が緑のまま残る（日界の配線と同じ流儀。下の describe）。
+   * DateNav は否定側で見る——「今日以外なら出す」側は、上の日付ナビの href を読むテストが
+   * `isToday` を固定する変異で同時に落ちるため
    */
-  it("今日以外を表示中は「今日へ」を出す（DateNav への配線。§3.1）", () => {
-    renderBoard(defaultTasks(), { date: "2026-07-20", today: TEST_DATE });
-
-    expect(screen.queryByRole("link", { name: "今日へ" })).not.toBeNull();
-  });
-
   it("今日を表示中は「今日へ」を出さない（DateNav への配線。§3.1）", () => {
     renderBoard();
 

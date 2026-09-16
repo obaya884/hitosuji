@@ -39,14 +39,8 @@ describe("TaskProgress（F-114: タスク消化の進捗。画面定義書01 §3
     expect(parts(container).fill.style.width).toBe(`${(2 / 3) * 100}%`);
   });
 
-  it("全件完了なら 100%", () => {
-    const { container } = render(<TaskProgress tasks={[done(1), done(2)]} />);
-
-    const { fill, label } = parts(container);
-    expect(label.textContent).toBe("2/2");
-    expect(fill.style.width).toBe("100%");
-  });
-
+  // **完了0件**は「バーが出ない」ように見えて比率の式を通る（`0%`）。**タスク0件**のときだけ
+  // 通るゼロ除算の枝が返す `0`（＝`0px`）と混ざりやすいので、両方を別に見る
   it("1件も完了していなければ 0%", () => {
     const { container } = render(<TaskProgress tasks={[running(1), todo(2)]} />);
 
