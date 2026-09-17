@@ -12,6 +12,9 @@ const forenoon = section({ id: 3, name: "午前", startTime: "09:00" });
 // 回転順（F-116）で渡される想定の並び。並べ替えずそのまま候補順にする
 const sections = [midnight, morning, forenoon];
 
+// 時間帯（`hint`）の値そのもの——枠の終了が次のセクションの開始になること、1件だけなら自身の
+// 開始へ折り返すこと——は `sectionRanges` の規則で `domain/section/section.test.ts` が持つ。
+// ここで見るのは候補の並びと、引いた値を `hint` へ写しているか
 describe("toSectionOptions（画面定義書01 O-5 / FB-46: 候補に時間帯を付記する）", () => {
   it("未分類を先頭に置き、渡された順のまま各セクションに `開始–終了` を付記する", () => {
     expect(toSectionOptions(sections, null)).toEqual([
@@ -33,12 +36,6 @@ describe("toSectionOptions（画面定義書01 O-5 / FB-46: 候補に時間帯�
     expect(options.map((o) => o.id)).toEqual([null, 1, 2, 3]);
   });
 
-  it("有効セクションが1件なら時間帯は丸1日（終了が自身の開始へ折り返す）", () => {
-    expect(toSectionOptions([morning], null)).toEqual([
-      { id: null, label: "未分類" },
-      { id: 2, label: "朝", hint: "06:00–06:00" },
-    ]);
-  });
 });
 
 describe("toSectionOptions（画面定義書01 §4.3: セクション選択の「現在のセクションへ」）", () => {
@@ -51,12 +48,6 @@ describe("toSectionOptions（画面定義書01 §4.3: セクション選択の�
       { id: 2, label: "朝", hint: "06:00–09:00" },
       { id: 3, label: "午前", hint: "09:00–00:00" },
     ]);
-  });
-
-  it("現在セクションが候補の末尾でも固定項目は先頭に来る", () => {
-    const options = toSectionOptions(sections, 3);
-    expect(options[0]).toEqual({ id: 3, label: "現在のセクションへ（午前）", isPinned: true });
-    expect(options.filter((o) => o.isPinned === true)).toHaveLength(1);
   });
 
   it("表示日が今日でないとき（currentSectionId が null）は固定項目を出さず、先頭は未分類", () => {

@@ -4,6 +4,8 @@ import { revealedScrollTop } from "./popover-scroll";
 // 高さ100のパネルが y=200..300 にあり、120 だけスクロール済みの状態を基準にする
 const panel = { top: 200, bottom: 300, scrollTop: 120 };
 
+// 返すのは「はみ出した分だけ動かした値」で、負値のクランプは持たない（丸めるのはブラウザ側。
+// 実 DOM での `scrollTop` の下限は `select-popover.browser.test.tsx` が押さえる）
 describe("revealedScrollTop（画面定義書00_共通 §2.1: アクティブ候補をパネル内に見せる）", () => {
   it("候補が表示領域に収まっていれば動かさない", () => {
     expect(revealedScrollTop(panel, { top: 220, bottom: 240 })).toBe(120);
@@ -25,11 +27,8 @@ describe("revealedScrollTop（画面定義書00_共通 §2.1: アクティブ候
     expect(revealedScrollTop(panel, { top: 290, bottom: 312 })).toBe(132);
   });
 
-  it("先頭の候補まで戻ると scrollTop は0（それ以上遡らない）", () => {
-    // scrollTop 20 のときの先頭候補は 20 だけ上にはみ出している
-    expect(revealedScrollTop({ ...panel, scrollTop: 20 }, { top: 180, bottom: 200 })).toBe(0);
-  });
-
+  // 上下ともはみ出すときは**上端を揃える側が勝つ**。2つの `if` の順序を入れ替えると
+  // ここだけが落ちる（上下どちらか一方のテストでは順序を測れない）
   it("候補がパネルより高いときは上端を揃える（下端は入りきらないまま）", () => {
     expect(revealedScrollTop(panel, { top: 190, bottom: 330 })).toBe(110);
   });
