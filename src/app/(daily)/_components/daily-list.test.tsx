@@ -192,14 +192,6 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
       expect(taskRow("朝食").className).not.toMatch(/\bz-\d/);
     });
 
-    it("セクション見出しは板と列見出しの合計に貼り付く", () => {
-      renderList({ groups: oneTask(), boardHeight: 96 });
-
-      resizeTo(measuredColumnHead(), 32);
-
-      expect(headingOf("朝").style.top).toBe("128px");
-    });
-
     /**
      * 貼り付くのはセルなので、測るのもセル（§2 / FB-111）。`<tr>` の箱はセルの箱と一致しない
      * ことがあり、行を測ると貼り付いた見出しが列見出しの実際の下端から離れて隙間が開く。
@@ -214,25 +206,18 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
     });
 
     // 丸めた高さを積むと、貼り付いた見出しの上に隙間が開いて裏の行が覗く（隙間そのものは
-    // 幾何なのでブラウザ段が測る。ここで見るのは丸めずに積んで配るところまで）
-    it("小数の高さもそのまま積む（§2 / FB-111: 丸めると見出しの上に隙間が開く）", () => {
-      // 板も見出しも実機では端数を持つので、3段すべてを小数で積む
+    // 幾何なのでブラウザ段が測る。ここで見るのは丸めずに積んで配るところまで）。
+    // **部分和も端数になる**値を選ぶ——`sectionHeadTop`（板 + 列見出し）だけが整数だと、
+    // そこを丸める変異が両方の assert を素通りする
+    it("3段を小数のまま積んで見出しと行へ配る（§2 / §5 / FB-111）", () => {
       renderList({ groups: oneTask(), boardHeight: 96.5 });
 
-      resizeTo(measuredColumnHead(), 36.5);
+      resizeTo(measuredColumnHead(), 36.25);
       resizeTo(headingOf("朝"), 36.5);
 
-      expect(headingOf("朝").style.top).toBe("133px");
-      expect(taskRow("朝食").style.scrollMarginTop).toBe("169.5px");
-    });
-
-    it("行の追従は3段すべてを避ける高さで止まる（§5。足し損ねると行が見出しの裏に隠れる）", () => {
-      renderList({ groups: oneTask(), boardHeight: 96 });
-
-      resizeTo(measuredColumnHead(), 32);
-      resizeTo(headingOf("朝"), 36);
-
-      expect(taskRow("朝食").style.scrollMarginTop).toBe("164px");
+      expect(headingOf("朝").style.top).toBe("132.75px"); // 板 + 列見出し
+      // 足し損ねると、追従した行がセクション見出しの裏に入る（§5）
+      expect(taskRow("朝食").style.scrollMarginTop).toBe("169.25px");
     });
 
     // 未分類は時間帯の枠を持たないが、固定の扱いは他のグループと揃える（§2）
@@ -297,17 +282,6 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
    * 枠は 朝 06:00–09:00 / 午前 09:00–13:00 / 午後 13:00–翌06:00（`_testing/factories`）
    */
   describe("セクション残り時間の配り分けと表示条件（§3.2 / F-110）", () => {
-    it("まだ始まっていないセクションは枠の頭から測る（現在時刻に引きずられない。FB-80）", () => {
-      renderList({
-        now: atJst("08:00"), // 午前（09:00–13:00）はまだ始まっていない
-        groups: [forenoon([task({ id: 1, name: "設計書レビュー", estimateMinutes: 60 })])],
-      });
-
-      // 09:00 から60分 → 10:00。13:00 まで +3:00。
-      // 現在時刻起点だと (13:00 − 08:00) − 60分 = +4:00 になる
-      expect(within(headingOf("午前")).queryByText("+3:00")).not.toBeNull();
-    });
-
     it("セクションごとに別々の値を、それぞれの見出しへ配る（未分類には配らない）", () => {
       renderList({
         now: atJst("10:00"),

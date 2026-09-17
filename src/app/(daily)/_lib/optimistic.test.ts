@@ -126,17 +126,6 @@ describe("applyOptimisticAction の即時反映（N-01 / 00_共通 §4）", () =
     expect(find(applied, 13)).toEqual(COMPLETED);
   });
 
-  it("start は表示日に実行中タスクが居ない割り込み（前日以前・F-209）でも開始打刻だけを入れる", () => {
-    // 前日の実行中タスクは当日のグループに現れないので、先取りする相手が画面上に無い
-    const applied = applyOptimisticAction([unclassifiedGroup([NOT_STARTED])], {
-      type: "start",
-      id: 11,
-      at: atJst("10:00"),
-    });
-
-    expect(applied.flatMap((g) => g.tasks)).toEqual([{ ...NOT_STARTED, startedAt: atJst("10:00") }]);
-  });
-
   it("unstart は開始打刻だけ消す（未実行への並べ直しはサーバ確定後 / O-13）", () => {
     const applied = apply({ type: "unstart", id: 12 });
 

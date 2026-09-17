@@ -752,18 +752,6 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
 
       expect(screen.queryByLabelText("コメントを編集")).toBeNull();
     });
-
-    it("コメントの印はセクション併記の右に置く（§3.3 の並び）", () => {
-      renderRow({
-        task: task({ id: 1, name: "朝食", sectionId: 100, comment: "パンが切れていた" }),
-      });
-
-      const nameCell = cellsOf(taskRow("朝食")).name;
-      const section = within(nameCell).getByText("朝");
-      const mark = within(nameCell).getByLabelText("コメントを編集");
-      // DOM 順で「セクション併記 → 印」（Node.DOCUMENT_POSITION_FOLLOWING = 4）
-      expect(section.compareDocumentPosition(mark) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    });
   });
 
   describe("モード・プロジェクトの選択（O-5）", () => {

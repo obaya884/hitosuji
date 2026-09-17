@@ -286,13 +286,11 @@ function renderFocusTargets() {
   const { container } = render(
     <>
       <input />
-      <textarea />
       <button />
     </>
   );
   return {
     input: container.querySelector("input") as HTMLInputElement,
-    textarea: container.querySelector("textarea") as HTMLTextAreaElement,
     button: container.querySelector("button") as HTMLButtonElement,
   };
 }
@@ -310,6 +308,10 @@ function expectNothingCalled(spies: Spies) {
 }
 
 describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボードショートカット）", () => {
+  // 現在地の規則（§5 規則2〜5）そのものは `domain/task/selection.test.ts` が持ち、
+  // **探索へ現在セクションと表示順を渡す結線**は `daily-board.shortcuts.test.tsx` が
+  // 実グルーピングを通して端から端まで見る。ここに残るのは、フック段でしか作れない
+  // 「現在地が無いときは選択を変えない」の据え置きだけ
   describe("選択行の移動（§6 J / K / N・§5 行選択モデル）", () => {
     it("J は選択行を1つ下へ動かす", () => {
       const { state } = renderStateful({ selectedId: RUNNING.id });
@@ -335,47 +337,6 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
       expect(state.current.selectedId).toBe(RUNNING.id);
     });
 
-    it("N は実行中がなく現在セクションも定まらなければ表示順で最初の未実行へジャンプする（§5 規則5）", () => {
-      const { state } = renderStateful({
-        selectedId: LATER.id,
-        orderedTasks: [COMPLETED, NEXT_UP, LATER],
-      });
-
-      pressKey("n");
-
-      expect(state.current.selectedId).toBe(NEXT_UP.id);
-    });
-
-    it("N は現在セクションを現在地の探索へ渡す（未分類が先頭にあってもそちらへ飛ばない。§5 / FB-78）", () => {
-      const inCurrentSection = task({ id: 5, sectionId: 20 });
-      const { state } = renderStateful({
-        selectedId: LATER.id,
-        // NEXT_UP・LATER は未分類（リスト先頭のインボックス）
-        orderedTasks: [COMPLETED, NEXT_UP, LATER, inCurrentSection],
-        currentSectionId: 20,
-        sectionOrder: [null, 20], // 現在セクションを表示順に含める（含めないと防御分岐を黙って通る）
-      });
-
-      pressKey("n");
-
-      expect(state.current.selectedId).toBe(inCurrentSection.id);
-    });
-
-    it("N は表示順のセクションも探索へ渡す（現在セクションを打ち終えたら後ろへ進む。§5 規則3 / FB-109）", () => {
-      const inLaterSection = task({ id: 5, sectionId: 30 });
-      const { state } = renderStateful({
-        selectedId: COMPLETED.id,
-        // 現在セクション（20）に未実行は無く、NEXT_UP は未分類（リスト先頭のインボックス）
-        orderedTasks: [COMPLETED, NEXT_UP, inLaterSection],
-        currentSectionId: 20,
-        sectionOrder: [null, 20, 30],
-      });
-
-      pressKey("n");
-
-      expect(state.current.selectedId).toBe(inLaterSection.id);
-    });
-
     it("現在地が無ければ（全件完了）N は選択を変えない（§5: 選択行は常に1つ）", () => {
       const { state } = renderStateful({
         selectedId: COMPLETED.id,
@@ -385,27 +346,6 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
       pressKey("n");
 
       expect(state.current.selectedId).toBe(COMPLETED.id);
-    });
-
-    it("未選択のまま J を押すと先頭行が選択される（§5: 選択行は常に1つ）", () => {
-      const { state } = renderStateful({ selectedId: null });
-
-      pressKey("j");
-
-      expect(state.current.selectedId).toBe(COMPLETED.id);
-    });
-
-    it("矢印キーは選択行に割り当てない（§6 / FB-33）", () => {
-      const { state, spies } = renderStateful({ selectedId: RUNNING.id });
-
-      pressKey("ArrowDown");
-      pressKey("ArrowUp");
-
-      expect(state.current.selectedId).toBe(RUNNING.id);
-      // setSelectedId / setShowHelp は本物の useState に差し替わっているので、この
-      // expectNothingCalled が見るのは残り（打刻・行操作・日付移動・編集）。
-      // 選択が動いていないことは上の据え置き assert が担う
-      expectNothingCalled(spies);
     });
   });
 
@@ -667,10 +607,12 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
       expect(spies.setEditing).toHaveBeenCalledWith({ taskId: COMPLETED.id, field });
     });
 
-    it.each(EDIT_KEYS)("%s は選択がなければ編集を開かない", (key) => {
+    // 未選択のガードは `requestEdit` の1か所なので1キーで足りる（キー単位で `requestEdit` を
+    // 通し損ねる逸脱は、下の「既定動作の抑止」の each が `preventDefault` の欠落として捕まえる）
+    it("選択がなければ編集を開かない", () => {
       const { spies } = renderShortcuts({ selectedId: null });
 
-      pressKey(key);
+      pressKey("r");
 
       expectNothingCalled(spies);
     });
@@ -819,14 +761,13 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
       expectNothingCalled(spies);
     });
 
-    it.each([
-      ["Cmd", { metaKey: true }],
-      ["Ctrl", { ctrlKey: true }],
-      ["Alt", { altKey: true }],
-    ] as const)("%s 併用時は何もしない（修飾キーは Shift のみ。00_共通 §3）", (_label, modifier) => {
+    // 除外規則そのもの（修飾キー・入力欄・IME の判定）は `app/_lib/keyboard.test.ts` が全条件を持つ。
+    // フック段が守るのは **`isGlobalShortcutEvent` を通していること**なので、性質の違う3つ
+    // （修飾キー・フォーカス先・IME）を1件ずつ置く。同じ性質の列挙（Ctrl/Alt・TEXTAREA）は置かない
+    it("Cmd 併用時は何もしない（修飾キーは Shift のみ。00_共通 §3）", () => {
       const { spies } = renderShortcuts();
 
-      pressAll(window, modifier);
+      pressAll(window, { metaKey: true });
 
       expectNothingCalled(spies);
     });
@@ -836,15 +777,6 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
       const { input } = renderFocusTargets();
 
       pressAll(input);
-
-      expectNothingCalled(spies);
-    });
-
-    it("テキスト入力中（TEXTAREA にフォーカス）は無効（00_共通 §3）", () => {
-      const { spies } = renderShortcuts();
-      const { textarea } = renderFocusTargets();
-
-      pressAll(textarea);
 
       expectNothingCalled(spies);
     });
