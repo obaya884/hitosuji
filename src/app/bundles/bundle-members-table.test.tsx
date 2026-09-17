@@ -187,7 +187,20 @@ describe("BundleMembersTable（画面定義書05 §4 O-5: メンバーの追加�
     clickWithoutServer(screen.getByRole("button", { name: "＋ ルーチンを追加" }));
     await click(screen.getByRole("button", { name: /^候補/ }));
 
-    expect(screen.queryByText("候補")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^候補/ })).toBeNull();
+  });
+
+  // 候補一覧は 00_共通 §2.1 のポップオーバーなので、選ばずに閉じる道が要る。
+  // `useDismiss` の分岐は `_lib/use-dismiss.test.tsx` が持つので、ここで見るのは
+  // **この画面が配線していること**（外し忘れても他のテストは緑のまま通る）
+  it("候補一覧は Esc で閉じる（00_共通 §2.1）", () => {
+    renderTable([routine({ id: 5, name: "候補", bundleId: null })]);
+    clickWithoutServer(screen.getByRole("button", { name: "＋ ルーチンを追加" }));
+    expect(screen.queryByRole("button", { name: /^候補/ })).not.toBeNull();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByRole("button", { name: /^候補/ })).toBeNull();
   });
 
   it("追加が失敗したらエラーを帯で出す（別タブでの操作。§6）", async () => {

@@ -126,18 +126,14 @@ describe("SectionsTable（画面定義書03 §3.1: 開始時刻・日界の選�
       ]);
     });
 
+    // 値そのもの（日またぎの巡回・1件なら丸1日）は `sectionCapacityMinutes` の規則で
+    // `domain/section/section.test.ts` が持つ。ここで見るのは開始と終了をその順で渡しているか
     it("各行に枠の長さを H:MM で出す", () => {
       renderTable();
 
       expect(within(rowOf("セクションA")).getByText("6:00")).not.toBeNull();
-      // 日をまたぐ枠（12:00–06:00）も24時間の巡回で測る
+      // 引数を入れ替えて渡すと A と B の値が入れ替わる（折り返す枠は 18:00 になる）
       expect(within(rowOf("セクションB")).getByText("18:00")).not.toBeNull();
-    });
-
-    it("有効セクションが1件なら丸1日（24:00）になる", () => {
-      renderTable({ ranges: [section(1, "終日", "06:00", { endTime: "06:00", isDayStart: true })] });
-
-      expect(within(rowOf("終日")).getByText("24:00")).not.toBeNull();
     });
 
     // 導出値なので編集に入らない（開始時刻セルと違い、押しても入力欄にならない）
