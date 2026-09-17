@@ -101,6 +101,7 @@ npm ci                                # マージ後の lockfile に依存を合
 
 1. transitive か直接依存か、dev か runtime scope か、**脆弱コードが実行経路に乗るか**を見る
 2. **overrides で安全に直せる** → `package.json` の `overrides` で修正版に固定し `npm install`。CI の build で回帰なしを確認してからオーナーに諮る（例: `postcss` を `^8.5.10` に固定して Next 同梱の古い版を dedupe。`sharp` を `^0.35.0` に固定して libvips 脆弱性を解消）
+   - **`overrides` に載せた依存は、次の脆弱性が出ても version-update PR が来ない**（固定した範囲を Dependabot が動かせないため、アラートだけが上がる）。だから **PR 一覧だけ見るトリアージでは取りこぼす**——§1 の `dependabot/alerts` を必ず引き、`overrides` 側の依存は下限を手で上げて PR にする（T-152 の `js-yaml` がこの型）
 3. **上流に修正が無く、脆弱経路が到達不能** → 理由付きで **dismiss**（オーナー合図後）:
 
 ```bash
