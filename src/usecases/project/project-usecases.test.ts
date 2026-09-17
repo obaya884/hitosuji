@@ -137,17 +137,14 @@ describe("存在しないプロジェクトへの更新（00_共通 §4.1: 1行�
   const MISSING = 2;
   const notFound = { ok: false, error: "not_found" };
 
+  // 存在検査のガードは `updateProject` / `setProjectArchived` が別々に持つが、**入口ごとの検査は
+  // `masters/projects/actions.int.test.ts` の全アクション網羅表**が実DBで受け持つ（`MISSING_ID` を
+  // 渡して `ok:false` を見るので、どちらのガードを外しても落ちる）。ここで足すのは
+  // 網羅表が見ない**返るコード**
   it("updateProject は失敗を返し、残っている行を書き換えない", async () => {
     const survivor: Project = { id: 1, name: "引越し", isArchived: false };
     const repo = inMemoryRepo([survivor]);
     expect(await updateProject(repo, MISSING, { name: "新名" })).toEqual(notFound);
-    expect(repo.rows).toEqual([survivor]);
-  });
-
-  it("setProjectArchived は失敗を返し、残っている行を書き換えない", async () => {
-    const survivor: Project = { id: 1, name: "引越し", isArchived: false };
-    const repo = inMemoryRepo([survivor]);
-    expect(await setProjectArchived(repo, MISSING, true)).toEqual(notFound);
     expect(repo.rows).toEqual([survivor]);
   });
 

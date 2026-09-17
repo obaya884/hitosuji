@@ -15,27 +15,12 @@ describe("inMemoryTaskRepository: 存在しない id への書き込み（本物
   const MISSING = 3;
   const initial = () => [task({ id: 1, name: "先頭" }), task({ id: 2, name: "末尾" })];
 
+  // 1行書き換え（rename 等）とまとめ更新（relocate・move の振り直し）は**同じ `patch` ヘルパ**を
+  // 通り、不在のガードもその中の1行なので代表1件で見る。下の3件はそのガードを共有しない——
+  // postpone は加算に現在値が要るぶん自前で存在を確かめ、delete とスキップ記録は patch を通らない
   it("rename は何も変えない", async () => {
     const repo = inMemoryTaskRepository(initial());
     await repo.rename(MISSING, "新名");
-    expect(repo.rows).toEqual(initial());
-  });
-
-  it("updateEstimate は何も変えない", async () => {
-    const repo = inMemoryTaskRepository(initial());
-    await repo.updateEstimate(MISSING, 45);
-    expect(repo.rows).toEqual(initial());
-  });
-
-  it("updateComment は何も変えない", async () => {
-    const repo = inMemoryTaskRepository(initial());
-    await repo.updateComment(MISSING, "書き換え");
-    expect(repo.rows).toEqual(initial());
-  });
-
-  it("updateClassification は何も変えない", async () => {
-    const repo = inMemoryTaskRepository(initial());
-    await repo.updateClassification(MISSING, { modeId: 7 });
     expect(repo.rows).toEqual(initial());
   });
 
@@ -57,24 +42,6 @@ describe("inMemoryTaskRepository: 存在しない id への書き込み（本物
     await deleted.delete(MISSING, skip);
     expect(deleted.rows).toEqual(initial());
     expect(deleted.skips).toEqual([skip]);
-  });
-
-  it("relocate は何も変えない（まとめ更新に混じっても他の行へ書かない）", async () => {
-    const repo = inMemoryTaskRepository(initial());
-    await repo.relocate([{ taskId: MISSING, sectionId: 1, sortOrder: 5000 }]);
-    expect(repo.rows).toEqual(initial());
-  });
-
-  it("move の振り直しは何も変えない（まとめ更新のもう一方も同じ扱い）", async () => {
-    const repo = inMemoryTaskRepository(initial());
-    await repo.move({
-      taskId: 1,
-      sectionId: null,
-      sortOrder: 2000,
-      renumber: [{ taskId: MISSING, sortOrder: 9000 }],
-    });
-    // 振り直しの対象（存在しない）は無視され、移動そのものは効く
-    expect(repo.rows.map((r) => r.sortOrder)).toEqual([2000, initial()[1].sortOrder]);
   });
 
   it("delete は1行も消さない（末尾の行を巻き添えにしない）", async () => {

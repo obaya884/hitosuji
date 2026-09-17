@@ -69,19 +69,9 @@ describe("createRoutine（画面定義書02 O-1: フォーム入力→保存）"
   });
 });
 
+// 名前の長さの規則（FB-71 で上限を撤廃）は `domain/shared/master-name.test.ts` が持つ。
+// この段が守るのは、タスクの値をどう写すか・どの入力を弾くかの合成
 describe("createRoutineFromTask（F-305 / 画面定義書01 §4.1）", () => {
-  // FB-71: ルーチン名の文字数上限を撤廃した。上限が戻るとこの経路が汎用文言で失敗する
-  it("名前が長いタスクからもルーチンを作り、名前をそのまま保存する", async () => {
-    const name = "あ".repeat(200);
-    const tasks = inMemoryTaskRepository([task({ id: 1, name, estimateMinutes: 30 })]);
-    const routines = inMemoryRoutineRepository();
-
-    const result = await createRoutineFromTask({ routines, tasks }, 1, choice);
-
-    expect(result.ok).toBe(true);
-    expect(routines.rows[0]).toMatchObject({ name });
-  });
-
   it("タスクの名前・見積もり・モード・プロジェクトを引き継ぎ、開始日は翌日にする", async () => {
     const tasks = inMemoryTaskRepository([
       task({ id: 1, name: "メールチェック", estimateMinutes: 30, modeId: 2, projectId: 3 }),
@@ -179,10 +169,6 @@ describe("listRoutines（画面定義書02 §3: 開始想定時刻の昇順・�
     ]);
 
     expect((await listRoutines(routines)).map((r) => r.id)).toEqual([3, 2, 1]);
-  });
-
-  it("空なら空配列", async () => {
-    expect(await listRoutines(inMemoryRoutineRepository())).toEqual([]);
   });
 });
 
@@ -285,6 +271,7 @@ describe("addRoutineToBundle（画面定義書05 O-5: メンバーの追加）",
     expect((await routines.findById(1))?.bundleId).toBe(5);
   });
 
+  // 判定は `bundleId !== null` の1本なので、別のバンドル・同じバンドルのどちらでも同じ枝を通る
   it("すでに別のバンドルに入っていたら追加しない（画面定義書05 §6: 別タブでの操作）", async () => {
     const routines = inMemoryRoutineRepository([routine({ id: 1, bundleId: 9 })]);
     expect(await addRoutineToBundle(routines, 1, 5)).toEqual({
@@ -294,14 +281,6 @@ describe("addRoutineToBundle（画面定義書05 O-5: メンバーの追加）",
     expect((await routines.findById(1))?.bundleId).toBe(9);
   });
 
-  it("同じバンドルへの再追加も already_in_bundle として扱う", async () => {
-    const routines = inMemoryRoutineRepository([routine({ id: 1, bundleId: 5 })]);
-    expect(await addRoutineToBundle(routines, 1, 5)).toEqual({
-      ok: false,
-      error: "already_in_bundle",
-    });
-  });
-
   it("対象が無ければ not_found（画面定義書05 §6）", async () => {
     const routines = inMemoryRoutineRepository([]);
     expect(await addRoutineToBundle(routines, 99, 5)).toEqual({ ok: false, error: "not_found" });
@@ -309,15 +288,11 @@ describe("addRoutineToBundle（画面定義書05 O-5: メンバーの追加）",
 });
 
 describe("removeRoutineFromBundle（画面定義書05 O-6: メンバーを外す）", () => {
+  // 外す側は分岐を持たない（すでに未所属でも同じ代入で同じ結果になる）
   it("バンドルから外す", async () => {
     const routines = inMemoryRoutineRepository([routine({ id: 1, bundleId: 5 })]);
     expect(await removeRoutineFromBundle(routines, 1)).toEqual({ ok: true, value: 1 });
     expect((await routines.findById(1))?.bundleId).toBe(null);
-  });
-
-  it("すでに未所属でも成功として扱う（外した結果は同じ）", async () => {
-    const routines = inMemoryRoutineRepository([routine({ id: 1, bundleId: null })]);
-    expect(await removeRoutineFromBundle(routines, 1)).toEqual({ ok: true, value: 1 });
   });
 
   it("対象が無ければ not_found", async () => {

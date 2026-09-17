@@ -19,6 +19,9 @@ function depsOf(rows: readonly Task[]) {
   return { deps: { tasks, sections: inMemorySectionRepository(sections) }, tasks };
 }
 
+// 繰り下げの規則そのもの（誰を動かすか・冪等であること・未分類は対象外）は
+// `domain/task/relocation.test.ts` の `planCarryOver` が持つ。この段が見るのは
+// **リポジトリから材料を読んで結果を書き戻す手順**と、表示日の絞り込み
 describe("applyCarryOver（F-113 / 画面定義書01 §4.2-b）", () => {
   it("過ぎたセクションに残る未実行タスクを、現在セクションへ繰り下げる", async () => {
     const { deps, tasks } = depsOf([
@@ -40,26 +43,6 @@ describe("applyCarryOver（F-113 / 画面定義書01 §4.2-b）", () => {
     await applyCarryOver(deps, { date: "2026-07-25", today, nowClock: "10:00" });
 
     expect(tasks.rows[0].sectionId).toBe(1);
-  });
-
-  it("繰り返し呼んでも結果が変わらない（表示のたびに走るため冪等であること）", async () => {
-    const { deps, tasks } = depsOf([task({ id: 1, sectionId: 1 }), task({ id: 2, sectionId: 2 })]);
-
-    await applyCarryOver(deps, { date: today, today, nowClock: "10:00" });
-    const first = tasks.rows.map((t) => ({ id: t.id, sectionId: t.sectionId, sortOrder: t.sortOrder }));
-
-    await applyCarryOver(deps, { date: today, today, nowClock: "10:00" });
-    const second = tasks.rows.map((t) => ({ id: t.id, sectionId: t.sectionId, sortOrder: t.sortOrder }));
-
-    expect(second).toEqual(first);
-  });
-
-  it("未分類（インボックス）のタスクは繰り下げない（§4.2 の対象外）", async () => {
-    const { deps, tasks } = depsOf([task({ id: 1, sectionId: null })]);
-
-    await applyCarryOver(deps, { date: today, today, nowClock: "10:00" });
-
-    expect(tasks.rows[0].sectionId).toBeNull();
   });
 });
 

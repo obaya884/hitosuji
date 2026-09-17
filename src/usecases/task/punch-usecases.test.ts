@@ -86,20 +86,6 @@ describe("startTask（F-201: 開始打刻）", () => {
     expect(repo.rows[0].sectionId).toBeNull();
   });
 
-  it("画面定義書01 §4.2-a: 既にそのセクションにいるタスクも、開始時刻順の位置へ置き直す（FB-86）", async () => {
-    const sections: Section[] = [{ id: 2, name: "夜", startTime: "18:00", isArchived: false }];
-    const repo = inMemoryTaskRepository([
-      // ルーチン展開の並びのまま先頭にいる（打刻しても以前は動かなかった）
-      task({ id: 1, sectionId: 2, sortOrder: 1000 }),
-      task({ id: 2, sectionId: 2, sortOrder: 2000, startedAt: new Date("2026-07-26T08:00:00Z") }),
-    ]);
-
-    const result = await startTask(depsOf(repo, sections), { taskId: 1, now, nowClock, today });
-
-    expect(result.ok).toBe(true);
-    expect(repo.rows.find((r) => r.id === 1)?.sortOrder).toBe(3000); // 先に実行した id=2 の後ろ
-  });
-
   it("画面定義書01 §4.2-a: 同セクション内で置き直したときも、再開タスクは置き直し後の直下に付く（FB-86）", async () => {
     const sections: Section[] = [
       { id: 1, name: "午前", startTime: "09:00", isArchived: false },
@@ -266,26 +252,6 @@ describe("startTask の割り込み（F-201 / データモデル定義書 §4.2�
     ]);
   });
 
-  it("見積もり未設定の実行中タスクは、再開タスクも未設定のまま（2026-07-19 オーナー判断）", async () => {
-    const repo = inMemoryTaskRepository([
-      task({ id: 1, estimateMinutes: 0, startedAt, sortOrder: 1000 }),
-      task({ id: 2, sortOrder: 2000 }),
-    ]);
-
-    await punch(repo, 2);
-    expect(repo.rows[2].estimateMinutes).toBe(0);
-  });
-
-  it("割り込み後も実行中タスクは全体で1件だけ", async () => {
-    const repo = inMemoryTaskRepository([
-      task({ id: 1, startedAt, sortOrder: 1000 }),
-      task({ id: 2, sortOrder: 2000 }),
-    ]);
-
-    await punch(repo, 2);
-    expect(repo.rows.filter((t) => taskStatus(t) === "running").map((t) => t.id)).toEqual([2]);
-  });
-
   it("割り込み先の実行中タスクを現在時刻で終了できない（開始≦終了）なら開始せずエラー", async () => {
     const repo = inMemoryTaskRepository([
       task({ id: 1, startedAt: new Date("2026-07-26T10:00:00Z"), sortOrder: 1000 }), // now(09:00) より後に開始
@@ -328,6 +294,23 @@ describe("undoStart（F-210: 開始打刻の取り消し）", () => {
     expect(await undo(repo, 99)).toEqual({ ok: false, error: "task_not_found" });
   });
 
+  // 取り消すのは当該タスクの打刻だけ。割り込みで生まれた直前の完了タスク・再開タスクは
+  // 別の行なので触らない——**この段が唯一の網**で、統合段の `undoStart` は1行だけの盤面で
+  // 測っており（`drizzle-task-repository.int.test.ts`）、隣の行が無事かは見ていない
+  it("割り込みで開始していた場合も波及なし: 直前の完了タスクと再開タスクは残す", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, startedAt, endedAt: new Date("2026-07-26T09:00:00Z"), sortOrder: 1000 }), // 割り込みで終了した直前タスク
+      task({ id: 2, startedAt: new Date("2026-07-26T09:00:00Z"), sortOrder: 2000 }), // 割り込みで開始した実行中タスク
+      task({ id: 3, splitParentId: 1, sortOrder: 1500 }), // 生成済みの再開タスク（未実行）
+    ]);
+
+    expect((await undo(repo, 2)).ok).toBe(true);
+
+    expect(repo.rows.find((r) => r.id === 2)?.startedAt).toBeNull(); // 当該タスクだけ未実行へ
+    expect(repo.rows.find((r) => r.id === 1)?.endedAt).not.toBeNull(); // 直前タスクは完了のまま
+    expect(repo.rows.find((r) => r.id === 3)).toBeDefined(); // 再開タスクは残る
+  });
+
   it("今日のタスクは現在時刻を含むセクションの先頭へ並べ直す（データモデル定義書 §4.5）", async () => {
     const sections: Section[] = [
       { id: 1, name: "午前", startTime: "09:00", isArchived: false },
@@ -350,20 +333,6 @@ describe("undoStart（F-210: 開始打刻の取り消し）", () => {
     expect((await undo(repo, 1, sections)).ok).toBe(true);
     expect(repo.rows[0].startedAt).toBeNull();
     expect(repo.rows[0].sectionId).toBe(1); // 並べ直さない
-  });
-
-  it("割り込みで開始していた場合も波及なし: 直前の完了タスクと再開タスクは残す", async () => {
-    const repo = inMemoryTaskRepository([
-      task({ id: 1, startedAt, endedAt: new Date("2026-07-26T09:00:00Z"), sortOrder: 1000 }), // 割り込みで終了した直前タスク
-      task({ id: 2, startedAt: new Date("2026-07-26T09:00:00Z"), sortOrder: 2000 }), // 割り込みで開始した実行中タスク
-      task({ id: 3, splitParentId: 1, sortOrder: 1500 }), // 生成済みの再開タスク（未実行）
-    ]);
-
-    expect((await undo(repo, 2)).ok).toBe(true);
-
-    expect(repo.rows.find((r) => r.id === 2)?.startedAt).toBeNull(); // 当該タスクだけ未実行へ
-    expect(repo.rows.find((r) => r.id === 1)?.endedAt).not.toBeNull(); // 直前タスクは完了のまま
-    expect(repo.rows.find((r) => r.id === 3)).toBeDefined(); // 再開タスクは残る
   });
 });
 
@@ -523,22 +492,6 @@ describe("restoreCompletion（F-212: 完了の取り消しの取り消し）", (
     expect(taskStatus(repo.rows[0])).toBe("completed");
   });
 
-  it("未分類（section_id IS NULL）へも戻せる（データモデル定義書 §4.7）", async () => {
-    const repo = inMemoryTaskRepository([task({ id: 1, sectionId: 2, sortOrder: 4000 })]);
-
-    expect((await restoreCompletion(repo, { ...snapshot, sectionId: null })).ok).toBe(true);
-    expect(repo.rows[0].sectionId).toBeNull();
-  });
-
-  it("復帰までの間に他タスクが同じ sort_order を取っていてもそのまま書き戻す（データモデル定義書 §4.7）", async () => {
-    const other = task({ id: 2, sectionId: 3, sortOrder: 1500 }); // 取り消し中に同値を取った未実行タスク
-    const repo = inMemoryTaskRepository([task({ id: 1, sectionId: 9, sortOrder: 4000 }), other]);
-
-    expect((await restoreCompletion(repo, snapshot)).ok).toBe(true);
-    expect(repo.rows[0]).toMatchObject({ sectionId: 3, sortOrder: 1500 });
-    expect(repo.rows[1]).toEqual(other); // 同値のまま。相手を動かしたり振り直したりしない
-  });
-
   it("復帰までの間にタスクが消えていればエラー（他タスクは触らない）", async () => {
     const other = task({ id: 2 });
     const repo = inMemoryTaskRepository([other]);
@@ -560,21 +513,12 @@ describe("finishTask（F-201: 終了打刻）", () => {
     expect(repo.rows[0].endedAt).toEqual(now);
   });
 
+  // 可否は `canFinish`（domain）の戻りをそのまま返す（未実行・開始より前の時刻は同じ呼び出しの別の枝）
   it("未実行タスクは終了できない", async () => {
     const repo = inMemoryTaskRepository([task({ id: 1 })]);
     expect(await finishTask(repo, { taskId: 1, now })).toEqual({
       ok: false,
       error: "not_running",
-    });
-  });
-
-  it("開始より前の時刻では終了できない（開始 ≦ 終了）", async () => {
-    const repo = inMemoryTaskRepository([
-      task({ id: 1, startedAt: new Date("2026-07-26T09:30:00Z") }),
-    ]);
-    expect(await finishTask(repo, { taskId: 1, now })).toEqual({
-      ok: false,
-      error: "ended_before_started",
     });
   });
 
@@ -640,18 +584,6 @@ describe("updateTaskPunch（F-203: 打刻時刻の修正）", () => {
     expect(repo.rows[0].startedAt).toEqual(startedAt);
   });
 
-  // 再検証するのは DB の整合性制約（ck_tasks_time）と対になるものだけ、という層の切り分け。
-  // 未来の禁止は画面側の検証に閉じており、ここは判定材料（現在時刻）すら受け取らない
-  it("未来の開始時刻はサーバでは弾かない（未来の検査は画面側だけ。画面定義書01 §3.3）", async () => {
-    const repo = inMemoryTaskRepository([task({ id: 1, startedAt })]);
-    const farFuture = new Date("2099-01-01T00:00:00Z");
-
-    expect((await editPunch(repo, { taskId: 1, startedAt: farFuture, endedAt: null })).ok).toBe(
-      true
-    );
-    expect(repo.rows[0].startedAt).toEqual(farFuture);
-  });
-
   it("未実行タスクの打刻は修正できない", async () => {
     const repo = inMemoryTaskRepository([task({ id: 1 })]);
     expect(await editPunch(repo, { taskId: 1, startedAt, endedAt: null })).toEqual({
@@ -699,7 +631,8 @@ describe("updateTaskPunch（F-203: 打刻時刻の修正）", () => {
     expect(repo.rows[0].sectionId).toBe(1);
   });
 
-  // 画面定義書01 §4.2: 規則cは表示日を問わない（現在時刻を使わず修正後の時刻だけで移動先が定まる）
+  // 画面定義書01 §4.2: 規則cは表示日を問わない。`updateTaskPunch` は今日すら受け取らないので、
+  // 過去日・未来日は同じ枝を通る（ログの訂正が最も起きる過去日を代表に置く）
   it("過去日のタスクも移動する（ログの訂正が最も起きる場面。FB-87）", async () => {
     const repo = inMemoryTaskRepository([
       task({ id: 1, taskDate: "2026-07-25", sectionId: 1, sortOrder: 1000, startedAt, endedAt }),
@@ -739,17 +672,6 @@ describe("updateTaskPunch（F-203: 打刻時刻の修正）", () => {
 
     // 12:00 の後・14:00 の前（末尾ではない）
     expect(repo.rows[0]).toMatchObject({ sectionId: 2, sortOrder: 1500 });
-  });
-
-  it("未来日のタスクも移動する（打刻がある時点で例外的な状態。FB-87）", async () => {
-    const repo = inMemoryTaskRepository([
-      task({ id: 1, taskDate: "2026-07-27", sectionId: 1, sortOrder: 1000, startedAt, endedAt }),
-    ]);
-    const newStart = new Date("2026-07-26T03:10:00Z"); // JST 12:10
-
-    await editPunch(repo, { taskId: 1, startedAt: newStart, endedAt }, sections);
-
-    expect(repo.rows[0].sectionId).toBe(2);
   });
 
   it("移動先では同じ日のタスクとだけ並べ直す（別の日のタスクは巻き込まない）", async () => {

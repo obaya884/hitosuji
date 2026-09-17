@@ -137,21 +137,14 @@ describe("archiveSection（有効セクション最低1件）", () => {
     expect(repo.rows[0].isArchived).toBe(true);
   });
 
+  // 可否の規則そのもの（最後の1件・日界セクション）は `domain/section/section.test.ts` の
+  // `canArchive` が持つ。この段が足すのは**可否を聞いてから書き込むこと**なので、
+  // 断られる側は1件あれば足りる（`canArchive` が返したコードをそのまま返す）
   it("最後の1件はアーカイブできない", async () => {
     const repo = inMemoryRepo([morning]);
     expect(await archiveSection(repo, morning.id)).toEqual({
       ok: false,
       error: "last_active_section",
-    });
-    expect(repo.rows[0].isArchived).toBe(false);
-  });
-
-  it("日界セクションはアーカイブできない（F-116）", async () => {
-    const dayStart: Section = { ...morning, isDayStart: true };
-    const repo = inMemoryRepo([dayStart, forenoon]);
-    expect(await archiveSection(repo, dayStart.id)).toEqual({
-      ok: false,
-      error: "day_start_section",
     });
     expect(repo.rows[0].isArchived).toBe(false);
   });
@@ -214,37 +207,27 @@ describe("存在しないセクションへの更新（00_共通 §4.1: 1行も�
   /** morning・forenoon（id: 1・2）とは別の id。削除済みのセクションを触った状況を表す */
   const MISSING = 3;
   const notFound = { ok: false, error: "not_found" };
+  /** 更新に渡す入力。内容は問わない（存在検査まで到達すれば足りる） */
+  const UPDATE_INPUT = { name: "夕方", startTime: "17:00" };
 
-  it("updateSection は失敗を返し、残っている行を書き換えない", async () => {
-    const repo = inMemoryRepo([morning, forenoon]);
-    expect(await updateSection(repo, MISSING, { name: "夕方", startTime: "17:00" })).toEqual(
-      notFound
-    );
-    expect(repo.rows).toEqual([morning, forenoon]);
-  });
-
-  it("archiveSection は失敗を返し、残っている行を書き換えない", async () => {
-    const repo = inMemoryRepo([morning, forenoon]);
-    expect(await archiveSection(repo, MISSING)).toEqual(notFound);
-    expect(repo.rows).toEqual([morning, forenoon]);
-  });
-
-  it("restoreSection は失敗を返し、残っている行を書き換えない", async () => {
-    const repo = inMemoryRepo([morning, forenoon]);
-    expect(await restoreSection(repo, MISSING)).toEqual(notFound);
-    expect(repo.rows).toEqual([morning, forenoon]);
-  });
-
-  it("setDayStartSection は失敗を返し、残っている行を書き換えない", async () => {
-    const repo = inMemoryRepo([morning, forenoon]);
-    expect(await setDayStartSection(repo, MISSING)).toEqual(notFound);
-    expect(repo.rows).toEqual([morning, forenoon]);
-  });
-
-  it("deleteSection は失敗を返し、残っている行を消さない", async () => {
-    const repo = inMemoryRepo([morning, forenoon]);
-    expect(await deleteSection(repo, MISSING)).toEqual(notFound);
-    expect(repo.rows).toEqual([morning, forenoon]);
+  /**
+   * 存在検査はユースケースごとに別の行なので**入口ごとに1ケース置く**（共有しているのは
+   * `findSection` の引き方だけで、返す前に何を見るかは各関数が決める）。
+   * **失敗を値として返すこと自体**は `masters/sections/actions.int.test.ts` の全アクション
+   * 網羅表が実DBで見るので、ここで見るのは**返るコード**——`archiveSection` が存在検査より先に
+   * `canArchive` を呼ぶと、消えた対象について「他に有効セクションが残るか」だけを見て
+   * `ok` を返し、0行更新が成功として通ってしまう。
+   * `setDayStartSection` は上の describe（日界が変わらないことまで見る版）が持つ
+   */
+  /** 対象（id: 3）を含まないリポジトリ */
+  const repoWithoutTarget = () => inMemoryRepo([morning, forenoon]);
+  it.each([
+    ["updateSection", () => updateSection(repoWithoutTarget(), MISSING, UPDATE_INPUT)],
+    ["archiveSection", () => archiveSection(repoWithoutTarget(), MISSING)],
+    ["restoreSection", () => restoreSection(repoWithoutTarget(), MISSING)],
+    ["deleteSection", () => deleteSection(repoWithoutTarget(), MISSING)],
+  ])("%s は not_found を返す", async (_name, call) => {
+    expect(await call()).toEqual(notFound);
   });
 
   it("入力が無効なら検証エラーを優先して返す", async () => {

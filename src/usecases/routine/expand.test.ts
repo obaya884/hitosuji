@@ -97,9 +97,10 @@ describe("expandRoutinesFor（データモデル定義書 §4.1）", () => {
     expect(expanded.map((s) => s.sortOrder)).toEqual([1000, 2000, 3000]);
   });
 
+  // バンドル（データモデル定義書 §4.1 / F-119）も同じ組み立ての1列なので、ここでまとめて見る
   it("ルーチンの属性を生成タスクへ引き継ぐ", async () => {
     const { repo, expanded } = recordingRoutineRepo([
-      routine({ id: 1, name: "朝食", estimateMinutes: 25, modeId: 7, projectId: 8 }),
+      routine({ id: 1, name: "朝食", estimateMinutes: 25, modeId: 7, projectId: 8, bundleId: 5 }),
     ]);
 
     await expandRoutinesFor(
@@ -115,6 +116,7 @@ describe("expandRoutinesFor（データモデル定義書 §4.1）", () => {
         estimateMinutes: 25,
         modeId: 7,
         projectId: 8,
+        bundleId: 5,
       })
     );
   });
@@ -171,24 +173,6 @@ describe("expandRoutinesFor（データモデル定義書 §4.1）", () => {
     );
 
     expect(expanded.map((s) => s.routineId)).toEqual([2]);
-  });
-
-  it("ルーチンのバンドルを生成タスクへ写す（データモデル定義書 §4.1 / F-119）", async () => {
-    const { repo, expanded } = recordingRoutineRepo([
-      routine({ id: 1, name: "朝食", scheduledStartTime: "06:30", bundleId: 5 }),
-      routine({ id: 2, name: "単発", scheduledStartTime: "07:00", bundleId: null }),
-    ]);
-
-    await expandRoutinesFor(
-      { routines: repo, sections: sectionRepo, tasks: inMemoryTaskRepository() },
-      TODAY,
-      TODAY
-    );
-
-    expect(expanded.map((s) => [s.name, s.bundleId])).toEqual([
-      ["朝食", 5],
-      ["単発", null],
-    ]);
   });
 
   it("有効セクションがなければ未分類へ置く", async () => {

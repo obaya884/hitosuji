@@ -227,14 +227,10 @@ describe("proxy（要件定義書 N-03: 資格情報の照合）", () => {
     expectUnauthorized(proxy(request(basicHeader(TEST_USER, `${TEST_PASSWORD}-wrong`))));
   });
 
+  // 片側ずつ見れば `&&` の両辺が押さえられる（両方とも不一致は、この2件が同時に起きているだけ）
   it("パスワードだけ一致しても 401 を返す", () => {
     stubDeployedEnv(TEST_USER, TEST_PASSWORD);
     expectUnauthorized(proxy(request(basicHeader(`${TEST_USER}-wrong`, TEST_PASSWORD))));
-  });
-
-  it("両方とも一致しなければ 401 を返す", () => {
-    stubDeployedEnv(TEST_USER, TEST_PASSWORD);
-    expectUnauthorized(proxy(request(basicHeader("other-user", "other-password"))));
   });
 
   it("パスワードに `:` を含んでも一致すれば素通しする（区切りは最初の `:` のみ）", () => {
@@ -282,21 +278,11 @@ describe("proxy（要件定義書 N-03: 不正な Authorization ヘッダは 401
     expectUnauthorized(proxy(request(authHeader("Basic\t", `${TEST_USER}:${TEST_PASSWORD}`))));
   });
 
+  // 復号器（`Buffer.from(…, "base64")`）は不正な文字も足りない末尾も黙って捨てるだけで例外を
+  // 投げない。長さ不正・空文字を含め、資格情報の形にならなければすべてこの経路で 401 に落ちる
   it("base64 として解釈できない値でも 500 にせず 401 を返す", () => {
     stubDeployedEnv(TEST_USER, TEST_PASSWORD);
-    // 復号器は不正な文字を黙って捨てるので、残りは資格情報の形にならず 401 に落ちる
     expectUnauthorized(proxy(request("Basic not-base64!!!")));
-  });
-
-  it("base64 の長さが不正（4で割った余りが1）でも 500 にせず 401 を返す", () => {
-    stubDeployedEnv(TEST_USER, TEST_PASSWORD);
-    // "YWJjZ" は5文字。単位に足りない末尾は捨てられ "abc" に復号されるため、区切りが無く 401
-    expectUnauthorized(proxy(request("Basic YWJjZ")));
-  });
-
-  it("Basic の後ろが空でも 401 を返す", () => {
-    stubDeployedEnv(TEST_USER, TEST_PASSWORD);
-    expectUnauthorized(proxy(request("Basic ")));
   });
 
   it("`:` を含まない値なら 401 を返す", () => {
@@ -326,12 +312,9 @@ describe("proxy（要件定義書 N-03: 復号は base64 の妥当性を検査�
 
 describe("proxy の matcher（要件定義書 N-03: 認証を通す経路の範囲）", () => {
   // Next はパス全体との一致で matcher を評価するため、前後を固定して近似する。
-  // 実行時の突き合わせそのものではなく「除外パターンが何を意図しているか」を固定するテスト
-  const matcher = new RegExp(`^${config.matcher[0]}$`);
-
-  it("matcher は1件（増えたらこのテストの対象も見直す）", () => {
-    expect(config.matcher).toHaveLength(1);
-  });
+  // 実行時の突き合わせそのものではなく「除外パターンが何を意図しているか」を固定するテスト。
+  // **宣言されたパターンを全件つないで見る**ので、2本目が足されても検査の外に出ない
+  const matcher = new RegExp(`^(${config.matcher.join("|")})$`);
 
   it.each(["/", "/settings", "/api/tasks"])("アプリの経路 %s は認証の対象にする", (pathname) => {
     expect(matcher.test(pathname)).toBe(true);

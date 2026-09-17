@@ -89,17 +89,10 @@ describe("listDailyReview（画面定義書04 §3: 指定日の振り返り）",
     expect(view.log.map((t) => t.id)).toEqual([1]);
   });
 
+  // 境界は「今日」（`date < today` の等号側）。未来日は境界の外側で、同じ比較の同じ枝を通る
   it("今日は先送り数を出さない（まだ実行されうるため。§3.4）", async () => {
     const view = await listDailyReview(depsOf([task({ id: 2 })]), {
       date: TEST_DATE,
-      today: TEST_DATE,
-    });
-    expect(view.postponed).toBeNull();
-  });
-
-  it("未来日でも先送り数を出さない（§3.4）", async () => {
-    const view = await listDailyReview(depsOf([task({ id: 2 })]), {
-      date: "2026-07-27",
       today: TEST_DATE,
     });
     expect(view.postponed).toBeNull();

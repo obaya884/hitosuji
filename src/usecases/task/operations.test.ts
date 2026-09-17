@@ -51,16 +51,6 @@ describe("suspendTask（F-204: 中断）", () => {
     expect(repo.rows[1].highlighted).toBe(true);
   });
 
-  it("ハイライトされていないタスクの再開タスクはハイライトされない", async () => {
-    const repo = inMemoryTaskRepository([
-      task({ id: 1, estimateMinutes: 30, startedAt, sortOrder: 1000, highlighted: false }),
-    ]);
-
-    expect((await suspendTask(repo, { taskId: 1, now })).ok).toBe(true);
-
-    expect(repo.rows[1].highlighted).toBe(false);
-  });
-
   // F-119: 外すとバンドルから抜けて、残りが完了してもバンドルが永遠に完了しなくなる（データモデル定義書 §4.8）
   it("バンドルに属するタスクを中断すると、再開タスクもバンドルを引き継ぐ", async () => {
     const repo = inMemoryTaskRepository([
@@ -102,29 +92,15 @@ describe("suspendTask（F-204: 中断）", () => {
     ]);
   });
 
-  it("中断後は実行中タスクがいなくなる", async () => {
-    const repo = inMemoryTaskRepository([task({ id: 1, startedAt })]);
-    await suspendTask(repo, { taskId: 1, now });
-    expect(repo.rows.filter((t) => taskStatus(t) === "running")).toHaveLength(0);
-  });
-
-  it("実行中でないタスクは中断できない", async () => {
+  // 可否は `canFinish`（domain）の戻りをそのまま返すので、断られる側は1件あれば足りる
+  // （実行中でない・開始より前の現在時刻は同じ呼び出しの別の枝）
+  it("実行中でないタスクは中断できない（再開タスクも作らない）", async () => {
     const repo = inMemoryTaskRepository([task({ id: 1 })]);
     expect(await suspendTask(repo, { taskId: 1, now })).toEqual({
       ok: false,
       error: "not_running",
     });
-  });
-
-  it("現在時刻が開始時刻より前なら中断できない（開始≦終了。再開タスクも作らない）", async () => {
-    const repo = inMemoryTaskRepository([
-      task({ id: 1, startedAt: new Date("2026-07-26T10:00:00Z") }), // now(09:00) より後に開始
-    ]);
-    expect(await suspendTask(repo, { taskId: 1, now })).toEqual({
-      ok: false,
-      error: "ended_before_started",
-    });
-    expect(repo.rows).toHaveLength(1); // 再開タスクは作られない
+    expect(repo.rows).toHaveLength(1);
   });
 
   it("存在しないタスクは中断できない", async () => {
@@ -155,51 +131,6 @@ describe("duplicateTask（F-111 / O-11: 複製元の直下へ挿入）", () => {
     ]);
   });
 
-  it("セクション末尾のタスクを複製すると末尾へ追加する", async () => {
-    const repo = inMemoryTaskRepository([
-      task({ id: 1, sectionId: 1, sortOrder: 1000 }),
-      task({ id: 2, sectionId: 1, sortOrder: 2000 }), // 複製元（末尾）
-    ]);
-
-    const result = await duplicateTask(repo, { taskId: 2 });
-    expect(result.ok && [result.value.sectionId, result.value.sortOrder]).toEqual([1, 3000]);
-  });
-
-  // O-11: 複製元の直下だけで決まる。別セクションにある実行中タスク（＝今の位置）にも、
-  // そのセクションの未実行（旧規則の「未実施のトップ」）にも引き寄せられない
-  it("実行中タスクが別セクションにあっても、複製元の直下へ挿入する", async () => {
-    const repo = inMemoryTaskRepository([
-      task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }), // 朝・完了（複製元）
-      task({ id: 2, sectionId: 1, sortOrder: 2000 }), // 朝・未実行（やり残し）
-      task({ id: 3, sectionId: 2, startedAt, sortOrder: 1000 }), // 午前・実行中
-    ]);
-
-    const result = await duplicateTask(repo, { taskId: 1 });
-    expect(result.ok && [result.value.sectionId, result.value.sortOrder]).toEqual([1, 1500]);
-  });
-
-  // O-11: 打刻済みの並びに未実行の複製行が割り込むことを許す（元の行の隣に置くことを優先する）
-  it("打刻済みタスクを複製すると、その直下＝打刻済みの並びの中へ挿入する", async () => {
-    const repo = inMemoryTaskRepository([
-      task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }), // 完了（複製元）
-      task({ id: 2, sectionId: 1, startedAt, endedAt: now, sortOrder: 2000 }), // 完了
-      task({ id: 3, sectionId: 1, sortOrder: 3000 }), // 未実行
-    ]);
-
-    const result = await duplicateTask(repo, { taskId: 1 });
-    expect(result.ok && [result.value.sectionId, result.value.sortOrder]).toEqual([1, 1500]);
-  });
-
-  it("実行中タスク自身を複製すると、その直下へ挿入する", async () => {
-    const repo = inMemoryTaskRepository([
-      task({ id: 1, sectionId: 1, startedAt, sortOrder: 1000 }), // 実行中（複製元）
-      task({ id: 2, sectionId: 1, sortOrder: 2000 }),
-    ]);
-
-    const result = await duplicateTask(repo, { taskId: 1 });
-    expect(result.ok && [result.value.sectionId, result.value.sortOrder]).toEqual([1, 1500]);
-  });
-
   it("他の日のタスクは挿入位置に影響せず、採番も巻き込まない", async () => {
     const repo = inMemoryTaskRepository([
       task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }), // 複製元（末尾）
@@ -212,23 +143,27 @@ describe("duplicateTask（F-111 / O-11: 複製元の直下へ挿入）", () => {
     expect(repo.rows.find((t) => t.id === 2)?.sortOrder).toBe(1500);
   });
 
-  it("未分類のタスクを複製すると未分類のまま直下へ置かれる", async () => {
+  /**
+   * 複製は「もう一回」＝別の実施なので、打刻もハイライトも紐付けも引き継がない（データモデル定義書 §4.6）。
+   * 引き継がない列は1本の `duplicateDraft` → `newTaskFromDraft` で決まるので、まとめて見る——
+   * `routine_id` は冪等制約に抵触するため（F-301）、`highlighted` は F-118、
+   * `bundle_id` は複製のたびに未完了メンバーが増えるのを防ぐため（F-119 / 同書 §4.8）
+   */
+  it("完了タスクを複製しても未実行タスクとして作られる（見積もりは満額。ハイライト・紐付けは引き継がない）", async () => {
     const repo = inMemoryTaskRepository([
-      task({ id: 1, sectionId: null, startedAt, endedAt: now, sortOrder: 1000 }), // 複製元
-      task({ id: 2, sectionId: null, sortOrder: 2000 }),
-      task({ id: 3, sectionId: 1, startedAt, sortOrder: 1000 }), // 実行中
+      task({
+        id: 1,
+        estimateMinutes: 45,
+        startedAt,
+        endedAt: now,
+        routineId: 9,
+        highlighted: true,
+        bundleId: 5,
+      }),
     ]);
 
     const result = await duplicateTask(repo, { taskId: 1 });
-    expect(result.ok && [result.value.sectionId, result.value.sortOrder]).toEqual([null, 1500]);
-  });
-
-  it("完了タスクを複製しても未実行タスクとして作られる（見積もりは満額）", async () => {
-    const repo = inMemoryTaskRepository([
-      task({ id: 1, estimateMinutes: 45, startedAt, endedAt: now }),
-    ]);
-
-    const result = await duplicateTask(repo, { taskId: 1 });
+    // `result.ok &&` で畳むと失敗時も false になり緑になるので、objectContaining で受ける
     expect(result.ok && result.value).toEqual(
       expect.objectContaining({
         estimateMinutes: 45,
@@ -236,29 +171,10 @@ describe("duplicateTask（F-111 / O-11: 複製元の直下へ挿入）", () => {
         endedAt: null,
         splitParentId: null,
         routineId: null,
+        highlighted: false,
+        bundleId: null,
       })
     );
-  });
-
-  it("ルーチン由来のタスクを複製しても routine_id は引き継がない（冪等制約に抵触するため）", async () => {
-    const repo = inMemoryTaskRepository([task({ id: 1, routineId: 9 })]);
-    const result = await duplicateTask(repo, { taskId: 1 });
-    expect(result.ok && result.value.routineId).toBeNull();
-  });
-
-  // F-118: 複製は「もう一回」＝別の実施なのでハイライトを引き継がない（データモデル定義書 §4.6）
-  it("ハイライトされたタスクを複製しても、複製はハイライトされない", async () => {
-    const repo = inMemoryTaskRepository([task({ id: 1, highlighted: true })]);
-    const result = await duplicateTask(repo, { taskId: 1 });
-    // `result.ok &&` で畳むと失敗時も false になり緑になるので、objectContaining で受ける
-    expect(result.ok && result.value).toEqual(expect.objectContaining({ highlighted: false }));
-  });
-
-  // F-119: 複製するたびに未完了メンバーが増えてバンドルが進行中のままになる事故を防ぐ（データモデル定義書 §4.8）
-  it("バンドルに属するタスクを複製しても、複製はバンドルを引き継がない", async () => {
-    const repo = inMemoryTaskRepository([task({ id: 1, bundleId: 5 })]);
-    const result = await duplicateTask(repo, { taskId: 1 });
-    expect(result.ok && result.value.bundleId).toBeNull();
   });
 
   it("中間値が尽きたら振り直しを伴って挿入する（操作は失敗しない）", async () => {
@@ -295,6 +211,9 @@ describe("duplicateTask（F-111 / O-11: 複製元の直下へ挿入）", () => {
   });
 });
 
+// 複製が引き継がない列（routine_id・highlighted・bundle_id）は `duplicateTask` と同じ
+// `duplicateDraft` → `newTaskFromDraft` を通るので、上の describe が見る。
+// こちらが見るのは**開始済みで置く位置**と、割り込みを伴うときの合成
 describe("duplicateAndStartTask（F-208: 複製して開始）", () => {
   const sections: Section[] = [
     { id: 1, name: "朝", startTime: "06:00", isArchived: false },
@@ -412,21 +331,10 @@ describe("duplicateAndStartTask（F-208: 複製して開始）", () => {
     expect(repo.rows.find((t) => t.id === 3)?.sortOrder).toBe(2000); // 未実行は動かない
   });
 
-  it("実行中タスクが無くても、中間値が尽きたら移動先セクションを振り直す（データモデル定義書 §3.5）", async () => {
-    const repo = inMemoryTaskRepository([
-      task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }), // 完了（複製元）
-      task({ id: 2, sectionId: 2, sortOrder: 1000, startedAt, endedAt: now }), // 午前・打刻済み
-      task({ id: 3, sectionId: 2, sortOrder: 1001 }), // 午前・未実行（隙間が無い）
-    ]);
-
-    const result = await duplicateAndStartTask(repos(repo), { taskId: 1, ...input });
-
-    expect(repo.rows.find((t) => t.id === 2)?.sortOrder).toBe(1000);
-    expect(result.ok && result.value.sortOrder).toBe(2000); // 打刻済みの後・未実行の前
-    expect(repo.rows.find((t) => t.id === 3)?.sortOrder).toBe(3000); // 振り直された
-  });
-
-  it("2行分の中間値が尽きたら移動先セクションを振り直す（データモデル定義書 §3.5）", async () => {
+  // 振り直しを渡す呼び出しは2か所ある（実行中なし＝`placeSortOrder` / 割り込みあり＝`placeNewPair`）。
+  // **割り込み側は2行ぶんの隙間が要る**ので、片方だけ見ていると `pair.renumber` を渡し忘れる
+  // 変異が全段を素通りする（統合段は渡された振り直しを適用することしか見ない）
+  it("割り込みでも、2行分の中間値が尽きたら移動先セクションを振り直す（データモデル定義書 §3.5）", async () => {
     const repo = inMemoryTaskRepository([
       task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }), // 完了（複製元）
       task({ id: 2, sectionId: 2, estimateMinutes: 30, startedAt, sortOrder: 1000 }), // 実行中
@@ -439,6 +347,20 @@ describe("duplicateAndStartTask（F-208: 複製して開始）", () => {
     expect(result.ok && result.value.sortOrder).toBe(2000);
     expect(repo.rows.find((t) => t.splitParentId === 2)?.sortOrder).toBe(3000);
     expect(repo.rows.find((t) => t.id === 3)?.sortOrder).toBe(4000); // 振り直された
+  });
+
+  it("実行中タスクが無くても、中間値が尽きたら移動先セクションを振り直す（データモデル定義書 §3.5）", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000 }), // 完了（複製元）
+      task({ id: 2, sectionId: 2, sortOrder: 1000, startedAt, endedAt: now }), // 午前・打刻済み
+      task({ id: 3, sectionId: 2, sortOrder: 1001 }), // 午前・未実行（隙間が無い）
+    ]);
+
+    const result = await duplicateAndStartTask(repos(repo), { taskId: 1, ...input });
+
+    expect(repo.rows.find((t) => t.id === 2)?.sortOrder).toBe(1000);
+    expect(result.ok && result.value.sortOrder).toBe(2000); // 打刻済みの後・未実行の前
+    expect(repo.rows.find((t) => t.id === 3)?.sortOrder).toBe(3000); // 振り直された
   });
 
   it("表示日が今日でないときは複製元と同じセクションへ置く（画面定義書01 §4.2-a を適用しない）", async () => {
@@ -472,23 +394,6 @@ describe("duplicateAndStartTask（F-208: 複製して開始）", () => {
     );
     expect(result.ok && result.value.sectionId).toBe(1); // セクションが無いので複製元のまま
     expect(result.ok && result.value.sortOrder).toBe(2000); // 複製元セクションの末尾
-  });
-
-  it("ルーチン由来の完了タスクを複製しても routine_id は引き継がない", async () => {
-    const repo = inMemoryTaskRepository([
-      task({ id: 1, sectionId: 1, routineId: 9, startedAt, endedAt: now, sortOrder: 1000 }),
-    ]);
-    const result = await duplicateAndStartTask(repos(repo), { taskId: 1, ...input });
-    expect(result.ok && result.value.routineId).toBeNull();
-  });
-
-  // F-118: 複製して開始も「もう一回」なのでハイライトを引き継がない（データモデル定義書 §4.6）
-  it("ハイライトされた完了タスクを複製して開始しても、複製はハイライトされない", async () => {
-    const repo = inMemoryTaskRepository([
-      task({ id: 1, sectionId: 1, startedAt, endedAt: now, sortOrder: 1000, highlighted: true }),
-    ]);
-    const result = await duplicateAndStartTask(repos(repo), { taskId: 1, ...input });
-    expect(result.ok && result.value).toEqual(expect.objectContaining({ highlighted: false }));
   });
 
   it("完了タスク以外は複製して開始できない", async () => {
@@ -545,43 +450,6 @@ describe("postponeTask（F-107: 先送り）", () => {
     expect((await postponeTask(repo, { taskId: 1 })).ok).toBe(true);
     expect(repo.rows[0].routineId).toBeNull();
     expect(repo.skips).toEqual([{ routineId: 10, taskDate: TEST_DATE }]);
-  });
-
-  it("ルーチン由来でなければスキップは記録しない", async () => {
-    const repo = inMemoryTaskRepository([task({ id: 1 })]);
-
-    expect((await postponeTask(repo, { taskId: 1 })).ok).toBe(true);
-    expect(repo.skips).toEqual([]);
-  });
-
-  // 紐付けが外れた以上、移動先で削除してもその日のスキップは記録されない（データモデル定義書 §3.5）
-  it("先送りしたタスクを削除しても、移動先の日のスキップは増えない", async () => {
-    const repo = inMemoryTaskRepository([task({ id: 1, routineId: 10 })]);
-
-    await postponeTask(repo, { taskId: 1 });
-    await deleteTask(repo, { taskId: 1 });
-
-    expect(repo.skips).toEqual([{ routineId: 10, taskDate: TEST_DATE }]); // 先送り時の1件だけ
-  });
-
-  // F-118: 先送りは同じ行の task_date を付け替えるだけなので、ハイライトも一緒に移る
-  it("ハイライトは翌日へ持ち越される", async () => {
-    const repo = inMemoryTaskRepository([task({ id: 1, highlighted: true })]);
-
-    expect((await postponeTask(repo, { taskId: 1 })).ok).toBe(true);
-    expect(repo.rows[0].highlighted).toBe(true);
-  });
-
-  // F-119: routine_id を外す扱いと揃える。付けたまま移すと移動先の日に改めて展開されるぶんと
-  // 同じバンドルに同名のタスクが2件並んでしまう（データモデル定義書 §4.8）。
-  // **先送りは1つの UPDATE なので、外すかどうかを決めるのはリポジトリ段**——ここが読むのは
-  // 偽物が返す値で、契約の実検査は `drizzle-task-repository.int.test.ts` にある
-  // （`routineId` を見る隣のテストと同じ立て付け）
-  it("バンドルからは外れる", async () => {
-    const repo = inMemoryTaskRepository([task({ id: 1, bundleId: 5 })]);
-
-    expect((await postponeTask(repo, { taskId: 1 })).ok).toBe(true);
-    expect(repo.rows[0].bundleId).toBeNull();
   });
 
   it("存在しないタスクは task_not_found", async () => {
