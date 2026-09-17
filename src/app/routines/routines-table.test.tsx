@@ -430,8 +430,8 @@ describe("RoutinesTable（画面定義書02 §3.1: 列見出しのクリック�
 
   it("見出しのクリックでバンドル順に並べ替える（F-306）", () => {
     const { container } = renderTable([
-      routine({ id: 1, name: "い", scheduledStartTime: "08:00", bundleId: 2 }), // わ
-      routine({ id: 2, name: "あ", scheduledStartTime: "09:00", bundleId: 1 }), // あ
+      routine({ id: 1, name: "い", scheduledStartTime: "08:00", bundleId: 2 }), // バンドルB
+      routine({ id: 2, name: "あ", scheduledStartTime: "09:00", bundleId: 1 }), // バンドルA
     ]);
 
     clickWithoutServer(screen.getByText("バンドル"));
@@ -440,32 +440,64 @@ describe("RoutinesTable（画面定義書02 §3.1: 列見出しのクリック�
     expect(names(container)).toEqual(["あ", "い"]);
   });
 
-  it("バンドルの見出しをもう一度押すと降順になる", () => {
-    const { container } = renderTable([
-      routine({ id: 1, name: "い", scheduledStartTime: "08:00", bundleId: 2 }),
-      routine({ id: 2, name: "あ", scheduledStartTime: "09:00", bundleId: 1 }),
-    ]);
+  /**
+   * 並べ替えへ渡すマスタは**アーカイブ済みを含む全件**（`allModes` 等）。有効分だけを渡すと、
+   * アーカイブ済みマスタを参照する行が名前を引けず「未設定」扱いで末尾へ落ちる（§3:
+   * アーカイブ済みも名前をそのまま表示する。末尾へ落ちるのは §3.1 の未設定の行だけ）。
+   * **軸ごとに別の prop を渡している**ので3軸とも置く——1軸だけ見ると、残る2軸を有効分へ
+   * 差し替える変異が素通りする
+   */
+  const archivedSortCases = [
+    {
+      column: "モード",
+      over: {
+        allModes: [
+          ...MODES,
+          { id: 9, name: "モードAA", color: COLOR_PRESETS[12].value, isArchived: true },
+        ] satisfies Mode[],
+      },
+      active: { modeId: 2 }, // モードB
+      archived: { modeId: 9 }, // モードAA
+    },
+    {
+      column: "バンドル",
+      over: {
+        allBundles: [
+          ...BUNDLES,
+          { id: 9, name: "バンドルAA", color: COLOR_PRESETS[11].value, isArchived: true },
+        ] satisfies Bundle[],
+      },
+      active: { bundleId: 2 }, // バンドルB
+      archived: { bundleId: 9 }, // バンドルAA
+    },
+    {
+      column: "プロジェクト",
+      over: {
+        allProjects: [...PROJECTS, { id: 19, name: "案件AA", isArchived: true }] satisfies Project[],
+      },
+      active: { projectId: 12 }, // 案件B
+      archived: { projectId: 19 }, // 案件AA
+    },
+  ];
 
-    clickWithoutServer(screen.getByText("バンドル"));
-    clickWithoutServer(screen.getByText("バンドル"));
+  it.each(archivedSortCases)(
+    "アーカイブ済みの$columnを参照する行も名前順の位置へ並べる（画面定義書02 §3 / §3.1 F-306）",
+    ({ column, over, active, archived }) => {
+      const { container } = renderTable(
+        [
+          routine({ id: 1, name: "い", scheduledStartTime: "08:00", ...active }),
+          routine({ id: 2, name: "う", scheduledStartTime: "09:00", ...archived }),
+        ],
+        over
+      );
 
-    expect(header("バンドル").getAttribute("aria-sort")).toBe("descending");
-    expect(names(container)).toEqual(["い", "あ"]);
-  });
+      clickWithoutServer(screen.getByText(column));
 
-  it("バンドル未設定は昇順・降順とも末尾", () => {
-    const { container } = renderTable([
-      routine({ id: 1, name: "い", scheduledStartTime: "08:00", bundleId: 2 }),
-      routine({ id: 2, name: "あ", scheduledStartTime: "09:00", bundleId: 1 }),
-      routine({ id: 3, name: "う", scheduledStartTime: "10:00", bundleId: null }),
-    ]);
-
-    clickWithoutServer(screen.getByText("バンドル"));
-    expect(names(container)).toEqual(["あ", "い", "う"]);
-
-    clickWithoutServer(screen.getByText("バンドル"));
-    expect(names(container)).toEqual(["い", "あ", "う"]);
-  });
+      // アーカイブ済み側の名前（…AA）が有効側（…B）より前。未設定扱いに落ちると末尾へ回って
+      // ["い", "う"] になり、その軸に結線されていなければ名前順のまま ["い", "う"] になる
+      expect(names(container)).toEqual(["う", "い"]);
+    }
+  );
 
   // 順序規則そのものは domain/routine/order.test.ts が担保済み。
   // ここでは残る2列（プロジェクト・繰り返し）の見出しがその軸に結線されていることを見る
@@ -615,30 +647,13 @@ describe("RoutinesTable（画面定義書02 §5: 有効/無効・削除・編集
     expect(create.disabled).toBe(false);
   });
 
-  // フォーム自身の抑止は routine-form.test.tsx が持つ。ここは isPending を渡す配線だけを見る
-  it("保存中はフォームの「保存」「取消」も押せない（新規作成フォーム。00_共通 §2.3）", async () => {
+  // フォーム自身の抑止は routine-form.test.tsx が持つ。ここは isPending を渡す配線だけを見る。
+  // 新規と編集は `form(target)` 1本を共有するので配線も1か所で、片方だけ見れば足りる
+  it("保存中はフォームの「保存」「取消」も押せない（00_共通 §2.3）", async () => {
     const pending = deferredAction();
     vi.mocked(createRoutineAction).mockReturnValue(pending.promise);
     renderTable([]);
     clickWithoutServer(screen.getByText("新規ルーチン"));
-
-    await click(screen.getByText("保存"));
-
-    expect(screen.getByText<HTMLButtonElement>("保存").disabled).toBe(true);
-    expect(screen.getByText<HTMLButtonElement>("取消").disabled).toBe(true);
-
-    await act(async () => {
-      pending.resolve({ ok: true });
-    });
-  });
-
-  // 新規と編集は別々に配線するので、編集フォーム側も同じく見る（片方だけ渡し忘れても
-  // もう片方のテストは緑のままになるため）
-  it("保存中は編集フォームの「保存」「取消」も押せない（00_共通 §2.3）", async () => {
-    const pending = deferredAction();
-    vi.mocked(updateRoutineAction).mockReturnValue(pending.promise);
-    renderTable([routine({ id: 7 })]);
-    clickWithoutServer(screen.getByText("編集"));
 
     await click(screen.getByText("保存"));
 

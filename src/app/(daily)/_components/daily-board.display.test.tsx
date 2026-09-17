@@ -140,6 +140,15 @@ describe("DailyBoard の表示日に応じた出し分けと警告（§3.1 / §3
     expect(screen.queryByRole("link", { name: "今日へ" })).toBeNull();
   });
 
+  // 曜日は表示日から導く（§3.1 の日付表示 `YYYY-MM-DD(曜)`。F-106）。`DateNav` は受け取った
+  // index を描くだけなので、**導出しているか**はこの画面でしか見えない。TEST_DATE は日曜＝
+  // index 0 で「渡し忘れて 0 になる」退行と見分けがつかないため、**別の曜日の日付**で見る
+  it("日付ラベルの曜日は表示日から導く（DateNav への配線。§3.1 / F-106）", () => {
+    renderBoard(defaultTasks(), { date: NEXT_TEST_DATE, today: TEST_DATE });
+
+    expect(screen.queryByText(`${NEXT_TEST_DATE}(月)`)).not.toBeNull();
+  });
+
   // 出す・出さないの規則そのものは子の段（daily-summary / daily-list）が持つ。ここで見るのは
   // **board が「今日ではない」を配れているか**——渡す値を true に固定しても子の段は緑のまま通る
   it("今日以外を表示中はサマリの終了予定を出さない（DailySummary への配線。§3.1）", () => {

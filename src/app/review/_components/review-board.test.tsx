@@ -6,7 +6,7 @@ import { otherRouterCalls, router } from "@/app/_testing/next-navigation";
 import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import { COLOR_PRESETS } from "@/domain/shared/color-presets";
-import { atJst, TEST_DATE } from "@/domain/shared/testing/clock";
+import { atJst, NEXT_TEST_DATE, TEST_DATE } from "@/domain/shared/testing/clock";
 import type { Task } from "@/domain/task/task";
 import { startedTask, task } from "@/domain/task/testing/task";
 import type { DailyReviewView } from "@/usecases/review/review-usecases";
@@ -88,6 +88,16 @@ describe("ReviewBoard（画面定義書04 §3.1: 日付ナビ。§3.2: サマリ
     expect(screen.getByLabelText("前日").getAttribute("href")).toBe("/review?date=2026-07-25");
     expect(screen.getByLabelText("翌日").getAttribute("href")).toBe("/review?date=2026-07-27");
     expect(screen.getByText("今日へ").getAttribute("href")).toBe("/review");
+  });
+
+  // 曜日は表示日から導く（§3.1 の日付ナビは「S-01 と同じ」＝画面定義書01 §3.1 の日付表示
+  // `YYYY-MM-DD(曜)`。F-106）。`DateNav` は受け取った index を描くだけなので、**導出しているか**は
+  // この画面でしか見えない。TEST_DATE は日曜＝index 0 で「渡し忘れて 0 になる」退行と
+  // 見分けがつかないため、**別の曜日の日付**で見る
+  it("日付ラベルの曜日は表示日から導く（画面定義書04 §3.1 / F-106）", () => {
+    renderBoard({ date: NEXT_TEST_DATE }); // TEST_DATE（日曜）の翌暦日＝月曜
+
+    expect(screen.queryByText(`${NEXT_TEST_DATE}(月)`)).not.toBeNull();
   });
 
   it("画面見出しとサマリ（実行件数・実績合計・先送り件数）を出す", () => {
@@ -553,7 +563,7 @@ describe("ReviewBoard（画面定義書04 §3.5: モード別・プロジェク�
   });
 });
 
-describe("ReviewBoard（画面定義書04 §5: 日付移動のショートカット。修飾キーは Shift のみ＝00_共通 §3）", () => {
+describe("ReviewBoard（画面定義書04 §5: 日付移動のショートカット）", () => {
   it("Shift+H で前日へ移動する", () => {
     renderBoard();
 
@@ -597,37 +607,23 @@ describe("ReviewBoard（画面定義書04 §5: 日付移動のショートカッ
     expect(router.push).not.toHaveBeenCalled();
   });
 
-  it("Cmd/Ctrl/Alt との併用は操作として扱わない", () => {
-    renderBoard();
+  // 除外規則（修飾キー・IME・入力欄）そのものは `app/_lib/keyboard.test.ts` が全条件を持つ。
+  // ここで見るのは **`isOperableKeyEvent` ではなく `isGlobalShortcutEvent` を選んでいること**——
+  // 分岐はガード1か所なので1件で足りる（入力欄は両ガードで結果が変わる唯一のケースで、
+  // 修飾キー・IME の2件は「ガードを呼ばない」側しか見分けられず、この1件に含まれる）。
+  // **ガードを呼ばず画面側で書き戻す退行はこの1件では捕まらない**が、それを禁じるのは
+  // 00_共通 §3 の条項とガードの集約そのもの。入力欄を選ぶのは、S-04 にフォームが無くても
+  // リスナを window に張る以上ほかの入力から届きうるため（生やす先は render の container で、
+  // 後片付けは setup.ts の cleanup に任せる）
+  it("テキスト入力中のキーは無視する", () => {
+    const { container } = renderBoard();
+    const field = container.appendChild(document.createElement("input"));
 
-    fireEvent.keyDown(window, { key: "H", shiftKey: true, metaKey: true });
-    fireEvent.keyDown(window, { key: "H", shiftKey: true, ctrlKey: true });
-    fireEvent.keyDown(window, { key: "t", altKey: true });
+    fireEvent.keyDown(field, { key: "L", shiftKey: true });
+    fireEvent.keyDown(field, { key: "t" });
 
     expect(router.push).not.toHaveBeenCalled();
   });
-
-  it("IME変換中のキーは操作として扱わない", () => {
-    renderBoard();
-
-    fireEvent.keyDown(window, { key: "L", shiftKey: true, isComposing: true });
-
-    expect(router.push).not.toHaveBeenCalled();
-  });
-
-  // 入力欄は S-04 自体にはないが、リスナは window に張るので他の入力からも届きうる。
-  // 生やす先を render の container にして、後片付けを setup.ts の cleanup に任せる
-  for (const tag of ["input", "textarea"]) {
-    it(`テキスト入力中（${tag}）のキーは無視する`, () => {
-      const { container } = renderBoard();
-      const field = container.appendChild(document.createElement(tag));
-
-      fireEvent.keyDown(field, { key: "L", shiftKey: true });
-      fireEvent.keyDown(field, { key: "t" });
-
-      expect(router.push).not.toHaveBeenCalled();
-    });
-  }
 
   it("アンマウント後はキーを拾わない（リスナを外す）", () => {
     const { unmount } = renderBoard();

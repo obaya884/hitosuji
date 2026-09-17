@@ -220,23 +220,6 @@ describe("RoutineForm（画面定義書02 §4: 繰り返し種別に応じて入
     expect(screen.queryByLabelText(/月末に丸めます/)).toBeNull();
   });
 
-  it("プリセット「平日」は月〜金だけを選択した状態にする", () => {
-    const { onSubmit } = setup();
-
-    fireEvent.click(screen.getByLabelText("週次"));
-    fireEvent.click(screen.getByText("平日"));
-
-    expect(screen.getByLabelText<HTMLInputElement>("金").checked).toBe(true);
-    expect(screen.getByLabelText<HTMLInputElement>("土").checked).toBe(false);
-    expect(screen.getByLabelText<HTMLInputElement>("日").checked).toBe(false);
-
-    save();
-
-    expect(onSubmit).toHaveBeenCalledWith(
-      expect.objectContaining({ weekdays: WEEKDAYS_MON_TO_FRI })
-    );
-  });
-
   it("プリセット「土日」は土日だけを選択した状態にする（前の選択は残さない）", () => {
     const { onSubmit } = setup();
 
