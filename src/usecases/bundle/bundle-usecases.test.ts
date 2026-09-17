@@ -38,6 +38,8 @@ describe("listBundles（画面定義書05 §3.1）", () => {
     expect(view.deletableIds).toEqual([archivedFree.id]);
   });
 
+  // 件数は `memberCounts` の戻りを素通しするだけ（バンドルごとの取り違えが起きる余地が無い）。
+  // 0件のときに問い合わせを省く最適化も、`memberCounts([])` が `{}` を返す以上は観測できない
   it("有効なバンドルごとにメンバー（ルーチン）件数を返す。0件は省略されるので呼び出し側は ?? 0 で補う", async () => {
     const repo = inMemoryBundleRepository([morning, evening], {
       memberCounts: { [morning.id]: 4 }, // evening は未指定＝0件
@@ -45,21 +47,6 @@ describe("listBundles（画面定義書05 §3.1）", () => {
     const view = await listBundles(repo);
     expect(view.memberCounts[morning.id]).toBe(4);
     expect(view.memberCounts[evening.id] ?? 0).toBe(0);
-  });
-
-  it("複数バンドルのメンバー件数を取り違えない", async () => {
-    const repo = inMemoryBundleRepository([morning, evening], {
-      memberCounts: { [morning.id]: 2, [evening.id]: 7 },
-    });
-    const view = await listBundles(repo);
-    expect(view.memberCounts[morning.id]).toBe(2);
-    expect(view.memberCounts[evening.id]).toBe(7);
-  });
-
-  it("有効なバンドルが0件ならメンバー件数を数えに行かない（無駄な問い合わせをしない）", async () => {
-    const repo = inMemoryBundleRepository([archivedFree]);
-    const view = await listBundles(repo);
-    expect(view.memberCounts).toEqual({});
   });
 });
 

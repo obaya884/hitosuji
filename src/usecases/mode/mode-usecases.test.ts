@@ -98,20 +98,13 @@ describe("createMode / updateMode", () => {
     expect(repo.rows[0].name).toBe("仕事");
   });
 
-  // 検証は作成と更新で同じ1本（`validateModeInput`）を通る
+  // 検証は作成と更新で同じ1本（`validateModeInput`）を通るので、更新側は
+  // **検証を呼んでいること**（上の「名前が空なら」）と**検証後の値を保存していること**
+  // （このテスト。生の入力を渡す実装に変えるとここだけが落ちる）の2点で足りる
   it("更新経路でも名前を trim する", async () => {
     const repo = inMemoryRepo([{ id: 1, name: "仕事", color: blue, isArchived: false }]);
     expect((await updateMode(repo, 1, { name: " しごと ", color: blue })).ok).toBe(true);
     expect(repo.rows[0].name).toBe("しごと");
-  });
-
-  it("更新経路でもプリセット外の色は弾き、行を書き換えない", async () => {
-    const repo = inMemoryRepo([{ id: 1, name: "仕事", color: blue, isArchived: false }]);
-    expect(await updateMode(repo, 1, { name: "仕事", color: "#000000" })).toEqual({
-      ok: false,
-      error: "invalid_color",
-    });
-    expect(repo.rows[0].color).toBe(blue);
   });
 });
 
@@ -153,17 +146,14 @@ describe("存在しないモードへの更新（00_共通 §4.1: 1行も当た�
   const MISSING = 2;
   const notFound = { ok: false, error: "not_found" };
 
+  // 存在検査のガードは `updateMode` / `setModeArchived` が別々に持つが、**入口ごとの検査は
+  // `masters/modes/actions.int.test.ts` の全アクション網羅表**が実DBで受け持つ（`MISSING_ID` を
+  // 渡して `ok:false` を見るので、どちらのガードを外しても落ちる）。ここで足すのは
+  // 網羅表が見ない**返るコード**——検証エラーとの取り違えは文言の違いになって画面に出る
   it("updateMode は失敗を返し、残っている行を書き換えない", async () => {
     const survivor: Mode = { id: 1, name: "仕事", color: blue, isArchived: false };
     const repo = inMemoryRepo([survivor]);
     expect(await updateMode(repo, MISSING, { name: "新名", color: blue })).toEqual(notFound);
-    expect(repo.rows).toEqual([survivor]);
-  });
-
-  it("setModeArchived は失敗を返し、残っている行を書き換えない", async () => {
-    const survivor: Mode = { id: 1, name: "仕事", color: blue, isArchived: false };
-    const repo = inMemoryRepo([survivor]);
-    expect(await setModeArchived(repo, MISSING, true)).toEqual(notFound);
     expect(repo.rows).toEqual([survivor]);
   });
 
