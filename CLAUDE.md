@@ -148,7 +148,7 @@ Next.js 16 (App Router) + TypeScript / Tailwind CSS 4 / Drizzle ORM + node-postg
 - `npm run dev` — 開発サーバ（http://localhost:3000）
 - `npm run dev:check` — ブラウザ実機確認用の dev サーバ（http://localhost:3100）。確認専用DB（`hitosuji_check`。db-test インスタンス内）を作り直してフィクスチャを入れ、そこへ向けて起動する。**実データを持つ開発DBには接続しない**ので破壊的操作を試してよい（T-37。`browser-checker` が使う）
 - `npm test` — **ブラウザ段を除く3段** / `test:unit` ユニットのみ / `test:component` コンポーネントのみ（jsdom）/ `test:int` 統合のみ（要 db-test）/ `test:watch`
-- `npm run test:browser` — ブラウザ段（実 Chromium。幾何・スクロールと、本物のキー入力でしか再現しないイベント順序）。**初回だけ `npx playwright install chromium` が要る**ので `npm test` には含めていない。書き方の契約は[テスト戦略定義書](./docs/仕様/17_テスト戦略定義書.md) §3
+- `npm run test:browser` — ブラウザ段（実 Chromium。幾何・スクロールと、本物のキー入力でしか再現しないイベント順序）。**初回だけ `npx playwright install chromium` が要る**ので `npm test` には含めていない。書き方の契約は[テスト戦略定義書](./docs/仕様/17_テスト戦略定義書.md) §3。**Bash サンドボックス内では Chromium が起動できず `bootstrap_check_in ... Permission denied (1100)` で落ちる——これはテストの失敗ではない**（Seatbelt が Mach ポートの登録を許さず設定でも開けられない。サンドボックス外で実行し直す）
 - `npm run db:generate` — スキーマ変更からマイグレーション生成
 - `npm run db:migrate` — マイグレーション適用
 - `npm run db:seed` — 初期データ投入（冪等）
