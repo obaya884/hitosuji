@@ -56,6 +56,9 @@ next-env.d.ts
 # Claude Code ローカル状態
 .claude/scheduled_tasks.lock
 
+# Claude Code の個人設定
+.claude/settings.local.json
+
 # スキルの評価スクラッチ（skill-creator の workspace。出力・ログ・ベンチマークは残さない）
 .claude/skills/*-workspace/
 
