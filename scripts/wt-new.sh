@@ -141,8 +141,13 @@ git worktree add "$wt_dir" -b "$name" "$base"
 # dev サーバは本体の .env.local（DATABASE_URL 等）を参照する。コピーではなくリンクにして
 # 資格情報の実体を1か所に保つ（.gitignore の .env* でリンクも git から外れる）。
 # 開発DBは本体と共有する（worktree ごとに複製しない。§3.2）
+#
+# 実在の判定に `[ -f ]` を使わないのは、Claude Code の Bash サンドボックス内では
+# .env.local への stat が資格情報の保護で拒否され、存在するのに false が返るため
+# （存在しない場合と区別がつかず、リンクを張らないまま「本体に無い」と嘘の警告を出していた）。
+# 親ディレクトリの列挙なら名前は見えるので、そちらで実在を判定する
 env_local="$(pwd)/.env.local"
-if [ -f "$env_local" ]; then
+if ls -a . | grep -Fqx '.env.local'; then
   ln -s "$env_local" "$wt_dir/.env.local"
 else
   echo "警告: 本体に .env.local がないため dev サーバ用のリンクを張れませんでした（テストには影響しません）" >&2
