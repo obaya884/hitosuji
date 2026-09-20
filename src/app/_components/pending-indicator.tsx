@@ -1,3 +1,4 @@
+import { SAVING_NOTICE } from "@/app/_lib/notice-messages";
 import { pendingNotice } from "@/app/_lib/ui";
 
 /**
@@ -12,7 +13,7 @@ import { pendingNotice } from "@/app/_lib/ui";
 export function PendingIndicator() {
   return (
     <p role="status" className={pendingNotice}>
-      保存中
+      {SAVING_NOTICE}
     </p>
   );
 }

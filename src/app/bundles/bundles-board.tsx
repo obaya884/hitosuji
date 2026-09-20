@@ -16,6 +16,7 @@
 // 画面に出す」に反する）。新しい Server Action を実行するとき（`errorSinkFor` の null）だけは
 // 無条件にクリアする——それは実際に新しい応答を待ち始める瞬間なので、古い通知を残す理由が無い
 import { useState } from "react";
+import { EMPTY_BUNDLES } from "@/app/_lib/notice-messages";
 import { hoverSurface, linkMuted } from "@/app/_lib/ui";
 import { useServerActionRunner } from "@/app/_lib/use-server-action";
 import type { Bundle, BundleId } from "@/domain/bundle/bundle";
@@ -241,7 +242,7 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
 
       <div className="mt-4 pl-4">
         {selectedBundle === null ? (
-          <p className="text-sub text-ink-muted">バンドルがありません</p>
+          <p className="text-sub text-ink-muted">{EMPTY_BUNDLES}</p>
         ) : (
           <>
             <header className="flex items-center gap-3 border-b border-line pb-3">

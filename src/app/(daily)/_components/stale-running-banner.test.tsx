@@ -7,6 +7,16 @@ import { StaleRunningBanner } from "./stale-running-banner";
 
 // 画面定義書01 §8「実行中タスクが前日以前に放置されている（F-209）」
 describe("StaleRunningBanner（画面定義書01 §8 / F-209: 前日以前の実行中タスクを警告し該当日へ導く）", () => {
+  it("何が起きているかを告げる", () => {
+    // **文言をリテラルで書く**——辞書（`_lib/notice-messages.ts`）を import すると、描画側が
+    // 辞書を使わず古い文字列を直書きしたままでもテストが追随して通ってしまう。T-153 が
+    // 防ごうとした食い違いがまさにそれなので、ここは辞書と独立に「この画面がこう言う」を持つ。
+    // タスク名と兄弟要素に分かれていて `getByText` の完全一致では取れないため `textContent` で見る
+    const { container } = render(<StaleRunningBanner task={task({ id: 1 })} />);
+
+    expect(container.textContent).toContain("前日以前の実行中タスクがあります");
+  });
+
   it("タスク名と該当日（YYYY-MM-DD(曜)）・開始時刻を示す", () => {
     render(
       <StaleRunningBanner

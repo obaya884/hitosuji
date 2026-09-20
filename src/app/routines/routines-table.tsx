@@ -13,6 +13,7 @@ import {
 } from "@/domain/routine/order";
 import { ColorSwatch } from "@/app/_components/color-picker";
 import { sectionAt, type Section } from "@/domain/section/section";
+import { EMPTY_ROUTINES } from "@/app/_lib/notice-messages";
 import { useServerAction } from "@/app/_lib/use-server-action";
 import { hoverWord, linkAccent, linkMuted, tableHeadRow } from "@/app/_lib/ui";
 import { DurationValue } from "@/app/_components/duration-value";
@@ -314,7 +315,7 @@ export function RoutinesTable({
       </table>
 
       {routines.length === 0 && editing === null && (
-        <p className="mt-4 text-sub text-ink-muted">ルーチンはまだありません。</p>
+        <p className="mt-4 text-sub text-ink-muted">{EMPTY_ROUTINES}</p>
       )}
 
       {/* key で行ごとにフォームを作り直す（別の行を開いたとき入力を持ち越さない） */}
