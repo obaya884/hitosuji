@@ -3,6 +3,7 @@
 // 物理削除の2段階ボタン（画面定義書03 §4.1 / 画面定義書05 §5）。
 // モーダルは使わず、同じ位置で「削除」→「本当に削除？ [削除する] [取消]」に切り替える
 import { useState } from "react";
+import { DELETE_CONFIRM } from "@/app/_lib/notice-messages";
 import { linkDanger, linkMuted } from "@/app/_lib/ui";
 
 type Props = Readonly<{
@@ -23,7 +24,7 @@ export function DeleteButton({ onDelete, disabled }: Props) {
 
   return (
     <span className="whitespace-nowrap">
-      <span className="text-meta text-ink-muted">本当に削除？</span>
+      <span className="text-meta text-ink-muted">{DELETE_CONFIRM}</span>
       <button
         onClick={() => {
           setConfirming(false);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { EMPTY_PROJECTS } from "@/app/_lib/notice-messages";
 import { useServerAction } from "@/app/_lib/use-server-action";
 import { linkMuted, tableHeadRow } from "@/app/_lib/ui";
 import type { Project, ProjectId } from "@/domain/project/project";
@@ -104,7 +105,7 @@ export function ProjectsTable({ active, archived, deletableIds }: Props) {
       </table>
 
       {active.length === 0 && editingId === null && (
-        <p className="mt-4 text-sub text-ink-muted">プロジェクトはまだありません。</p>
+        <p className="mt-4 text-sub text-ink-muted">{EMPTY_PROJECTS}</p>
       )}
 
       <ArchivedSection

@@ -36,6 +36,7 @@ import { useElementHeight } from "@/app/_lib/use-element-height";
 import { useSlowPending } from "@/app/_lib/use-slow-pending";
 import { formatClock } from "@/app/_lib/format";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
+import { bundleDepartureMessage, routinizedMessage } from "@/app/_lib/notice-messages";
 import { bottomCenterStack, inputBase } from "@/app/_lib/ui";
 import { useNow } from "@/app/_lib/use-now";
 import {
@@ -330,7 +331,7 @@ export function DailyBoard({
 
     const bundleName = bundleById.get(departure.bundleId)?.name;
     if (bundleName === undefined) return;
-    setNotice(`「${bundleName}」が途中です（残り${departure.remaining}件）`);
+    setNotice(bundleDepartureMessage(bundleName, departure.remaining));
   }
 
   /**
@@ -524,7 +525,7 @@ export function DailyBoard({
   function routinize(task: Task, choice: RoutineFromTaskChoice): boolean {
     return run(async () => {
       const result = await createRoutineFromTaskAction(task.id, choice);
-      if (result.ok) setNotice(`「${task.name}」をルーチン化しました（明日から展開）`);
+      if (result.ok) setNotice(routinizedMessage(task.name));
       return result;
     });
   }

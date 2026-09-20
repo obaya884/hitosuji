@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { dateHref, DAILY_PATH } from "@/app/_lib/date-href";
 import { formatClock, formatLogicalDate } from "@/app/_lib/format";
+import { STALE_RUNNING_WARNING } from "@/app/_lib/notice-messages";
 import { noticeDanger } from "@/app/_lib/ui";
 import { weekdayIndex } from "@/domain/shared/logical-date";
 import type { Task } from "@/domain/task/task";
@@ -14,7 +15,7 @@ type Props = Readonly<{ task: Task }>;
 export function StaleRunningBanner({ task }: Props) {
   return (
     <div className={`mt-3 ${noticeDanger}`}>
-      前日以前の実行中タスクがあります:{" "}
+      {STALE_RUNNING_WARNING}:{" "}
       <span className="font-medium">{task.name}</span>
       <span className="ml-2 font-mono text-meta tabular-nums">
         {formatLogicalDate(task.taskDate, weekdayIndex(task.taskDate))}

@@ -15,6 +15,7 @@ import type { Bundle } from "@/domain/bundle/bundle";
 import type { Mode } from "@/domain/mode/mode";
 import { describeRecurrence, type Routine, type RoutineId } from "@/domain/routine/routine";
 import { bundleCandidates, bundleMembers } from "@/domain/bundle/members";
+import { EMPTY_BUNDLE_CANDIDATES, EMPTY_BUNDLE_MEMBERS } from "@/app/_lib/notice-messages";
 import { hoverSurface, hoverWord, linkAccent, linkMuted, noticeDanger, tableHeadRow } from "@/app/_lib/ui";
 import { useDismiss } from "@/app/_lib/use-dismiss";
 import type { useServerActionRunner } from "@/app/_lib/use-server-action";
@@ -80,7 +81,7 @@ export function BundleMembersTable({
       {error !== null && <p className={`mb-2 ${noticeDanger}`}>{error}</p>}
 
       {members.length === 0 ? (
-        <p className="text-sub text-ink-muted">まだルーチンが入っていません</p>
+        <p className="text-sub text-ink-muted">{EMPTY_BUNDLE_MEMBERS}</p>
       ) : (
         <table className="w-full">
           <thead>
@@ -147,7 +148,7 @@ export function BundleMembersTable({
 
         {isAddingOpen &&
           (candidates.length === 0 ? (
-            <p className="mt-1 text-sub text-ink-muted">追加できるルーチンがありません。</p>
+            <p className="mt-1 text-sub text-ink-muted">{EMPTY_BUNDLE_CANDIDATES}</p>
           ) : (
             <ul className="mt-1 divide-y divide-line rounded-control border border-line">
               {candidates.map((candidate) => (

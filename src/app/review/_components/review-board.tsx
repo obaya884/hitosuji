@@ -15,6 +15,11 @@ import { dateHref, DAILY_PATH, REVIEW_PATH } from "@/app/_lib/date-href";
 import { formatClock, formatDuration, formatSignedDuration } from "@/app/_lib/format";
 import { isGlobalShortcutEvent } from "@/app/_lib/keyboard";
 import { modeAppearance } from "@/app/_lib/mode-appearance";
+import {
+  EMPTY_REVIEW_LOG,
+  EMPTY_REVIEW_POSTPONED,
+  EMPTY_REVIEW_TOTALS,
+} from "@/app/_lib/notice-messages";
 import { hoverWord, tableHeadRow } from "@/app/_lib/ui";
 import { UNSET_GROUP_LABEL } from "@/app/_lib/unset";
 
@@ -110,7 +115,7 @@ function ExecutionLog({
     <section className="mt-6">
       <h2 className="text-sub font-medium">実績ログ</h2>
       {log.length === 0 ? (
-        <p className="mt-3 text-sub text-ink-muted">実行したタスクはありません</p>
+        <p className="mt-3 text-sub text-ink-muted">{EMPTY_REVIEW_LOG}</p>
       ) : (
         <table className="mt-2 w-full">
           <thead>
@@ -233,7 +238,7 @@ function Postponed({ tasks }: Readonly<{ tasks: readonly Task[] }>) {
     <section className="mt-8">
       <h2 className="text-sub font-medium">先送り（{tasks.length}件）</h2>
       {tasks.length === 0 ? (
-        <p className="mt-2 text-sub text-ink-muted">先送りはありません</p>
+        <p className="mt-2 text-sub text-ink-muted">{EMPTY_REVIEW_POSTPONED}</p>
       ) : (
         <ul className="mt-2 space-y-1 text-main">
           {tasks.map((task) => (
@@ -261,7 +266,7 @@ function ActualTotals({
     <section className="min-w-64">
       <h2 className="text-sub font-medium">{heading}</h2>
       {totals.length === 0 ? (
-        <p className="mt-2 text-sub text-ink-muted">集計する実績がありません</p>
+        <p className="mt-2 text-sub text-ink-muted">{EMPTY_REVIEW_TOTALS}</p>
       ) : (
         <table className="mt-2 w-full">
           <tbody>
