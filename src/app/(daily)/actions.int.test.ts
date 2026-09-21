@@ -31,7 +31,7 @@ import * as actions from "./actions";
 import {
   createRoutineFromTaskAction,
   duplicateAndStartTaskAction,
-  postponeTaskAction,
+  moveTaskDateAction,
   updateTaskEstimateAction,
   updateTaskPunchAction,
 } from "./actions";
@@ -102,15 +102,15 @@ describe("デイリーの Server Action の失敗経路（テスト戦略定義�
     });
   });
 
-  // 対象は在るが状態が前提と違うもう1つの経路。**族の中（先送り・削除・中断…）の取り違えは
+  // 対象は在るが状態が前提と違うもう1つの経路。**族の中（日付移動・削除・中断…）の取り違えは
   // ここでは判別できない**——同じ辞書を共有しているため。判別できなくても無害であることの
   // 根拠は `_lib/error-messages.test.ts`（共有するコードの文言が一致することの不変条件）
-  it("未実行でないタスクは先送りできず、その失敗コードの文言が返る", async () => {
+  it("未実行でないタスクは日付を移せず、その失敗コードの文言が返る", async () => {
     const id = await createRunningTask();
 
-    expect(await postponeTaskAction(id)).toEqual({
+    expect(await moveTaskDateAction(id, NOW)).toEqual({
       ok: false,
-      message: OPERATION_MESSAGES.not_postponable,
+      message: OPERATION_MESSAGES.not_date_movable,
     });
   });
 
@@ -191,7 +191,7 @@ const FAILURE_ARGS: FailureArgs = {
   duplicateTaskAction: [MISSING_ID],
   duplicateAndStartTaskAction: [MISSING_ID, NOW],
   createRoutineFromTaskAction: [MISSING_ID, CHOICE],
-  postponeTaskAction: [MISSING_ID],
+  moveTaskDateAction: [MISSING_ID, NOW],
   deleteTaskAction: [MISSING_ID],
   // 復元は消した行をそのまま書き戻すだけで、失敗する条件が無い（`operations.ts` の `restoreTask`）。
   // `else` 枝は形の規約（アーキテクチャ定義書 §4）を満たすためだけに在り、到達しない

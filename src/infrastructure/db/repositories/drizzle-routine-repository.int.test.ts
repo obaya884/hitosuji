@@ -269,9 +269,9 @@ describe("expand（F-301: 冪等INSERT）", () => {
         routineId: created.id,
       })
       .returning();
-    await taskRepo.postpone(
+    await taskRepo.moveToDate(
       postponed.id,
-      { taskDate: "2026-07-20", sortOrder: 1000 },
+      { taskDate: "2026-07-20", sortOrder: 1000, countsAsPostpone: true },
       { routineId: created.id, taskDate: "2026-07-19" }
     );
 

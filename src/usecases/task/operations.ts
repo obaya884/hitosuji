@@ -1,9 +1,10 @@
-// 中断・複製・複製して開始・先送り・削除のユースケース（F-204 / F-111 / F-208 / F-107 / O-8）
+// 中断・複製・複製して開始・日付移動・削除のユースケース（F-204 / F-111 / F-208 / F-107・F-123 / O-8）
 import type { RoutineSkip, TaskRepository } from "@/usecases/ports/task-repository";
 import type { SectionRepository } from "@/usecases/ports/section-repository";
-import { addDays, type LogicalDate } from "@/domain/shared/logical-date";
+import type { LogicalDate } from "@/domain/shared/logical-date";
 import { err, ok, type Result } from "@/domain/shared/result";
 import { sectionAt } from "@/domain/section/section";
+import { planDateMove } from "@/domain/task/date-move";
 import { duplicateDraft } from "@/domain/task/duplicate";
 import { canFinish, resumeTaskDraft } from "@/domain/task/punch";
 import type { PunchUsecaseError } from "@/usecases/task/punch-usecases";
@@ -24,7 +25,7 @@ import type { Task, TaskId } from "@/domain/task/task";
  * まずタスクを引くため）。`not_completed` は打刻ドメイン（`domain/task/punch.ts` の
  * `PunchError`）由来なので個別に足さない
  */
-export type TaskOperationError = PunchUsecaseError | "not_postponable";
+export type TaskOperationError = PunchUsecaseError | "not_date_movable";
 
 /**
  * 中断（F-204）。実行中タスクを現在時刻で終了し、
@@ -163,24 +164,29 @@ export async function duplicateAndStartTask(
 }
 
 /**
- * 先送り（F-107）。未実行タスクを翌日（または指定日）の同セクション末尾へ移し、
- * postponed_count を加算する。実行中・完了タスクには不可
+ * 日付移動（O-7 / F-107・F-123）。未実行タスクを別の日の同セクション末尾へ移す。
+ * 行き先（今日なら翌日へ、そうでなければ今日へ）と postponed_count の加算可否は
+ * `planDateMove` が決める。実行中・完了タスクには不可
  */
-export async function postponeTask(
+export async function moveTaskDate(
   repo: TaskRepository,
-  input: Readonly<{ taskId: TaskId; to?: LogicalDate }>
+  input: Readonly<{ taskId: TaskId; today: LogicalDate }>
 ): Promise<Result<TaskId, TaskOperationError>> {
   const target = await repo.findById(input.taskId);
   if (target === null) return err("task_not_found");
-  if (taskStatus(target) !== "not_started") return err("not_postponable");
+  if (taskStatus(target) !== "not_started") return err("not_date_movable");
 
-  const destination = input.to ?? addDays(target.taskDate, 1);
-  const destinationTasks = await repo.listByDate(destination);
+  const { to, countsAsPostpone } = planDateMove(target.taskDate, input.today);
+  const destinationTasks = await repo.listByDate(to);
   const sortOrder = appendSortOrder(
     tasksInSection(destinationTasks, target.sectionId).map((t) => t.sortOrder)
   );
 
-  await repo.postpone(target.id, { taskDate: destination, sortOrder }, skipOf(target));
+  await repo.moveToDate(
+    target.id,
+    { taskDate: to, sortOrder, countsAsPostpone },
+    skipOf(target)
+  );
   return ok(target.id);
 }
 

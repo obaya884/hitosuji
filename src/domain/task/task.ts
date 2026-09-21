@@ -34,8 +34,9 @@ export type Task = Readonly<{
 export type StartedTask = Task & Readonly<{ startedAt: Date }>;
 
 /**
- * 持ち越しの日数（F-122 / 画面定義書01 §3.3）。先送りで他日へ移った分だけ増える。
- * 0 なら最初に属した日のままで、行には何も出さない
+ * 持ち越しの日数（F-122 / 画面定義書01 §3.3）。日付移動（O-7）で後ろへ移った分だけ増え、
+ * 今日へ引き寄せた（F-123）ぶんだけ減る。**未来日から引き寄せた行では負になる**ので、
+ * 0 以下は「持ち越していない」として扱う（表示の判定は `_lib/format.ts`）
  */
 export function carryOverDays(task: Task): number {
   return daysBetween(task.initialTaskDate, task.taskDate);

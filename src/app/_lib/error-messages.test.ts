@@ -59,7 +59,7 @@ const EXPECTED_OPERATION: Record<TaskOperationError, string> = {
   not_running: "実行中のタスクではありません",
   not_completed: "完了したタスクではありません",
   ended_before_started: "終了時刻は開始時刻より後にしてください",
-  not_postponable: "先送りできるのは未実行タスクだけです",
+  not_date_movable: "日付を移せるのは未実行タスクだけです",
 };
 
 /** 複製して開始（F-208）だけは not_completed に「もう一回」の文脈を添える（T-74） */
@@ -82,7 +82,7 @@ const PUNCH_ACTION_KINDS = [
 const OPERATION_ACTION_KINDS = [
   "suspend",
   "duplicate",
-  "postpone",
+  "moveDate",
   "delete",
   "restore",
   "duplicateAndStart",
@@ -110,7 +110,7 @@ const EXPECTED_OPERATION_ACTION_DICTS: Record<
 > = {
   suspend: EXPECTED_OPERATION,
   duplicate: EXPECTED_OPERATION,
-  postpone: EXPECTED_OPERATION,
+  moveDate: EXPECTED_OPERATION,
   delete: EXPECTED_OPERATION,
   restore: EXPECTED_OPERATION,
   duplicateAndStart: EXPECTED_DUPLICATE_AND_START,

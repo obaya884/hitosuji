@@ -45,7 +45,7 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
   };
 
   /**
-   * その日のスキップを記録する（削除 O-8・先送り O-7）。**同じ日は1件**——本物の
+   * その日のスキップを記録する（削除 O-8・日付移動 O-7）。**同じ日は1件**——本物の
    * `ON CONFLICT DO NOTHING`（uq_routine_skips）と契約を揃える。**対象の行が無くても記録する**のも
    * 本物と同じ（記録は別テーブルへの INSERT で、tasks が0行更新かどうかに左右されない）
    */
@@ -188,7 +188,7 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
       return created;
     },
 
-    postpone: async (id: TaskId, input, skip: RoutineSkip | null) => {
+    moveToDate: async (id: TaskId, input, skip: RoutineSkip | null) => {
       // 加算があるので現在値が要る（他と違い patch だけでは書けない）
       const target = rows.find((r) => r.id === id);
       if (target !== undefined) {
@@ -196,8 +196,9 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
           taskDate: input.taskDate,
           sortOrder: input.sortOrder,
           routineId: null,
-          bundleId: null, // 先送りはバンドルからも外す（本物と同じ。データモデル定義書 §4.8）
-          postponedCount: target.postponedCount + 1,
+          bundleId: null, // 日付移動はバンドルからも外す（本物と同じ。データモデル定義書 §4.8）
+          // 後ろへ動くときだけ加算する（本物と同じ。データモデル定義書 §3.5）
+          postponedCount: target.postponedCount + (input.countsAsPostpone ? 1 : 0),
         });
       }
       recordSkip(skip);

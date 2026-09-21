@@ -25,7 +25,7 @@ import {
   duplicateTaskAction,
   finishTaskAction,
   moveTaskByStepAction,
-  postponeTaskAction,
+  moveTaskDateAction,
   renameTaskAction,
   restoreCompletionAction,
   restoreTaskAction,
@@ -277,7 +277,7 @@ function registerBoardHooks(): void {
     vi.mocked(duplicateTaskAction).mockResolvedValue(CREATED);
     vi.mocked(finishTaskAction).mockResolvedValue(OK);
     vi.mocked(moveTaskByStepAction).mockResolvedValue(OK);
-    vi.mocked(postponeTaskAction).mockResolvedValue(OK);
+    vi.mocked(moveTaskDateAction).mockResolvedValue(OK);
     vi.mocked(renameTaskAction).mockResolvedValue(OK);
     vi.mocked(restoreCompletionAction).mockResolvedValue(OK);
     vi.mocked(restoreTaskAction).mockResolvedValue(OK);

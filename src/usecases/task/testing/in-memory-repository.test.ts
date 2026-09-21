@@ -17,26 +17,34 @@ describe("inMemoryTaskRepository: 存在しない id への書き込み（本物
 
   // 1行書き換え（rename 等）とまとめ更新（relocate・move の振り直し）は**同じ `patch` ヘルパ**を
   // 通り、不在のガードもその中の1行なので代表1件で見る。下の3件はそのガードを共有しない——
-  // postpone は加算に現在値が要るぶん自前で存在を確かめ、delete とスキップ記録は patch を通らない
+  // moveToDate は加算に現在値が要るぶん自前で存在を確かめ、delete とスキップ記録は patch を通らない
   it("rename は何も変えない", async () => {
     const repo = inMemoryTaskRepository(initial());
     await repo.rename(MISSING, "新名");
     expect(repo.rows).toEqual(initial());
   });
 
-  it("postpone は何も変えない（先送り回数も増えない）", async () => {
+  it("moveToDate は何も変えない（先送り回数も増えない）", async () => {
     const repo = inMemoryTaskRepository(initial());
-    await repo.postpone(MISSING, { taskDate: TEST_DATE, sortOrder: 5000 }, null);
+    await repo.moveToDate(
+      MISSING,
+      { taskDate: TEST_DATE, sortOrder: 5000, countsAsPostpone: true },
+      null
+    );
     expect(repo.rows).toEqual(initial());
   });
 
   // スキップの記録は別テーブルへの INSERT なので、tasks が0行更新でも本物は書く（delete も同じ）
-  it("postpone・delete のスキップ記録は対象の行が無くても残る", async () => {
+  it("moveToDate・delete のスキップ記録は対象の行が無くても残る", async () => {
     const skip = { routineId: 7, taskDate: TEST_DATE };
-    const postponed = inMemoryTaskRepository(initial());
-    await postponed.postpone(MISSING, { taskDate: TEST_DATE, sortOrder: 5000 }, skip);
-    expect(postponed.rows).toEqual(initial());
-    expect(postponed.skips).toEqual([skip]);
+    const moved = inMemoryTaskRepository(initial());
+    await moved.moveToDate(
+      MISSING,
+      { taskDate: TEST_DATE, sortOrder: 5000, countsAsPostpone: true },
+      skip
+    );
+    expect(moved.rows).toEqual(initial());
+    expect(moved.skips).toEqual([skip]);
 
     const deleted = inMemoryTaskRepository(initial());
     await deleted.delete(MISSING, skip);

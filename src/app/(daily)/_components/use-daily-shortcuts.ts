@@ -8,6 +8,7 @@ import type { Task, TaskId } from "@/domain/task/task";
 import { dateHref, DAILY_PATH } from "@/app/_lib/date-href";
 import { isButtonTarget, isGlobalShortcutEvent } from "@/app/_lib/keyboard";
 import type { EditField, EditingCell } from "../_lib/editing";
+import type { RowOperation } from "./task-row";
 
 /** ショートカットの配線に要る状態と操作ハンドラ。フックは分岐も状態も持たず、これを引数で受け取るだけ */
 export type DailyShortcutParams = Readonly<{
@@ -33,7 +34,7 @@ export type DailyShortcutParams = Readonly<{
   openDatePicker: () => void;
   moveByStep: (step: 1 | -1) => void;
   punch: (task: Task) => void;
-  operate: (task: Task, operation: "suspend" | "duplicate" | "postpone" | "delete") => void;
+  operate: (task: Task, operation: RowOperation) => void;
   /** ハイライトのトグル（O-17 / F-118） */
   toggleHighlight: (task: Task) => void;
   unstart: (task: Task) => void;

@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 import { CALL_FAILED_LOG } from "@/app/_lib/action-result";
 import { expectConsoleError } from "@/app/_testing/console-guard";
 import { click, clickWithoutServer } from "@/app/_testing/interactions";
+import { addDays } from "@/domain/shared/logical-date";
 import { TEST_DATE } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
 
@@ -16,7 +17,7 @@ import {
   deleteTaskAction,
   duplicateAndStartTaskAction,
   finishTaskAction,
-  postponeTaskAction,
+  moveTaskDateAction,
   restoreTaskAction,
   setTaskModeAction,
   setTaskProjectAction,
@@ -36,6 +37,7 @@ import {
   INBOX,
   inboxAndSections,
   NOT_STARTED,
+  NOW,
   OK,
   press,
   pressAndSettle,
@@ -52,12 +54,15 @@ vi.mock("../actions", async () => (await import("../_testing/action-mocks")).act
 setupBoard();
 
 // 割り当ての対象。モードは**先頭の候補を選ばない**（「常に先頭を送る」実装でも緑になるため）
+/** 表示日が今日でないことだけが要る（日付移動の行き先は表示日で決まる。O-7） */
+const PREVIOUS_DATE = addDays(TEST_DATE, -1);
+
 const TARGET_MODE = modeOf("生活");
 const TARGET_PROJECT = projectOf("サイト改善");
 
 /**
  * 行メニュー（O-7/O-8 の導線）から項目を選ぶ。1回目は開くだけ、
- * 2回目は**項目によっては Server Action を呼ぶ**（先送りは呼び、ルーチン化はポップオーバーを開く）ので `click` に通す
+ * 2回目は**項目によっては Server Action を呼ぶ**（日付移動は呼び、ルーチン化はポップオーバーを開く）ので `click` に通す
  */
 async function chooseRowMenu(name: string, label: string) {
   clickWithoutServer(within(taskRow(name)).getByLabelText("行メニュー"));
@@ -288,9 +293,9 @@ describe("DailyBoard の選択行が消えたときの送り先（§5 / FB-106�
     expect(isSelected(NOT_STARTED)).toBe(false);
   });
 
-  it("先送り（O-7）も同じ規則で送るが、行が消えるのは確定後なので選択もそこで動く", async () => {
+  it("日付移動（O-7）も同じ規則で送るが、行が消えるのは確定後なので選択もそこで動く", async () => {
     const gate = hold<DailyActionResult>(OK);
-    vi.mocked(postponeTaskAction).mockReturnValue(gate.promise);
+    vi.mocked(moveTaskDateAction).mockReturnValue(gate.promise);
     const { applyServerState } = renderBoard(inboxAndSections());
     selectRow(NOT_STARTED);
 
@@ -303,9 +308,9 @@ describe("DailyBoard の選択行が消えたときの送り先（§5 / FB-106�
     expect(isSelected(COMPLETED)).toBe(true);
   });
 
-  it("先送りの確定でも、待つ間に選び直した行は上書きしない", async () => {
+  it("日付移動の確定でも、待つ間に選び直した行は上書きしない", async () => {
     const gate = hold<DailyActionResult>(OK);
-    vi.mocked(postponeTaskAction).mockReturnValue(gate.promise);
+    vi.mocked(moveTaskDateAction).mockReturnValue(gate.promise);
     renderBoard(inboxAndSections());
     selectRow(NOT_STARTED);
 
@@ -316,10 +321,10 @@ describe("DailyBoard の選択行が消えたときの送り先（§5 / FB-106�
     expect(isSelected(INBOX)).toBe(true);
   });
 
-  it("先送りをサーバが拒んだら選択は動かさない", async () => {
-    vi.mocked(postponeTaskAction).mockResolvedValue({
+  it("日付移動をサーバが拒んだら選択は動かさない", async () => {
+    vi.mocked(moveTaskDateAction).mockResolvedValue({
       ok: false,
-      message: "先送りできるのは未実行タスクだけです",
+      message: "日付を移せるのは未実行タスクだけです",
     });
     renderBoard(inboxAndSections());
     selectRow(NOT_STARTED);
@@ -481,26 +486,39 @@ describe("DailyBoard の通知と行メニュー（画面定義書01 §8 / O-7 /
     expect(vi.mocked(undoStartAction)).toHaveBeenCalledTimes(1);
   });
 
-  it("先送りが失敗したらエラートーストを出す（O-7）", async () => {
-    vi.mocked(postponeTaskAction).mockResolvedValue({
+  it("日付移動が失敗したらエラートーストを出す（O-7）", async () => {
+    vi.mocked(moveTaskDateAction).mockResolvedValue({
       ok: false,
-      message: "先送りできるのは未実行タスクだけです",
+      message: "日付を移せるのは未実行タスクだけです",
     });
     renderBoard();
 
     await chooseRowMenu(NOT_STARTED, "翌日へ先送り");
 
-    expect(screen.queryByText("先送りできるのは未実行タスクだけです")).not.toBeNull();
+    expect(screen.queryByText("日付を移せるのは未実行タスクだけです")).not.toBeNull();
   });
 
-  it("先送り（O-7）は行メニューから実行し、楽観的更新はしない", async () => {
+  it("日付移動（O-7）は行メニューから実行し、楽観的更新はしない", async () => {
     const gate = hold<DailyActionResult>(OK);
-    vi.mocked(postponeTaskAction).mockReturnValue(gate.promise);
+    vi.mocked(moveTaskDateAction).mockReturnValue(gate.promise);
     renderBoard();
 
     await chooseRowMenu(NOT_STARTED, "翌日へ先送り");
 
-    expect(vi.mocked(postponeTaskAction)).toHaveBeenCalledWith(11);
+    // 行き先はサーバが「今日」から決めるので、クライアントは現在時刻を送る（O-7 / F-116）
+    expect(vi.mocked(moveTaskDateAction)).toHaveBeenCalledWith(11, NOW);
     expect(rowNames()).toEqual([NOT_STARTED, RUNNING, COMPLETED]);
+  });
+
+  // 文言の切り替えそのものは task-row.test.tsx が見る。ここで見るのは**盤面からの配線**——
+  // `date === today` の導出（O-7）が行まで届いていること（`isToday` を固定しても行側だけでは気づけない）
+  it("今日以外を表示中は行メニューが「今日へ移動」になる（F-123）", async () => {
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(moveTaskDateAction).mockReturnValue(gate.promise);
+    renderBoard(defaultTasks(), { date: PREVIOUS_DATE });
+
+    await chooseRowMenu(NOT_STARTED, "今日へ移動");
+
+    expect(vi.mocked(moveTaskDateAction)).toHaveBeenCalledWith(11, NOW);
   });
 });

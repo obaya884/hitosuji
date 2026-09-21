@@ -23,7 +23,7 @@ import {
   deleteTask,
   duplicateAndStartTask,
   duplicateTask,
-  postponeTask,
+  moveTaskDate,
   restoreTask,
   suspendTask,
 } from "@/usecases/task/operations";
@@ -368,14 +368,18 @@ export async function createRoutineFromTaskAction(
   }
 }
 
-/** 先送り（F-107） */
-export async function postponeTaskAction(id: TaskId): Promise<DailyActionResult> {
-  const result = await postponeTask(taskRepo, { taskId: id });
+/**
+ * 日付移動（O-7 / F-107・F-123）。行き先は「今日」との関係で決まるので、
+ * 打刻と同じくクライアントの現在時刻を受け取り、日界（F-116）を踏まえてサーバで今日を解く
+ */
+export async function moveTaskDateAction(id: TaskId, now: Date): Promise<DailyActionResult> {
+  const today = await resolveToday(sectionRepo, now);
+  const result = await moveTaskDate(taskRepo, { taskId: id, today });
   if (result.ok) {
     revalidatePath("/");
     return { ok: true };
   } else {
-    return failure(taskActionErrorMessage("postpone", result.error));
+    return failure(taskActionErrorMessage("moveDate", result.error));
   }
 }
 

@@ -208,6 +208,7 @@ export function DailyList({
                   onEstimate={onEstimate}
                   onPunch={onPunch}
                   isFutureDate={isFutureDate}
+                  isToday={isToday}
                   onEditPunch={onEditPunch}
                   now={now}
                   projectedStart={projectedStarts?.get(task.id) ?? null}

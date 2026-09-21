@@ -156,15 +156,16 @@ export type TaskRepository = Readonly<{
    */
   restore(task: Omit<Task, "id">, skip: RoutineSkip | null): Promise<Task>;
   /**
-   * 先送り（F-107）: task_date の付け替えと postponed_count の加算。
+   * 日付移動（O-7 / F-107・F-123）: task_date の付け替えと、後ろへ動くときの
+   * postponed_count の加算（加算するかは呼び出し側が決める。データモデル定義書 §3.5）。
    * あわせて routine_id を落とす——移動先の日にはその日のぶんが改めて展開されるため
-   * （紐付けたまま移すと展開の一意制約に衝突する。データモデル定義書 §3.5）。
+   * （紐付けたまま移すと展開の一意制約に衝突する。同書 §3.5）。
    * bundle_id も同じ理由で落とす（同書 §4.8。付けたまま移すと同じバンドルに同名が2件並ぶ）。
    * ルーチン由来のタスクは、元の日を再展開しないようスキップも同じトランザクションで記録する（同書 §3.6）
    */
-  postpone(
+  moveToDate(
     id: TaskId,
-    input: Readonly<{ taskDate: LogicalDate; sortOrder: number }>,
+    input: Readonly<{ taskDate: LogicalDate; sortOrder: number; countsAsPostpone: boolean }>,
     skip: RoutineSkip | null
   ): Promise<void>;
   /** モード・プロジェクトの割り当て（O-5 / F-401・F-402） */
