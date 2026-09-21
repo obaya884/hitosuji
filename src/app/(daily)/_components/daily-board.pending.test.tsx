@@ -1,7 +1,7 @@
 // 盤面テスト（`daily-board.*.test.tsx`）のうち**確定を待つ操作**（00_共通 §4.2）を持つファイル。
 // 進行中の合図（猶予を超えたときだけ出す）と再発火の抑止、そして**楽観的更新の操作が
 // 巻き添えにならないこと**（N-01 の体感を変えない）。
-// **代表は先送り（O-7）**——確定を待つ操作の判定は `optimistic` の有無1点なので、入口ごとに
+// **代表は日付移動（O-7）**——確定を待つ操作の判定は `optimistic` の有無1点なので、入口ごとに
 // 同じ分岐を再訪しても増えない。入口を足すのは**別の条項を通すとき**だけ（ルーチン化 O-12 は
 // 合図と完了トーストの入れ替わり、取り消しの実行 O-8 は抑止時に保留を失わないこと）
 import { act, screen, within } from "@testing-library/react";
@@ -16,7 +16,7 @@ import {
   createRoutineFromTaskAction,
   duplicateTaskAction,
   finishTaskAction,
-  postponeTaskAction,
+  moveTaskDateAction,
   restoreTaskAction,
   suspendTaskAction,
   type CreatingActionResult,
@@ -55,7 +55,7 @@ async function chooseRowMenu(name: string, label: string) {
   await click(screen.getByRole("button", { name: label }));
 }
 
-const postpone = (name: string) => chooseRowMenu(name, "翌日へ先送り");
+const moveDate = (name: string) => chooseRowMenu(name, "翌日へ先送り");
 
 /** 進行中の合図。文言ではなく役割で探す（`role="status"` を持つのは合図だけ） */
 const indicator = () => screen.queryByRole("status");
@@ -70,10 +70,10 @@ describe("確定を待つ操作（00_共通 §4.2）", () => {
   describe("進行中の合図", () => {
     it("応答が猶予を超えたら「保存中」を出し、届いたら消す", async () => {
       const gate = hold<DailyActionResult>(OK);
-      vi.mocked(postponeTaskAction).mockReturnValue(gate.promise);
+      vi.mocked(moveTaskDateAction).mockReturnValue(gate.promise);
       renderBoard();
 
-      await postpone(NOT_STARTED);
+      await moveDate(NOT_STARTED);
       expect(indicator()).toBeNull();
 
       await advance(SLOW_PENDING_DELAY_MS);
@@ -85,23 +85,23 @@ describe("確定を待つ操作（00_共通 §4.2）", () => {
 
     it("失敗で終わっても合図は消え、エラートーストと同時には出ない", async () => {
       const gate = hold<DailyActionResult>(OK);
-      vi.mocked(postponeTaskAction).mockReturnValue(gate.promise);
+      vi.mocked(moveTaskDateAction).mockReturnValue(gate.promise);
       renderBoard();
 
-      await postpone(NOT_STARTED);
+      await moveDate(NOT_STARTED);
       await advance(SLOW_PENDING_DELAY_MS);
       expect(indicator()).not.toBeNull();
 
-      await gate.resolve({ ok: false, message: "先送りできるのは未実行タスクだけです" });
+      await gate.resolve({ ok: false, message: "日付を移せるのは未実行タスクだけです" });
 
       expect(indicator()).toBeNull();
-      expect(screen.queryByText("先送りできるのは未実行タスクだけです")).not.toBeNull();
+      expect(screen.queryByText("日付を移せるのは未実行タスクだけです")).not.toBeNull();
 
       // 失敗で抑止が解けないと、盤面が二度と動かなくなる。**合図のタイミングに依らせない**ため
       // ここで見る（猶予前に失敗する経路の方が実際には多い）
-      vi.mocked(postponeTaskAction).mockResolvedValue(OK);
-      await postpone(NOT_STARTED);
-      expect(vi.mocked(postponeTaskAction)).toHaveBeenCalledTimes(2);
+      vi.mocked(moveTaskDateAction).mockResolvedValue(OK);
+      await moveDate(NOT_STARTED);
+      expect(vi.mocked(moveTaskDateAction)).toHaveBeenCalledTimes(2);
     });
 
     // 合図と完了トーストの両方を出す唯一の操作（O-12）。入れ替わりはここでしか通せない
@@ -156,17 +156,17 @@ describe("確定を待つ操作（00_共通 §4.2）", () => {
   });
 
   describe("再発火の抑止", () => {
-    // 止めないと、2発目が先送り済みのタスクをもう1日ずらす（Server Action は直列に届くので
+    // 止めないと、2発目が移動済みのタスクをもう1日ずらす（Server Action は直列に届くので
     // 同時ではなく順に適用される。アーキテクチャ定義書 §7）
     it("応答を待つあいだ、確定を待つ操作を受け付けない", async () => {
       const gate = hold<DailyActionResult>(OK);
-      vi.mocked(postponeTaskAction).mockReturnValue(gate.promise);
+      vi.mocked(moveTaskDateAction).mockReturnValue(gate.promise);
       renderBoard();
 
-      await postpone(NOT_STARTED);
-      await postpone(NOT_STARTED);
+      await moveDate(NOT_STARTED);
+      await moveDate(NOT_STARTED);
 
-      expect(vi.mocked(postponeTaskAction)).toHaveBeenCalledOnce();
+      expect(vi.mocked(moveTaskDateAction)).toHaveBeenCalledOnce();
       await gate.resolve(OK);
     });
 
@@ -174,10 +174,10 @@ describe("確定を待つ操作（00_共通 §4.2）", () => {
     // `run` と `runSelectingCreated` が同じ状態を共有していることもここで固定される
     it("別の行の別の種類の操作も受け付けない", async () => {
       const gate = hold<DailyActionResult>(OK);
-      vi.mocked(postponeTaskAction).mockReturnValue(gate.promise);
+      vi.mocked(moveTaskDateAction).mockReturnValue(gate.promise);
       renderBoard();
 
-      await postpone(NOT_STARTED);
+      await moveDate(NOT_STARTED);
       selectRow(COMPLETED);
       await pressAndSettle("y");
 
@@ -193,7 +193,7 @@ describe("確定を待つ操作（00_共通 §4.2）", () => {
       await pressAndSettle("d");
       expect(screen.queryByRole("button", { name: "取り消す" })).not.toBeNull();
 
-      // 別の確定待ち操作を飛ばす（先送りは未実行行だけなので、削除した行とは別に中断を使う）
+      // 別の確定待ち操作を飛ばす（日付移動は未実行行だけなので、削除した行とは別に中断を使う）
       const gate = hold<DailyActionResult>(OK);
       vi.mocked(suspendTaskAction).mockReturnValue(gate.promise);
       await chooseRowMenu(RUNNING, "中断");
@@ -225,9 +225,9 @@ describe("確定を待つ操作（00_共通 §4.2）", () => {
     // 生成系の楽観側。ここまで止めるとクイック追加が待たされて N-01 を損なう
     it("応答を待つあいだもクイック追加は受け付ける", async () => {
       const gate = hold<DailyActionResult>(OK);
-      vi.mocked(postponeTaskAction).mockReturnValue(gate.promise);
+      vi.mocked(moveTaskDateAction).mockReturnValue(gate.promise);
       renderBoard();
-      await postpone(NOT_STARTED);
+      await moveDate(NOT_STARTED);
 
       await act(async () => {
         commit(quickAddInput(), "新しいタスク");
@@ -239,16 +239,16 @@ describe("確定を待つ操作（00_共通 §4.2）", () => {
 
     it("応答が届けば次の確定を待つ操作を受け付ける", async () => {
       const gate = hold<DailyActionResult>(OK);
-      vi.mocked(postponeTaskAction).mockReturnValue(gate.promise);
+      vi.mocked(moveTaskDateAction).mockReturnValue(gate.promise);
       renderBoard();
 
-      await postpone(NOT_STARTED);
+      await moveDate(NOT_STARTED);
       await gate.resolve(OK);
 
-      vi.mocked(postponeTaskAction).mockResolvedValue(OK);
-      await postpone(NOT_STARTED);
+      vi.mocked(moveTaskDateAction).mockResolvedValue(OK);
+      await moveDate(NOT_STARTED);
 
-      expect(vi.mocked(postponeTaskAction)).toHaveBeenCalledTimes(2);
+      expect(vi.mocked(moveTaskDateAction)).toHaveBeenCalledTimes(2);
     });
 
     // 生成系（複製・複製して開始・クイック追加）は別の入口（`runSelectingCreated`）を通る。
@@ -269,10 +269,10 @@ describe("確定を待つ操作（00_共通 §4.2）", () => {
     // 抑止の範囲は「確定を待つ操作」まで。ここを広げると打刻が待たされて N-01 を損なう
     it("応答を待つあいだも楽観的更新の操作は受け付ける", async () => {
       const gate = hold<DailyActionResult>(OK);
-      vi.mocked(postponeTaskAction).mockReturnValue(gate.promise);
+      vi.mocked(moveTaskDateAction).mockReturnValue(gate.promise);
       renderBoard();
 
-      await postpone(NOT_STARTED);
+      await moveDate(NOT_STARTED);
       await click(within(taskRow(RUNNING)).getByLabelText("終了"));
 
       expect(vi.mocked(finishTaskAction)).toHaveBeenCalledOnce();

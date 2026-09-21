@@ -61,6 +61,8 @@ function renderRow(overrides: Overrides) {
           projectedStart={overrides.projectedStart ?? null}
           // 既定は打刻できる日（今日以前）。未来日の行は「打刻ボタンを出さない」テストが自分で渡す（§7）
           isFutureDate={overrides.isFutureDate ?? false}
+          // 既定は今日。日付移動の文言が行き先で変わる（O-7）ので、今日以外は各テストが渡す
+          isToday={overrides.isToday ?? true}
           scrollMarginTop={overrides.scrollMarginTop ?? 0}
           {...handlers}
         />
@@ -859,7 +861,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
       fireEvent.click(within(cellsOf(row).menu).getByLabelText("行メニュー"));
     }
 
-    it("未実行タスクでは先送りができ、中断はできない（F-107 / F-204）", () => {
+    it("未実行タスクでは日付移動ができ、中断はできない（F-107 / F-204）", () => {
       renderRow({ task: task({ id: 1, name: "日次プラン" }) });
       openMenu(taskRow("日次プラン"));
 
@@ -867,7 +869,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
       expect((screen.getByText("中断") as HTMLButtonElement).disabled).toBe(true);
     });
 
-    it("実行中タスクでは中断ができ、先送りはできない", () => {
+    it("実行中タスクでは中断ができ、日付移動はできない", () => {
       renderRow({ task: task({ id: 1, name: "メール", startedAt: atJst("08:05") }) });
       openMenu(taskRow("メール"));
 
@@ -875,7 +877,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
       expect((screen.getByText("翌日へ先送り") as HTMLButtonElement).disabled).toBe(true);
     });
 
-    it("完了タスクでは中断も先送りもできない（複製はできる）", () => {
+    it("完了タスクでは中断も日付移動もできない（複製はできる）", () => {
       renderRow({
         task: task({ id: 1, name: "朝食", startedAt: atJst("06:30"), endedAt: atJst("06:48") }),
       });
@@ -913,13 +915,40 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
       expect(onOperate).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), "duplicate");
     });
 
-    it("先送りを選ぶと postpone で通知する（O-7 / F-107。行メニューからのみ実行できる）", () => {
+    it("日付移動を選ぶと moveDate で通知する（O-7 / F-107。行メニューからのみ実行できる）", () => {
       const { onOperate } = renderRow({ task: task({ id: 1, name: "日次プラン" }) });
       openMenu(taskRow("日次プラン"));
 
+      // 行き先は1つしか選べない（O-7。両方を並べて片方を非活性にはしない）
+      expect(screen.queryByText("今日へ移動")).toBeNull();
       fireEvent.click(screen.getByText("翌日へ先送り"));
 
-      expect(onOperate).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), "postpone");
+      expect(onOperate).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), "moveDate");
+    });
+
+    // 行き先は表示日で決まり、項目は1つのまま文言だけが変わる（O-7 / F-123）
+    it("今日以外を表示中は「今日へ移動」になり、同じ moveDate で通知する", () => {
+      const { onOperate } = renderRow({
+        task: task({ id: 1, name: "日次プラン" }),
+        isToday: false,
+      });
+      openMenu(taskRow("日次プラン"));
+
+      expect(screen.queryByText("翌日へ先送り")).toBeNull();
+      fireEvent.click(screen.getByText("今日へ移動"));
+
+      expect(onOperate).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), "moveDate");
+    });
+
+    // 状態の制限は行き先で変わらない（F-123 も未実行のみ）
+    it("今日以外を表示中でも、完了タスクの「今日へ移動」は非活性", () => {
+      renderRow({
+        task: task({ id: 1, name: "朝食", startedAt: atJst("06:30"), endedAt: atJst("06:48") }),
+        isToday: false,
+      });
+      openMenu(taskRow("朝食"));
+
+      expect((screen.getByText("今日へ移動") as HTMLButtonElement).disabled).toBe(true);
     });
 
     it("未実行タスクの削除は確認を挟まない（O-8: 即削除＋Undoトースト）", () => {

@@ -22,7 +22,7 @@ export function actionMocks() {
     duplicateTaskAction: vi.fn(),
     finishTaskAction: vi.fn(),
     moveTaskByStepAction: vi.fn(),
-    postponeTaskAction: vi.fn(),
+    moveTaskDateAction: vi.fn(),
     renameTaskAction: vi.fn(),
     restoreCompletionAction: vi.fn(),
     restoreTaskAction: vi.fn(),

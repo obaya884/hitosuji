@@ -292,21 +292,22 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
       });
     },
 
-    async postpone(
+    async moveToDate(
       id: TaskId,
-      input: Readonly<{ taskDate: LogicalDate; sortOrder: number }>,
+      input: Readonly<{ taskDate: LogicalDate; sortOrder: number; countsAsPostpone: boolean }>,
       skip: RoutineSkip | null
     ) {
       const moved = {
         taskDate: input.taskDate,
         sortOrder: input.sortOrder,
-        routineId: null, // 先送りは紐付けを切って移る（データモデル定義書 §3.5）
-        bundleId: null, // 先送りはバンドルからも外す。移動先の日には改めて展開されるため（同書 §4.8）
-        postponedCount: sql`${tasks.postponedCount} + 1`,
+        routineId: null, // 日付移動は紐付けを切って移る（データモデル定義書 §3.5）
+        bundleId: null, // 日付移動はバンドルからも外す。移動先の日には改めて展開されるため（同書 §4.8）
+        // 後ろへ動くときだけ加算し、そうでなければ列に触れない（データモデル定義書 §3.5）
+        ...(input.countsAsPostpone ? { postponedCount: sql`${tasks.postponedCount} + 1` } : {}),
         updatedAt: new Date(),
       };
 
-      // ルーチン由来でないタスクの先送り。動く行は1つだけ
+      // ルーチン由来でないタスクの移動。動く行は1つだけ
       if (skip === null) {
         await db.update(tasks).set(moved).where(eq(tasks.id, id));
         return;

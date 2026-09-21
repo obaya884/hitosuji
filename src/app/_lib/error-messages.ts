@@ -76,7 +76,7 @@ export const REORDER_MESSAGES: Record<ReorderUsecaseError, string> = {
 };
 
 /**
- * 中断・複製・先送り・削除（F-204 / F-111 / F-107 / O-8）。
+ * 中断・複製・日付移動・削除（F-204 / F-111 / F-107・F-123 / O-8）。
  * `TaskOperationError ⊇ PunchUsecaseError` なので `PUNCH_MESSAGES` を広げた形になるが、
  * **共有するコードの文言は打刻と完全に一致させる**（一致は `error-messages.test.ts` の不変条件
  * テストが守る）。「複製して開始」だけが違う文言を出すため、その差は下の専用辞書へ隔離してある。
@@ -85,7 +85,7 @@ export const REORDER_MESSAGES: Record<ReorderUsecaseError, string> = {
  */
 export const OPERATION_MESSAGES: Record<TaskOperationError, string> = {
   ...PUNCH_MESSAGES,
-  not_postponable: "先送りできるのは未実行タスクだけです",
+  not_date_movable: "日付を移せるのは未実行タスクだけです",
 };
 
 /**
@@ -117,7 +117,7 @@ const TASK_ACTION_MESSAGE_DICTS = {
   updatePunch: PUNCH_MESSAGES,
   suspend: OPERATION_MESSAGES,
   duplicate: OPERATION_MESSAGES,
-  postpone: OPERATION_MESSAGES,
+  moveDate: OPERATION_MESSAGES,
   delete: OPERATION_MESSAGES,
   restore: OPERATION_MESSAGES,
   duplicateAndStart: DUPLICATE_AND_START_MESSAGES,

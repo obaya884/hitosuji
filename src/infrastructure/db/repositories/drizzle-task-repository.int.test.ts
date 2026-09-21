@@ -24,7 +24,7 @@ async function createBundle() {
   return row;
 }
 
-/** ルーチン由来タスクの展開元。ルーチンが絡む describe（先送り・削除とスキップ）が共有する */
+/** ルーチン由来タスクの展開元。ルーチンが絡む describe（日付移動・削除とスキップ）が共有する */
 async function createRoutine() {
   const [row] = await db
     .insert(routines)
@@ -727,8 +727,8 @@ describe("suspend（F-204: 終了と再開タスク生成を1トランザクシ�
   });
 });
 
-describe("postpone（F-107: 先送り）", () => {
-  // ルーチン由来でない先送り。日付・並び・回数の3つだけが動き、持ち物（見積もり・セクション・
+describe("moveToDate（O-7: 日付移動）", () => {
+  // ルーチン由来でない日付移動。日付・並び・回数の3つだけが動き、持ち物（見積もり・セクション・
   // コメント・ハイライト）は一緒に移る。ルーチン由来では routine_id も動く（次のテスト）
   it("task_date・sort_order・postponed_count だけを動かす", async () => {
     const [section] = await db
@@ -752,7 +752,11 @@ describe("postpone（F-107: 先送り）", () => {
       })
       .returning();
 
-    await repo.postpone(target.id, { taskDate: "2026-07-20", sortOrder: 3000 }, null);
+    await repo.moveToDate(
+      target.id,
+      { taskDate: "2026-07-20", sortOrder: 3000, countsAsPostpone: true },
+      null
+    );
 
     expect(await repo.listByDate("2026-07-19")).toHaveLength(0);
     expect(await repo.listByDate("2026-07-20")).toEqual([
@@ -793,9 +797,9 @@ describe("postpone（F-107: 先送り）", () => {
       })
       .returning();
 
-    await repo.postpone(
+    await repo.moveToDate(
       target.id,
-      { taskDate: "2026-07-20", sortOrder: 1000 },
+      { taskDate: "2026-07-20", sortOrder: 1000, countsAsPostpone: true },
       { routineId: routine.id, taskDate: "2026-07-19" }
     );
 
@@ -820,9 +824,9 @@ describe("postpone（F-107: 先送り）", () => {
 
     await expect(
       // 存在しないルーチン → FK違反（onConflictDoNothing が吸うのは unique 衝突だけ）
-      repo.postpone(
+      repo.moveToDate(
         target.id,
-        { taskDate: "2026-07-20", sortOrder: 1000 },
+        { taskDate: "2026-07-20", sortOrder: 1000, countsAsPostpone: true },
         { routineId: 999999, taskDate: "2026-07-19" }
       )
     ).rejects.toThrow();
@@ -832,7 +836,7 @@ describe("postpone（F-107: 先送り）", () => {
     expect(await repo.listByDate("2026-07-20")).toHaveLength(0);
   });
 
-  it("移動先に同じルーチンの展開済みタスクがあっても先送りできる", async () => {
+  it("移動先に同じルーチンの展開済みタスクがあっても移動できる", async () => {
     const routine = await createRoutine();
     const [target, expanded] = await db
       .insert(tasks)
@@ -854,13 +858,13 @@ describe("postpone（F-107: 先送り）", () => {
       ])
       .returning();
 
-    await repo.postpone(
+    await repo.moveToDate(
       target.id,
-      { taskDate: "2026-07-20", sortOrder: 2000 },
+      { taskDate: "2026-07-20", sortOrder: 2000, countsAsPostpone: true },
       { routineId: routine.id, taskDate: "2026-07-19" }
     );
 
-    // 先送り分（紐付けなし）と、移動先の日のぶん（紐付けあり）が並ぶ
+    // 移動した分（紐付けなし）と、移動先の日のぶん（紐付けあり）が並ぶ
     const moved = await repo.listByDate("2026-07-20");
     expect(moved).toHaveLength(2);
     expect(moved).toContainEqual(
@@ -868,6 +872,32 @@ describe("postpone（F-107: 先送り）", () => {
     );
     expect(moved).toContainEqual(
       expect.objectContaining({ id: target.id, routineId: null, postponedCount: 1 })
+    );
+  });
+
+  // 未来日から今日への引き寄せ（F-123 / FB-98）。前へ動かす移動では回数を増やさない
+  // （データモデル定義書 §3.5）。`+ 0` ではなく列に触れないことで実現している
+  it("countsAsPostpone が false なら postponed_count を変えない", async () => {
+    const [target] = await db
+      .insert(tasks)
+      .values({
+        taskDate: "2026-07-21",
+        initialTaskDate: "2026-07-21",
+        name: "未来日から引き寄せる",
+        sortOrder: 1000,
+        postponedCount: 2,
+      })
+      .returning();
+
+    await repo.moveToDate(
+      target.id,
+      { taskDate: "2026-07-20", sortOrder: 1000, countsAsPostpone: false },
+      null
+    );
+
+    const [after] = await repo.listByDate("2026-07-20");
+    expect(after).toEqual(
+      expect.objectContaining({ id: target.id, taskDate: "2026-07-20", postponedCount: 2 })
     );
   });
 });
@@ -1916,9 +1946,9 @@ describe("bundle_id の伝播（データモデル定義書 §4.8 / F-119）", (
     expect(after.find((t) => t.id === target.id)?.bundleId).toBeNull(); // C は無関係なので変わらない
   });
 
-  // 先送りは routine_id を外す扱い（データモデル定義書 §3.5）と揃えてバンドルからも外す。付けたまま移すと
+  // 日付移動は routine_id を外す扱い（データモデル定義書 §3.5）と揃えてバンドルからも外す。付けたまま移すと
   // 移動先の日に改めて展開されるぶんと同じバンドルに同名のタスクが2件並んでしまう
-  it("先送りはバンドルから外す（routine_id を外す扱いと揃える）", async () => {
+  it("日付移動はバンドルから外す（routine_id を外す扱いと揃える）", async () => {
     const bundle = await createBundle();
     const [target] = await db
       .insert(tasks)
@@ -1931,7 +1961,11 @@ describe("bundle_id の伝播（データモデル定義書 §4.8 / F-119）", (
       })
       .returning();
 
-    await repo.postpone(target.id, { taskDate: "2026-07-20", sortOrder: 3000 }, null);
+    await repo.moveToDate(
+      target.id,
+      { taskDate: "2026-07-20", sortOrder: 3000, countsAsPostpone: true },
+      null
+    );
 
     const [after] = await repo.listByDate("2026-07-20");
     expect(after.bundleId).toBeNull();

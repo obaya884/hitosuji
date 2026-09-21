@@ -14,7 +14,7 @@ export type RowMenuItem = Readonly<{
   confirmMessage?: string;
 }>;
 
-/** 行メニュー（画面定義書01 O-7/O-8）。先送りはここからのみ実行できる */
+/** 行メニュー（画面定義書01 O-7/O-8）。日付移動はここからのみ実行できる */
 export function RowMenu({ items }: Readonly<{ items: readonly RowMenuItem[] }>) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);

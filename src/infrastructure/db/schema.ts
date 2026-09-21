@@ -152,6 +152,7 @@ export const tasks = pgTable(
       (): AnyPgColumn => tasks.id,
       { onDelete: "set null" }
     ),
+    // 日付移動（O-7）で後ろへ動かされた通算回数。前へ動かすときは変えない（§3.5）
     postponedCount: integer("postponed_count").notNull().default(0),
     ...timestamps,
   },

@@ -25,6 +25,12 @@ import { RoutinizePopover } from "./routinize-popover";
 import { SelectPopover, type PopoverOption } from "./select-popover";
 
 /**
+ * 行メニュー・ショートカットから盤面へ送る操作（O-4 / O-11 / O-7 / O-8）。
+ * **行・盤面・ショートカットの3者が同じ union を書かないよう、ここを正にする**
+ */
+export type RowOperation = "suspend" | "duplicate" | "moveDate" | "delete";
+
+/**
  * 行の props。**リスト（`DailyList`）はこの型から自分の Props を派生させる**ので、
  * 行へそのまま流す項目はここが単一の真実（同じ内容を2度書かない。T-53）
  */
@@ -39,6 +45,8 @@ export type TaskRowProps = Readonly<{
   onPunch: (task: Task) => void;
   /** 表示日が未来日か（表示日 > 今日）。真なら打刻を受け付けないのでボタンを出さない（§7 / F-201） */
   isFutureDate: boolean;
+  /** 表示日が今日か。日付移動（O-7）の行き先——真なら翌日へ、偽なら今日へ——を文言に出すのに使う */
+  isToday: boolean;
   onEditPunch: (task: Task, field: "startedAt" | "endedAt", hhmm: string) => void;
   index: number;
   sectionId: SectionId | null;
@@ -48,7 +56,7 @@ export type TaskRowProps = Readonly<{
   /** セクション選択の候補（O-5 / §4.3）。固定項目が現在セクションに依るため親が組む */
   sectionOptions: readonly PopoverOption[];
   onAssign: (task: Task, field: "mode" | "project" | "section", id: number | null) => void;
-  onOperate: (task: Task, operation: "suspend" | "duplicate" | "postpone" | "delete") => void;
+  onOperate: (task: Task, operation: RowOperation) => void;
   /** ハイライトの付け外し（O-17 / F-118） */
   onToggleHighlight: (task: Task) => void;
   /** ルーチン化（O-12 / §4.1） */
@@ -109,6 +117,7 @@ export function TaskRow({
   onEstimate,
   onPunch,
   isFutureDate,
+  isToday,
   onEditPunch,
   now,
   projectedStart,
@@ -373,9 +382,11 @@ export function TaskRow({
             },
             { label: "複製", onSelect: () => onOperate(task, "duplicate") },
             {
-              label: "翌日へ先送り",
-              onSelect: () => onOperate(task, "postpone"),
-              disabled: status !== "not_started", // 未実行のみ（F-107）
+              // 行き先は表示日で決まる（O-7）。項目は1つで、文言だけが行き先を表す。
+              // **行き先そのものの規則は `domain/task/date-move.ts` の `planDateMove` が正**
+              label: isToday ? "翌日へ先送り" : "今日へ移動",
+              onSelect: () => onOperate(task, "moveDate"),
+              disabled: status !== "not_started", // 未実行のみ（F-107 / F-123）
             },
             {
               label: "削除",

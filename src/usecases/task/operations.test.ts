@@ -8,11 +8,14 @@ import {
   deleteTask,
   duplicateAndStartTask,
   duplicateTask,
-  postponeTask,
+  moveTaskDate,
   restoreTask,
   suspendTask,
 } from "./operations";
-import { inMemoryTaskRepository } from "./testing/in-memory-repository";
+import {
+  inMemoryTaskRepository,
+  type InMemoryTaskRepository,
+} from "./testing/in-memory-repository";
 
 const now = new Date("2026-07-26T09:00:00Z");
 const startedAt = new Date("2026-07-26T08:48:00Z"); // 実績12分
@@ -432,14 +435,51 @@ describe("duplicateAndStartTask（F-208: 複製して開始）", () => {
   });
 });
 
-describe("postponeTask（F-107: 先送り）", () => {
-  it("翌日へ移し postponed_count を加算する", async () => {
+describe("moveTaskDate（O-7: 日付移動）", () => {
+  // フィクスチャの taskDate は TEST_DATE なので、今日＝TEST_DATE なら「今日を表示中」になる
+  const move = (repo: InMemoryTaskRepository, today = TEST_DATE) =>
+    moveTaskDate(repo, { taskId: 1, today });
+
+  it("今日を見ているなら翌日へ移し postponed_count を加算する（F-107）", async () => {
     const repo = inMemoryTaskRepository([task({ id: 1, postponedCount: 1 })]);
 
-    expect((await postponeTask(repo, { taskId: 1 })).ok).toBe(true);
+    expect((await move(repo)).ok).toBe(true);
     expect(repo.rows[0]).toEqual(
-      expect.objectContaining({ taskDate: "2026-07-27", postponedCount: 2 })
+      expect.objectContaining({ taskDate: NEXT_TEST_DATE, postponedCount: 2 })
     );
+  });
+
+  it("過去日を見ているなら今日へ引き寄せ、postponed_count を加算する（F-123）", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, taskDate: "2026-07-23", postponedCount: 1 }),
+    ]);
+
+    expect((await move(repo)).ok).toBe(true);
+    expect(repo.rows[0]).toEqual(
+      expect.objectContaining({ taskDate: TEST_DATE, postponedCount: 2 })
+    );
+  });
+
+  // 前へ動かす移動は「押しやった」ことにならない（データモデル定義書 §3.5）
+  it("未来日を見ているなら今日へ引き寄せ、postponed_count は変えない（F-123 / FB-98）", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, taskDate: NEXT_TEST_DATE, postponedCount: 1 }),
+    ]);
+
+    expect((await move(repo)).ok).toBe(true);
+    expect(repo.rows[0]).toEqual(
+      expect.objectContaining({ taskDate: TEST_DATE, postponedCount: 1 })
+    );
+  });
+
+  // 起点は動かないので、引き寄せた行にも持ち越し（F-122）がそのまま残る
+  it("initial_task_date は移動しても変わらない", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, taskDate: "2026-07-23", initialTaskDate: "2026-07-20" }),
+    ]);
+
+    await move(repo);
+    expect(repo.rows[0].initialTaskDate).toBe("2026-07-20");
   });
 
   // データモデル定義書 §3.5: 移動先の日にはその日のぶんが改めて展開されるので紐付けは切る。
@@ -447,15 +487,25 @@ describe("postponeTask（F-107: 先送り）", () => {
   it("ルーチン由来なら紐付けが外れ、元の日はスキップになる", async () => {
     const repo = inMemoryTaskRepository([task({ id: 1, routineId: 10 })]);
 
-    expect((await postponeTask(repo, { taskId: 1 })).ok).toBe(true);
+    expect((await move(repo)).ok).toBe(true);
     expect(repo.rows[0].routineId).toBeNull();
     expect(repo.skips).toEqual([{ routineId: 10, taskDate: TEST_DATE }]);
+  });
+
+  // 引き寄せでも同じ（元の日が未来日なら、そこは再展開されうるので記録が要る）
+  it("未来日から引き寄せたときも元の日をスキップとして記録する", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, taskDate: NEXT_TEST_DATE, routineId: 10 }),
+    ]);
+
+    await move(repo);
+    expect(repo.skips).toEqual([{ routineId: 10, taskDate: NEXT_TEST_DATE }]);
   });
 
   it("存在しないタスクは task_not_found", async () => {
     const repo = inMemoryTaskRepository([]);
 
-    expect(await postponeTask(repo, { taskId: 99 })).toEqual({
+    expect(await moveTaskDate(repo, { taskId: 99, today: TEST_DATE })).toEqual({
       ok: false,
       error: "task_not_found",
     });
@@ -464,31 +514,24 @@ describe("postponeTask（F-107: 先送り）", () => {
   it("移動先の同セクション末尾へ置く", async () => {
     const repo = inMemoryTaskRepository([
       task({ id: 1, sectionId: 1, sortOrder: 1000 }),
-      task({ id: 2, taskDate: "2026-07-27", sectionId: 1, sortOrder: 5000 }),
+      task({ id: 2, taskDate: NEXT_TEST_DATE, sectionId: 1, sortOrder: 5000 }),
     ]);
 
-    await postponeTask(repo, { taskId: 1 });
+    await move(repo);
     expect(repo.rows[0].sortOrder).toBe(6000);
   });
 
-  // 翌日の算出そのものは `addDays` へ委譲しており、月末・年末の丸めは logical-date.test.ts が担保する
-  it("日付を指定して先送りできる", async () => {
-    const repo = inMemoryTaskRepository([task({ id: 1 })]);
-    await postponeTask(repo, { taskId: 1, to: "2026-08-01" });
-    expect(repo.rows[0].taskDate).toBe("2026-08-01");
-  });
-
-  it("実行中・完了タスクは先送りできない", async () => {
+  it("実行中・完了タスクは日付を移せない", async () => {
     const running = inMemoryTaskRepository([task({ id: 1, startedAt })]);
-    expect(await postponeTask(running, { taskId: 1 })).toEqual({
+    expect(await move(running)).toEqual({
       ok: false,
-      error: "not_postponable",
+      error: "not_date_movable",
     });
 
     const completed = inMemoryTaskRepository([task({ id: 1, startedAt, endedAt: now })]);
-    expect(await postponeTask(completed, { taskId: 1 })).toEqual({
+    expect(await move(completed)).toEqual({
       ok: false,
-      error: "not_postponable",
+      error: "not_date_movable",
     });
   });
 });

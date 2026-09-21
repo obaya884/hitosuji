@@ -222,11 +222,15 @@ export async function loadBrowserCheckFixtures(
     })
   );
 
-  // 前日ぶん。**レビューの先送り内訳（画面定義書04 §3.4）は表示日が過去日のときだけ出る**ので、
-  // 当日の行だけでは持ち越し表記（F-122）を出す経路に届かない
+  // 当日以外の日。**レビューの先送り内訳（画面定義書04 §3.4）は表示日が過去日のときだけ出る**ので、
+  // 当日の行だけでは持ち越し表記（F-122）を出す経路に届かない。日付移動（O-7 / F-123）も
+  // 行き先が表示日で決まるので、**過去日と未来日の両方に未実行の行が要る**（今日を見ているだけでは
+  // 「今日へ移動」の文言にも引き寄せにも届かない）
   const yesterday = addDays(taskDate, -1);
-  const previousDay = [
+  const tomorrow = addDays(taskDate, 1);
+  const otherDays = [
     task({
+      // id は投入時に捨てる（`withoutId`）が、`task()` は sort_order を id から採るので通しで振る
       id: fixed.length + fillers.length + 1,
       taskDate: yesterday,
       initialTaskDate: addDays(yesterday, -2),
@@ -235,13 +239,21 @@ export async function loadBrowserCheckFixtures(
       sectionId: sectionIdOf("午後"),
       modeId: work,
     }),
+    task({
+      id: fixed.length + fillers.length + 2,
+      taskDate: tomorrow,
+      name: "翌日に積んであるタスク（今日へ引き寄せる）",
+      estimateMinutes: 20,
+      sectionId: sectionIdOf("午前"),
+      modeId: work,
+    }),
   ];
 
-  await db.insert(tasks).values([...fixed, ...fillers, ...previousDay].map(withoutId));
+  await db.insert(tasks).values([...fixed, ...fillers, ...otherDays].map(withoutId));
 
   return {
     taskDate,
-    tasks: fixed.length + fillers.length + previousDay.length,
+    tasks: fixed.length + fillers.length + otherDays.length,
     routines: routineRows.length,
     projects: projectRows.length,
   };

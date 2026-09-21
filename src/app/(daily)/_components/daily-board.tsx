@@ -47,7 +47,7 @@ import {
   duplicateTaskAction,
   finishTaskAction,
   moveTaskByStepAction,
-  postponeTaskAction,
+  moveTaskDateAction,
   renameTaskAction,
   restoreCompletionAction,
   restoreTaskAction,
@@ -78,6 +78,7 @@ import { DailyList } from "./daily-list";
 import { DailySummary } from "./daily-summary";
 import { DateNav } from "@/app/_components/date-nav";
 import { ShortcutHelp } from "./shortcut-help";
+import type { RowOperation } from "./task-row";
 import { StaleRunningBanner } from "./stale-running-banner";
 import { Toast } from "./toast";
 import { useDailyShortcuts } from "./use-daily-shortcuts";
@@ -185,7 +186,7 @@ export function DailyBoard({
 
   /**
    * 引数順は runSelectingCreated と揃えて action を先頭にする（読み違い防止）。
-   * `optimistic` は即時反映するものがあるときだけ渡す（中断・先送り・ルーチン化は確定を待つ）。
+   * `optimistic` は即時反映するものがあるときだけ渡す（中断・日付移動・ルーチン化は確定を待つ）。
    *
    * **成功時の追加処理は action の内側で結果を見て行い、失敗時の処理は `onFailure` で外へ出す**。
    * 非対称なのは安全のため——action が拒否されると内側の残りは実行されず（`callAction` が外で捕まえる）、
@@ -469,8 +470,8 @@ export function DailyBoard({
     });
   }
 
-  /** 中断・複製・先送り・削除（F-204 / F-111 / F-107 / O-8） */
-  function operate(task: Task, operation: "suspend" | "duplicate" | "postpone" | "delete") {
+  /** 中断・複製・日付移動・削除（F-204 / F-111 / F-107・F-123 / O-8） */
+  function operate(task: Task, operation: RowOperation) {
     // 中断は現在時刻での終了打刻を含むので、未来日では受け付けない（§7）。行メニューの項目は
     // 実行中でなければ非活性だが、`I`（§6）は状態を見ずにここへ来るため止めるのはここになる
     if (operation === "suspend" && isFutureDate) return;
@@ -503,14 +504,15 @@ export function DailyBoard({
       return;
     }
 
-    // 中断・先送りは楽観更新せずサーバ確定を待つ（＝ optimistic を渡さない）
+    // 中断・日付移動は楽観更新せずサーバ確定を待つ（＝ optimistic を渡さない）
     if (operation === "suspend") {
       run(() => suspendTaskAction(task.id, new Date()));
       return;
     }
 
     run(async () => {
-      const result = await postponeTaskAction(task.id);
+      // 行き先は「今日」との関係で決まるので、サーバが日界を踏まえて解けるよう現在時刻を送る（O-7）
+      const result = await moveTaskDateAction(task.id, new Date());
       // 行が消えるのは確定後なので、選択もそこで送る（§5）。待つ間に選び直していたらそちらを優先する
       if (result.ok) setSelectedId((current) => (current === task.id ? nextSelectedId : current));
       return result;
