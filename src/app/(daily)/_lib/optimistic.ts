@@ -117,6 +117,7 @@ export function optimisticTask(date: LogicalDate, name: string, seq: number): Ta
   return {
     id: -seq,
     taskDate: date,
+    initialTaskDate: date, // 生まれた日そのもの。持ち越し表示は出ない（F-122）
     name,
     estimateMinutes: 0,
     sectionId: null,

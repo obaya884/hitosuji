@@ -205,6 +205,7 @@ describe("optimisticTask（サーバ確定前の仮タスク）", () => {
     expect(optimisticTask(TEST_DATE, "買い物", 7)).toEqual({
       id: -7,
       taskDate: TEST_DATE,
+      initialTaskDate: TEST_DATE, // 生まれた日そのもの＝持ち越し表示は出ない（F-122）
       name: "買い物",
       estimateMinutes: 0,
       sectionId: null,

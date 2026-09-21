@@ -16,6 +16,7 @@ import type { LogicalDate } from "@/domain/shared/logical-date";
 import type { Task, TaskId } from "@/domain/task/task";
 import { db as defaultDb, type Database } from "@/infrastructure/db";
 import { routineSkips, tasks } from "@/infrastructure/db/schema";
+import { withInitialTaskDate } from "./new-task-row";
 
 type Row = typeof tasks.$inferSelect;
 
@@ -67,6 +68,7 @@ function toDomain(row: Row): Task {
   return {
     id: row.id,
     taskDate: row.taskDate,
+    initialTaskDate: row.initialTaskDate,
     name: row.name,
     estimateMinutes: row.estimateMinutes,
     sectionId: row.sectionId,
@@ -94,14 +96,14 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
     async create(input: NewTask, renumber: Renumber) {
       // 中間値が空いていた挿入。1行の INSERT で完結する（データモデル定義書 §3.5）
       if (renumber.length === 0) {
-        const [row] = await db.insert(tasks).values(input).returning();
+        const [row] = await db.insert(tasks).values(withInitialTaskDate(input)).returning();
         return toDomain(row);
       }
 
       // 中間値が尽きてグループ全体を振り直す挿入。振り直しの途中の並びを見せない（同書 §3.5）
       return await db.transaction(async (tx) => {
         await applyRenumber(tx, renumber);
-        const [row] = await tx.insert(tasks).values(input).returning();
+        const [row] = await tx.insert(tasks).values(withInitialTaskDate(input)).returning();
         return toDomain(row);
       });
     },
@@ -174,7 +176,7 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
           .update(tasks)
           .set({ endedAt: interruption.endedAt, updatedAt: now })
           .where(eq(tasks.id, interruption.runningTaskId));
-        await tx.insert(tasks).values(interruption.resumeTask);
+        await tx.insert(tasks).values(withInitialTaskDate(interruption.resumeTask));
         await tx.update(tasks).set({ startedAt, updatedAt: now }).where(eq(tasks.id, taskId));
       });
     },
@@ -208,7 +210,10 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
 
       // 実行中タスクが無く、挿入位置も空いている複製。1行の INSERT で完結する
       if (interruption === null && renumber.length === 0) {
-        const [row] = await db.insert(tasks).values({ ...newTask, startedAt }).returning();
+        const [row] = await db
+          .insert(tasks)
+          .values({ ...withInitialTaskDate(newTask), startedAt })
+          .returning();
         return toDomain(row);
       }
 
@@ -226,8 +231,11 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
         }
         // 複製 → 再開タスクの順に挿入するため、割り込みの分岐は終了ぶんと挿入ぶんに分かれる。
         // 1つに寄せると id の採番順が入れ替わり、偽物（in-memory-repository）と食い違う
-        const [row] = await tx.insert(tasks).values({ ...newTask, startedAt }).returning();
-        if (interruption !== null) await tx.insert(tasks).values(interruption.resumeTask);
+        const [row] = await tx
+          .insert(tasks)
+          .values({ ...withInitialTaskDate(newTask), startedAt })
+          .returning();
+        if (interruption !== null) await tx.insert(tasks).values(withInitialTaskDate(interruption.resumeTask));
         return toDomain(row);
       });
     },
@@ -242,7 +250,7 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
           .update(tasks)
           .set({ endedAt: command.endedAt, updatedAt: now })
           .where(eq(tasks.id, command.taskId));
-        await tx.insert(tasks).values(command.resumeTask);
+        await tx.insert(tasks).values(withInitialTaskDate(command.resumeTask));
       });
     },
 

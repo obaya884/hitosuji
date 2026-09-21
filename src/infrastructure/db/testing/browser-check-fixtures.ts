@@ -9,6 +9,7 @@
 // 確認は常に同じ状態から始まる。
 import { pathToFileURL } from "node:url";
 import { routine } from "@/domain/routine/testing/routine";
+import { addDays } from "@/domain/shared/logical-date";
 import { task } from "@/domain/task/testing/task";
 import { todayFromSections } from "@/usecases/section/resolve-today";
 import { createSectionRepository } from "../repositories/drizzle-section-repository";
@@ -191,6 +192,20 @@ export async function loadBrowserCheckFixtures(
       endedAt: minutesBefore(now, 150),
       highlighted: true,
     }),
+    // 持ち越し表記（F-122 / 画面定義書01 §3.3）。セクション併記・コメント印・⭐と同じ流し込みに
+    // 乗るので、名前が長い行で列幅がどう動くかを測れるように**長い名前**と組み合わせる
+    task({
+      id: 9,
+      taskDate,
+      initialTaskDate: addDays(taskDate, -3),
+      name: "3日ぶん持ち越している、名前の長い未実行タスク",
+      estimateMinutes: 30,
+      sectionId: sectionIdOf("午後"),
+      modeId: work,
+      projectId: projectRows[0].id,
+      comment: "持ち越し表記とコメント印・⭐が同じ行に並ぶ場合の見え方を測る。",
+      highlighted: true,
+    }),
   ];
 
   // 画面下部まで届かせるための行。末尾のセクション（夜）にも入れて下端の幾何を測れるようにする。
@@ -207,11 +222,26 @@ export async function loadBrowserCheckFixtures(
     })
   );
 
-  await db.insert(tasks).values([...fixed, ...fillers].map(withoutId));
+  // 前日ぶん。**レビューの先送り内訳（画面定義書04 §3.4）は表示日が過去日のときだけ出る**ので、
+  // 当日の行だけでは持ち越し表記（F-122）を出す経路に届かない
+  const yesterday = addDays(taskDate, -1);
+  const previousDay = [
+    task({
+      id: fixed.length + fillers.length + 1,
+      taskDate: yesterday,
+      initialTaskDate: addDays(yesterday, -2),
+      name: "前日に先送りしたまま残っているタスク",
+      estimateMinutes: 30,
+      sectionId: sectionIdOf("午後"),
+      modeId: work,
+    }),
+  ];
+
+  await db.insert(tasks).values([...fixed, ...fillers, ...previousDay].map(withoutId));
 
   return {
     taskDate,
-    tasks: fixed.length + fillers.length,
+    tasks: fixed.length + fillers.length + previousDay.length,
     routines: routineRows.length,
     projects: projectRows.length,
   };

@@ -62,6 +62,7 @@ describe("tasks — ck_tasks_time（打刻の整合性 CHECK）", () => {
     await rejectsWithConstraint(
       db.insert(tasks).values({
         taskDate: "2026-07-19",
+        initialTaskDate: "2026-07-19",
         name: "不正タスク",
         sortOrder: 1000,
         endedAt: new Date(),
@@ -74,6 +75,7 @@ describe("tasks — ck_tasks_time（打刻の整合性 CHECK）", () => {
     await rejectsWithConstraint(
       db.insert(tasks).values({
         taskDate: "2026-07-19",
+        initialTaskDate: "2026-07-19",
         name: "逆順タスク",
         sortOrder: 1000,
         startedAt,
@@ -88,6 +90,7 @@ describe("tasks — ck_tasks_time（打刻の整合性 CHECK）", () => {
   it("終了と開始が同時刻の打刻は許容される", async () => {
     await db.insert(tasks).values({
       taskDate: "2026-07-19",
+      initialTaskDate: "2026-07-19",
       name: "即終了タスク",
       sortOrder: 1000,
       startedAt,
@@ -174,6 +177,7 @@ describe("tasks・routines の外部キー（F-405: 参照されているマス�
 
     await db.insert(tasks).values({
       taskDate: "2026-07-19",
+      initialTaskDate: "2026-07-19",
       name: "朝食",
       sortOrder: 1000,
       sectionId: section.id,
@@ -238,19 +242,37 @@ describe("tasks・routines の外部キー（F-405: 参照されているマス�
     await rejectsWithConstraint(
       db
         .insert(tasks)
-        .values({ taskDate: "2026-07-19", name: "朝食", sortOrder: 1000, sectionId: missing }),
+        .values({
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "朝食",
+          sortOrder: 1000,
+          sectionId: missing,
+        }),
       "tasks_section_id_sections_id_fk"
     );
     await rejectsWithConstraint(
       db
         .insert(tasks)
-        .values({ taskDate: "2026-07-19", name: "朝食", sortOrder: 1000, modeId: missing }),
+        .values({
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "朝食",
+          sortOrder: 1000,
+          modeId: missing,
+        }),
       "tasks_mode_id_modes_id_fk"
     );
     await rejectsWithConstraint(
       db
         .insert(tasks)
-        .values({ taskDate: "2026-07-19", name: "朝食", sortOrder: 1000, projectId: missing }),
+        .values({
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "朝食",
+          sortOrder: 1000,
+          projectId: missing,
+        }),
       "tasks_project_id_projects_id_fk"
     );
   });

@@ -34,7 +34,13 @@ describe("DrizzleProjectRepository", () => {
 
     await db
       .insert(tasks)
-      .values({ taskDate: "2026-07-20", name: "T1", sortOrder: 1000, projectId: used.id });
+      .values({
+        taskDate: "2026-07-20",
+        initialTaskDate: "2026-07-20",
+        name: "T1",
+        sortOrder: 1000,
+        projectId: used.id,
+      });
     await db.insert(routines).values({
       name: "R1",
       estimateMinutes: 10,

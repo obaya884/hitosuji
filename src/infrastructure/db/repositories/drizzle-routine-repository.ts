@@ -9,6 +9,7 @@ import type { ValidRoutineInput } from "@/domain/routine/input";
 import { db as defaultDb, type Database } from "@/infrastructure/db";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import { routineSkips, routines, tasks } from "@/infrastructure/db/schema";
+import { withInitialTaskDate } from "./new-task-row";
 
 type Row = typeof routines.$inferSelect;
 
@@ -83,7 +84,7 @@ export function createRoutineRepository(db: Database = defaultDb): RoutineReposi
       // 既に展開済み（routine_id, task_date が同じ）の行は挿入されない
       const inserted = await db
         .insert(tasks)
-        .values(seeds.map((seed) => ({ ...seed, routineId: seed.routineId })))
+        .values(seeds.map(withInitialTaskDate))
         .onConflictDoNothing({
           target: [tasks.routineId, tasks.taskDate],
           // 部分ユニーク索引（uq_tasks_routine_date）に合わせて述語も指定する

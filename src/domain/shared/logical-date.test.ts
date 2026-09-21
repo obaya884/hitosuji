@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   addDays,
   atLogicalDayClock,
+  daysBetween,
   isValidLogicalDate,
   todayLogicalDate,
   weekdayIndex,
@@ -28,6 +29,23 @@ describe("addDays（F-106: 前日・翌日への移動）", () => {
     expect(addDays("2026-07-01", -1)).toBe("2026-06-30");
     expect(addDays("2026-12-31", 1)).toBe("2027-01-01");
     expect(addDays("2028-02-28", 1)).toBe("2028-02-29");
+  });
+});
+
+describe("daysBetween（F-122: 持ち越しの日数を数える）", () => {
+  it("後の日付が大きいほど正の差になる", () => {
+    expect(daysBetween("2026-09-18", "2026-09-21")).toBe(3);
+    expect(daysBetween("2026-09-21", "2026-09-21")).toBe(0);
+  });
+
+  it("逆向きは負になる（呼び出し側が向きを判断できる）", () => {
+    expect(daysBetween("2026-09-21", "2026-09-18")).toBe(-3);
+  });
+
+  it("月末・年末・閏日をまたいでも暦どおりに数える", () => {
+    expect(daysBetween("2026-08-30", "2026-09-02")).toBe(3);
+    expect(daysBetween("2026-12-30", "2027-01-02")).toBe(3);
+    expect(daysBetween("2028-02-27", "2028-03-01")).toBe(3); // 閏年の2/29 を含む
   });
 });
 

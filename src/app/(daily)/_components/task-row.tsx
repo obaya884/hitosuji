@@ -10,7 +10,7 @@ import { taskStatus } from "@/domain/task/status";
 import { actualMinutes, elapsedMinutes, type Task, type TaskId } from "@/domain/task/task";
 import { DurationValue } from "@/app/_components/duration-value";
 import { CheckIcon, CommentIcon, PlayIcon, StarIcon, StopIcon } from "@/app/_components/icons";
-import { formatClock, formatDuration } from "@/app/_lib/format";
+import { formatCarryOver, formatClock, formatDuration } from "@/app/_lib/format";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { modeAppearance } from "@/app/_lib/mode-appearance";
 import { disabledPermanent, hoverSurfaceOnAccent, hoverWord, inputBase } from "@/app/_lib/ui";
@@ -143,6 +143,7 @@ export function TaskRow({
   // モードから決まる見た目（規則は `_lib/mode-appearance.ts`）。
   // `AssignCell` は boolean を受け取って自分でクラスを決めるので、文字列が要るのは他のセルだけ
   const { isDimmed, dimmedClass, colorStyle } = modeAppearance(mode);
+  const carryOver = formatCarryOver(task);
 
   return (
     <tr
@@ -209,6 +210,10 @@ export function TaskRow({
             （00_共通 §1.1） */}
         {editing !== "name" && (
           <>
+            {/* 持ち越し（F-122 / §3.3）。タスク名の直後・セクション併記の左 */}
+            {carryOver !== null && (
+              <span className={`ml-2 text-sub ${dimmedClass} opacity-80`}>{carryOver}</span>
+            )}
             {/* セクションの併記はタスク名セルに残す */}
             <span className="relative ml-2 inline-block text-sub">
               {/* セクション選択ポップオーバー（O-5） */}

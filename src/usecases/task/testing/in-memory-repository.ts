@@ -78,6 +78,7 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
       splitParentId: null,
       bundleId: null,
       ...input,
+      initialTaskDate: input.taskDate, // 生成時は task_date と同値（F-122 / 本物の born と同じ）
       highlighted: input.highlighted ?? false,
       startedAt,
       endedAt: null,

@@ -1,5 +1,7 @@
 // 表示フォーマット（画面定義書01 §3.3）と、時刻入力の正規化（同書 §3.3）
 import { parseClockTime } from "@/domain/task/punch-edit";
+import { dayOf, monthOf } from "@/domain/shared/month-grid";
+import { carryOverDays, type Task } from "@/domain/task/task";
 import { APP_TIME_ZONE, zonedParts } from "@/domain/shared/time-zone";
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"] as const;
@@ -25,6 +27,18 @@ export function formatSignedDuration(minutes: number): string {
 export function formatClock(at: Date): string {
   const { hours, minutes } = zonedParts(at, APP_TIME_ZONE);
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+/**
+ * 持ち越しの表記（F-122 / 画面定義書01 §3.3）。例: `3日持ち越し（9/18から）`。
+ * **持ち越していない行では `null`**——呼び出し側はその場合に何も出さない。
+ * 日数を先に置くのは、何の日数かを語で決めるため（`9/18から（3日）`では読み取れない）
+ */
+export function formatCarryOver(task: Task): string | null {
+  const days = carryOverDays(task);
+  if (days <= 0) return null;
+  const { month } = monthOf(task.initialTaskDate);
+  return `${days}日持ち越し（${month}/${dayOf(task.initialTaskDate)}から）`;
 }
 
 /** `YYYY-MM-DD(曜)`（画面定義書01 §3.1） */

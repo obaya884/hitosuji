@@ -23,7 +23,13 @@ describe("referenceCounts（画面定義書05 §5: ルーチンとタスクの�
 
     await db
       .insert(tasks)
-      .values({ taskDate: "2026-08-09", name: "朝食", sortOrder: 1000, bundleId: used.id });
+      .values({
+        taskDate: "2026-08-09",
+        initialTaskDate: "2026-08-09",
+        name: "朝食",
+        sortOrder: 1000,
+        bundleId: used.id,
+      });
 
     const counts = await repo.referenceCounts([used.id, free.id]);
     expect(counts[used.id]).toBe(1);
@@ -56,7 +62,13 @@ describe("referenceCounts（画面定義書05 §5: ルーチンとタスクの�
     });
     await db
       .insert(tasks)
-      .values({ taskDate: "2026-08-09", name: "朝食", sortOrder: 1000, bundleId: bundle.id });
+      .values({
+        taskDate: "2026-08-09",
+        initialTaskDate: "2026-08-09",
+        name: "朝食",
+        sortOrder: 1000,
+        bundleId: bundle.id,
+      });
 
     expect((await repo.referenceCounts([bundle.id]))[bundle.id]).toBe(2);
   });
@@ -77,7 +89,13 @@ describe("memberCounts（画面定義書05 §3.1: バンドルごとのメンバ
     // タスクだけの参照は数えない（referenceCounts と違い、メンバーはルーチンの所属そのもの）
     await db
       .insert(tasks)
-      .values({ taskDate: "2026-08-09", name: "朝食", sortOrder: 1000, bundleId: free.id });
+      .values({
+        taskDate: "2026-08-09",
+        initialTaskDate: "2026-08-09",
+        name: "朝食",
+        sortOrder: 1000,
+        bundleId: free.id,
+      });
 
     const counts = await repo.memberCounts([used.id, free.id]);
     expect(counts[used.id]).toBe(1);
@@ -178,7 +196,13 @@ describe("create / update / setArchived / remove", () => {
       .returning();
     const [task] = await db
       .insert(tasks)
-      .values({ taskDate: "2026-08-09", name: "朝食", sortOrder: 1000, bundleId: bundle.id })
+      .values({
+        taskDate: "2026-08-09",
+        initialTaskDate: "2026-08-09",
+        name: "朝食",
+        sortOrder: 1000,
+        bundleId: bundle.id,
+      })
       .returning();
 
     await repo.setArchived(bundle.id, true);

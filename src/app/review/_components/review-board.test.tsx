@@ -342,6 +342,32 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
     expect(hasClass(star, "mr-0.5")).toBe(true);
   });
 
+  // F-122 / §3.3: 引きずった末に片づいたことが実績の側からも読めるようにする
+  it("持ち越しのあるタスクはタスク名の直後に日数と最初に属した日を出す", () => {
+    renderBoard({
+      log: [
+        done({
+          id: 1,
+          name: "棚卸し",
+          initialTaskDate: "2026-07-23",
+          startedAt: atJst("09:00"),
+          endedAt: atJst("09:52"),
+        }),
+      ],
+    });
+
+    // 並びごと固める（⭐は付いていないので名前 → 持ち越しの順になる）
+    expect(logRow().cells[LOG.name].textContent).toBe("棚卸し3日持ち越し（7/23から）");
+  });
+
+  it("持ち越していないタスクには何も添えない", () => {
+    renderBoard({
+      log: [done({ id: 1, name: "棚卸し", startedAt: atJst("09:00"), endedAt: atJst("09:52") })],
+    });
+
+    expect(within(logRow().cells[LOG.name]).queryByText(/持ち越し/)).toBeNull();
+  });
+
   it("ハイライトされたタスクの行に⭐を出す", () => {
     renderBoard({
       log: [
@@ -494,6 +520,22 @@ describe("ReviewBoard（画面定義書04 §3.4: 先送り。F-502）", () => {
 
     expect(screen.queryByText(/^先送り（/)).toBeNull();
     expect(screen.queryByText("先送りはありません")).toBeNull();
+  });
+
+  // 「何を」に続けて「どれだけ引きずっているか」まで読めるようにする（F-122 / §3.4）
+  it("持ち越しのあるタスクには名前の右に日数と最初に属した日を添える", () => {
+    renderBoard({
+      postponed: [
+        task({ id: 1, name: "棚卸し", initialTaskDate: "2026-07-23" }),
+        task({ id: 2, name: "見積依頼" }),
+      ],
+    });
+
+    const items = [...sectionOf(/^先送り（/).querySelectorAll("li")];
+    expect(items.map((li) => li.textContent)).toEqual([
+      "棚卸し3日持ち越し（7/23から）",
+      "見積依頼", // 持ち越していない行には何も添えない
+    ]);
   });
 });
 
