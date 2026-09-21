@@ -1,11 +1,36 @@
 import { describe, expect, it } from "vitest";
+import { task } from "@/domain/task/testing/task";
 import {
+  formatCarryOver,
   formatClock,
   formatDuration,
   formatLogicalDate,
   formatSignedDuration,
   normalizeClockInput,
 } from "./format";
+
+describe("formatCarryOver（F-122 / 画面定義書01 §3.3: 3日持ち越し（9/18から））", () => {
+  it("日数を先に、最初に属した日を括弧で添える", () => {
+    const t = task({ id: 1, initialTaskDate: "2026-09-18", taskDate: "2026-09-21" });
+    expect(formatCarryOver(t)).toBe("3日持ち越し（9/18から）");
+  });
+
+  it("月日はゼロ埋めしない", () => {
+    const t = task({ id: 1, initialTaskDate: "2026-01-05", taskDate: "2026-01-06" });
+    expect(formatCarryOver(t)).toBe("1日持ち越し（1/5から）");
+  });
+
+  it("持ち越していない行では null（何も出さない）", () => {
+    expect(formatCarryOver(task({ id: 1, taskDate: "2026-09-21" }))).toBeNull();
+  });
+
+  // 条項は `initial_task_date < task_date` のときだけ出す（画面定義書01 §3.3）。
+  // 他日から引き寄せる操作（FB-98）が入れば差は負になりうるので、その端も塞いでおく
+  it("最初に属した日が表示日より後（負の差）でも null", () => {
+    const t = task({ id: 1, initialTaskDate: "2026-09-22", taskDate: "2026-09-21" });
+    expect(formatCarryOver(t)).toBeNull();
+  });
+});
 
 describe("formatDuration（画面定義書01 §3.3: 1分未満の実績は 0:00）", () => {
   it("0分の実績は --:-- ではなく 0:00 と表示する", () => {

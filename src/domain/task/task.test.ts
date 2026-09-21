@@ -1,8 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { actualMinutes, elapsedMinutes } from "./task";
+import { actualMinutes, carryOverDays, elapsedMinutes } from "./task";
 import { task } from "./testing/task";
 
 const startedAt = new Date("2026-07-26T08:00:00Z");
+
+describe("carryOverDays（F-122 / データモデル定義書 §3.5: task_date − initial_task_date）", () => {
+  it("先送りされた日数を返す", () => {
+    const t = task({ id: 1, initialTaskDate: "2026-09-18", taskDate: "2026-09-21" });
+    expect(carryOverDays(t)).toBe(3);
+  });
+
+  it("生まれた日のままなら 0（行には何も出さない＝画面定義書01 §3.3）", () => {
+    expect(carryOverDays(task({ id: 1, taskDate: "2026-09-21" }))).toBe(0);
+  });
+});
 
 describe("actualMinutes（データモデル定義書 §3.5: 実績 = ended_at − started_at）", () => {
   it("完了タスクの実績を分で返す", () => {

@@ -754,6 +754,51 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
     });
   });
 
+  describe("持ち越し（F-122 / §3.3）", () => {
+    const carried = task({
+      id: 1,
+      name: "賭け金の精算",
+      initialTaskDate: "2026-09-18",
+      taskDate: "2026-09-21",
+    });
+
+    // §3.3 の並びは `タスク名 → 持ち越し → セクション併記 → コメント印 → ⭐`。
+    // 「セルの中に在る」だけではセクション併記より右へ動かしても緑になるので、順序ごと固める
+    it("タスク名の直後・セクション併記の左に、日数と最初に属した日を出す", () => {
+      renderRow({ task: task({ ...carried, sectionId: 100, comment: "明日やる" }) });
+
+      const { name } = cellsOf(taskRow("賭け金の精算"));
+      expect(name.textContent).toBe("賭け金の精算3日持ち越し（9/18から）朝");
+    });
+
+    it("持ち越していない行には何も出さない（値の列ではないので 00_共通 §2.4 の対象外）", () => {
+      renderRow({ task: task({ id: 1, name: "朝食" }) });
+
+      expect(within(cellsOf(taskRow("朝食")).name).queryByText(/持ち越し/)).toBeNull();
+    });
+
+    // 隠す対象はセクション併記・コメント印と同じ（§3.3）。残ると入力欄の右に文字が浮く
+    it("タスク名を編集中は隠す", () => {
+      renderRow({ editing: "name", task: carried });
+
+      const nameCell = screen.getByRole("textbox").closest("td") as HTMLElement;
+      expect(within(nameCell).queryByText(/持ち越し/)).toBeNull();
+    });
+
+    it("完了した行にも残す（引きずった末に片づいたことが読める）", () => {
+      renderRow({
+        task: task({
+          ...carried,
+          startedAt: new Date("2026-09-21T09:00:00Z"),
+          endedAt: new Date("2026-09-21T09:30:00Z"),
+        }),
+      });
+
+      const { name } = cellsOf(taskRow("賭け金の精算"));
+      expect(within(name).queryByText("3日持ち越し（9/18から）")).not.toBeNull();
+    });
+  });
+
   describe("モード・プロジェクトの選択（O-5）", () => {
     it("モードの候補は「未設定」＋有効モードのみ（アーカイブ済みは出さない。画面定義書03 §4）", () => {
       const { onAssign } = renderRow({

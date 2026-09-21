@@ -24,6 +24,15 @@ export function addDays(date: LogicalDate, days: number): LogicalDate {
   return toLogicalDate(shifted);
 }
 
+/** 2つの論理日付の日数差（`to − from`）。addDays と同じく UTC 基準で数える */
+export function daysBetween(from: LogicalDate, to: LogicalDate): number {
+  const asUtc = (date: LogicalDate) => {
+    const [y, m, d] = date.split("-").map(Number);
+    return Date.UTC(y, m - 1, d);
+  };
+  return (asUtc(to) - asUtc(from)) / 86_400_000;
+}
+
 /** Date（UTC の年月日）を論理日付文字列へ */
 export function toLogicalDate(date: Date): LogicalDate {
   const y = String(date.getUTCFullYear()).padStart(4, "0");

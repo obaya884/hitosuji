@@ -42,8 +42,8 @@ async function createRoutine() {
 describe("DrizzleTaskRepository.listByDate（画面定義書01 §7: 表示日1日分のみ取得）", () => {
   it("指定した task_date のタスクだけを返す", async () => {
     await db.insert(tasks).values([
-      { taskDate: "2026-07-19", name: "当日", sortOrder: 1000 },
-      { taskDate: "2026-07-20", name: "翌日", sortOrder: 1000 },
+      { taskDate: "2026-07-19", initialTaskDate: "2026-07-19", name: "当日", sortOrder: 1000 },
+      { taskDate: "2026-07-20", initialTaskDate: "2026-07-20", name: "翌日", sortOrder: 1000 },
     ]);
 
     const found = await repo.listByDate("2026-07-19");
@@ -60,6 +60,7 @@ describe("DrizzleTaskRepository.listByDate（画面定義書01 §7: 表示日1�
 
     await db.insert(tasks).values({
       taskDate: "2026-07-19",
+      initialTaskDate: "2026-07-19",
       name: "朝食",
       estimateMinutes: 20,
       sectionId: section.id,
@@ -76,6 +77,7 @@ describe("DrizzleTaskRepository.listByDate（画面定義書01 §7: 表示日1�
       {
         id: expect.any(Number),
         taskDate: "2026-07-19",
+        initialTaskDate: "2026-07-19",
         name: "朝食",
         estimateMinutes: 20,
         sectionId: section.id,
@@ -104,7 +106,13 @@ describe("start（F-201: 付帯更新なしの開始打刻）", () => {
     const [target] = await db
       .insert(tasks)
       .values([
-        { taskDate: "2026-07-19", name: "開始対象", sortOrder: 1000, sectionId: morning.id },
+        {
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "開始対象",
+          sortOrder: 1000,
+          sectionId: morning.id,
+        },
       ])
       .returning();
     const startedAt = new Date("2026-07-19T06:30:00Z");
@@ -129,8 +137,21 @@ describe("finish（F-201 / O-3: 終了打刻）", () => {
     const [target, untouched] = await db
       .insert(tasks)
       .values([
-        { taskDate: "2026-07-19", name: "終了対象", sortOrder: 1000, sectionId: morning.id, startedAt },
-        { taskDate: "2026-07-19", name: "未実行の行", sortOrder: 2000, sectionId: morning.id },
+        {
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "終了対象",
+          sortOrder: 1000,
+          sectionId: morning.id,
+          startedAt,
+        },
+        {
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "未実行の行",
+          sortOrder: 2000,
+          sectionId: morning.id,
+        },
       ])
       .returning();
     const endedAt = new Date("2026-07-19T06:48:00Z");
@@ -161,9 +182,16 @@ describe("start の割り込み（F-201: 終了・再開タスク生成・開始
     const [running, target, neighbor] = await db
       .insert(tasks)
       .values([
-        { taskDate: "2026-07-19", name: "実行中", estimateMinutes: 30, sortOrder: 1000, startedAt },
-        { taskDate: "2026-07-19", name: "開始対象", sortOrder: 2000 },
-        { taskDate: "2026-07-19", name: "詰まっている隣", sortOrder: 2001 },
+        {
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "実行中",
+          estimateMinutes: 30,
+          sortOrder: 1000,
+          startedAt,
+        },
+        { taskDate: "2026-07-19", initialTaskDate: "2026-07-19", name: "開始対象", sortOrder: 2000 },
+        { taskDate: "2026-07-19", initialTaskDate: "2026-07-19", name: "詰まっている隣", sortOrder: 2001 },
       ])
       .returning();
 
@@ -220,8 +248,15 @@ describe("start の割り込み（F-201: 終了・再開タスク生成・開始
     const [running, target] = await db
       .insert(tasks)
       .values([
-        { taskDate: "2026-07-19", name: "実行中", estimateMinutes: 30, sortOrder: 1000, startedAt },
-        { taskDate: "2026-07-19", name: "開始対象", sortOrder: 2000 },
+        {
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "実行中",
+          estimateMinutes: 30,
+          sortOrder: 1000,
+          startedAt,
+        },
+        { taskDate: "2026-07-19", initialTaskDate: "2026-07-19", name: "開始対象", sortOrder: 2000 },
       ])
       .returning();
 
@@ -263,9 +298,9 @@ describe("start の割り込み（F-201: 終了・再開タスク生成・開始
     const [running, target, neighbor] = await db
       .insert(tasks)
       .values([
-        { taskDate: "2026-07-19", name: "実行中", sortOrder: 1000, startedAt },
-        { taskDate: "2026-07-19", name: "開始対象", sortOrder: 2000 },
-        { taskDate: "2026-07-19", name: "詰まっている隣", sortOrder: 2001 },
+        { taskDate: "2026-07-19", initialTaskDate: "2026-07-19", name: "実行中", sortOrder: 1000, startedAt },
+        { taskDate: "2026-07-19", initialTaskDate: "2026-07-19", name: "開始対象", sortOrder: 2000 },
+        { taskDate: "2026-07-19", initialTaskDate: "2026-07-19", name: "詰まっている隣", sortOrder: 2001 },
       ])
       .returning();
 
@@ -309,7 +344,15 @@ describe("duplicateAndStart（F-208 / データモデル定義書 §4.6: 複製�
     const [source] = await db
       .insert(tasks)
       .values([
-        { taskDate: "2026-07-19", name: "ストレッチ", estimateMinutes: 15, sortOrder: 1000, startedAt, endedAt },
+        {
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "ストレッチ",
+          estimateMinutes: 15,
+          sortOrder: 1000,
+          startedAt,
+          endedAt,
+        },
       ])
       .returning();
 
@@ -345,8 +388,15 @@ describe("duplicateAndStart（F-208 / データモデル定義書 §4.6: 複製�
     const [source, blocking] = await db
       .insert(tasks)
       .values([
-        { taskDate: "2026-07-19", name: "複製元", sortOrder: 1000, startedAt: now, endedAt: now },
-        { taskDate: "2026-07-19", name: "詰まっている隣", sortOrder: 1001 },
+        {
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "複製元",
+          sortOrder: 1000,
+          startedAt: now,
+          endedAt: now,
+        },
+        { taskDate: "2026-07-19", initialTaskDate: "2026-07-19", name: "詰まっている隣", sortOrder: 1001 },
       ])
       .returning();
 
@@ -377,8 +427,24 @@ describe("duplicateAndStart（F-208 / データモデル定義書 §4.6: 複製�
     const [source, running] = await db
       .insert(tasks)
       .values([
-        { taskDate: "2026-07-19", name: "もう一回やる", estimateMinutes: 20, sortOrder: 1000, startedAt, endedAt: now },
-        { taskDate: "2026-07-19", name: "実行中", estimateMinutes: 30, sortOrder: 5000, startedAt, bundleId: bundle.id },
+        {
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "もう一回やる",
+          estimateMinutes: 20,
+          sortOrder: 1000,
+          startedAt,
+          endedAt: now,
+        },
+        {
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "実行中",
+          estimateMinutes: 30,
+          sortOrder: 5000,
+          startedAt,
+          bundleId: bundle.id,
+        },
       ])
       .returning();
 
@@ -436,8 +502,15 @@ describe("duplicateAndStart（F-208 / データモデル定義書 §4.6: 複製�
     const [source, running] = await db
       .insert(tasks)
       .values([
-        { taskDate: "2026-07-19", name: "複製元", sortOrder: 1000, startedAt, endedAt: now },
-        { taskDate: "2026-07-19", name: "実行中", sortOrder: 5000, startedAt },
+        {
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "複製元",
+          sortOrder: 1000,
+          startedAt,
+          endedAt: now,
+        },
+        { taskDate: "2026-07-19", initialTaskDate: "2026-07-19", name: "実行中", sortOrder: 5000, startedAt },
       ])
       .returning();
 
@@ -482,15 +555,26 @@ describe("duplicateAndStart（F-208 / データモデル定義書 §4.6: 複製�
 describe("findRunning（実行中は全日付を通じて最大1件）", () => {
   it("日付をまたいでも実行中タスクを見つける", async () => {
     await db.insert(tasks).values([
-      { taskDate: "2026-07-18", name: "前日の実行中", sortOrder: 1000, startedAt: new Date("2026-07-18T23:00:00Z") },
-      { taskDate: "2026-07-19", name: "未実行", sortOrder: 1000 },
+      {
+        taskDate: "2026-07-18",
+        initialTaskDate: "2026-07-18",
+        name: "前日の実行中",
+        sortOrder: 1000,
+        startedAt: new Date("2026-07-18T23:00:00Z"),
+      },
+      { taskDate: "2026-07-19", initialTaskDate: "2026-07-19", name: "未実行", sortOrder: 1000 },
     ]);
 
     expect((await repo.findRunning())?.name).toBe("前日の実行中");
   });
 
   it("実行中がなければ null", async () => {
-    await db.insert(tasks).values({ taskDate: "2026-07-19", name: "未実行", sortOrder: 1000 });
+    await db.insert(tasks).values({
+      taskDate: "2026-07-19",
+      initialTaskDate: "2026-07-19",
+      name: "未実行",
+      sortOrder: 1000,
+    });
     expect(await repo.findRunning()).toBeNull();
   });
 });
@@ -505,8 +589,21 @@ describe("suspend（F-204: 終了と再開タスク生成を1トランザクシ�
     const [running, next] = await db
       .insert(tasks)
       .values([
-        { taskDate: "2026-07-19", name: "執筆", estimateMinutes: 30, sortOrder: 900, startedAt },
-        { taskDate: "2026-07-19", name: "次のタスク", sortOrder: 901 }, // 直後に隙間が無い
+        {
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "執筆",
+          estimateMinutes: 30,
+          sortOrder: 900,
+          startedAt,
+        },
+        // 直後に隙間が無い
+        {
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "次のタスク",
+          sortOrder: 901,
+        },
       ])
       .returning();
 
@@ -548,13 +645,57 @@ describe("suspend（F-204: 終了と再開タスク生成を1トランザクシ�
     );
   });
 
+  // F-122 / データモデル定義書 §3.5: initial_task_date は「最初に属した論理日」なので、
+  // 生成される再開タスクには中断した日が入る（元タスクの持ち越しは引き継がない）。
+  // ⭐や bundle_id を「同じ仕事の続き」として引き継ぐのとは軸が違う
+  it("持ち越し中のタスクを中断しても、再開タスクが最初に属した日は中断した日になる", async () => {
+    const [running] = await db
+      .insert(tasks)
+      .values({
+        taskDate: "2026-07-19",
+        initialTaskDate: "2026-07-16", // 3日持ち越してから着手した
+        name: "執筆",
+        estimateMinutes: 30,
+        sortOrder: 1000,
+        startedAt: new Date("2026-07-19T08:48:00Z"),
+      })
+      .returning();
+
+    await repo.suspend({
+      taskId: running.id,
+      endedAt: new Date("2026-07-19T09:00:00Z"),
+      resumeTask: {
+        taskDate: "2026-07-19",
+        name: "執筆（再開）",
+        estimateMinutes: 18,
+        sectionId: null,
+        modeId: null,
+        projectId: null,
+        sortOrder: 2000,
+        splitParentId: running.id,
+      },
+      renumber: [],
+    });
+
+    const rows = await repo.listByDate("2026-07-19");
+    expect(rows.find((t) => t.splitParentId === running.id)?.initialTaskDate).toBe("2026-07-19");
+    expect(rows.find((t) => t.id === running.id)?.initialTaskDate).toBe("2026-07-16"); // 元は動かない
+  });
+
   it("再開タスクの生成に失敗したら振り直しと終了も巻き戻る（トランザクション境界）", async () => {
     const startedAt = new Date("2026-07-19T08:48:00Z");
     const [running, next] = await db
       .insert(tasks)
       .values([
-        { taskDate: "2026-07-19", name: "執筆", estimateMinutes: 30, sortOrder: 900, startedAt },
-        { taskDate: "2026-07-19", name: "次のタスク", sortOrder: 901 },
+        {
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "執筆",
+          estimateMinutes: 30,
+          sortOrder: 900,
+          startedAt,
+        },
+        { taskDate: "2026-07-19", initialTaskDate: "2026-07-19", name: "次のタスク", sortOrder: 901 },
       ])
       .returning();
 
@@ -598,6 +739,9 @@ describe("postpone（F-107: 先送り）", () => {
       .insert(tasks)
       .values({
         taskDate: "2026-07-19",
+        // 既に1日ぶん持ち越している行（postponed_count: 1 と辻褄が合う）。**task_date と別の値**に
+        // しておかないと、動かないことと task_date に追随することを見分けられない（F-122）
+        initialTaskDate: "2026-07-18",
         name: "先送り対象",
         estimateMinutes: 25,
         sectionId: section.id,
@@ -615,6 +759,7 @@ describe("postpone（F-107: 先送り）", () => {
       {
         id: target.id,
         taskDate: "2026-07-20", // 動く
+        initialTaskDate: "2026-07-18", // 動かない（F-122: 移動では変えない）
         name: "先送り対象",
         estimateMinutes: 25,
         sectionId: section.id,
@@ -639,7 +784,13 @@ describe("postpone（F-107: 先送り）", () => {
     const routine = await createRoutine();
     const [target] = await db
       .insert(tasks)
-      .values({ taskDate: "2026-07-19", name: "朝食", sortOrder: 1000, routineId: routine.id })
+      .values({
+        taskDate: "2026-07-19",
+        initialTaskDate: "2026-07-19",
+        name: "朝食",
+        sortOrder: 1000,
+        routineId: routine.id,
+      })
       .returning();
 
     await repo.postpone(
@@ -658,7 +809,13 @@ describe("postpone（F-107: 先送り）", () => {
     const routine = await createRoutine();
     const [target] = await db
       .insert(tasks)
-      .values({ taskDate: "2026-07-19", name: "朝食", sortOrder: 1000, routineId: routine.id })
+      .values({
+        taskDate: "2026-07-19",
+        initialTaskDate: "2026-07-19",
+        name: "朝食",
+        sortOrder: 1000,
+        routineId: routine.id,
+      })
       .returning();
 
     await expect(
@@ -680,8 +837,20 @@ describe("postpone（F-107: 先送り）", () => {
     const [target, expanded] = await db
       .insert(tasks)
       .values([
-        { taskDate: "2026-07-19", name: "朝食", sortOrder: 1000, routineId: routine.id },
-        { taskDate: "2026-07-20", name: "朝食", sortOrder: 1000, routineId: routine.id },
+        {
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "朝食",
+          sortOrder: 1000,
+          routineId: routine.id,
+        },
+        {
+          taskDate: "2026-07-20",
+          initialTaskDate: "2026-07-20",
+          name: "朝食",
+          sortOrder: 1000,
+          routineId: routine.id,
+        },
       ])
       .returning();
 
@@ -709,8 +878,20 @@ describe("rename / updateEstimate（O-5: タスク名・見積もりのインラ
     const [target, other] = await db
       .insert(tasks)
       .values([
-        { taskDate: "2026-07-19", name: "資料作成", estimateMinutes: 30, sortOrder: 1000 },
-        { taskDate: "2026-07-19", name: "隣の行", estimateMinutes: 15, sortOrder: 2000 },
+        {
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "資料作成",
+          estimateMinutes: 30,
+          sortOrder: 1000,
+        },
+        {
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "隣の行",
+          estimateMinutes: 15,
+          sortOrder: 2000,
+        },
       ])
       .returning();
 
@@ -749,6 +930,7 @@ describe("updateClassification（F-401 / F-402 / O-5: モード・プロジェ�
       .values([
         {
           taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
           name: "見積もり依頼",
           sortOrder: 1000,
           modeId: work.id,
@@ -756,6 +938,7 @@ describe("updateClassification（F-401 / F-402 / O-5: モード・プロジェ�
         },
         {
           taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
           name: "隣の行",
           sortOrder: 2000,
           modeId: work.id,
@@ -803,8 +986,8 @@ describe("findById（00_共通 §4.1: 存在検査が拠り所にする1件取�
     return await db
       .insert(tasks)
       .values([
-        { taskDate: "2026-07-19", name: "1件目", sortOrder: 1000 },
-        { taskDate: "2026-07-19", name: "2件目", sortOrder: 2000 },
+        { taskDate: "2026-07-19", initialTaskDate: "2026-07-19", name: "1件目", sortOrder: 1000 },
+        { taskDate: "2026-07-19", initialTaskDate: "2026-07-19", name: "2件目", sortOrder: 2000 },
       ])
       .returning();
   }
@@ -835,7 +1018,7 @@ describe("updateComment（F-206 / O-16: コメントの保存と消去）", () =
     const comment = `${"あ".repeat(5000)}\n2行目`;
     const [target] = await db
       .insert(tasks)
-      .values({ taskDate: "2026-07-19", name: "資料作成", sortOrder: 1000 })
+      .values({ taskDate: "2026-07-19", initialTaskDate: "2026-07-19", name: "資料作成", sortOrder: 1000 })
       .returning();
 
     await repo.updateComment(target.id, comment);
@@ -851,7 +1034,7 @@ describe("updateHighlight（F-118 / O-17: ハイライトの付け外し）", ()
   it("既定は false で、付けて外せる", async () => {
     const [target] = await db
       .insert(tasks)
-      .values({ taskDate: "2026-07-19", name: "提案書", sortOrder: 1000 })
+      .values({ taskDate: "2026-07-19", initialTaskDate: "2026-07-19", name: "提案書", sortOrder: 1000 })
       .returning();
     expect((await repo.findById(target.id))?.highlighted).toBe(false);
 
@@ -872,8 +1055,20 @@ describe("存在しない id への更新・削除（0行で静かに終わる�
     return await db
       .insert(tasks)
       .values([
-        { taskDate: "2026-07-19", name: "先頭", sortOrder: 1000, estimateMinutes: 15 },
-        { taskDate: "2026-07-19", name: "末尾", sortOrder: 2000, comment: "元のまま" },
+        {
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "先頭",
+          sortOrder: 1000,
+          estimateMinutes: 15,
+        },
+        {
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "末尾",
+          sortOrder: 2000,
+          comment: "元のまま",
+        },
       ])
       .returning();
   }
@@ -918,12 +1113,14 @@ describe("delete / restore（O-8: 削除と取り消し）", () => {
     const [project] = await db.insert(projects).values({ name: "資料整備" }).returning();
     const [parent] = await db
       .insert(tasks)
-      .values({ taskDate: "2026-07-19", name: "分割元", sortOrder: 500 })
+      .values({ taskDate: "2026-07-19", initialTaskDate: "2026-07-19", name: "分割元", sortOrder: 500 })
       .returning();
     const [target] = await db
       .insert(tasks)
       .values({
         taskDate: "2026-07-19",
+        // 先送りされた行を消した想定。復元で「生まれた日」に書き換わらないことを見る（F-122）
+        initialTaskDate: "2026-07-16",
         name: "消すタスク",
         estimateMinutes: 25,
         sectionId: section.id,
@@ -949,6 +1146,7 @@ describe("delete / restore（O-8: 削除と取り消し）", () => {
     expect(restored).toEqual({
       id: expect.any(Number),
       taskDate: "2026-07-19",
+      initialTaskDate: "2026-07-16", // 削除前の値が戻る（生成時の規則を当てない）
       name: "消すタスク",
       estimateMinutes: 25,
       sectionId: section.id,
@@ -976,6 +1174,7 @@ describe("ルーチン由来タスクの削除とスキップ（F-301 / デー�
       .insert(tasks)
       .values({
         taskDate: "2026-07-19",
+        initialTaskDate: "2026-07-19",
         name: "朝食",
         sortOrder: 1000,
         routineId: routine.id,
@@ -994,7 +1193,13 @@ describe("ルーチン由来タスクの削除とスキップ（F-301 / デー�
     const routine = await createRoutine();
     const [target] = await db
       .insert(tasks)
-      .values({ taskDate: "2026-07-19", name: "朝食", sortOrder: 1000, routineId: routine.id })
+      .values({
+        taskDate: "2026-07-19",
+        initialTaskDate: "2026-07-19",
+        name: "朝食",
+        sortOrder: 1000,
+        routineId: routine.id,
+      })
       .returning();
 
     await expect(
@@ -1013,6 +1218,7 @@ describe("ルーチン由来タスクの削除とスキップ（F-301 / デー�
       .insert(tasks)
       .values({
         taskDate: "2026-07-19",
+        initialTaskDate: "2026-07-19",
         name: "朝食",
         sortOrder: 1000,
         routineId: routine.id,
@@ -1033,7 +1239,13 @@ describe("ルーチン由来タスクの削除とスキップ（F-301 / デー�
     const routine = await createRoutine();
     const [target] = await db
       .insert(tasks)
-      .values({ taskDate: "2026-07-19", name: "朝食", sortOrder: 1000, routineId: routine.id })
+      .values({
+        taskDate: "2026-07-19",
+        initialTaskDate: "2026-07-19",
+        name: "朝食",
+        sortOrder: 1000,
+        routineId: routine.id,
+      })
       .returning();
     const skip = { routineId: routine.id, taskDate: "2026-07-19" };
 
@@ -1058,7 +1270,13 @@ describe("ルーチン由来タスクの削除とスキップ（F-301 / デー�
     for (let attempt = 0; attempt < 2; attempt++) {
       const [task] = await db
         .insert(tasks)
-        .values({ taskDate: "2026-07-19", name: "朝食", sortOrder: 1000, routineId: routine.id })
+        .values({
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "朝食",
+          sortOrder: 1000,
+          routineId: routine.id,
+        })
         .returning();
       await repo.delete(task.id, skip);
     }
@@ -1089,6 +1307,8 @@ describe("create の振り直し（データモデル定義書 §3.5: 中間値�
     expect(created).toEqual({
       id: expect.any(Number),
       taskDate: "2026-07-19",
+      // 呼び出し側は渡していない。生成時に task_date と同値が入る（F-122 / データモデル定義書 §3.5）
+      initialTaskDate: "2026-07-19",
       name: "クイック追加",
       estimateMinutes: 0,
       sectionId: null,
@@ -1111,8 +1331,8 @@ describe("create の振り直し（データモデル定義書 §3.5: 中間値�
     const [first, second] = await db
       .insert(tasks)
       .values([
-        { taskDate: "2026-07-19", name: "A", sortOrder: 1000 },
-        { taskDate: "2026-07-19", name: "B", sortOrder: 1001 },
+        { taskDate: "2026-07-19", initialTaskDate: "2026-07-19", name: "A", sortOrder: 1000 },
+        { taskDate: "2026-07-19", initialTaskDate: "2026-07-19", name: "B", sortOrder: 1001 },
       ])
       .returning();
 
@@ -1143,7 +1363,7 @@ describe("create の振り直し（データモデル定義書 §3.5: 中間値�
   it("挿入に失敗したら振り直しも巻き戻る", async () => {
     const [first] = await db
       .insert(tasks)
-      .values({ taskDate: "2026-07-19", name: "A", sortOrder: 1000 })
+      .values({ taskDate: "2026-07-19", initialTaskDate: "2026-07-19", name: "A", sortOrder: 1000 })
       .returning();
 
     await expect(
@@ -1180,7 +1400,13 @@ describe("move（画面定義書01 O-6 / データモデル定義書 §3.5: 並�
     const [target] = await db
       .insert(tasks)
       .values([
-        { taskDate: "2026-07-19", name: "移動対象", sortOrder: 1000, sectionId: morning.id },
+        {
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "移動対象",
+          sortOrder: 1000,
+          sectionId: morning.id,
+        },
       ])
       .returning();
 
@@ -1205,9 +1431,27 @@ describe("move（画面定義書01 O-6 / データモデル定義書 §3.5: 並�
     await db
       .insert(tasks)
       .values([
-        { taskDate: "2026-07-19", name: "A", sortOrder: 1000, sectionId: forenoon.id },
-        { taskDate: "2026-07-19", name: "B", sortOrder: 1001, sectionId: forenoon.id },
-        { taskDate: "2026-07-19", name: "移動対象", sortOrder: 1000, sectionId: morning.id },
+        {
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "A",
+          sortOrder: 1000,
+          sectionId: forenoon.id,
+        },
+        {
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "B",
+          sortOrder: 1001,
+          sectionId: forenoon.id,
+        },
+        {
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "移動対象",
+          sortOrder: 1000,
+          sectionId: morning.id,
+        },
       ]);
     const byName = Object.fromEntries(
       (await repo.listByDate("2026-07-19")).map((t) => [t.name, t.id])
@@ -1237,8 +1481,8 @@ describe("move（画面定義書01 O-6 / データモデル定義書 §3.5: 並�
     const [a, target] = await db
       .insert(tasks)
       .values([
-        { taskDate: "2026-07-19", name: "A", sortOrder: 1000 },
-        { taskDate: "2026-07-19", name: "移動対象", sortOrder: 2000 },
+        { taskDate: "2026-07-19", initialTaskDate: "2026-07-19", name: "A", sortOrder: 1000 },
+        { taskDate: "2026-07-19", initialTaskDate: "2026-07-19", name: "移動対象", sortOrder: 2000 },
       ])
       .returning();
 
@@ -1268,8 +1512,20 @@ describe("relocate（F-113 / データモデル定義書 §4.4: 自動セクシ�
     const [a, b] = await db
       .insert(tasks)
       .values([
-        { taskDate: "2026-07-19", name: "A", sortOrder: 1000, sectionId: morning.id },
-        { taskDate: "2026-07-19", name: "B", sortOrder: 2000, sectionId: morning.id },
+        {
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "A",
+          sortOrder: 1000,
+          sectionId: morning.id,
+        },
+        {
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "B",
+          sortOrder: 2000,
+          sectionId: morning.id,
+        },
       ])
       .returning();
 
@@ -1297,7 +1553,15 @@ describe("relocate（F-113 / データモデル定義書 §4.4: 自動セクシ�
       .returning();
     const [a] = await db
       .insert(tasks)
-      .values([{ taskDate: "2026-07-19", name: "A", sortOrder: 1000, sectionId: morning.id }])
+      .values([
+        {
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "A",
+          sortOrder: 1000,
+          sectionId: morning.id,
+        },
+      ])
       .returning();
 
     await expect(
@@ -1318,7 +1582,14 @@ describe("relocate（F-113 / データモデル定義書 §4.4: 自動セクシ�
       .returning();
     const [target] = await db
       .insert(tasks)
-      .values([{ taskDate: "2026-07-19", name: "未分類のタスク", sortOrder: 1000 }])
+      .values([
+        {
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "未分類のタスク",
+          sortOrder: 1000,
+        },
+      ])
       .returning();
     const startedAt = new Date("2026-07-19T09:00:00Z");
 
@@ -1349,6 +1620,7 @@ describe("undoStart（F-210 / データモデル定義書 §4.5: 開始打刻の
       .values([
         {
           taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
           name: "実行中タスク",
           sortOrder: 1000,
           sectionId: morning.id,
@@ -1377,6 +1649,7 @@ describe("undoStart（F-210 / データモデル定義書 §4.5: 開始打刻の
       .values([
         {
           taskDate: "2026-07-18",
+          initialTaskDate: "2026-07-18",
           name: "前日の実行中タスク",
           sortOrder: 1000,
           sectionId: morning.id,
@@ -1401,7 +1674,15 @@ describe("undoComplete（F-212 / データモデル定義書 §4.7: 完了の取
     const [target] = await db
       .insert(tasks)
       .values([
-        { taskDate, name: "完了タスク", sortOrder: 1000, sectionId, startedAt, endedAt },
+        {
+          taskDate,
+          initialTaskDate: taskDate,
+          name: "完了タスク",
+          sortOrder: 1000,
+          sectionId,
+          startedAt,
+          endedAt,
+        },
       ])
       .returning();
     return target;
@@ -1485,7 +1766,13 @@ describe("undoComplete（F-212 / データモデル定義書 §4.7: 完了の取
     ]);
     // 取り消し中に別タスクが復帰先（朝・1000）と同じ席を取る
     await db.insert(tasks).values([
-      { taskDate: "2026-07-19", name: "同値の未実行タスク", sortOrder: 1000, sectionId: morning.id },
+      {
+        taskDate: "2026-07-19",
+        initialTaskDate: "2026-07-19",
+        name: "同値の未実行タスク",
+        sortOrder: 1000,
+        sectionId: morning.id,
+      },
     ]);
 
     await repo.updatePunch(target.id, { startedAt, endedAt }, [
@@ -1509,7 +1796,14 @@ describe("undoComplete（F-212 / データモデル定義書 §4.7: 完了の取
     const [target] = await db
       .insert(tasks)
       .values([
-        { taskDate: "2026-07-19", name: "未分類の完了タスク", sortOrder: 1000, startedAt, endedAt },
+        {
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "未分類の完了タスク",
+          sortOrder: 1000,
+          startedAt,
+          endedAt,
+        },
       ])
       .returning();
 
@@ -1537,6 +1831,7 @@ describe("bundle_id の伝播（データモデル定義書 §4.8 / F-119）", (
       .insert(tasks)
       .values({
         taskDate: "2026-07-19",
+        initialTaskDate: "2026-07-19",
         name: "執筆",
         estimateMinutes: 30,
         sortOrder: 1000,
@@ -1577,13 +1872,20 @@ describe("bundle_id の伝播（データモデル定義書 §4.8 / F-119）", (
       .values([
         {
           taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
           name: "メールチェック",
           estimateMinutes: 30,
           sortOrder: 1000,
           startedAt,
           bundleId: bundle.id,
         },
-        { taskDate: "2026-07-19", name: "設計書レビュー", estimateMinutes: 60, sortOrder: 2000 },
+        {
+          taskDate: "2026-07-19",
+          initialTaskDate: "2026-07-19",
+          name: "設計書レビュー",
+          estimateMinutes: 60,
+          sortOrder: 2000,
+        },
       ])
       .returning();
 
@@ -1620,7 +1922,13 @@ describe("bundle_id の伝播（データモデル定義書 §4.8 / F-119）", (
     const bundle = await createBundle();
     const [target] = await db
       .insert(tasks)
-      .values({ taskDate: "2026-07-19", name: "先送り対象", sortOrder: 1000, bundleId: bundle.id })
+      .values({
+        taskDate: "2026-07-19",
+        initialTaskDate: "2026-07-19",
+        name: "先送り対象",
+        sortOrder: 1000,
+        bundleId: bundle.id,
+      })
       .returning();
 
     await repo.postpone(target.id, { taskDate: "2026-07-20", sortOrder: 3000 }, null);

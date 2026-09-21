@@ -4,13 +4,15 @@ import type { ModeId } from "../mode/mode";
 import type { ProjectId } from "../project/project";
 import type { RoutineId } from "../routine/routine";
 import type { SectionId } from "../section/section";
-import type { LogicalDate } from "../shared/logical-date";
+import { daysBetween, type LogicalDate } from "../shared/logical-date";
 
 export type TaskId = number;
 
 export type Task = Readonly<{
   id: TaskId;
   taskDate: LogicalDate;
+  /** 最初に属した日（F-122）。生成時に taskDate と同値が入り、移動では変わらない */
+  initialTaskDate: LogicalDate;
   name: string;
   estimateMinutes: number; // 0 = 未設定（画面定義書01 §3.3 で `--:--` 表示）
   sectionId: SectionId | null;
@@ -30,6 +32,14 @@ export type Task = Readonly<{
 
 /** 実行済みタスク（`started_at` あり）。実績ログ・集計の母集団（画面定義書04 §3.3） */
 export type StartedTask = Task & Readonly<{ startedAt: Date }>;
+
+/**
+ * 持ち越しの日数（F-122 / 画面定義書01 §3.3）。先送りで他日へ移った分だけ増える。
+ * 0 なら最初に属した日のままで、行には何も出さない
+ */
+export function carryOverDays(task: Task): number {
+  return daysBetween(task.initialTaskDate, task.taskDate);
+}
 
 /**
  * 実績時間（分）。完了タスクのみ求まる（データモデル定義書 §3.5）。

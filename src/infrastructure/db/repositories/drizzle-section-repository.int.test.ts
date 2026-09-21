@@ -110,7 +110,13 @@ describe("DrizzleSectionRepository", () => {
 
     await db
       .insert(tasks)
-      .values({ taskDate: "2026-07-20", name: "T1", sortOrder: 1000, sectionId: used.id });
+      .values({
+        taskDate: "2026-07-20",
+        initialTaskDate: "2026-07-20",
+        name: "T1",
+        sortOrder: 1000,
+        sectionId: used.id,
+      });
 
     expect(await repo.referenceCounts([used.id, unused.id])).toEqual({ [used.id]: 1 });
 

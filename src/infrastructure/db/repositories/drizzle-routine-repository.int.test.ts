@@ -179,6 +179,8 @@ describe("expand（F-301: 冪等INSERT）", () => {
     expect(all[0].sortOrder).toBe(1000); // 既存行は上書きされない
     // 展開されたタスクは常に未ハイライト（F-118。展開の入力に highlighted が無く DEFAULT false）
     expect(all[0].highlighted).toBe(false);
+    // 展開先の日が最初に属した日になる（F-122）。先送りすればここから持ち越し日数が数えられる
+    expect(all[0].initialTaskDate).toBe("2026-07-19");
   });
 
   it("バンドル付きルーチンから生成したタスクに bundle_id が入る（データモデル定義書 §4.1 / F-119）", async () => {
@@ -259,7 +261,13 @@ describe("expand（F-301: 冪等INSERT）", () => {
     const created = await repo.create(input());
     const [postponed] = await db
       .insert(tasks)
-      .values({ taskDate: "2026-07-19", name: "朝食", sortOrder: 1000, routineId: created.id })
+      .values({
+        taskDate: "2026-07-19",
+        initialTaskDate: "2026-07-19",
+        name: "朝食",
+        sortOrder: 1000,
+        routineId: created.id,
+      })
       .returning();
     await taskRepo.postpone(
       postponed.id,

@@ -10,6 +10,10 @@ import type { StartedTask, Task } from "../task";
 export function task(over: Partial<Task> & { id: number }): Task {
   return {
     taskDate: TEST_DATE,
+    // 既定は taskDate に追随させて「持ち越し無し」にする（F-122）。TEST_DATE で固定すると、
+    // taskDate だけ別日に指定したテストが意図せず持ち越し中の行になる。**既存の Task を
+    // spread して渡すと元の initialTaskDate も一緒に来る**（持ち越し中の行を作るときは意図どおり）
+    initialTaskDate: over.taskDate ?? TEST_DATE,
     name: `T${over.id}`,
     estimateMinutes: 0, // 0 = 未設定
     sectionId: null,

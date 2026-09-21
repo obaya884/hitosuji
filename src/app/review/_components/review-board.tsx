@@ -12,7 +12,12 @@ import { DurationValue } from "@/app/_components/duration-value";
 import { StarIcon } from "@/app/_components/icons";
 import { UnsetMark, UnsetTimeMark } from "@/app/_components/unset-mark";
 import { dateHref, DAILY_PATH, REVIEW_PATH } from "@/app/_lib/date-href";
-import { formatClock, formatDuration, formatSignedDuration } from "@/app/_lib/format";
+import {
+  formatCarryOver,
+  formatClock,
+  formatDuration,
+  formatSignedDuration,
+} from "@/app/_lib/format";
 import { isGlobalShortcutEvent } from "@/app/_lib/keyboard";
 import { modeAppearance } from "@/app/_lib/mode-appearance";
 import {
@@ -168,6 +173,7 @@ function LogRow({
   const { dimmedClass, colorStyle } = modeAppearance(mode);
   // コメント行を出すか（§3.3）。下線をどちらの行が持つかも同じ条件で決まる
   const hasComment = task.comment !== null;
+  const carryOver = formatCarryOver(task);
 
   return (
     <>
@@ -205,6 +211,10 @@ function LogRow({
             <Link href={dateHref(DAILY_PATH, date)} className={hoverWord}>
               {task.name}
             </Link>
+            {/* 持ち越し（F-122 / §3.3）はタスク名の直後 */}
+            {carryOver !== null && (
+              <span className="ml-2 shrink-0 text-sub opacity-80">{carryOver}</span>
+            )}
           </div>
         </td>
         <td className="py-2 text-sub">{project?.name ?? <UnsetMark />}</td>
@@ -241,9 +251,17 @@ function Postponed({ tasks }: Readonly<{ tasks: readonly Task[] }>) {
         <p className="mt-2 text-sub text-ink-muted">{EMPTY_REVIEW_POSTPONED}</p>
       ) : (
         <ul className="mt-2 space-y-1 text-main">
-          {tasks.map((task) => (
-            <li key={task.id}>{task.name}</li>
-          ))}
+          {tasks.map((task) => {
+            const carryOver = formatCarryOver(task); // 持ち越し（F-122 / §3.4）
+            return (
+              <li key={task.id}>
+                {task.name}
+                {carryOver !== null && (
+                  <span className="ml-2 text-sub opacity-80">{carryOver}</span>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>

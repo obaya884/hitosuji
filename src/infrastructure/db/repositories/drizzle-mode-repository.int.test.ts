@@ -41,8 +41,8 @@ describe("物理削除の判定（画面定義書03 §4.1）", () => {
     const unused = await repo.create({ name: "未使用", color: COLOR_BY_NAME["緑"] });
 
     await db.insert(tasks).values([
-      { taskDate: "2026-07-20", name: "T1", sortOrder: 1000, modeId: used.id },
-      { taskDate: "2026-07-20", name: "T2", sortOrder: 2000, modeId: used.id },
+      { taskDate: "2026-07-20", initialTaskDate: "2026-07-20", name: "T1", sortOrder: 1000, modeId: used.id },
+      { taskDate: "2026-07-20", initialTaskDate: "2026-07-20", name: "T2", sortOrder: 2000, modeId: used.id },
     ]);
     await db.insert(routines).values({
       name: "R1",
