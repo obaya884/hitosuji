@@ -1,6 +1,7 @@
 // 表示フォーマット（画面定義書01 §3.3）と、時刻入力の正規化（同書 §3.3）
 import { parseClockTime } from "@/domain/task/punch-edit";
 import { dayOf, monthOf } from "@/domain/shared/month-grid";
+import { taskStatus } from "@/domain/task/status";
 import { carryOverDays, type Task } from "@/domain/task/task";
 import { APP_TIME_ZONE, zonedParts } from "@/domain/shared/time-zone";
 
@@ -39,6 +40,19 @@ export function formatCarryOver(task: Task): string | null {
   if (days <= 0) return null;
   const { month } = monthOf(task.initialTaskDate);
   return `${days}日持ち越し（${month}/${dayOf(task.initialTaskDate)}から）`;
+}
+
+const STATUS_LABEL = { completed: "完了", running: "実行中", not_started: "未実行" } as const;
+
+/**
+ * 持ち越された先の表記（F-502 / 画面定義書04 §3.4 ①）。例: `9/22へ持ち越し（3日）・完了`。
+ * 生まれた日のレビューで読むので起点は出さず、送り先とそこでの状態を添える。
+ * 「持ち越し」の語を残すのは、括弧の日数が何かを語で決めるため（`formatCarryOver` と同じ理由）
+ */
+export function formatCarriedOverTo(task: Task): string {
+  const { month } = monthOf(task.taskDate);
+  const days = carryOverDays(task);
+  return `${month}/${dayOf(task.taskDate)}へ持ち越し（${days}日）・${STATUS_LABEL[taskStatus(task)]}`;
 }
 
 /** `YYYY-MM-DD(曜)`（画面定義書01 §3.1） */

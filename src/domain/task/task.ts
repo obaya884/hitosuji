@@ -43,6 +43,17 @@ export function carryOverDays(task: Task): number {
 }
 
 /**
+ * その日に生まれて後日へ持ち越されたか（F-502 / 画面定義書04 §3.4 ①）。打刻の有無は問わない。
+ * 未来日から今日へ引き寄せた行（task_date < initial_task_date）は持ち越しではない
+ */
+export function isCarriedOverFrom(task: Task, date: LogicalDate): boolean {
+  return task.initialTaskDate === date && task.taskDate > date;
+}
+
+/** ある日に残っている未実行タスクの件数（F-124 / 画面定義書01 §8 の警告バナーの1行） */
+export type UnstartedCountByDate = Readonly<{ taskDate: LogicalDate; count: number }>;
+
+/**
  * 実績時間（分）。完了タスクのみ求まる（データモデル定義書 §3.5）。
  * 満たない分は切り捨てる（画面定義書01 §3.3: 1分未満の実績は 0:00 と表示する）
  */

@@ -41,7 +41,7 @@ export default async function Home({
   // 展開の後・一覧取得の前に行い、展開されたばかりのタスクも整列の対象にする
   await applyCarryOver(deps, { date, today, nowClock: formatClock(new Date()) });
 
-  const view = await listDailyList(deps, date);
+  const view = await listDailyList(deps, { date, today });
 
   return (
     <>
@@ -54,6 +54,7 @@ export default async function Home({
         sections={view.sections}
         bundles={view.bundles}
         staleRunningTask={view.staleRunningTask}
+        staleUnstartedCounts={view.staleUnstartedCounts}
       />
     </>
   );

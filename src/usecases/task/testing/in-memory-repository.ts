@@ -14,7 +14,7 @@ import type {
 import type { ModeId } from "@/domain/mode/mode";
 import type { ProjectId } from "@/domain/project/project";
 import type { LogicalDate } from "@/domain/shared/logical-date";
-import type { Task, TaskId } from "@/domain/task/task";
+import { isCarriedOverFrom, type Task, type TaskId } from "@/domain/task/task";
 
 export type InMemoryTaskRepository = TaskRepository & {
   readonly rows: Task[];
@@ -100,6 +100,19 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
 
     findRunning: async () =>
       rows.find((r) => r.startedAt !== null && r.endedAt === null) ?? null,
+
+    countUnstartedBefore: async (date: LogicalDate) => {
+      const counts = new Map<LogicalDate, number>();
+      for (const r of rows) {
+        if (r.startedAt !== null || r.taskDate >= date) continue;
+        counts.set(r.taskDate, (counts.get(r.taskDate) ?? 0) + 1);
+      }
+      return [...counts]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([taskDate, count]) => ({ taskDate, count }));
+    },
+
+    listCarriedOverFrom: async (date: LogicalDate) => rows.filter((r) => isCarriedOverFrom(r, date)),
 
     create: async (input: NewTask, renumber: Renumber) => {
       applyRenumber(renumber);

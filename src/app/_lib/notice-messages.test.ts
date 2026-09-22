@@ -24,6 +24,7 @@ const EXPECTED_MESSAGES = {
   EMPTY_ROUTINES: "ルーチンはまだありません。",
   EMPTY_PROJECTS: "プロジェクトはまだありません。",
   STALE_RUNNING_WARNING: "前日以前の実行中タスクがあります",
+  STALE_UNSTARTED_WARNING: "前日以前に未実施のタスクが残っています",
   DELETE_CONFIRM: "本当に削除？",
   SAVING_NOTICE: "保存中",
 } as const;

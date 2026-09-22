@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { atJst } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
 import {
+  formatCarriedOverTo,
   formatCarryOver,
   formatClock,
   formatDuration,
@@ -29,6 +31,32 @@ describe("formatCarryOver（F-122 / 画面定義書01 §3.3: 3日持ち越し（
   it("最初に属した日が表示日より後（負の差）でも null", () => {
     const t = task({ id: 1, initialTaskDate: "2026-09-22", taskDate: "2026-09-21" });
     expect(formatCarryOver(t)).toBeNull();
+  });
+});
+
+describe("formatCarriedOverTo（F-502 / 画面定義書04 §3.4 ①: 9/22へ持ち越し（3日）・完了）", () => {
+  it("送り先の日付・持ち越しの日数・送り先での状態を並べる（完了）", () => {
+    const t = task({
+      id: 1,
+      initialTaskDate: "2026-09-19",
+      taskDate: "2026-09-22",
+      startedAt: atJst("09:00", "2026-09-22"),
+      endedAt: atJst("09:30", "2026-09-22"),
+    });
+    expect(formatCarriedOverTo(t)).toBe("9/22へ持ち越し（3日）・完了");
+  });
+
+  it("送り先で未実行なら「未実行」、実行中なら「実行中」", () => {
+    const base = { id: 1, initialTaskDate: "2026-09-19", taskDate: "2026-09-22" };
+    expect(formatCarriedOverTo(task(base))).toBe("9/22へ持ち越し（3日）・未実行");
+    expect(formatCarriedOverTo(task({ ...base, startedAt: atJst("09:00", "2026-09-22") }))).toBe(
+      "9/22へ持ち越し（3日）・実行中"
+    );
+  });
+
+  it("月日はゼロ埋めしない", () => {
+    const t = task({ id: 1, initialTaskDate: "2026-12-31", taskDate: "2027-01-05" });
+    expect(formatCarriedOverTo(t)).toBe("1/5へ持ち越し（5日）・未実行");
   });
 });
 

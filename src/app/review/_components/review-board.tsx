@@ -4,15 +4,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import type { DailyReviewView } from "@/usecases/review/review-usecases";
-import { weekdayIndex } from "@/domain/shared/logical-date";
+import { weekdayIndex, type LogicalDate } from "@/domain/shared/logical-date";
 import { estimateDiffMinutes, sharePercent, type ActualTotal } from "@/domain/task/review";
-import { actualMinutes, type StartedTask, type Task } from "@/domain/task/task";
+import { actualMinutes, isCarriedOverFrom, type StartedTask, type Task } from "@/domain/task/task";
 import { DateNav } from "@/app/_components/date-nav";
 import { DurationValue } from "@/app/_components/duration-value";
 import { StarIcon } from "@/app/_components/icons";
 import { UnsetMark, UnsetTimeMark } from "@/app/_components/unset-mark";
 import { dateHref, DAILY_PATH, REVIEW_PATH } from "@/app/_lib/date-href";
 import {
+  formatCarriedOverTo,
   formatCarryOver,
   formatClock,
   formatDuration,
@@ -83,7 +84,7 @@ export function ReviewBoard({
       </div>
 
       <ExecutionLog log={log} date={date} modes={modes} projects={projects} />
-      {postponed !== null && <Postponed tasks={postponed} />}
+      {postponed !== null && <Postponed tasks={postponed} date={date} />}
 
       {/* 集計は2表を横並びに（§3.5） */}
       <div className="mt-8 flex flex-wrap gap-x-12 gap-y-6">
@@ -243,7 +244,7 @@ function LogRow({
 }
 
 /** 先送り（F-502 / §3.4）。件数だけでなく「何を先送りしたか」を並べる */
-function Postponed({ tasks }: Readonly<{ tasks: readonly Task[] }>) {
+function Postponed({ tasks, date }: Readonly<{ tasks: readonly Task[]; date: LogicalDate }>) {
   return (
     <section className="mt-8">
       <h2 className="text-sub font-medium">先送り（{tasks.length}件）</h2>
@@ -252,7 +253,10 @@ function Postponed({ tasks }: Readonly<{ tasks: readonly Task[] }>) {
       ) : (
         <ul className="mt-2 space-y-1 text-main">
           {tasks.map((task) => {
-            const carryOver = formatCarryOver(task); // 持ち越し（F-122 / §3.4）
+            // 持ち越された先（①）は送り先を、その日に残っているもの（②）は持ち越し（F-122）を添える（§3.4）
+            const carryOver = isCarriedOverFrom(task, date)
+              ? formatCarriedOverTo(task)
+              : formatCarryOver(task);
             return (
               <li key={task.id}>
                 {task.name}

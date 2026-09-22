@@ -1,6 +1,7 @@
 // レビュー画面の導出（S-04 / 画面定義書04 §3）。集計はすべて引数のタスクから導く
+import type { LogicalDate } from "../shared/logical-date";
 import { sortedBySortOrder } from "./sort-order";
-import { actualMinutes, type StartedTask, type Task } from "./task";
+import { actualMinutes, isCarriedOverFrom, type StartedTask, type Task } from "./task";
 
 function isStarted(task: Task): task is StartedTask {
   return task.startedAt !== null;
@@ -17,11 +18,20 @@ export function executionLog(tasks: readonly Task[]): readonly StartedTask[] {
 }
 
 /**
- * 先送りタスク（F-502 / §3.4）: その日に残っている未実行タスク。
- * 他日へ移した分は移動先の日に属するため含まれない
+ * 先送りタスク（F-502 / §3.4）: ①その日に生まれて後日へ持ち越されたタスク（打刻の有無を問わない）と、
+ * ②その日に残っている未実行タスク。①→②の順。①の中は持ち越し先の日付順（sort_order は日ごとに
+ * 独立した採番なので日をまたいで比べず、同じ日の中だけ sort_order 順）、②の中は sort_order 順。
+ * `tasks` にはその日のタスクと持ち越し先のタスクが混ざって渡ってよい——どちらに当たるかは列から判定する
  */
-export function postponedTasks(tasks: readonly Task[]): readonly Task[] {
-  return sortedBySortOrder(tasks.filter((t) => t.startedAt === null));
+export function postponedTasks(date: LogicalDate, tasks: readonly Task[]): readonly Task[] {
+  const carriedOver = tasks.filter((t) => isCarriedOverFrom(t, date));
+  const remaining = tasks.filter((t) => t.taskDate === date && t.startedAt === null);
+  return [...sortedBySortOrder(carriedOver).sort(byTaskDate), ...sortedBySortOrder(remaining)];
+}
+
+/** 持ち越し先の日付順。安定ソートなので、同じ日の中は事前に並べた sort_order 順が保たれる */
+function byTaskDate(a: Task, b: Task): number {
+  return a.taskDate < b.taskDate ? -1 : a.taskDate > b.taskDate ? 1 : 0;
 }
 
 /** 実績時間の合計（分）。実行中タスクは実績が確定していないため加算しない（§3.3） */

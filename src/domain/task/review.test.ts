@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { atJst } from "../shared/testing/clock";
+import { atJst, NEXT_TEST_DATE, TEST_DATE } from "../shared/testing/clock";
 import {
   estimateDiffMinutes,
   executionLog,
@@ -33,9 +33,9 @@ describe("executionLog（画面定義書04 §3.3: 実行済みタスクを開始
   });
 });
 
-describe("postponedTasks（画面定義書04 §3.4: その日に残っている未実行タスク）", () => {
-  it("打刻のあるタスクは1分でも手をつけていれば先送りに数えない", () => {
-    const postponed = postponedTasks([
+describe("postponedTasks（画面定義書04 §3.4: その日に生まれて持ち越されたタスク＋その日に残っている未実行タスク）", () => {
+  it("その日に残っている未実行タスクを数え、打刻のあるタスクは1分でも手をつけていれば数えない", () => {
+    const postponed = postponedTasks(TEST_DATE, [
       task({ id: 1, startedAt: atJst("08:00"), endedAt: atJst("08:00") }),
       task({ id: 2 }),
       task({ id: 3 }),
@@ -43,12 +43,69 @@ describe("postponedTasks（画面定義書04 §3.4: その日に残っている�
     expect(postponed.map((t) => t.id)).toEqual([2, 3]);
   });
 
-  it("リスト上の並び（sort_order）のまま返す", () => {
-    const postponed = postponedTasks([
-      task({ id: 1, sortOrder: 3000 }),
-      task({ id: 2, sortOrder: 1000 }),
+  it("その日に生まれて後日へ持ち越されたタスクは、持ち越し先で実行済みでも数える（①）", () => {
+    const postponed = postponedTasks(TEST_DATE, [
+      task({
+        id: 1,
+        taskDate: NEXT_TEST_DATE,
+        initialTaskDate: TEST_DATE,
+        startedAt: atJst("08:00", NEXT_TEST_DATE),
+        endedAt: atJst("08:30", NEXT_TEST_DATE),
+      }),
+      task({ id: 2, taskDate: NEXT_TEST_DATE, initialTaskDate: TEST_DATE }),
+    ]);
+    expect(postponed.map((t) => t.id)).toEqual([1, 2]);
+  });
+
+  it("持ち越されたもの（①）を先に、その日に残っているもの（②）を後に並べる", () => {
+    const postponed = postponedTasks(TEST_DATE, [
+      task({ id: 1, sortOrder: 1000 }),
+      task({ id: 2, taskDate: NEXT_TEST_DATE, initialTaskDate: TEST_DATE, sortOrder: 5000 }),
     ]);
     expect(postponed.map((t) => t.id)).toEqual([2, 1]);
+  });
+
+  it("①②それぞれの中はリスト上の並び（sort_order）に従う", () => {
+    const postponed = postponedTasks(TEST_DATE, [
+      task({ id: 1, sortOrder: 3000 }),
+      task({ id: 2, sortOrder: 1000 }),
+      task({ id: 3, taskDate: NEXT_TEST_DATE, initialTaskDate: TEST_DATE, sortOrder: 4000 }),
+      task({ id: 4, taskDate: NEXT_TEST_DATE, initialTaskDate: TEST_DATE, sortOrder: 2000 }),
+    ]);
+    expect(postponed.map((t) => t.id)).toEqual([4, 3, 2, 1]);
+  });
+
+  it("①が複数の持ち越し先にまたがるときは持ち越し先の日付順で、sort_order は日をまたいで比べない", () => {
+    const postponed = postponedTasks(TEST_DATE, [
+      // 遠い日に小さい sort_order、近い日に大きい sort_order を置く（値だけで並べると逆転する）
+      task({ id: 1, taskDate: "2026-07-28", initialTaskDate: TEST_DATE, sortOrder: 1000 }),
+      task({ id: 2, taskDate: NEXT_TEST_DATE, initialTaskDate: TEST_DATE, sortOrder: 5000 }),
+      task({ id: 3, taskDate: NEXT_TEST_DATE, initialTaskDate: TEST_DATE, sortOrder: 3000 }),
+    ]);
+    expect(postponed.map((t) => t.id)).toEqual([3, 2, 1]);
+  });
+
+  it("他の日から引き寄せられてその日に残っている未実行タスクは②として数える（F-123）", () => {
+    const postponed = postponedTasks(TEST_DATE, [
+      task({ id: 1, taskDate: TEST_DATE, initialTaskDate: "2026-07-20" }),
+    ]);
+    expect(postponed.map((t) => t.id)).toEqual([1]);
+  });
+
+  it("その日に生まれたが前の日へ動いたタスク（未来日から今日へ引き寄せ）は数えない", () => {
+    // 表示日 = 未来日。そこに積んだタスクを今日へ引き寄せると task_date < initial_task_date になる
+    const postponed = postponedTasks(NEXT_TEST_DATE, [
+      task({ id: 1, taskDate: TEST_DATE, initialTaskDate: NEXT_TEST_DATE }),
+    ]);
+    expect(postponed).toEqual([]);
+  });
+
+  it("その日と無関係なタスクが混ざっていても数えない", () => {
+    const postponed = postponedTasks(TEST_DATE, [
+      task({ id: 1, taskDate: NEXT_TEST_DATE }),
+      task({ id: 2, taskDate: "2026-07-20" }),
+    ]);
+    expect(postponed).toEqual([]);
   });
 });
 

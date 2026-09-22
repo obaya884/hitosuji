@@ -45,6 +45,15 @@ const emptyProjectRepo: ProjectRepository = {
 };
 const emptyBundleRepo = inMemoryBundleRepository();
 
+/** listDailyList の警告対象（画面定義書01 §8）を見るときの依存。タスク以外は空で足りる */
+const bannerDeps = (tasks: TaskRepository) => ({
+  tasks,
+  sections: emptySectionRepo,
+  modes: emptyModeRepo,
+  projects: emptyProjectRepo,
+  bundles: emptyBundleRepo,
+});
+
 describe("addTask（F-102 / 画面定義書01 §3.4: クイック追加）", () => {
   it("タスク名のみで、見積もり未設定・未実行・未分類のタスクを作る", async () => {
     const repo = inMemoryRepo();
@@ -172,19 +181,11 @@ describe("setTaskMode / setTaskProject（O-5 / F-401・F-402: 分類の割り当
 });
 
 describe("listDailyList の警告対象（画面定義書01 §8: 前日以前の実行中タスク）", () => {
-  const deps = (tasks: TaskRepository) => ({
-    tasks,
-    sections: emptySectionRepo,
-    modes: emptyModeRepo,
-    projects: emptyProjectRepo,
-    bundles: emptyBundleRepo,
-  });
-
   it("実行中タスクが表示日より前ならバナー対象として返す", async () => {
     const repo = inMemoryRepo([
       task({ id: 1, taskDate: "2026-07-25", startedAt: new Date("2026-07-25T23:00:00Z") }),
     ]);
-    const view = await listDailyList(deps(repo), TEST_DATE);
+    const view = await listDailyList(bannerDeps(repo), { date: TEST_DATE, today: TEST_DATE });
     expect(view.staleRunningTask?.id).toBe(1);
   });
 
@@ -192,7 +193,7 @@ describe("listDailyList の警告対象（画面定義書01 §8: 前日以前の
     const repo = inMemoryRepo([
       task({ id: 1, taskDate: TEST_DATE, startedAt: new Date("2026-07-26T09:00:00Z") }),
     ]);
-    const view = await listDailyList(deps(repo), TEST_DATE);
+    const view = await listDailyList(bannerDeps(repo), { date: TEST_DATE, today: TEST_DATE });
     expect(view.staleRunningTask).toBeNull();
   });
 
@@ -200,14 +201,38 @@ describe("listDailyList の警告対象（画面定義書01 §8: 前日以前の
     const repo = inMemoryRepo([
       task({ id: 1, taskDate: TEST_DATE, startedAt: new Date("2026-07-26T09:00:00Z") }),
     ]);
-    const view = await listDailyList(deps(repo), "2026-07-27");
+    const view = await listDailyList(bannerDeps(repo), { date: "2026-07-27", today: TEST_DATE });
     expect(view.staleRunningTask?.id).toBe(1);
   });
 
   it("実行中タスクがなければ対象なし", async () => {
     const repo = inMemoryRepo([task({ id: 1, taskDate: "2026-07-25" })]);
-    const view = await listDailyList(deps(repo), TEST_DATE);
+    const view = await listDailyList(bannerDeps(repo), { date: TEST_DATE, today: TEST_DATE });
     expect(view.staleRunningTask).toBeNull();
+  });
+});
+
+describe("listDailyList の警告対象（画面定義書01 §8 / F-124: 前日以前に残っている未実行タスク）", () => {
+  // 集計規則（打刻あり・当日・未来日を数えない、日付昇順）は本物の SQL が担うので統合テスト
+  // （drizzle-task-repository.int.test.ts）が持つ。ここはユースケース固有の2点だけ見る
+  it("リポジトリの集計結果を view に載せる", async () => {
+    const repo = inMemoryRepo([task({ id: 1, taskDate: "2026-07-25" })]);
+    const view = await listDailyList(bannerDeps(repo), { date: TEST_DATE, today: TEST_DATE });
+    expect(view.staleUnstartedCounts).toEqual([{ taskDate: "2026-07-25", count: 1 }]);
+  });
+
+  it.each([
+    ["過去日", "2026-07-25"],
+    ["未来日", "2026-07-27"],
+  ])("基準は表示日ではなく今日——%sを表示中でも残り全体を返す", async (_, date) => {
+    const repo = inMemoryRepo([
+      task({ id: 1, taskDate: "2026-07-23" }),
+      task({ id: 2, taskDate: "2026-07-25" }),
+      task({ id: 3, taskDate: TEST_DATE }), // 今日の分は数えない（表示日基準だと未来日で混ざる）
+    ]);
+    // 過去日を開いて片付けている最中は、表示日基準だと 07-23 しか見えない
+    const view = await listDailyList(bannerDeps(repo), { date, today: TEST_DATE });
+    expect(view.staleUnstartedCounts.map((c) => c.taskDate)).toEqual(["2026-07-23", "2026-07-25"]);
   });
 });
 
@@ -232,7 +257,7 @@ describe("listDailyList の並び順（FB-01 / 画面定義書03 §4: name 昇�
         projects: emptyProjectRepo,
         bundles: emptyBundleRepo,
       },
-      TEST_DATE
+      { date: TEST_DATE, today: TEST_DATE }
     );
     expect(view.modes.map((m) => m.name)).toEqual(["あんず", "いちご", "ぶどう"]);
   });
@@ -253,7 +278,7 @@ describe("listDailyList の並び順（FB-01 / 画面定義書03 §4: name 昇�
         projects: projectRepo,
         bundles: emptyBundleRepo,
       },
-      TEST_DATE
+      { date: TEST_DATE, today: TEST_DATE }
     );
     expect(view.projects.map((p) => p.name)).toEqual(["case-a", "case-b"]);
   });
@@ -275,7 +300,7 @@ describe("listDailyList の並び順（FB-01 / 画面定義書03 §4: name 昇�
         projects: emptyProjectRepo,
         bundles: emptyBundleRepo,
       },
-      TEST_DATE
+      { date: TEST_DATE, today: TEST_DATE }
     );
     expect(view.sections.map((s) => s.name)).toEqual(["朝", "昼", "夜"]);
   });
@@ -297,7 +322,7 @@ describe("listDailyList のバンドル一覧（F-119 / 画面定義書05 O-3: �
         projects: emptyProjectRepo,
         bundles: bundleRepo,
       },
-      TEST_DATE
+      { date: TEST_DATE, today: TEST_DATE }
     );
     expect(view.bundles.map((b) => b.name)).toEqual(["朝の立上げ", "夜のクローズ"]);
   });

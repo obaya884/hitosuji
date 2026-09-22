@@ -1972,3 +1972,82 @@ describe("bundle_id の伝播（データモデル定義書 §4.8 / F-119）", (
   });
 
 });
+
+describe("countUnstartedBefore（F-124 / 画面定義書01 §8: 前日以前に残っている未実行タスクの日付ごとの件数）", () => {
+  it("指定日より前の未実行タスクを日付ごとに数え、古い日から並べる", async () => {
+    await db.insert(tasks).values([
+      { taskDate: "2026-07-18", initialTaskDate: "2026-07-18", name: "前日A", sortOrder: 1000 },
+      { taskDate: "2026-07-18", initialTaskDate: "2026-07-18", name: "前日B", sortOrder: 2000 },
+      { taskDate: "2026-07-16", initialTaskDate: "2026-07-16", name: "3日前", sortOrder: 1000 },
+      // 指定日そのものは数えない（今日はまだ実行されうる）
+      { taskDate: "2026-07-19", initialTaskDate: "2026-07-19", name: "当日", sortOrder: 1000 },
+      // 未来日も数えない（プラン）
+      { taskDate: "2026-07-20", initialTaskDate: "2026-07-20", name: "翌日", sortOrder: 1000 },
+    ]);
+
+    expect(await repo.countUnstartedBefore("2026-07-19")).toEqual([
+      { taskDate: "2026-07-16", count: 1 },
+      { taskDate: "2026-07-18", count: 2 },
+    ]);
+  });
+
+  it("打刻のあるタスク（完了・実行中）は数えず、件数0の日は返さない", async () => {
+    await db.insert(tasks).values([
+      {
+        taskDate: "2026-07-18",
+        initialTaskDate: "2026-07-18",
+        name: "完了",
+        sortOrder: 1000,
+        startedAt: new Date("2026-07-18T09:00:00Z"),
+        endedAt: new Date("2026-07-18T09:30:00Z"),
+      },
+      {
+        taskDate: "2026-07-17",
+        initialTaskDate: "2026-07-17",
+        name: "実行中の放置",
+        sortOrder: 1000,
+        startedAt: new Date("2026-07-17T23:00:00Z"),
+      },
+    ]);
+
+    expect(await repo.countUnstartedBefore("2026-07-19")).toEqual([]);
+  });
+
+  it("件数は数値で返す（count() の文字列化を写さない）", async () => {
+    await db.insert(tasks).values({
+      taskDate: "2026-07-18",
+      initialTaskDate: "2026-07-18",
+      name: "前日",
+      sortOrder: 1000,
+    });
+
+    const [row] = await repo.countUnstartedBefore("2026-07-19");
+    expect(row.count).toBe(1);
+  });
+});
+
+describe("listCarriedOverFrom（F-502 / 画面定義書04 §3.4 ①: その日に生まれて後日へ持ち越されたタスク）", () => {
+  it("initial_task_date が指定日で task_date がそれより後のタスクだけを返す（打刻の有無は問わない）", async () => {
+    await db.insert(tasks).values([
+      { taskDate: "2026-07-20", initialTaskDate: "2026-07-19", name: "持ち越し（未実行）", sortOrder: 1000 },
+      {
+        taskDate: "2026-07-21",
+        initialTaskDate: "2026-07-19",
+        name: "持ち越し（実行済み）",
+        sortOrder: 1000,
+        startedAt: new Date("2026-07-21T09:00:00Z"),
+        endedAt: new Date("2026-07-21T09:30:00Z"),
+      },
+      // その日に残っているもの（②）は listByDate の側で取る
+      { taskDate: "2026-07-19", initialTaskDate: "2026-07-19", name: "当日に残る", sortOrder: 2000 },
+      // 別の日に生まれて指定日を経由したものは、履歴を持たないので指定日からは数えない
+      { taskDate: "2026-07-20", initialTaskDate: "2026-07-18", name: "前日生まれ", sortOrder: 3000 },
+      // 未来日に生まれて今日へ引き寄せたもの（task_date < initial_task_date）は持ち越しではない
+      { taskDate: "2026-07-18", initialTaskDate: "2026-07-19", name: "引き寄せ", sortOrder: 4000 },
+    ]);
+
+    const found = await repo.listCarriedOverFrom("2026-07-19");
+    // 並びは約束しない（Port の契約に無く、並べ替えは domain の postponedTasks が担う）ので揃えて比べる
+    expect(found.map((t) => t.name).sort()).toEqual(["持ち越し（実行済み）", "持ち越し（未実行）"]);
+  });
+});

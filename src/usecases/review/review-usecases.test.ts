@@ -89,6 +89,24 @@ describe("listDailyReview（画面定義書04 §3: 指定日の振り返り）",
     expect(view.log.map((t) => t.id)).toEqual([1]);
   });
 
+  it("過去日では、その日に生まれて後日へ持ち越されたタスクも先送りとして返す（§3.4 ①）", async () => {
+    const carried = task({
+      id: 3,
+      taskDate: "2026-07-27",
+      initialTaskDate: TEST_DATE,
+      startedAt: atJst("09:00", "2026-07-27"),
+      endedAt: atJst("09:30", "2026-07-27"),
+    });
+    const view = await listDailyReview(depsOf([task(done), task({ id: 2 }), carried]), {
+      date: TEST_DATE,
+      today: "2026-07-28",
+    });
+    // 持ち越し（①）が先、残っている未実行（②）が後
+    expect(view.postponed?.map((t) => t.id)).toEqual([3, 2]);
+    // 持ち越し先で実行済みでも、表示日の実績ログには出ない（別の日の実績。§3.3）
+    expect(view.log.map((t) => t.id)).toEqual([1]);
+  });
+
   // 境界は「今日」（`date < today` の等号側）。未来日は境界の外側で、同じ比較の同じ枝を通る
   it("今日は先送り数を出さない（まだ実行されうるため。§3.4）", async () => {
     const view = await listDailyReview(depsOf([task({ id: 2 })]), {
