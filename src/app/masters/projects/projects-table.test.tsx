@@ -74,15 +74,26 @@ describe("ProjectsTable（画面定義書03 §3.3: 名前とアーカイブだ�
   it("1件も無ければ空であることを文言で示す", () => {
     renderTable({ active: [] });
 
-    expect(screen.getByText("プロジェクトはまだありません。")).not.toBeNull();
+    // 条項は「**表の下に**出す」（§3.3）。DOM 順なので jsdom で測れる
+    const notice = screen.getByText("プロジェクトはまだありません");
+    expect(
+      screen.getByRole("table").compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).not.toBe(0);
   });
 
-  it("新規追加の行を開いている間は空の文言を出さない", async () => {
+  it("アーカイブ済みだけが残っていても空の文言を出す（いま選べるものが無いため）", () => {
+    renderTable({ active: [], archived: [project(9, "旧プロジェクト", true)] });
+
+    expect(rowOf("旧プロジェクト")).not.toBeNull(); // アーカイブ済みは在る、という前提が効いていること
+    expect(screen.getByText("プロジェクトはまだありません")).not.toBeNull();
+  });
+
+  it("新規追加の行を開いている間は空の文言を出さない", () => {
     renderTable({ active: [] });
 
     clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
 
-    expect(screen.queryByText("プロジェクトはまだありません。")).toBeNull();
+    expect(screen.queryByText("プロジェクトはまだありません")).toBeNull();
     expect(screen.getByPlaceholderText("プロジェクト名")).not.toBeNull();
   });
 

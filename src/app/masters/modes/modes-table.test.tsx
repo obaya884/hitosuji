@@ -89,6 +89,32 @@ describe("ModesTable（画面定義書03 §3.2: 色はプリセット13色・バ
     expect(within(row).getByText("赤")).not.toBeNull();
   });
 
+  it("1件も無ければ空であることを文言で示す", () => {
+    renderTable({ active: [] });
+
+    // 条項は「**表の下に**出す」（§3.2）。DOM 順なので jsdom で測れる
+    const notice = screen.getByText("モードはまだありません");
+    expect(
+      screen.getByRole("table").compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).not.toBe(0);
+  });
+
+  it("新規追加の行を開いている間は空の文言を出さない", () => {
+    renderTable({ active: [] });
+
+    clickWithoutServer(screen.getByRole("button", { name: "新規追加" }));
+
+    expect(screen.queryByText("モードはまだありません")).toBeNull();
+    expect(screen.getByPlaceholderText("モード名")).not.toBeNull();
+  });
+
+  it("アーカイブ済みだけが残っていても空の文言を出す（いま選べるものが無いため）", () => {
+    renderTable({ active: [], archived: [mode(3, "旧モード", RED, true)] });
+
+    expect(rowOf("旧モード")).not.toBeNull(); // アーカイブ済みは在る、という前提が効いていること
+    expect(screen.getByText("モードはまだありません")).not.toBeNull();
+  });
+
   // このピッカーに 00_共通 §2.1 のどの項目が及ぶかは画面定義書03 §3.2 が正（FB-59）
   // プリセット選択そのもの（13色・自由入力なし・輪郭・吹き出し・閉じ方）は共有部品の
   // 観点なので `_components/color-picker.test.tsx` が持つ。ここは**この画面の配線**だけを見る

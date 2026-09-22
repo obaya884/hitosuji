@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { EMPTY_MODES } from "@/app/_lib/notice-messages";
 import { useServerAction } from "@/app/_lib/use-server-action";
 import { linkMuted, tableHeadRow } from "@/app/_lib/ui";
 import type { Mode, ModeId } from "@/domain/mode/mode";
@@ -153,6 +154,10 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
           {editingId === "new" && newRow}
         </tbody>
       </table>
+
+      {active.length === 0 && editingId === null && (
+        <p className="mt-4 text-sub text-ink-muted">{EMPTY_MODES}</p>
+      )}
 
       <ArchivedSection
         archived={archived}

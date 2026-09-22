@@ -156,7 +156,7 @@ describe("BundleMembersTable（画面定義書05 §4 O-5: メンバーの追加�
 
     clickWithoutServer(screen.getByRole("button", { name: "＋ ルーチンを追加" }));
 
-    expect(screen.getByText("追加できるルーチンがありません。")).not.toBeNull();
+    expect(screen.getByText("追加できるルーチンがありません")).not.toBeNull();
   });
 
   it("候補を開始想定時刻の昇順に並べる", () => {

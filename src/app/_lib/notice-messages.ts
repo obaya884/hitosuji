@@ -2,6 +2,7 @@
 // 完了／情報トースト・確認の問いかけ・進行中の合図。**何がここに載り何が載らないかは画面定義書00_共通 §4 が正**
 // （失敗は `error-messages.ts`、未設定の語彙は `unset.ts`、その語自体が仕様の文言は
 // 画面定義書が持つ）。種類ごとに1ファイルに分ける流儀は `unset.ts` と同じ。
+// **空状態のメッセージには句点を付けない**（画面定義書00_共通 §4）。
 
 /* ── 空状態（対象が0件のときに表の代わりに出す） ───────────────────── */
 
@@ -15,7 +16,7 @@ export const EMPTY_BUNDLES = "バンドルがありません";
  * メンバー追加の候補が尽きた（画面定義書05 §4 O-5）。**0件の理由が「まだ作っていない」
  * ではなく「どのバンドルにも属していないルーチンが無い」**なので、上の2つと語を揃えない
  */
-export const EMPTY_BUNDLE_CANDIDATES = "追加できるルーチンがありません。";
+export const EMPTY_BUNDLE_CANDIDATES = "追加できるルーチンがありません";
 
 /** その日の実績ログが空（画面定義書04 §3.3） */
 export const EMPTY_REVIEW_LOG = "実行したタスクはありません";
@@ -27,10 +28,13 @@ export const EMPTY_REVIEW_POSTPONED = "先送りはありません";
 export const EMPTY_REVIEW_TOTALS = "集計する実績がありません";
 
 /** ルーチンが1件も無い（画面定義書02 §3） */
-export const EMPTY_ROUTINES = "ルーチンはまだありません。";
+export const EMPTY_ROUTINES = "ルーチンはまだありません";
 
 /** プロジェクトが1件も無い（画面定義書03 §3.3） */
-export const EMPTY_PROJECTS = "プロジェクトはまだありません。";
+export const EMPTY_PROJECTS = "プロジェクトはまだありません";
+
+/** モードが1件も無い（画面定義書03 §3.2） */
+export const EMPTY_MODES = "モードはまだありません";
 
 /* ── 警告バナー ──────────────────────────────────────────────── */
 
