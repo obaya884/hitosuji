@@ -17,12 +17,13 @@ import {
 const EXPECTED_MESSAGES = {
   EMPTY_BUNDLE_MEMBERS: "まだルーチンが入っていません",
   EMPTY_BUNDLES: "バンドルがありません",
-  EMPTY_BUNDLE_CANDIDATES: "追加できるルーチンがありません。",
+  EMPTY_BUNDLE_CANDIDATES: "追加できるルーチンがありません",
   EMPTY_REVIEW_LOG: "実行したタスクはありません",
   EMPTY_REVIEW_POSTPONED: "先送りはありません",
   EMPTY_REVIEW_TOTALS: "集計する実績がありません",
-  EMPTY_ROUTINES: "ルーチンはまだありません。",
-  EMPTY_PROJECTS: "プロジェクトはまだありません。",
+  EMPTY_ROUTINES: "ルーチンはまだありません",
+  EMPTY_PROJECTS: "プロジェクトはまだありません",
+  EMPTY_MODES: "モードはまだありません",
   STALE_RUNNING_WARNING: "前日以前の実行中タスクがあります",
   STALE_UNSTARTED_WARNING: "前日以前に未実施のタスクが残っています",
   DELETE_CONFIRM: "本当に削除？",
@@ -42,6 +43,17 @@ describe("notice-messages（T-153: 状態を伝える文言の正は辞書とこ
       ...EXPECTED_MESSAGES,
       ...Object.fromEntries(EXPECTED_BUILDERS.map((name) => [name, expect.any(Function)])),
     });
+  });
+
+  // 上の表は人が書き写すので、次に足す人が句点付きで書けば表もろとも通ってしまう。
+  // 規約（画面定義書00_共通 §4）は**辞書の中身を走査して**守らせる。
+  // **空状態の文言は `EMPTY_` で始める**——この走査が拾う範囲を名前で決めている
+  it("空状態の文言は句点で終わらない（画面定義書00_共通 §4）", () => {
+    const empties = Object.entries(notices).filter(([key]) => key.startsWith("EMPTY_"));
+
+    // 接頭辞の付け忘れ・走査の空振りで素通りしないよう、拾えた件数も固定する
+    expect(empties).toHaveLength(9);
+    for (const [key, message] of empties) expect(message, key).not.toMatch(/。$/);
   });
 
   describe("変数を含む文言は値の差し込み位置まで見る", () => {

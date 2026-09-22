@@ -351,7 +351,7 @@ describe("RoutinesTable（画面定義書02 §3: 一覧の列と表記）", () =
   it("ルーチンが0件なら空の案内を出す", () => {
     renderTable([]);
 
-    expect(screen.queryByText("ルーチンはまだありません。")).not.toBeNull();
+    expect(screen.queryByText("ルーチンはまだありません")).not.toBeNull();
   });
 
   it("0件でもフォームを開いている間は空の案内を出さない", async () => {
@@ -359,7 +359,7 @@ describe("RoutinesTable（画面定義書02 §3: 一覧の列と表記）", () =
 
     clickWithoutServer(screen.getByText("新規ルーチン"));
 
-    expect(screen.queryByText("ルーチンはまだありません。")).toBeNull();
+    expect(screen.queryByText("ルーチンはまだありません")).toBeNull();
   });
 });
 
@@ -857,7 +857,7 @@ describe("RoutinesTable（画面定義書02 §4・§5: 新規/編集フォーム
 
     expect(createRoutineAction).not.toHaveBeenCalled();
     expect(screen.queryByLabelText("名前")).toBeNull();
-    expect(screen.queryByText("ルーチンはまだありません。")).not.toBeNull();
+    expect(screen.queryByText("ルーチンはまだありません")).not.toBeNull();
   });
 });
 
