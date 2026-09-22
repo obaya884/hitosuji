@@ -508,6 +508,33 @@ describe("ReviewBoard（画面定義書04 §3.4: 先送り。F-502）", () => {
     ]);
   });
 
+  it("持ち越された先のタスク（①）には送り先・日数・送り先での状態を添え、起点は出さない", () => {
+    renderBoard({
+      postponed: [
+        task({
+          id: 1,
+          name: "棚卸し",
+          initialTaskDate: TEST_DATE,
+          taskDate: "2026-07-29",
+          startedAt: atJst("09:00", "2026-07-29"),
+          endedAt: atJst("09:30", "2026-07-29"),
+        }),
+      ],
+    });
+
+    const section = sectionOf(/^先送り（/);
+    expect(section.querySelector("li")?.textContent).toBe("棚卸し7/29へ持ち越し（3日）・完了");
+  });
+
+  it("その日に残っているタスク（②）で持ち越しのあるものには F-122 の表記を添える", () => {
+    renderBoard({
+      postponed: [task({ id: 1, name: "棚卸し", initialTaskDate: "2026-07-23", taskDate: TEST_DATE })],
+    });
+
+    const section = sectionOf(/^先送り（/);
+    expect(section.querySelector("li")?.textContent).toBe("棚卸し3日持ち越し（7/23から）");
+  });
+
   it("0件なら「先送りはありません」と告げる", () => {
     renderBoard({ postponed: [] });
 

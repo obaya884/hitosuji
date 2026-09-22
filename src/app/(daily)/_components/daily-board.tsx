@@ -28,7 +28,7 @@ import { taskStatus } from "@/domain/task/status";
 import { editEndedAt, editStartedAt } from "@/domain/task/punch-edit";
 import { normalizeComment, validateEstimateMinutes, validateTaskName } from "@/domain/task/edit";
 import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
-import type { Task, TaskId } from "@/domain/task/task";
+import type { Task, TaskId, UnstartedCountByDate } from "@/domain/task/task";
 import { PlusIcon } from "@/app/_components/icons";
 import { PendingIndicator } from "@/app/_components/pending-indicator";
 import { DAILY_PATH } from "@/app/_lib/date-href";
@@ -80,6 +80,7 @@ import { DateNav } from "@/app/_components/date-nav";
 import { ShortcutHelp } from "./shortcut-help";
 import type { RowOperation } from "./task-row";
 import { StaleRunningBanner } from "./stale-running-banner";
+import { StaleUnstartedBanner } from "./stale-unstarted-banner";
 import { Toast } from "./toast";
 import { useDailyShortcuts } from "./use-daily-shortcuts";
 
@@ -99,6 +100,8 @@ type Props = Readonly<{
   bundles: readonly Bundle[];
   /** 前日以前に放置されている実行中タスク（画面定義書01 §8） */
   staleRunningTask: Task | null;
+  /** 前日以前に残っている未実施タスクの日付ごとの件数（F-124 / 画面定義書01 §8）。空なら出さない */
+  staleUnstartedCounts: readonly UnstartedCountByDate[];
 }>;
 
 export function DailyBoard({
@@ -110,6 +113,7 @@ export function DailyBoard({
   sections,
   bundles,
   staleRunningTask,
+  staleUnstartedCounts,
 }: Props) {
   const [optimisticGroups, dispatchOptimistic] = useOptimistic(groups, applyOptimisticAction);
   // バンドルの道（§3.3）で bundleId から色と名前を引く。bundles は稀にしか変わらないので memo する
@@ -699,7 +703,9 @@ export function DailyBoard({
         </div>
       )}
 
+      {/* 2つ同時に出るときは終了打刻の失念（F-209）を上に置く（§8） */}
       {staleRunningTask !== null && <StaleRunningBanner task={staleRunningTask} />}
+      {staleUnstartedCounts.length > 0 && <StaleUnstartedBanner counts={staleUnstartedCounts} />}
 
       <DailyList
         groups={optimisticGroups}

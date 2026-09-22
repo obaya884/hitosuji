@@ -198,6 +198,38 @@ describe("DailyBoard の表示日に応じた出し分けと警告（§3.1 / §3
 
     expect(screen.queryByRole("link", { name: "該当日を開く" })).toBeNull();
   });
+
+  // 日付書式・件数・href は部品のテスト（stale-unstarted-banner.test.tsx）が持つ。ここは配線だけ見る
+  it("前日以前に未実行タスクが残っていれば警告バナーを出す（F-124）", () => {
+    renderBoard(defaultTasks(), {
+      staleUnstartedCounts: [{ taskDate: "2026-07-23", count: 2 }],
+    });
+
+    expect(screen.queryByRole("link", { name: "2026-07-23(木)" })).not.toBeNull();
+  });
+
+  it("前日以前の未実施タスクが無ければバナーは出さない", () => {
+    renderBoard(defaultTasks(), { staleUnstartedCounts: [] });
+
+    expect(screen.queryByText(/前日以前に未実施のタスク/)).toBeNull();
+  });
+
+  it("実行中の放置（F-209）と同時に出るときは F-209 を上に置く（§8: 終了打刻の失念の方が急ぐ）", () => {
+    renderBoard(defaultTasks(), {
+      staleRunningTask: task({
+        id: 5,
+        name: "読書",
+        taskDate: "2026-07-25",
+        startedAt: atJst("23:00", "2026-07-25"),
+      }),
+      staleUnstartedCounts: [{ taskDate: "2026-07-23", count: 2 }],
+    });
+
+    const running = screen.getByRole("link", { name: "該当日を開く" });
+    const unstarted = screen.getByRole("link", { name: "2026-07-23(木)" });
+    // DOCUMENT_POSITION_FOLLOWING: 比較相手（unstarted）が自分（running）より後にある
+    expect(running.compareDocumentPosition(unstarted) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  });
 });
 
 /**

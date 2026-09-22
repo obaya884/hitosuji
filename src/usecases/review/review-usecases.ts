@@ -38,8 +38,11 @@ export async function listDailyReview(
   deps: ReviewDeps,
   input: Readonly<{ date: LogicalDate; today: LogicalDate }>
 ): Promise<DailyReviewView> {
-  const [tasks, modes, projects] = await Promise.all([
+  // 今日以降はまだ実行されうるので先送りとして数えない（§3.4）。持ち越し先の取得もそのときだけ
+  const isPast = input.date < input.today;
+  const [tasks, carriedOver, modes, projects] = await Promise.all([
     deps.tasks.listByDate(input.date),
+    isPast ? deps.tasks.listCarriedOverFrom(input.date) : [],
     deps.modes.listAll(),
     deps.projects.listAll(),
   ]);
@@ -50,8 +53,7 @@ export async function listDailyReview(
     date: input.date,
     log,
     totalMinutes: totalActualMinutes(log),
-    // 今日以降はまだ実行されうるので先送りとして数えない（§3.4）
-    postponed: input.date < input.today ? postponedTasks(tasks) : null,
+    postponed: isPast ? postponedTasks(input.date, [...tasks, ...carriedOver]) : null,
     modeTotals: totalActualMinutesBy(log, (t) => t.modeId),
     projectTotals: totalActualMinutesBy(log, (t) => t.projectId),
     modes,

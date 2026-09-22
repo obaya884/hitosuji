@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, count, eq, gt, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import type {
   DuplicateAndStartCommand,
   MoveCommand,
@@ -138,6 +138,25 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
         .from(tasks)
         .where(and(isNotNull(tasks.startedAt), isNull(tasks.endedAt)));
       return row === undefined ? null : toDomain(row);
+    },
+
+    // 前日以前に残っている未実行タスクの警告（F-124）。デイリーは打刻のたびに再取得されるホットパスなので、
+    // 行を取らず日付ごとの件数だけを集計する（ix_tasks_date が効く）
+    async countUnstartedBefore(date: LogicalDate) {
+      return await db
+        .select({ taskDate: tasks.taskDate, count: count() })
+        .from(tasks)
+        .where(and(isNull(tasks.startedAt), lt(tasks.taskDate, date)))
+        .groupBy(tasks.taskDate)
+        .orderBy(tasks.taskDate);
+    },
+
+    async listCarriedOverFrom(date: LogicalDate) {
+      const rows = await db
+        .select()
+        .from(tasks)
+        .where(and(eq(tasks.initialTaskDate, date), gt(tasks.taskDate, date)));
+      return rows.map(toDomain);
     },
 
     // 開始打刻（F-201）。実行中タスクの有無と自動セクション移動の有無で、書く行の数が変わる

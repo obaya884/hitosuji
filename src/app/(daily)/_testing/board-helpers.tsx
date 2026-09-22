@@ -150,6 +150,7 @@ function boardProps(tasks: readonly Task[], over: BoardOverrides): BoardProps {
     projects: PROJECTS,
     bundles: BUNDLES,
     staleRunningTask: null,
+    staleUnstartedCounts: [],
     ...over,
     sections,
     groups: groupTasksBySection(tasks, sections),

@@ -227,7 +227,10 @@ export async function loadBrowserCheckFixtures(
   // 行き先が表示日で決まるので、**過去日と未来日の両方に未実行の行が要る**（今日を見ているだけでは
   // 「今日へ移動」の文言にも引き寄せにも届かない）
   const yesterday = addDays(taskDate, -1);
+  const threeDaysAgo = addDays(taskDate, -3);
   const tomorrow = addDays(taskDate, 1);
+  // 前日以前の未実行は**2日ぶん**置く——警告バナー（F-124 / 画面定義書01 §8）が日付ごとに分けて
+  // 古い日から並べることと、片付けた日から順に消えることを確かめるには、1日では足りない
   const otherDays = [
     task({
       // id は投入時に捨てる（`withoutId`）が、`task()` は sort_order を id から採るので通しで振る
@@ -241,6 +244,14 @@ export async function loadBrowserCheckFixtures(
     }),
     task({
       id: fixed.length + fillers.length + 2,
+      taskDate: threeDaysAgo,
+      name: "3日前に残ったままのタスク",
+      estimateMinutes: 15,
+      sectionId: sectionIdOf("午前"),
+      modeId: life,
+    }),
+    task({
+      id: fixed.length + fillers.length + 3,
       taskDate: tomorrow,
       name: "翌日に積んであるタスク（今日へ引き寄せる）",
       estimateMinutes: 20,

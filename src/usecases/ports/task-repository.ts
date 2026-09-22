@@ -5,7 +5,7 @@ import type { RoutineId } from "@/domain/routine/routine";
 import type { SectionId } from "@/domain/section/section";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import type { Renumber } from "@/domain/task/sort-order";
-import type { Task, TaskId } from "@/domain/task/task";
+import type { Task, TaskId, UnstartedCountByDate } from "@/domain/task/task";
 
 // 採番の振り直しは domain の規則そのもの（データモデル定義書 §3.5）。
 // Port は domain の型をそのまま契約に使う（同じ形を書き写さない）
@@ -106,6 +106,16 @@ export type TaskRepository = Readonly<{
   findById(id: TaskId): Promise<Task | null>;
   /** 実行中タスクは全日付を通じて最大1件（データモデル定義書 §3.5） */
   findRunning(): Promise<Task | null>;
+  /**
+   * 指定日より前に残っている未実行タスクの日付ごとの件数（F-124 / 画面定義書01 §8）。
+   * 日付の昇順で、件数0の日は含まない。指定日そのものは数えない
+   */
+  countUnstartedBefore(date: LogicalDate): Promise<readonly UnstartedCountByDate[]>;
+  /**
+   * 指定日に生まれて後日へ持ち越されたタスク（F-502 / 画面定義書04 §3.4 ①）。
+   * `initial_task_date` が指定日で `task_date` がそれより後のもの。打刻の有無は問わない
+   */
+  listCarriedOverFrom(date: LogicalDate): Promise<Task[]>;
   create(input: NewTask, renumber: Renumber): Promise<Task>;
   rename(id: TaskId, name: string): Promise<void>;
   updateEstimate(id: TaskId, estimateMinutes: number): Promise<void>;

@@ -19,7 +19,7 @@ import {
   validateTaskName,
   type TaskEditError,
 } from "@/domain/task/edit";
-import type { Task, TaskId } from "@/domain/task/task";
+import type { Task, TaskId, UnstartedCountByDate } from "@/domain/task/task";
 
 /**
  * タスクの編集（O-5 / O-16 / 画面定義書01 §3.3）で起こりうる失敗。入力の検証（`TaskEditError`）に加えて、
@@ -42,6 +42,8 @@ export type DailyListView = Readonly<{
   groups: readonly DailyGroup[];
   /** 表示日より前に放置されている実行中タスク（画面定義書01 §8 の警告バナー用） */
   staleRunningTask: Task | null;
+  /** 今日より前に残っている未実行タスクの日付ごとの件数（F-124 / 画面定義書01 §8）。日付昇順。無ければ空 */
+  staleUnstartedCounts: readonly UnstartedCountByDate[];
   /** タスク行のモード色・プロジェクト名やポップオーバーの選択肢に使う（アーカイブ済みも含む） */
   modes: readonly Mode[];
   projects: readonly Project[];
@@ -56,18 +58,25 @@ export type DailyListView = Readonly<{
   bundles: readonly Bundle[];
 }>;
 
+/**
+ * `today` は日界考慮済みの今日。前日以前の未実行タスク（F-124）は表示日ではなく今日を基準に数える
+ * ——過去日を開いて片付けている最中も残り全体が見え続けるように（画面定義書01 §8）
+ */
 export async function listDailyList(
   deps: DailyListDeps,
-  date: LogicalDate
+  input: Readonly<{ date: LogicalDate; today: LogicalDate }>
 ): Promise<DailyListView> {
-  const [tasks, sections, modes, projects, bundles, running] = await Promise.all([
-    deps.tasks.listByDate(date),
-    deps.sections.listAll(),
-    deps.modes.listAll(),
-    deps.projects.listAll(),
-    deps.bundles.listAll(),
-    deps.tasks.findRunning(),
-  ]);
+  const { date, today } = input;
+  const [tasks, sections, modes, projects, bundles, running, staleUnstartedCounts] =
+    await Promise.all([
+      deps.tasks.listByDate(date),
+      deps.sections.listAll(),
+      deps.modes.listAll(),
+      deps.projects.listAll(),
+      deps.bundles.listAll(),
+      deps.tasks.findRunning(),
+      deps.tasks.countUnstartedBefore(today),
+    ]);
 
   // 実行中タスクが表示日より前の日付にあるなら、終了打刻の失念として警告する（画面定義書01 §8）
   const staleRunningTask = running !== null && running.taskDate < date ? running : null;
@@ -81,6 +90,7 @@ export async function listDailyList(
     sections: [...sections].sort(byDayStartOrder(dayStartTimeOf(sections))),
     bundles,
     staleRunningTask,
+    staleUnstartedCounts,
   };
 }
 
