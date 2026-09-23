@@ -210,6 +210,7 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
         patch(id, {
           taskDate: input.taskDate,
           sortOrder: input.sortOrder,
+          sectionId: null, // 日付移動はセクションを外して未分類へ（本物と同じ。データモデル定義書 §3.5）
           routineId: null,
           bundleId: null, // 日付移動はバンドルからも外す（本物と同じ。データモデル定義書 §4.8）
           // 後ろへ動くときだけ加算する（本物と同じ。データモデル定義書 §3.5）

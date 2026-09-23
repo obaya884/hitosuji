@@ -323,6 +323,7 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
       const moved = {
         taskDate: input.taskDate,
         sortOrder: input.sortOrder,
+        sectionId: null, // 日付移動はセクションも外して未分類へ（データモデル定義書 §3.5）
         routineId: null, // 日付移動は紐付けを切って移る（データモデル定義書 §3.5）
         bundleId: null, // 日付移動はバンドルからも外す。移動先の日には改めて展開されるため（同書 §4.8）
         // 後ろへ動くときだけ加算し、そうでなければ列に触れない（データモデル定義書 §3.5）
