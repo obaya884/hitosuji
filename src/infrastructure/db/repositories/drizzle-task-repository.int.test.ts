@@ -730,9 +730,10 @@ describe("suspend（F-204: 終了と再開タスク生成を1トランザクシ�
 });
 
 describe("moveToDate（O-7: 日付移動）", () => {
-  // ルーチン由来でない日付移動。日付・並び・回数の3つだけが動き、持ち物（見積もり・セクション・
-  // コメント・ハイライト）は一緒に移る。ルーチン由来では routine_id も動く（次のテスト）
-  it("task_date・sort_order・postponed_count だけを動かす", async () => {
+  // ルーチン由来でない日付移動。日付・並び・回数が動き、セクションは外れる（元の日の時間帯への
+  // 割り当てなので持ち越さない。データモデル定義書 §3.5）。持ち物（見積もり・コメント・URL・
+  // ハイライト）は一緒に移る。ルーチン由来では routine_id も動く（次のテスト）
+  it("task_date・sort_order・postponed_count を動かし、section_id を外す", async () => {
     const [section] = await db
       .insert(sections)
       .values({ name: "朝", startTime: "06:00" })
@@ -769,7 +770,7 @@ describe("moveToDate（O-7: 日付移動）", () => {
         initialTaskDate: "2026-07-18", // 動かない（F-122: 移動では変えない）
         name: "先送り対象",
         estimateMinutes: 25,
-        sectionId: section.id,
+        sectionId: null, // 外れる（移動先の日で改めてトリアージする）
         modeId: null,
         projectId: null,
         bundleId: null,
@@ -881,13 +882,19 @@ describe("moveToDate（O-7: 日付移動）", () => {
 
   // 未来日から今日への引き寄せ（F-123 / FB-98）。前へ動かす移動では回数を増やさない
   // （データモデル定義書 §3.5）。`+ 0` ではなく列に触れないことで実現している
-  it("countsAsPostpone が false なら postponed_count を変えない", async () => {
+  // section_id はこちらの枝でも外れる（加算の条件に紛れ込ませない。データモデル定義書 §3.5）
+  it("countsAsPostpone が false なら postponed_count を変えず、section_id は外す", async () => {
+    const [section] = await db
+      .insert(sections)
+      .values({ name: "朝", startTime: "06:00" })
+      .returning();
     const [target] = await db
       .insert(tasks)
       .values({
         taskDate: "2026-07-21",
         initialTaskDate: "2026-07-21",
         name: "未来日から引き寄せる",
+        sectionId: section.id,
         sortOrder: 1000,
         postponedCount: 2,
       })
@@ -901,7 +908,12 @@ describe("moveToDate（O-7: 日付移動）", () => {
 
     const [after] = await repo.listByDate("2026-07-20");
     expect(after).toEqual(
-      expect.objectContaining({ id: target.id, taskDate: "2026-07-20", postponedCount: 2 })
+      expect.objectContaining({
+        id: target.id,
+        taskDate: "2026-07-20",
+        sectionId: null,
+        postponedCount: 2,
+      })
     );
   });
 });

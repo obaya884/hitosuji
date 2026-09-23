@@ -524,14 +524,40 @@ describe("moveTaskDate（O-7: 日付移動）", () => {
     });
   });
 
-  it("移動先の同セクション末尾へ置く", async () => {
+  // セクションは元の日の時間帯への割り当てなので持ち越さない（データモデル定義書 §3.5 section_id）。
+  // 採番の母集団も移動先の未分類で、元のセクションの行は見ない
+  it("セクションを外し、移動先の日の未分類の末尾へ置く（画面定義書01 O-7）", async () => {
     const repo = inMemoryTaskRepository([
       task({ id: 1, sectionId: 1, sortOrder: 1000 }),
-      task({ id: 2, taskDate: NEXT_TEST_DATE, sectionId: 1, sortOrder: 5000 }),
+      task({ id: 2, taskDate: NEXT_TEST_DATE, sectionId: 1, sortOrder: 5000 }), // 同セクション（見ない）
+      task({ id: 3, taskDate: NEXT_TEST_DATE, sectionId: null, sortOrder: 2000 }), // 未分類（この後ろ）
     ]);
 
     await move(repo);
-    expect(repo.rows[0].sortOrder).toBe(6000);
+    expect(repo.rows[0]).toEqual(expect.objectContaining({ sectionId: null, sortOrder: 3000 }));
+  });
+
+  // 母集団が空なら先頭の値。セクション側の最大値を拾う退行なら 10000 になる
+  it("移動先の未分類が0件なら 1000 で置く（セクション付きの行は数えない）", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, sectionId: 1, sortOrder: 1000 }),
+      task({ id: 2, taskDate: NEXT_TEST_DATE, sectionId: 1, sortOrder: 9000 }),
+    ]);
+
+    await move(repo);
+    expect(repo.rows[0].sortOrder).toBe(1000);
+  });
+
+  // 向きで規則を分けない（postponed_count の加算可否とは別の話）。加算しない枝（未来日→今日）で見る
+  it("引き寄せでもセクションを外す（F-123）", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, taskDate: NEXT_TEST_DATE, sectionId: 2, postponedCount: 1 }),
+    ]);
+
+    await move(repo);
+    expect(repo.rows[0]).toEqual(
+      expect.objectContaining({ taskDate: TEST_DATE, sectionId: null, postponedCount: 1 })
+    );
   });
 
   it("実行中・完了タスクは日付を移せない", async () => {

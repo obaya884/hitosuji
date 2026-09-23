@@ -164,7 +164,8 @@ export async function duplicateAndStartTask(
 }
 
 /**
- * 日付移動（O-7 / F-107・F-123）。未実行タスクを別の日の同セクション末尾へ移す。
+ * 日付移動（O-7 / F-107・F-123）。未実行タスクを別の日の**未分類の末尾**へ移す
+ * （section_id を外すのはリポジトリ側。理由は `TaskRepository.moveToDate` の jsdoc）。
  * 行き先（今日なら翌日へ、そうでなければ今日へ）と postponed_count の加算可否は
  * `planDateMove` が決める。実行中・完了タスクには不可
  */
@@ -178,9 +179,9 @@ export async function moveTaskDate(
 
   const { to, countsAsPostpone } = planDateMove(target.taskDate, input.today);
   const destinationTasks = await repo.listByDate(to);
-  const sortOrder = appendSortOrder(
-    tasksInSection(destinationTasks, target.sectionId).map((t) => t.sortOrder)
-  );
+  // 採番の母集団は移動先の日の未分類（section_id を外すのはリポジトリ側）
+  const unclassified = tasksInSection(destinationTasks, null);
+  const sortOrder = appendSortOrder(unclassified.map((t) => t.sortOrder));
 
   await repo.moveToDate(
     target.id,
