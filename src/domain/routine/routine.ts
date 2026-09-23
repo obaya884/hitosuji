@@ -4,6 +4,7 @@ import type { ModeId } from "../mode/mode";
 import type { ProjectId } from "../project/project";
 import type { LogicalDate } from "../shared/logical-date";
 import type { NameError } from "../shared/master-name";
+import type { UrlError } from "../shared/url";
 
 export type RoutineId = number;
 
@@ -19,6 +20,8 @@ export type Routine = Readonly<{
   projectId: ProjectId | null;
   /** 属するバンドル（F-119）。1ルーチン＝最大1バンドル。未所属は null */
   bundleId: BundleId | null;
+  /** 参照先 URL（F-125）。展開した生成タスクへ写す。規則は `domain/shared/url.ts` */
+  url: string | null;
   recurrenceType: RecurrenceType;
   /** weekly のビットマスク（bit0=月 … bit6=日） */
   weekdays: number | null;
@@ -47,6 +50,7 @@ export type RoutineScheduleError =
 export type RoutineError =
   | NameError
   | RoutineScheduleError
+  | UrlError
   | "invalid_estimate"
   | "invalid_start_date"
   | "invalid_end_date"

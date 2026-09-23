@@ -65,6 +65,14 @@ describe("applyOptimisticAction の即時反映（N-01 / 00_共通 §4）", () =
     expect(find(applied, 11)).toEqual({ ...NOT_STARTED, comment: "元データ探しに手間取った" });
   });
 
+  it("url は URL だけを差し替え、null で消える（O-18 / F-125）", () => {
+    const written = apply({ type: "url", id: 11, url: "https://example.com/doc" });
+    expect(find(written, 11)).toEqual({ ...NOT_STARTED, url: "https://example.com/doc" });
+
+    const cleared = applyOptimisticAction(written, { type: "url", id: 11, url: null });
+    expect(find(cleared, 11)).toEqual({ ...NOT_STARTED, url: null });
+  });
+
   it("comment に null を渡すとコメントが消える（空で確定＝未設定へ戻す）", () => {
     // 既定のタスクはコメントを持たないので、一度書いてから消す（消えたことを実際に見るため）
     const written = apply({ type: "comment", id: 11, comment: "書いてあった" });
@@ -216,6 +224,7 @@ describe("optimisticTask（サーバ確定前の仮タスク）", () => {
       startedAt: null,
       endedAt: null,
       comment: null,
+      url: null,
       highlighted: false,
       routineId: null,
       splitParentId: null,

@@ -37,5 +37,6 @@ export function actionMocks() {
     updateTaskCommentAction: vi.fn(),
     updateTaskEstimateAction: vi.fn(),
     updateTaskPunchAction: vi.fn(),
+    updateTaskUrlAction: vi.fn(),
   };
 }

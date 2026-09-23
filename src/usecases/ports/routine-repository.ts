@@ -17,6 +17,8 @@ export type RoutineTaskSeed = Readonly<{
   projectId: ProjectId | null;
   /** 属するバンドル（F-119）。ルーチンの bundleId をそのまま写す */
   bundleId: BundleId | null;
+  /** 参照先 URL（F-125）。ルーチンの url をそのまま写す（データモデル定義書 §4.1-3） */
+  url: string | null;
   sortOrder: number;
 }>;
 

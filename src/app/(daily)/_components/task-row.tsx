@@ -15,7 +15,8 @@ import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { modeAppearance } from "@/app/_lib/mode-appearance";
 import { disabledPermanent, hoverSurfaceOnAccent, hoverWord, inputBase } from "@/app/_lib/ui";
 import { UNCATEGORIZED_LABEL } from "@/app/_lib/unset";
-import { showsCommentRow, type EditField } from "../_lib/editing";
+import { OpenUrlButton } from "@/app/_components/open-url-button";
+import { showsDetailRow, type EditField } from "../_lib/editing";
 import { toModeOptions, toProjectOptions } from "../_lib/master-options";
 import { rowBackgroundClass } from "../_lib/row-background";
 import { AssignCell } from "./assign-cell";
@@ -161,9 +162,10 @@ export function TaskRow({
       // scrollMarginTop は、上方向へ追従したとき行が固定領域（§2）の裏に隠れないための余白
       style={{ ...colorStyle, scrollMarginTop }}
       onClick={() => onSelect(task.id)}
-      // コメント行を開くときは下線をそちらに譲る（2本の線でタスクとコメントが分断されないように）
+      // 2行目（コメント行 O-16 / URL の入力行 O-18）を開くときは下線をそちらに譲る
+      // （2本の線でタスクと2行目が分断されないように）
       className={`${
-        showsCommentRow(task, isSelected, editing) ? "" : "border-b border-line"
+        showsDetailRow(task, isSelected, editing) ? "" : "border-b border-line"
       } ${rowBackgroundClass(task, isSelected)}`}
     >
       <BundleRoadCell bundle={bundle} />
@@ -254,6 +256,15 @@ export function TaskRow({
               >
                 <CommentIcon className="h-4 w-4" />
               </button>
+            )}
+            {/* URL の印（F-125 / §3.3）。コメント印の右・⭐の左。開くだけで打刻はしない（O-18）。
+                クリックは打刻ボタン・⭐と同じく行の選択もその行へ移す */}
+            {task.url !== null && (
+              <OpenUrlButton
+                url={task.url}
+                onClick={() => onSelect(task.id)}
+                colorClass={`${dimmedClass} opacity-80`}
+              />
             )}
             {/* ハイライトの⭐（F-118 / §3.3）。**出す条件は HighlightStar 側が持つ**
                 （ON の行と選択行にだけ出る） */}
@@ -368,6 +379,11 @@ export function TaskRow({
               // ハイライトの付け外し（O-17 / F-118）。⭐・`H` と同じトグル
               label: task.highlighted ? "ハイライトを外す" : "ハイライト",
               onSelect: () => onToggleHighlight(task),
+            },
+            {
+              // URL の設定・変更・削除（O-18 / F-125）。ショートカットは割り当てない（§6）。状態は問わない
+              label: "URL",
+              onSelect: () => onBeginEdit(task, "url"),
             },
             {
               label: "ルーチン化",

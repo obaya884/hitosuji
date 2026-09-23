@@ -15,6 +15,8 @@ export type DuplicateDraft = Readonly<{
   estimateMinutes: number; // 満額を引き継ぐ
   modeId: ModeId | null;
   projectId: ProjectId | null;
+  /** 参照先 URL（F-125）。名前と同じく「そのタスクの一部」なので別の実施でも写す（データモデル定義書 §3.5） */
+  url: string | null;
 }>;
 
 export function duplicateDraft(original: Task): DuplicateDraft {
@@ -23,5 +25,6 @@ export function duplicateDraft(original: Task): DuplicateDraft {
     estimateMinutes: original.estimateMinutes,
     modeId: original.modeId,
     projectId: original.projectId,
+    url: original.url,
   };
 }

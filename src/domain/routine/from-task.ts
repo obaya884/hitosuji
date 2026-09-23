@@ -90,6 +90,8 @@ export function routineInputFromTask(
     projectId: task.projectId,
     // ルーチン化ではバンドルを選ばせない（画面定義書01 §4.1）。所属させたければ S-02 で編集する
     bundleId: null,
+    // URL は検証済みの保存値をそのまま写す（F-125。名前と同じく引き継ぐ値）
+    url: task.url,
     ...schedule.value,
     // 開始日は翌日（元タスクが今日のリストに既にあるため、当日再展開での重複を防ぐ）
     startDate: addDays(task.taskDate, 1),

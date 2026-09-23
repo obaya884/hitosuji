@@ -24,6 +24,8 @@ export type Task = Readonly<{
   startedAt: Date | null;
   endedAt: Date | null;
   comment: string | null;
+  /** 参照先 URL（F-125）。開始打刻で開く「そのタスクの入口」。規則は `domain/shared/url.ts` */
+  url: string | null;
   highlighted: boolean; // その日注力する印（F-118）。導出できないユーザーの宣言
   routineId: RoutineId | null;
   splitParentId: TaskId | null;

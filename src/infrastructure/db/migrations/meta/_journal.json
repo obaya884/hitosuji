@@ -50,6 +50,13 @@
       "when": 1789951375600,
       "tag": "0006_curvy_the_hunter",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790088762658,
+      "tag": "0007_dashing_mephisto",
+      "breakpoints": true
     }
   ]
 }

@@ -9,6 +9,7 @@ import {
   setTaskProject,
   updateTaskComment,
   updateTaskEstimate,
+  updateTaskUrl,
 } from "@/usecases/task/daily-list-usecases";
 import {
   finishTask,
@@ -122,6 +123,17 @@ export async function updateTaskCommentAction(
   rawComment: string
 ): Promise<DailyActionResult> {
   const result = await updateTaskComment(taskRepo, id, rawComment);
+  if (result.ok) {
+    revalidatePath("/");
+    return { ok: true };
+  } else {
+    return failure(TASK_EDIT_MESSAGES[result.error]);
+  }
+}
+
+/** 参照先 URL の編集（O-18 / F-125）。検証はユースケース（クライアントも同じ規則で先に弾く） */
+export async function updateTaskUrlAction(id: TaskId, rawUrl: string): Promise<DailyActionResult> {
+  const result = await updateTaskUrl(taskRepo, id, rawUrl);
   if (result.ok) {
     revalidatePath("/");
     return { ok: true };

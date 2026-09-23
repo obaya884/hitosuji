@@ -87,6 +87,8 @@ export const routines = pgTable(
     projectId: integer("project_id").references(() => projects.id),
     // 属するバンドル（F-119）。1ルーチン＝最大1バンドル（FK1本で自動的に成立する）
     bundleId: integer("bundle_id").references(() => bundles.id),
+    // 参照先 URL（F-125）。展開時に生成タスクへ写す（§4.1）。検証は domain（http(s) のみ）
+    url: text("url"),
     recurrenceType: text("recurrence_type").notNull(),
     weekdays: integer("weekdays"), // weekly用ビットマスク（bit0=月 … bit6=日）
     weekInterval: integer("week_interval"), // weekly用。n週おき（NULL/1=毎週）
@@ -144,6 +146,8 @@ export const tasks = pgTable(
     startedAt: timestamp("started_at", { withTimezone: true }),
     endedAt: timestamp("ended_at", { withTimezone: true }),
     comment: text("comment"),
+    // 参照先 URL（F-125）。開始打刻で開く入口。生成時に写す契機は §3.5、検証は domain（http(s) のみ）
+    url: text("url"),
     highlighted: boolean("highlighted").notNull().default(false), // その日注力する印（F-118）
     routineId: integer("routine_id").references(() => routines.id, {
       onDelete: "set null", // ルーチン削除は展開済みタスクに影響しない（F-303）

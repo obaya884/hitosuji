@@ -27,6 +27,7 @@ import { currentNotStartedId, keepSelection, selectionAfterRemoval } from "@/dom
 import { taskStatus } from "@/domain/task/status";
 import { editEndedAt, editStartedAt } from "@/domain/task/punch-edit";
 import { normalizeComment, validateEstimateMinutes, validateTaskName } from "@/domain/task/edit";
+import { validateUrl } from "@/domain/shared/url";
 import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
 import type { Task, TaskId, UnstartedCountByDate } from "@/domain/task/task";
 import { PlusIcon } from "@/app/_components/icons";
@@ -62,11 +63,13 @@ import {
   updateTaskCommentAction,
   updateTaskEstimateAction,
   updateTaskPunchAction,
+  updateTaskUrlAction,
   type CreatingActionResult,
   type DailyActionResult,
 } from "../actions";
 import { callAction, handleActionFailure, type ActionFailure } from "@/app/_lib/action-result";
 import { PUNCH_EDIT_MESSAGES, TASK_EDIT_MESSAGES } from "@/app/_lib/error-messages";
+import { openInNewTab } from "@/app/_lib/open-url";
 import type { EditingCell } from "../_lib/editing";
 import {
   applyOptimisticAction,
@@ -309,6 +312,21 @@ export function DailyBoard({
     run(() => updateTaskCommentAction(task.id, raw), { type: "comment", id: task.id, comment });
   }
 
+  /**
+   * 参照先 URL の編集（O-18 / F-125）。見積もりと同じく形式違いはその場で弾く（§8。送らない）。
+   * 空で確定すれば消す。楽観的更新の対象——印がすぐ出る／消える
+   */
+  function setUrl(task: Task, raw: string) {
+    const validated = validateUrl(raw);
+    if (!validated.ok) {
+      setError(TASK_EDIT_MESSAGES[validated.error]);
+      return;
+    }
+    if (validated.value === task.url) return;
+
+    run(() => updateTaskUrlAction(task.id, raw), { type: "url", id: task.id, url: validated.value });
+  }
+
   /** ハイライトの付け外し（O-17 / F-118）。状態・日付を問わないトグル */
   function toggleHighlight(task: Task) {
     const highlighted = !task.highlighted;
@@ -353,14 +371,22 @@ export function DailyBoard({
     if (status === "completed") {
       // F-208 / O-14。発火した（＝確定待ちで抑止されなかった）ときだけ知らせる
       const fired = duplicateAndStart(task, now);
-      if (fired) noticeBundleDeparture({ id: null, bundleId: null }); // 複製は非メンバー扱い
+      if (fired) {
+        noticeBundleDeparture({ id: null, bundleId: null }); // 複製は非メンバー扱い
+        openInNewTab(task.url); // 複製は URL を引き継ぐので、開くのは複製元の値で足りる（F-125 / O-18）
+      }
     } else if (status === "not_started") {
       const fired = run(() => startTaskAction(task.id, now), {
         type: "start",
         id: task.id,
         at: now,
       });
-      if (fired) noticeBundleDeparture({ id: task.id, bundleId: task.bundleId });
+      if (fired) {
+        noticeBundleDeparture({ id: task.id, bundleId: task.bundleId });
+        // 開始と同時に開く（F-125 / O-18）。**サーバ確定を待たない**——ブラウザはユーザー操作の
+        // 同期処理の中でしか新しいタブを開かせない。割り込み相手の URL は開かない（相手は終わる側）
+        openInNewTab(task.url);
+      }
     } else {
       finish(task, now);
     }
@@ -715,6 +741,7 @@ export function DailyBoard({
         onRename={rename}
         onEstimate={setEstimate}
         onComment={setComment}
+        onUrl={setUrl}
         onToggleHighlight={toggleHighlight}
         onPunch={punch}
         isFutureDate={isFutureDate}

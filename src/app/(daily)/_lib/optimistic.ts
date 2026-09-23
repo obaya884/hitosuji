@@ -24,6 +24,7 @@ export type OptimisticAction =
   | Readonly<{ type: "rename"; id: TaskId; name: string }>
   | Readonly<{ type: "estimate"; id: TaskId; minutes: number }>
   | Readonly<{ type: "comment"; id: TaskId; comment: string | null }>
+  | Readonly<{ type: "url"; id: TaskId; url: string | null }>
   | Readonly<{ type: "highlight"; id: TaskId; highlighted: boolean }>
   | Readonly<{ type: "start"; id: TaskId; at: Date }>
   | Readonly<{ type: "unstart"; id: TaskId }>
@@ -56,6 +57,9 @@ export function applyOptimisticAction(
     // コメント（O-16）。null なら未設定へ戻る＝印も消える
     case "comment":
       return withTaskUpdated(groups, action.id, (t) => ({ ...t, comment: action.comment }));
+    // URL（O-18）。null なら未設定へ戻る＝印も消える
+    case "url":
+      return withTaskUpdated(groups, action.id, (t) => ({ ...t, url: action.url }));
     // ハイライトは行の位置に影響しないので、印だけを差し替える（O-17 / F-118）
     case "highlight":
       return withTaskUpdated(groups, action.id, (t) => ({ ...t, highlighted: action.highlighted }));
@@ -128,6 +132,7 @@ export function optimisticTask(date: LogicalDate, name: string, seq: number): Ta
     startedAt: null,
     endedAt: null,
     comment: null,
+    url: null,
     highlighted: false,
     routineId: null,
     splitParentId: null,

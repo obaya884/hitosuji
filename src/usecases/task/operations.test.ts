@@ -65,6 +65,17 @@ describe("suspendTask（F-204: 中断）", () => {
     expect(repo.rows[1].bundleId).toBe(5);
   });
 
+  // F-125: 残りを再開するときにも同じ入口が開く（データモデル定義書 §4.2）
+  it("URL のあるタスクを中断すると、再開タスクも URL を引き継ぐ", async () => {
+    const repo = inMemoryTaskRepository([
+      task({ id: 1, estimateMinutes: 30, startedAt, sortOrder: 1000, url: "https://example.com/a" }),
+    ]);
+
+    expect((await suspendTask(repo, { taskId: 1, now })).ok).toBe(true);
+
+    expect(repo.rows[1].url).toBe("https://example.com/a");
+  });
+
   it("再開タスクの位置は同一セクション内だけで決まる（他セクションの行は挟まない）", async () => {
     const repo = inMemoryTaskRepository([
       task({ id: 1, sectionId: 3, sortOrder: 5000, startedAt }),
@@ -162,6 +173,7 @@ describe("duplicateTask（F-111 / O-11: 複製元の直下へ挿入）", () => {
         routineId: 9,
         highlighted: true,
         bundleId: 5,
+        url: "https://example.com/a",
       }),
     ]);
 
@@ -176,6 +188,7 @@ describe("duplicateTask（F-111 / O-11: 複製元の直下へ挿入）", () => {
         routineId: null,
         highlighted: false,
         bundleId: null,
+        url: "https://example.com/a", // 別の実施でも同じ入口を使う（F-125 / データモデル定義書 §4.6）
       })
     );
   });

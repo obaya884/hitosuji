@@ -2,7 +2,7 @@
 // （§3.4 / §8 / 00_共通 §2.3 / F-102 / F-203）。クイック追加と、インライン編集の検証。
 // **打刻の修正（F-203）もここ**——入力欄の検証という点でタスク名・見積もりと同じ作法のため
 // （打刻そのものは `punch`）。
-import { act, fireEvent, screen } from "@testing-library/react";
+import { act, fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { CALL_FAILED_LOG } from "@/app/_lib/action-result";
@@ -18,6 +18,7 @@ import {
   updateTaskCommentAction,
   updateTaskEstimateAction,
   updateTaskPunchAction,
+  updateTaskUrlAction,
   type CreatingActionResult,
   type DailyActionResult,
 } from "../actions";
@@ -41,7 +42,7 @@ import {
   type DeleteResult,
 } from "../_testing/board-helpers";
 import { router } from "@/app/_testing/next-navigation";
-import { isSelected, rowNames } from "../_testing/table-helpers";
+import { isSelected, rowNames, taskRow } from "../_testing/table-helpers";
 
 vi.mock("../actions", async () => (await import("../_testing/action-mocks")).actionMocks());
 
@@ -398,5 +399,70 @@ describe("DailyBoard のインライン編集の検証（§8 / 00_共通 §2.3�
     expect(call[2]).toBe(formatClock(atJst("09:15")));
     // 規則cは表示日を問わないので、「今日」の判定に使う現在時刻は送らない（§4.2）
     expect(call).toHaveLength(3);
+  });
+});
+
+describe("DailyBoard の URL 編集（O-18 / F-125 / §8）", () => {
+  const URL_INPUT_PLACEHOLDER = "https://";
+
+  /** 行メニューの「URL」で入力欄を開く（ショートカットは割り当てない。§6） */
+  function openUrlEditor(name: string) {
+    fireEvent.click(within(taskRow(name)).getByLabelText("行メニュー"));
+    fireEvent.click(screen.getByRole("button", { name: "URL" }));
+    return screen.getByPlaceholderText(URL_INPUT_PLACEHOLDER);
+  }
+
+  // `type="url"` の入力欄はブラウザが前後の空白を落とすので、空白込みの「生の入力」は UI からは作れない
+  it("http(s) の値で確定すると Server Action へ送り、印が即時に出る（楽観的更新）", () => {
+    renderBoard();
+
+    commit(openUrlEditor(NOT_STARTED), "https://example.com/doc");
+
+    expect(vi.mocked(updateTaskUrlAction)).toHaveBeenCalledWith(11, "https://example.com/doc");
+    expect(within(taskRow(NOT_STARTED)).queryByRole("button", { name: "URL を開く" })).not.toBeNull();
+  });
+
+  it("http(s) で始まらない値は送信せずエラートーストを出し、入力欄は閉じる", () => {
+    renderBoard();
+
+    commit(openUrlEditor(NOT_STARTED), "example.com");
+
+    expect(vi.mocked(updateTaskUrlAction)).not.toHaveBeenCalled();
+    expect(screen.queryByText("URL は http:// または https:// で始まる形式で入力してください")).not.toBeNull();
+    expect(screen.queryByPlaceholderText(URL_INPUT_PLACEHOLDER)).toBeNull();
+  });
+
+  it("既存の URL を空で確定すると消す（null へ戻し、印も消える）", () => {
+    renderBoard([
+      task({ id: 11, name: NOT_STARTED, sectionId: FORENOON.id, url: "https://example.com/old" }),
+    ]);
+
+    const input = openUrlEditor(NOT_STARTED);
+    expect((input as HTMLInputElement).value).toBe("https://example.com/old");
+    commit(input, "");
+
+    expect(vi.mocked(updateTaskUrlAction)).toHaveBeenCalledWith(11, "");
+    expect(within(taskRow(NOT_STARTED)).queryByRole("button", { name: "URL を開く" })).toBeNull();
+  });
+
+  it("変更なしの確定は送信しない（前後の空白だけの差も同値）", () => {
+    renderBoard([
+      task({ id: 11, name: NOT_STARTED, sectionId: FORENOON.id, url: "https://example.com/old" }),
+    ]);
+
+    commit(openUrlEditor(NOT_STARTED), " https://example.com/old ");
+
+    expect(vi.mocked(updateTaskUrlAction)).not.toHaveBeenCalled();
+  });
+
+  it("Esc で取り消すと書きかけは保存されない（00_共通 §2.3）", () => {
+    renderBoard();
+
+    const input = openUrlEditor(NOT_STARTED);
+    fireEvent.change(input, { target: { value: "https://example.com/draft" } });
+    fireEvent.keyDown(input, { key: "Escape" });
+
+    expect(vi.mocked(updateTaskUrlAction)).not.toHaveBeenCalled();
+    expect(screen.queryByPlaceholderText(URL_INPUT_PLACEHOLDER)).toBeNull();
   });
 });

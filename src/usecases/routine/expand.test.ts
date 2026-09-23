@@ -100,7 +100,15 @@ describe("expandRoutinesFor（データモデル定義書 §4.1）", () => {
   // バンドル（データモデル定義書 §4.1 / F-119）も同じ組み立ての1列なので、ここでまとめて見る
   it("ルーチンの属性を生成タスクへ引き継ぐ", async () => {
     const { repo, expanded } = recordingRoutineRepo([
-      routine({ id: 1, name: "朝食", estimateMinutes: 25, modeId: 7, projectId: 8, bundleId: 5 }),
+      routine({
+        id: 1,
+        name: "朝食",
+        estimateMinutes: 25,
+        modeId: 7,
+        projectId: 8,
+        bundleId: 5,
+        url: "https://example.com/breakfast",
+      }),
     ]);
 
     await expandRoutinesFor(
@@ -117,6 +125,7 @@ describe("expandRoutinesFor（データモデル定義書 §4.1）", () => {
         modeId: 7,
         projectId: 8,
         bundleId: 5,
+        url: "https://example.com/breakfast", // F-125 / §4.1-3
       })
     );
   });

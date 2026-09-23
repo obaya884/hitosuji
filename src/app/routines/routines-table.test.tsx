@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { deferredAction } from "@/app/_testing/actions";
 import { hasClass, rgbOf } from "@/app/_testing/dom";
+import { NEW_TAB_ARGS, spyOnWindowOpen } from "@/app/_testing/window-open";
 import { click, clickWithoutServer } from "@/app/_testing/interactions";
 import type { Bundle } from "@/domain/bundle/bundle";
 import type { Mode } from "@/domain/mode/mode";
@@ -329,6 +330,24 @@ describe("RoutinesTable（画面定義書02 §3: 一覧の列と表記）", () =
     });
 
     expect(cell(container, 0, COL.scheduledStart).textContent).toBe("06:30");
+  });
+
+  // F-125 / 画面定義書02 §3: URL のあるルーチンだけ名前の右にリンクの印。列は増やさない
+  describe("URL の印", () => {
+    it("URL のある行だけに出し、クリックで新しいタブに開く", () => {
+      const open = spyOnWindowOpen();
+      const { container } = renderTable([
+        routine({ id: 1, url: "https://example.com/a" }),
+        routine({ id: 2, url: null }),
+      ]);
+
+      expect(within(cell(container, 1, COL.name)).queryByRole("button", { name: "URL を開く" })).toBeNull();
+      fireEvent.click(
+        within(cell(container, 0, COL.name)).getByRole("button", { name: "URL を開く" })
+      );
+
+      expect(open).toHaveBeenCalledWith("https://example.com/a", ...NEW_TAB_ARGS);
+    });
   });
 
   it("モード色を名前の文字色に反映する（S-01 と同じ表現）", () => {

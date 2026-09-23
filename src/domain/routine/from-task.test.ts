@@ -67,6 +67,7 @@ describe("routineInputFromTask（画面定義書01 §4.1: 引き継ぐ値・開�
         modeId: 2,
         projectId: 3,
         bundleId: null,
+        url: null,
         recurrenceType: "daily",
         weekdays: null,
         weekInterval: null,
@@ -76,6 +77,12 @@ describe("routineInputFromTask（画面定義書01 §4.1: 引き継ぐ値・開�
         endDate: null,
       },
     });
+  });
+
+  it("URL を引き継ぐ（F-125 / データモデル定義書 §3.5）", () => {
+    const t = task({ id: 1, estimateMinutes: 20, url: "https://example.com/daily" });
+    const result = routineInputFromTask(t, choice);
+    expect(result.ok && result.value.url).toBe("https://example.com/daily");
   });
 
   it("routine_id・split_parent_id・コメントは RoutineInput に含まれない", () => {

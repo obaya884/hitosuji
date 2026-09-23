@@ -65,6 +65,7 @@ type Handlers = Pick<
   | "onRename"
   | "onEstimate"
   | "onComment"
+  | "onUrl"
   | "onPunch"
   | "onEditPunch"
   | "onAssign"
@@ -81,6 +82,7 @@ function renderList(overrides: Overrides) {
     onRename: vi.fn(),
     onEstimate: vi.fn(),
     onComment: vi.fn(),
+    onUrl: vi.fn(),
     onPunch: vi.fn(),
     onEditPunch: vi.fn(),
     onAssign: vi.fn(),
@@ -844,5 +846,93 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
       const road = within(commentRow).getByTestId("bundle-road");
       expect(road.style.backgroundColor).toBe(bundleColorOf("朝の立上げ"));
     });
+  });
+});
+
+describe("URL の入力行（画面定義書01 O-18 / F-125）", () => {
+  const WITH_URL = task({ id: 1, name: "朝食", url: "https://example.com/a" });
+
+  it("URL があっても選択しただけでは行が増えない（表示のための行は持たない）", () => {
+    renderList({ selectedId: 1, groups: [morning([WITH_URL])] });
+
+    // 見出し1 ＋ タスク1行だけ
+    expect(document.querySelectorAll("tbody tr")).toHaveLength(2);
+  });
+
+  it("編集中だけ行の下に入力欄を開き、既存の値を埋め、確定で生の入力を渡す", () => {
+    const { onUrl, onEndEdit } = renderList({
+      editing: { taskId: 1, field: "url" },
+      groups: [morning([WITH_URL])],
+    });
+
+    const input = screen.getByPlaceholderText("https://");
+    expect(input).toHaveProperty("value", "https://example.com/a");
+
+    fireEvent.change(input, { target: { value: "https://example.com/b" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(onUrl).toHaveBeenCalledWith(WITH_URL, "https://example.com/b");
+    expect(onEndEdit).toHaveBeenCalled();
+  });
+
+  it("Esc は確定せず編集を閉じる（00_共通 §2.3）", () => {
+    const { onUrl, onEndEdit } = renderList({
+      editing: { taskId: 1, field: "url" },
+      groups: [morning([WITH_URL])],
+    });
+
+    fireEvent.keyDown(screen.getByPlaceholderText("https://"), { key: "Escape" });
+
+    expect(onUrl).not.toHaveBeenCalled();
+    expect(onEndEdit).toHaveBeenCalled();
+  });
+
+  it("フォーカスが外れたら確定する（00_共通 §2.3）", () => {
+    const { onUrl, onEndEdit } = renderList({
+      editing: { taskId: 1, field: "url" },
+      groups: [morning([WITH_URL])],
+    });
+
+    const input = screen.getByPlaceholderText("https://");
+    fireEvent.change(input, { target: { value: "https://example.com/c" } });
+    fireEvent.blur(input);
+
+    expect(onUrl).toHaveBeenCalledWith(WITH_URL, "https://example.com/c");
+    expect(onEndEdit).toHaveBeenCalled();
+  });
+
+  // 2段で1件のタスク（§3.3）。コメント行と同じく、開く行は下線を2段目へ譲る
+  it("入力行を開く行は下線を入力行へ譲る（2本の線で分断しない）", () => {
+    renderList({ editing: { taskId: 1, field: "url" }, groups: [morning([WITH_URL])] });
+
+    const opener = taskRow("朝食");
+    const urlRow = screen.getByPlaceholderText("https://").closest("tr") as HTMLElement;
+    expect(hasClass(opener, "border-b")).toBe(false);
+    expect(hasClass(urlRow, "border-b")).toBe(true);
+  });
+
+  it("コメント行の下に入力行が続くときは、コメント行も下線を譲り最後の行だけが持つ", () => {
+    const withBoth = task({ id: 1, name: "朝食", comment: "パンが切れていた", url: "https://example.com/a" });
+    renderList({
+      selectedId: 1,
+      editing: { taskId: 1, field: "url" },
+      groups: [morning([withBoth])],
+    });
+
+    const commentRow = screen.getByText("パンが切れていた").closest("tr") as HTMLElement;
+    const urlRow = screen.getByPlaceholderText("https://").closest("tr") as HTMLElement;
+    expect(hasClass(taskRow("朝食"), "border-b")).toBe(false);
+    expect(hasClass(commentRow, "border-b")).toBe(false);
+    expect(hasClass(urlRow, "border-b")).toBe(true);
+  });
+
+  it("入力行にもモード色を乗せる（2段で1件なので面色を割らない。§3.3）", () => {
+    renderList({
+      editing: { taskId: 1, field: "url" },
+      groups: [morning([task({ id: 1, name: "朝食", modeId: 1, url: "https://example.com/a" })])],
+    });
+
+    const urlRow = screen.getByPlaceholderText("https://").closest("tr") as HTMLElement;
+    expect(urlRow.style.color).toBe(colorOf("仕事"));
   });
 });

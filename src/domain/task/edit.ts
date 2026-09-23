@@ -1,7 +1,9 @@
 // タスクのインライン編集の検証（画面定義書01 §3.3 / §8）
 import { err, ok, type Result } from "../shared/result";
+import type { UrlError } from "../shared/url";
 
-export type TaskEditError = "name_required" | "invalid_estimate";
+/** URL の検証（F-125 / O-18）は `domain/shared/url.ts` の `validateUrl` が担う（ルーチンと共通） */
+export type TaskEditError = "name_required" | "invalid_estimate" | UrlError;
 
 /** タスク名は空にできない（画面定義書01 §8: 空・空白のみは確定不可） */
 export function validateTaskName(raw: string): Result<string, TaskEditError> {

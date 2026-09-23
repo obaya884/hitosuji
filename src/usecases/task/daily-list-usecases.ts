@@ -11,6 +11,7 @@ import { byDayStartOrder, dayStartTimeOf, type Section } from "@/domain/section/
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import { sortByName } from "@/domain/shared/name-order";
 import { err, ok, type Result } from "@/domain/shared/result";
+import { validateUrl } from "@/domain/shared/url";
 import { groupTasksBySection, type DailyGroup } from "@/domain/task/daily-list";
 import { appendSortOrder } from "@/domain/task/sort-order";
 import {
@@ -161,6 +162,22 @@ export async function updateTaskComment(
 ): Promise<Result<TaskId, TaskEditUsecaseError>> {
   if ((await repo.findById(id)) === null) return err("task_not_found");
   await repo.updateComment(id, normalizeComment(rawComment));
+  return ok(id);
+}
+
+/**
+ * 参照先 URL の編集（F-125 / 画面定義書01 O-18）。見積もりと同じく入力検証を持つ——
+ * http(s) 以外は保存せず失敗を返し、空は未設定（null）に戻す（`domain/shared/url.ts`）
+ */
+export async function updateTaskUrl(
+  repo: TaskRepository,
+  id: TaskId,
+  rawUrl: string
+): Promise<Result<TaskId, TaskEditUsecaseError>> {
+  const validated = validateUrl(rawUrl);
+  if (!validated.ok) return validated;
+  if ((await repo.findById(id)) === null) return err("task_not_found");
+  await repo.updateUrl(id, validated.value);
   return ok(id);
 }
 

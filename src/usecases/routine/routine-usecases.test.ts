@@ -25,6 +25,7 @@ function input(over: Partial<RoutineInput> = {}): RoutineInput {
     modeId: null,
     projectId: null,
     bundleId: null,
+    url: "",
     recurrenceType: "daily",
     weekdays: null,
     weekInterval: null,

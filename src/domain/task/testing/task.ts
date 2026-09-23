@@ -24,6 +24,7 @@ export function task(over: Partial<Task> & { id: number }): Task {
     startedAt: null,
     endedAt: null,
     comment: null,
+    url: null,
     highlighted: false,
     routineId: null,
     splitParentId: null,
