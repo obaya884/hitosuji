@@ -10,6 +10,7 @@ function input(over: Partial<RoutineInput> = {}): RoutineInput {
     modeId: null,
     projectId: null,
     bundleId: null,
+    url: "",
     recurrenceType: "daily",
     weekdays: null,
     weekInterval: 1,
@@ -87,6 +88,34 @@ describe("validateRoutineInput（画面定義書02 §4: 必須項目）", () => 
   it("バンドルの指定をそのまま保存値へ通す（データモデル定義書 §3.4）", () => {
     const r = validateRoutineInput(input({ bundleId: 7 }));
     expect(r.ok && r.value.bundleId).toBe(7);
+  });
+
+  // F-125: URL の規則はタスク側（データモデル定義書 §3.5）と共通
+  it("URL は http(s) で始まる値を前後の空白を落として通す", () => {
+    const r = validateRoutineInput(input({ url: " https://example.com/a " }));
+    expect(r.ok && r.value.url).toBe("https://example.com/a");
+  });
+
+  it("URL は空・空白のみなら未設定（null）として通す", () => {
+    expect(validateRoutineInput(input({ url: "" })).ok).toBe(true);
+    const r = validateRoutineInput(input({ url: "  " }));
+    expect(r.ok && r.value.url).toBe(null);
+  });
+
+  it("URL が http(s) で始まらなければエラー（項目順で見積もりの後・予定の前）", () => {
+    expect(validateRoutineInput(input({ url: "example.com" }))).toEqual({
+      ok: false,
+      error: "invalid_url",
+    });
+    // 見積もりと URL が両方不正なら、フォームで先に来る見積もりのエラーを返す
+    expect(validateRoutineInput(input({ estimateMinutes: 0, url: "example.com" }))).toEqual({
+      ok: false,
+      error: "invalid_estimate",
+    });
+    // URL と開始想定時刻が両方不正なら URL（名前・分類の次に置く項目）のエラーを返す
+    expect(
+      validateRoutineInput(input({ url: "example.com", scheduledStartTime: "99:99" }))
+    ).toEqual({ ok: false, error: "invalid_url" });
   });
 });
 

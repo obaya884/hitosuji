@@ -5,6 +5,7 @@ import type { ProjectId } from "../project/project";
 import { isValidLogicalDate, type LogicalDate } from "../shared/logical-date";
 import { validateName } from "../shared/master-name";
 import { err, ok, type Result } from "../shared/result";
+import { validateUrl } from "../shared/url";
 import { isValidStartTime, normalizeStartTime } from "../section/section";
 import {
   ALL_WEEKDAYS,
@@ -32,6 +33,8 @@ export type RoutineInput = RoutineScheduleInput &
     projectId: ProjectId | null;
     /** 属するバンドル（F-119）。**検証しない**——存在しない id は FK が弾き、画面はセレクトの候補しか出さない */
     bundleId: BundleId | null;
+    /** 参照先 URL の生入力（F-125）。空は未設定。規則は `domain/shared/url.ts` */
+    url: string;
     startDate: string;
     endDate: string | null;
   }>;
@@ -56,6 +59,7 @@ export type ValidRoutineInput = ValidRoutineSchedule &
     modeId: ModeId | null;
     projectId: ProjectId | null;
     bundleId: BundleId | null;
+    url: string | null;
     startDate: LogicalDate;
     endDate: LogicalDate | null;
   }>;
@@ -89,7 +93,10 @@ export function validateRoutineInput(
   }
 
   // 検証はフォームの項目順（画面定義書02 §4）に沿う。複数が不正なとき、先に直すべき欄の
-  // エラーから出す（表示は1件ずつ。画面定義書01 §4.1）
+  // エラーから出す（表示は1件ずつ。画面定義書01 §4.1）。URL は名前・分類の次に置く項目
+  const url = validateUrl(input.url);
+  if (!url.ok) return url;
+
   const schedule = validateRoutineSchedule(input);
   if (!schedule.ok) return schedule;
 
@@ -106,6 +113,7 @@ export function validateRoutineInput(
     modeId: input.modeId,
     projectId: input.projectId,
     bundleId: input.bundleId,
+    url: url.value,
     ...schedule.value,
     startDate: input.startDate,
     endDate,

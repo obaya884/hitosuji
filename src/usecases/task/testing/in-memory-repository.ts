@@ -80,6 +80,7 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
       ...input,
       initialTaskDate: input.taskDate, // 生成時は task_date と同値（F-122 / 本物の born と同じ）
       highlighted: input.highlighted ?? false,
+      url: input.url ?? null, // 省略時 null（手動追加）。複製・再開は draft の値が入る（F-125）
       startedAt,
       endedAt: null,
       comment: null,
@@ -125,6 +126,7 @@ export function inMemoryTaskRepository(initial: readonly Task[] = []): InMemoryT
       patch(id, { estimateMinutes }),
 
     updateComment: async (id: TaskId, comment: string | null) => patch(id, { comment }),
+    updateUrl: async (id: TaskId, url: string | null) => patch(id, { url }),
 
     updateHighlight: async (id: TaskId, highlighted: boolean) => patch(id, { highlighted }),
 

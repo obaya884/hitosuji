@@ -59,7 +59,16 @@ describe("resumeTaskDraft（F-204: 「（再開）」を付けた同属性の再
       highlighted: false,
       splitParentId: 7,
       bundleId: null,
+      url: null,
     });
+  });
+
+  // F-125: 残りを再開するときにも同じ入口が開くよう、URL は元タスクの値を写す（データモデル定義書 §4.2）
+  it("URL を引き継ぐ（データモデル定義書 §4.2）", () => {
+    const original = task({ id: 7, url: "https://example.com/doc", startedAt });
+    expect(resumeTaskDraft(original, new Date("2026-07-26T08:10:00Z")).url).toBe(
+      "https://example.com/doc"
+    );
   });
 
   // F-119: 中断・割り込みで分割された残りはバンドルから抜けない（データモデル定義書 §4.8）

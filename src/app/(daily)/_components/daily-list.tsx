@@ -9,6 +9,7 @@ import { formatProjectedStart, projectedStartTimes, sectionSlacks } from "@/doma
 import type { SectionId } from "@/domain/section/section";
 import type { TaskId } from "@/domain/task/task";
 import { showsCommentRow, type EditingCell } from "../_lib/editing";
+import { UrlRow, type UrlRowProps } from "./url-row";
 import { useElementHeight } from "@/app/_lib/use-element-height";
 import { tableHeadRule, tableHeadText } from "@/app/_lib/ui";
 import { toSectionOptions } from "../_lib/section-options";
@@ -39,8 +40,9 @@ export type DailyListProps = Pick<
   | "onBeginEdit"
   | "onEndEdit"
 > &
-  // コメント行（O-16）はタスク行の下に並べるので、その入口もリストが受け取る
+  // コメント行（O-16）・URL の入力行（O-18）はタスク行の下に並べるので、その入口もリストが受け取る
   Pick<CommentRowProps, "onComment"> &
+  Pick<UrlRowProps, "onUrl"> &
   // `currentSectionId` は現在地の探索（§5）と共用するため board が求めて配る
   Pick<GroupHeadingProps, "currentSectionId"> &
   Readonly<{
@@ -71,6 +73,7 @@ export function DailyList({
   onRename,
   onEstimate,
   onComment,
+  onUrl,
   onPunch,
   isFutureDate,
   onEditPunch,
@@ -222,6 +225,17 @@ export function DailyList({
                     isSelected={isSelected}
                     editing={editingField}
                     onComment={onComment}
+                    onEndEdit={onEndEdit}
+                  />
+                )}
+                {/* URL の入力行（O-18）は編集中だけ開く。コメント行と同じ置き場（その下） */}
+                {editingField === "url" && (
+                  <UrlRow
+                    task={task}
+                    bundle={bundle}
+                    mode={mode}
+                    isSelected={isSelected}
+                    onUrl={onUrl}
                     onEndEdit={onEndEdit}
                   />
                 )}

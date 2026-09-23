@@ -38,12 +38,19 @@ export const SAVE_FAILED = "保存に失敗しました";
 const ENDED_BEFORE_STARTED = "終了時刻は開始時刻より後にしてください";
 
 /**
+ * URL の形式違い（F-125）。タスクの URL 編集（画面定義書01 O-18）とルーチンの URL（画面定義書02 §4）が
+ * 同じ規則（`domain/shared/url.ts`）で失敗するので文言も1つ
+ */
+const INVALID_URL = "URL は http:// または https:// で始まる形式で入力してください";
+
+/**
  * タスク名・見積もり・コメント・モード・プロジェクトの編集（画面定義書01 §3.3・O-5・O-16・同書 §8）。
  * クライアントは入力検証の2コードだけを引き、サーバは対象の不在も引く
  */
 export const TASK_EDIT_MESSAGES: Record<TaskEditUsecaseError, string> = {
   name_required: "タスク名を入力してください",
   invalid_estimate: "見積もりは分（0以上の整数）で入力してください",
+  invalid_url: INVALID_URL,
   task_not_found: TASK_NOT_FOUND,
 };
 
@@ -178,6 +185,7 @@ export const ROUTINE_MESSAGES: Record<RoutineUsecaseError, string> = {
   invalid_week_interval: "週間隔は1〜53の整数で入力してください",
   invalid_month_day: "日は1〜31で入力してください",
   invalid_interval_days: "間隔は1日以上で入力してください",
+  invalid_url: INVALID_URL,
   routine_not_found: "ルーチンが見つかりませんでした",
 };
 

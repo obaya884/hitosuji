@@ -19,6 +19,7 @@ const VALID_INPUT: RoutineInput = {
   modeId: null,
   projectId: null,
   bundleId: null,
+  url: "",
   startDate: "2026-07-19",
   endDate: null,
   scheduledStartTime: "09:00",

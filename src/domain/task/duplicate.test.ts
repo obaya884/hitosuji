@@ -14,7 +14,14 @@ describe("duplicateDraft（F-111: 名前・見積もり満額・モード・プ�
       estimateMinutes: 45,
       modeId: 2,
       projectId: 3,
+      url: null,
     });
+  });
+
+  // URL は「そのタスクの入口」で名前と同じくタスクの一部なので、別の実施でも同じ入口を使う（F-125）
+  it("URL を引き継ぐ（データモデル定義書 §3.5 / §4.6）", () => {
+    const original = task({ id: 1, url: "https://example.com/ticket/1" });
+    expect(duplicateDraft(original).url).toBe("https://example.com/ticket/1");
   });
 
   it("実績のある完了タスクでも見積もりは満額を引き継ぐ", () => {

@@ -1,7 +1,7 @@
 // 盤面テスト（`daily-board.*.test.tsx`）のうち**楽観的更新**（N-01 / 00_共通 §4）を持つファイル。
 // 即UIに反映し、失敗したらトースト＋ロールバック。
 // 盤面の描画・保留・共有の操作は `../_testing/board-helpers` が持つ。
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { CALL_FAILED_LOG } from "@/app/_lib/action-result";
@@ -21,6 +21,7 @@ import {
   undoStartAction,
   updateTaskCommentAction,
   updateTaskEstimateAction,
+  updateTaskUrlAction,
   type CreatingActionResult,
   type DailyActionResult,
 } from "../actions";
@@ -386,5 +387,43 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
     // 同名の行が2つ並ぶので位置で見る（複製元ではなく複製へ移っている）
     expect(isSelected(rowAt(2))).toBe(true);
     expect(isSelected(rowAt(0))).toBe(false);
+  });
+});
+
+describe("URL の楽観的更新（O-18 / F-125 / N-01）", () => {
+  const URL_A = "https://example.com/a";
+
+  /** 行メニューの「URL」で入力欄を開く（ショートカットは割り当てない。§6） */
+  function openUrlEditor(name: string) {
+    fireEvent.click(within(taskRow(name)).getByLabelText("行メニュー"));
+    fireEvent.click(screen.getByRole("button", { name: "URL" }));
+    return screen.getByPlaceholderText("https://");
+  }
+
+  it("URL の追加は確定前に印を出し、失敗すると印が消えてエラートーストを出す", async () => {
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(updateTaskUrlAction).mockReturnValue(gate.promise);
+    renderBoard();
+
+    commit(openUrlEditor(NOT_STARTED), URL_A);
+    expect(within(taskRow(NOT_STARTED)).queryByRole("button", { name: "URL を開く" })).not.toBeNull();
+
+    await gate.resolve({ ok: false, message: "保存に失敗しました" });
+
+    expect(within(taskRow(NOT_STARTED)).queryByRole("button", { name: "URL を開く" })).toBeNull();
+    expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
+  });
+
+  it("URL の消去は確定前に印を消し、失敗すると印が戻る", async () => {
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(updateTaskUrlAction).mockReturnValue(gate.promise);
+    renderBoard([task({ id: 11, name: NOT_STARTED, sectionId: FORENOON.id, url: URL_A })]);
+
+    commit(openUrlEditor(NOT_STARTED), "");
+    expect(within(taskRow(NOT_STARTED)).queryByRole("button", { name: "URL を開く" })).toBeNull();
+
+    await gate.resolve({ ok: false, message: "保存に失敗しました" });
+
+    expect(within(taskRow(NOT_STARTED)).queryByRole("button", { name: "URL を開く" })).not.toBeNull();
   });
 });

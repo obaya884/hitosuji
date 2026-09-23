@@ -41,6 +41,7 @@ const DEFAULT_INPUT: RoutineInput = {
   modeId: null,
   projectId: null,
   bundleId: null,
+  url: "",
   recurrenceType: "daily",
   weekdays: null,
   weekInterval: null,
@@ -72,6 +73,7 @@ describe("RoutineForm（画面定義書02 §4: 繰り返し種別に応じて入
       "名前",
       "プロジェクト",
       "モード",
+      "URL", // 列を持たない項目。名前・分類の次に置く（§4）
       "繰り返し",
       "開始日",
       "終了日（任意）",
@@ -169,6 +171,27 @@ describe("RoutineForm（画面定義書02 §4: 繰り返し種別に応じて入
       startDate: "2026-08-01",
       endDate: "2026-09-30",
     });
+  });
+
+  // F-125 / 画面定義書02 §4。検証はユースケース側（domain/shared/url.ts）なので、フォームは生の文字列を送る
+  it("URL は生の入力をそのまま送り、編集では既存の値を埋める", () => {
+    const { onSubmit } = setup(routine({ id: 1, url: "https://example.com/old" }));
+    expect(screen.getByLabelText<HTMLInputElement>("URL").value).toBe("https://example.com/old");
+
+    // `type="url"` の入力欄は前後の空白をブラウザが落とすので、空白の扱いは domain のテストが見る
+    fireEvent.change(screen.getByLabelText("URL"), { target: { value: "https://example.com/new" } });
+    save();
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ url: "https://example.com/new" }));
+  });
+
+  it("新規の URL は空で、そのまま保存すれば空文字を送る（＝未設定）", () => {
+    const { onSubmit } = setup();
+    expect(screen.getByLabelText<HTMLInputElement>("URL").value).toBe("");
+
+    save();
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ url: "" }));
   });
 
   it("毎日は曜日・週間隔・日・間隔の入力を出さない", () => {

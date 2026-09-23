@@ -18,6 +18,7 @@ function input(over: Partial<ValidRoutineInput> = {}): ValidRoutineInput {
     modeId: null,
     projectId: null,
     bundleId: null,
+    url: null,
     recurrenceType: "daily",
     weekdays: null,
     weekInterval: null,
@@ -48,6 +49,7 @@ describe("DrizzleRoutineRepository", () => {
       modeId: null,
       projectId: null,
       bundleId: null,
+      url: null,
       recurrenceType: "daily",
       weekdays: null,
       weekInterval: null,
@@ -75,6 +77,33 @@ describe("DrizzleRoutineRepository", () => {
         ["interval", null, null, null, 3],
       ])
     );
+  });
+
+  // F-125: URL は列として往復し、展開した生成タスクへ写る（データモデル定義書 §3.4 / §4.1-3）
+  it("URL を保存・更新でき、展開シードの url が生成タスクへ入る", async () => {
+    const created = await repo.create(input({ url: "https://example.com/a" }));
+    expect((await repo.findById(created.id))?.url).toBe("https://example.com/a");
+
+    await repo.update(created.id, input({ url: null }));
+    expect((await repo.findById(created.id))?.url).toBeNull();
+
+    await repo.expand([
+      {
+        routineId: created.id,
+        taskDate: "2026-07-19",
+        name: "朝食",
+        estimateMinutes: 20,
+        sectionId: null,
+        modeId: null,
+        projectId: null,
+        bundleId: null,
+        url: "https://example.com/b",
+        sortOrder: 1000,
+      },
+    ]);
+    expect((await taskRepo.listByDate("2026-07-19")).map((t) => t.url)).toEqual([
+      "https://example.com/b",
+    ]);
   });
 
   it("更新・有効切替ができる", async () => {
@@ -112,6 +141,7 @@ describe("DrizzleRoutineRepository", () => {
         modeId: null,
         projectId: null,
         bundleId: null,
+        url: null,
         sortOrder: 1000,
       },
     ]);
@@ -144,6 +174,7 @@ describe("DrizzleRoutineRepository", () => {
         modeId: null,
         projectId: null,
         bundleId: bundle.id,
+        url: null,
         sortOrder: 1000,
       },
     ]);
@@ -168,6 +199,7 @@ describe("expand（F-301: 冪等INSERT）", () => {
       modeId: null,
       projectId: null,
       bundleId: null,
+      url: null,
       sortOrder: 1000,
     };
 
@@ -200,6 +232,7 @@ describe("expand（F-301: 冪等INSERT）", () => {
         modeId: null,
         projectId: null,
         bundleId: bundle.id,
+        url: null,
         sortOrder: 1000,
       },
     ]);
@@ -218,6 +251,7 @@ describe("expand（F-301: 冪等INSERT）", () => {
       modeId: null,
       projectId: null,
       bundleId: null,
+      url: null,
       sortOrder: 1000,
     };
 
@@ -238,6 +272,7 @@ describe("expand（F-301: 冪等INSERT）", () => {
       modeId: null,
       projectId: null,
       bundleId: null,
+      url: null,
     };
 
     await repo.expand([{ ...base, routineId: first.id, name: "朝食", sortOrder: 1000 }]);
@@ -286,6 +321,7 @@ describe("expand（F-301: 冪等INSERT）", () => {
           modeId: null,
           projectId: null,
           bundleId: null,
+          url: null,
           sortOrder: 2000,
         },
       ])
@@ -349,6 +385,7 @@ describe("setBundle（画面定義書05 O-5〜O-6）", () => {
         modeId: null,
         projectId: null,
         bundleId: before.id,
+        url: null,
         sortOrder: 1000,
       },
     ]);

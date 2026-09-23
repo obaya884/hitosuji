@@ -176,6 +176,7 @@ const FAILURE_ARGS: FailureArgs = {
   renameTaskAction: [MISSING_ID, "買い物"],
   updateTaskEstimateAction: [MISSING_ID, "30"],
   updateTaskCommentAction: [MISSING_ID, "メモ"],
+  updateTaskUrlAction: [MISSING_ID, "https://example.com"],
   setTaskHighlightAction: [MISSING_ID, true],
   startTaskAction: [MISSING_ID, NOW],
   undoStartAction: [MISSING_ID, NOW],

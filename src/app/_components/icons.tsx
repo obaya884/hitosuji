@@ -140,3 +140,26 @@ export function StarIcon({ filled, ...props }: IconProps & Readonly<{ filled: bo
     </Svg>
   );
 }
+
+/** 参照先 URL の印（F-125 / 画面定義書01 §3.3）。外へ出る矢印つきの箱（「開く」を表す） */
+export function ExternalLinkIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path
+        d="M6 2.5 H2.5 V11.5 H11.5 V8"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M8 2.5 H11.5 V6 M11.5 2.5 L6.5 7.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}

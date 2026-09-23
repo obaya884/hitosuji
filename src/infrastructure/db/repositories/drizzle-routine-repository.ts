@@ -23,6 +23,7 @@ function toDomain(row: Row): Routine {
     modeId: row.modeId,
     projectId: row.projectId,
     bundleId: row.bundleId,
+    url: row.url,
     recurrenceType: row.recurrenceType as RecurrenceType,
     weekdays: row.weekdays,
     weekInterval: row.weekInterval,

@@ -60,6 +60,7 @@ export async function expandRoutinesFor(
       modeId: routine.modeId,
       projectId: routine.projectId,
       bundleId: routine.bundleId,
+      url: routine.url,
       sortOrder,
     };
   });

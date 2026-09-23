@@ -34,6 +34,7 @@ import {
 const EXPECTED_TASK_EDIT: Record<TaskEditUsecaseError, string> = {
   name_required: "タスク名を入力してください",
   invalid_estimate: "見積もりは分（0以上の整数）で入力してください",
+  invalid_url: "URL は http:// または https:// で始まる形式で入力してください",
   task_not_found: "タスクが見つかりませんでした",
 };
 
@@ -138,6 +139,7 @@ const EXPECTED_ROUTINE: Record<RoutineUsecaseError, string> = {
   invalid_week_interval: "週間隔は1〜53の整数で入力してください",
   invalid_month_day: "日は1〜31で入力してください",
   invalid_interval_days: "間隔は1日以上で入力してください",
+  invalid_url: "URL は http:// または https:// で始まる形式で入力してください",
   routine_not_found: "ルーチンが見つかりませんでした",
 };
 

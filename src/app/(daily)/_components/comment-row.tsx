@@ -7,8 +7,7 @@ import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { modeAppearance } from "@/app/_lib/mode-appearance";
 import { inputBase } from "@/app/_lib/ui";
 import type { EditField } from "../_lib/editing";
-import { rowBackgroundClass } from "../_lib/row-background";
-import { BundleRoadCell } from "./bundle-road-cell";
+import { DetailRow } from "./detail-row";
 
 export type CommentRowProps = Readonly<{
   task: Task;
@@ -36,7 +35,7 @@ export function CommentRow({
   onComment,
   onEndEdit,
 }: CommentRowProps) {
-  const { dimmedClass, colorStyle } = modeAppearance(mode);
+  const { dimmedClass } = modeAppearance(mode);
 
   function commit(input: HTMLTextAreaElement) {
     onComment(task, input.value);
@@ -51,34 +50,29 @@ export function CommentRow({
   });
 
   return (
-    <tr
-      style={colorStyle}
-      // 地色はタスク行と同じ規則で決める（§3.3。2行で1件のタスクなので面色を割らない）
-      className={`border-b border-line ${rowBackgroundClass(task, isSelected)}`}
+    // URL の入力行（O-18）を開いているときはこの下にもう1段続くので、下線をそちらへ譲る
+    <DetailRow
+      task={task}
+      bundle={bundle}
+      mode={mode}
+      isSelected={isSelected}
+      hasFollowingRow={editing === "url"}
     >
-      {/* 選択行の下に開くこの行にも帯を伸ばす（2段で1件のタスクなので面を割らない） */}
-      <BundleRoadCell bundle={bundle} />
-      {/* 打刻ボタン列は空ける。折り返す幅はタスク名列に揃え（§3.3）、右側の列は空セルで埋めて
-          選択行の面色がコメント行でも途切れないようにする */}
-      <td />
-      <td className="pb-2.5">
-        {editing === "comment" ? (
-          <textarea
-            autoFocus
-            defaultValue={task.comment ?? ""}
-            rows={rowsFor(task.comment)}
-            onKeyDown={onKeyDown}
-            onBlur={(e) => commit(e.currentTarget)}
-            placeholder="コメント（Shift+Enter で改行）"
-            className={`w-full resize-y ${inputBase}`}
-          />
-        ) : (
-          // 補助表記なのでセクションの併記（§3.3）と同じ扱い（モード色を乗せて弱める）
-          <p className={`whitespace-pre-wrap text-sub ${dimmedClass} opacity-80`}>{task.comment}</p>
-        )}
-      </td>
-      <td colSpan={6} />
-    </tr>
+      {editing === "comment" ? (
+        <textarea
+          autoFocus
+          defaultValue={task.comment ?? ""}
+          rows={rowsFor(task.comment)}
+          onKeyDown={onKeyDown}
+          onBlur={(e) => commit(e.currentTarget)}
+          placeholder="コメント（Shift+Enter で改行）"
+          className={`w-full resize-y ${inputBase}`}
+        />
+      ) : (
+        // 補助表記なのでセクションの併記（§3.3）と同じ扱い（モード色を乗せて弱める）
+        <p className={`whitespace-pre-wrap text-sub ${dimmedClass} opacity-80`}>{task.comment}</p>
+      )}
+    </DetailRow>
   );
 }
 

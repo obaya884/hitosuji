@@ -37,6 +37,8 @@ export type ResumeTaskDraft = Readonly<{
   highlighted: boolean;
   splitParentId: TaskId;
   bundleId: BundleId | null;
+  /** 参照先 URL（F-125）。残りを再開するときにも同じ入口が開くよう元タスクの値を写す（データモデル定義書 §4.2） */
+  url: string | null;
 }>;
 
 /**
@@ -56,6 +58,7 @@ export function resumeTaskDraft(original: Task, endedAt: Date): ResumeTaskDraft 
     highlighted: original.highlighted,
     splitParentId: original.id,
     bundleId: original.bundleId,
+    url: original.url,
   };
 }
 

@@ -12,6 +12,7 @@ import {
   type RoutineSortKey,
 } from "@/domain/routine/order";
 import { ColorSwatch } from "@/app/_components/color-picker";
+import { OpenUrlButton } from "@/app/_components/open-url-button";
 import { sectionAt, type Section } from "@/domain/section/section";
 import { EMPTY_ROUTINES } from "@/app/_lib/notice-messages";
 import { useServerAction } from "@/app/_lib/use-server-action";
@@ -235,6 +236,10 @@ export function RoutinesTable({
                   }
                 >
                   {routine.name}
+                  {/* URL のあるルーチンだけ名前の右に印（F-125 / 画面定義書02 §3）。開くだけで列は増やさない */}
+                  {routine.url !== null && (
+                    <OpenUrlButton url={routine.url} colorClass="text-ink-muted" />
+                  )}
                 </td>
                 <td className="py-2 text-sub">{project?.name ?? <UnsetMark />}</td>
                 <td className="py-2 text-sub">{mode?.name ?? <UnsetMark />}</td>

@@ -16,6 +16,7 @@ import {
   setTaskProject,
   updateTaskComment,
   updateTaskEstimate,
+  updateTaskUrl,
 } from "./daily-list-usecases";
 
 const emptySectionRepo: SectionRepository = {
@@ -147,6 +148,29 @@ describe("updateTaskComment（F-206 / O-16: コメントの編集）", () => {
     const repo = inMemoryRepo([task({ id: 1 })]);
     expect((await updateTaskComment(repo, 1, " 元データ探しに手間取った ")).ok).toBe(true);
     expect(repo.rows[0].comment).toBe("元データ探しに手間取った");
+  });
+});
+
+describe("updateTaskUrl（F-125 / O-18: URL の編集）", () => {
+  it("http(s) で始まる値を前後の空白を除いて保存する", async () => {
+    const repo = inMemoryRepo([task({ id: 1 })]);
+    expect((await updateTaskUrl(repo, 1, " https://example.com/doc ")).ok).toBe(true);
+    expect(repo.rows[0].url).toBe("https://example.com/doc");
+  });
+
+  it("空で確定すれば URL を消す（null）", async () => {
+    const repo = inMemoryRepo([task({ id: 1, url: "https://example.com/doc" })]);
+    expect((await updateTaskUrl(repo, 1, "  ")).ok).toBe(true);
+    expect(repo.rows[0].url).toBeNull();
+  });
+
+  it("http(s) で始まらない値は保存せずエラーを返す（画面定義書01 §8）", async () => {
+    const repo = inMemoryRepo([task({ id: 1, url: "https://example.com/doc" })]);
+    expect(await updateTaskUrl(repo, 1, "javascript:alert(1)")).toEqual({
+      ok: false,
+      error: "invalid_url",
+    });
+    expect(repo.rows[0].url).toBe("https://example.com/doc");
   });
 });
 
@@ -347,6 +371,7 @@ describe("存在しないタスクの編集（00_共通 §4.1 / 画面定義書0
     ["renameTask", () => renameTask(repoWithoutTarget(), MISSING, "新名")],
     ["updateTaskEstimate", () => updateTaskEstimate(repoWithoutTarget(), MISSING, "45")],
     ["updateTaskComment", () => updateTaskComment(repoWithoutTarget(), MISSING, "書き換え")],
+    ["updateTaskUrl", () => updateTaskUrl(repoWithoutTarget(), MISSING, "https://example.com")],
     ["setTaskHighlight", () => setTaskHighlight(repoWithoutTarget(), MISSING, true)],
     ["setTaskMode", () => setTaskMode(repoWithoutTarget(), MISSING, 7)],
     ["setTaskProject", () => setTaskProject(repoWithoutTarget(), MISSING, 8)],

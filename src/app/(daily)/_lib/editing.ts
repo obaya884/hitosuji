@@ -12,6 +12,8 @@ export type EditField =
   | "section"
   /** コメント（O-16 / F-206）。行の下に開く複数行の入力欄 */
   | "comment"
+  /** 参照先 URL（O-18 / F-125）。行の下に開く1行の入力欄（編集中だけ。表示のための行は持たない） */
+  | "url"
   /** ルーチン化ポップオーバー（O-12 / §4.1） */
   | "routinize";
 
@@ -29,4 +31,17 @@ export function showsCommentRow(
   editing: EditField | null
 ): boolean {
   return editing === "comment" || (isSelected && task.comment !== null);
+}
+
+/**
+ * タスク行の下に2行目（コメント行 O-16 か URL の入力行 O-18）が続くか。
+ * 2段で1件のタスクなので、続くときはタスク行の下線をそちらへ譲る（`task-row.tsx`）。
+ * URL の行は編集中だけ開く（表示のための行は持たない。画面定義書01 O-18）
+ */
+export function showsDetailRow(
+  task: Task,
+  isSelected: boolean,
+  editing: EditField | null
+): boolean {
+  return editing === "url" || showsCommentRow(task, isSelected, editing);
 }

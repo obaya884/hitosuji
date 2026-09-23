@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { faintTextOf, hasClass } from "@/app/_testing/dom";
+import { NEW_TAB_ARGS, spyOnWindowOpen } from "@/app/_testing/window-open";
 import { disabledPermanent } from "@/app/_lib/ui";
 import { atJst } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
@@ -383,9 +384,16 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
 
     // §3.3 の並び順は `タスク名 → セクション併記 → コメント印 → ⭐`。
     // セクション併記はボタンなので、名前セルのボタン列だけで全順序が押さえられる
-    it("⭐はセクション併記・コメント印の後ろ（＝コメント印の右）に並べる", () => {
+    it("⭐はセクション併記・コメント印・URL 印の後ろ（＝URL 印の右）に並べる", () => {
       renderRow({
-        task: task({ id: 1, name: "提案書", highlighted: true, comment: "メモ", sectionId: 100 }),
+        task: task({
+          id: 1,
+          name: "提案書",
+          highlighted: true,
+          comment: "メモ",
+          url: "https://example.com/a", // F-125: コメント印の右・⭐の左
+          sectionId: 100,
+        }),
       });
 
       const marks = within(cellsOf(taskRow("提案書")).name).getAllByRole("button");
@@ -393,6 +401,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
         "提案書",
         "朝",
         "コメントを編集",
+        "URL を開く",
         "ハイライト",
       ]);
     });
@@ -1080,5 +1089,42 @@ describe("バンドルの道（画面定義書01 §3.3 / F-119）", () => {
     const { road, punch } = cellsOf(taskRow("ラジオ体操"));
     expect(within(road).queryByTestId("bundle-road")).not.toBeNull();
     expect(within(punch).queryByLabelText("開始")).not.toBeNull();
+  });
+});
+
+describe("URL の印（画面定義書01 §3.3 / O-18 / F-125）", () => {
+  it("URL の無い行には印を出さない", () => {
+    renderRow({ task: task({ id: 1, name: "提案書", url: null }) });
+
+    expect(screen.queryByRole("button", { name: "URL を開く" })).toBeNull();
+  });
+
+  it("タスク名の編集中は印を隠す（入力欄に場所を譲る）", () => {
+    renderRow({ task: task({ id: 1, name: "提案書", url: "https://example.com/a" }), editing: "name" });
+
+    expect(screen.queryByRole("button", { name: "URL を開く" })).toBeNull();
+  });
+
+  it("印のクリックは新しいタブに開くだけで、打刻せず、行の選択はその行へ移す", () => {
+    const open = spyOnWindowOpen();
+    const { onPunch, onSelect } = renderRow({
+      task: task({ id: 1, name: "提案書", url: "https://example.com/a" }),
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "URL を開く" }));
+
+    expect(open).toHaveBeenCalledWith("https://example.com/a", ...NEW_TAB_ARGS);
+    expect(onPunch).not.toHaveBeenCalled();
+    expect(onSelect).toHaveBeenCalledWith(1);
+  });
+
+  it("行メニューの「URL」で URL の編集を開く（状態は問わない）", () => {
+    const target = task({ id: 1, name: "提案書", startedAt: atJst("09:00"), endedAt: atJst("09:30") });
+    const { onBeginEdit } = renderRow({ task: target });
+
+    fireEvent.click(screen.getByLabelText("行メニュー"));
+    fireEvent.click(screen.getByRole("button", { name: "URL" }));
+
+    expect(onBeginEdit).toHaveBeenCalledWith(target, "url");
   });
 });

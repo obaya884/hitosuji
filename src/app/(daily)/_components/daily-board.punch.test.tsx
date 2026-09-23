@@ -8,6 +8,7 @@ import { CALL_FAILED_LOG } from "@/app/_lib/action-result";
 import { formatClock, formatDuration } from "@/app/_lib/format";
 import { expectConsoleError } from "@/app/_testing/console-guard";
 import { click } from "@/app/_testing/interactions";
+import { NEW_TAB_ARGS, spyOnWindowOpen } from "@/app/_testing/window-open";
 import { atJst, NEXT_TEST_DATE, TEST_DATE } from "@/domain/shared/testing/clock";
 import type { Task } from "@/domain/task/task";
 import { task } from "@/domain/task/testing/task";
@@ -713,5 +714,181 @@ describe("DailyBoard の未来日（§7: 今日以前の表示日でだけ打刻
     press("Enter");
 
     expect(vi.mocked(startTaskAction)).toHaveBeenCalledWith(11, NOW);
+  });
+});
+
+describe("DailyBoard の開始時に URL を開く（F-125 / O-2 / O-14 / O-18）", () => {
+  const URL_A = "https://example.com/a";
+  const URL_B = "https://example.com/b";
+
+  /** URL 付きの未実行1件 */
+  const withUrl = () => [task({ id: 11, name: NOT_STARTED, sectionId: FORENOON.id, url: URL_A })];
+
+  it("未実行タスクの開始（打刻ボタン）で URL を新しいタブに開く", async () => {
+    const open = spyOnWindowOpen();
+    renderBoard(withUrl());
+
+    await click(within(taskRow(NOT_STARTED)).getByLabelText("開始"));
+
+    expect(open).toHaveBeenCalledWith(URL_A, ...NEW_TAB_ARGS);
+    expect(vi.mocked(startTaskAction)).toHaveBeenCalledWith(11, NOW);
+  });
+
+  it("Enter での開始でも開く（キーとボタンは等価）", async () => {
+    const open = spyOnWindowOpen();
+    renderBoard(withUrl());
+    selectRow(NOT_STARTED);
+
+    await pressAndSettle("Enter");
+
+    expect(open).toHaveBeenCalledWith(URL_A, ...NEW_TAB_ARGS);
+  });
+
+  // ブラウザはユーザー操作の同期処理の中でしか新しいタブを開かせない（O-18）。応答を待ってから
+  // 開く作りに変わると、本物のブラウザではポップアップとして黙って抑止される
+  it("打刻の永続化を待たずに開く（Server Action の解決前に window.open が呼ばれている）", async () => {
+    const open = spyOnWindowOpen();
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(startTaskAction).mockReturnValue(gate.promise);
+    renderBoard(withUrl());
+
+    await click(within(taskRow(NOT_STARTED)).getByLabelText("開始"));
+
+    expect(open).toHaveBeenCalledWith(URL_A, ...NEW_TAB_ARGS);
+    await gate.resolve(OK);
+  });
+
+  it("打刻が拒まれても開いたタブは閉じない（開くかどうかは結果に依らない）", async () => {
+    const open = spyOnWindowOpen();
+    vi.mocked(startTaskAction).mockResolvedValue({ ok: false, message: "保存に失敗しました" });
+    renderBoard(withUrl());
+
+    await click(within(taskRow(NOT_STARTED)).getByLabelText("開始"));
+
+    expect(open).toHaveBeenCalledWith(URL_A, ...NEW_TAB_ARGS);
+    expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
+  });
+
+  it("確定を待つ操作の応答中は複製して開始が抑止されるので開かない（00_共通 §4.2）", async () => {
+    const open = spyOnWindowOpen();
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(suspendTaskAction).mockReturnValue(gate.promise);
+    renderBoard([
+      task({ id: 12, name: RUNNING, sectionId: FORENOON.id, startedAt: atJst("10:00") }),
+      task({
+        id: 13,
+        name: COMPLETED,
+        sectionId: AFTERNOON.id,
+        startedAt: atJst("09:00"),
+        endedAt: atJst("09:20"),
+        url: URL_A,
+      }),
+    ]);
+    selectRow(RUNNING);
+    await pressAndSettle("i"); // 中断（確定を待つ操作）を保留にしておく
+    selectRow(COMPLETED);
+
+    await pressAndSettle("Enter");
+
+    expect(vi.mocked(duplicateAndStartTaskAction)).not.toHaveBeenCalled();
+    expect(open).not.toHaveBeenCalled();
+    await gate.resolve(OK);
+  });
+
+  it("URL の無いタスクの開始では何も開かない", async () => {
+    const open = spyOnWindowOpen();
+    renderBoard();
+
+    await click(within(taskRow(NOT_STARTED)).getByLabelText("開始"));
+
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it("終了打刻・中断・開始の取り消しでは開かない（開く契機は開始だけ）", async () => {
+    const open = spyOnWindowOpen();
+    renderBoard([
+      task({ id: 12, name: RUNNING, sectionId: FORENOON.id, startedAt: atJst("10:00"), url: URL_A }),
+    ]);
+    selectRow(RUNNING);
+
+    await pressAndSettle("i"); // 中断（O-4）
+    await pressAndSettle("u"); // 開始の取り消し（O-13）
+    await click(within(taskRow(RUNNING)).getByLabelText("終了")); // 終了（O-3）
+
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  // 完了の取り消し（O-15）は行が未実行へ戻る操作で、開始ではない
+  it("完了の取り消し（U）では開かない", async () => {
+    const open = spyOnWindowOpen();
+    renderBoard([
+      task({
+        id: 13,
+        name: COMPLETED,
+        sectionId: AFTERNOON.id,
+        startedAt: atJst("09:00"),
+        endedAt: atJst("09:20"),
+        url: URL_A,
+      }),
+    ]);
+    selectRow(COMPLETED);
+
+    await pressAndSettle("u");
+
+    expect(vi.mocked(undoCompleteAction)).toHaveBeenCalled();
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it("割り込み開始では開始するタスクの URL だけを開く（相手の URL は開かない）", async () => {
+    const open = spyOnWindowOpen();
+    renderBoard([
+      task({ id: 11, name: NOT_STARTED, sectionId: FORENOON.id, sortOrder: 1000, url: URL_A }),
+      task({
+        id: 12,
+        name: RUNNING,
+        sectionId: FORENOON.id,
+        sortOrder: 2000,
+        startedAt: atJst("10:00"),
+        url: URL_B,
+      }),
+    ]);
+
+    await click(within(taskRow(NOT_STARTED)).getByLabelText("開始"));
+
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(open).toHaveBeenCalledWith(URL_A, ...NEW_TAB_ARGS);
+  });
+
+  it("完了タスクの Enter（複製して開始）でも複製元の URL を開く", async () => {
+    const open = spyOnWindowOpen();
+    renderBoard([
+      task({
+        id: 13,
+        name: COMPLETED,
+        sectionId: AFTERNOON.id,
+        startedAt: atJst("09:00"),
+        endedAt: atJst("09:20"),
+        url: URL_A,
+      }),
+    ]);
+    selectRow(COMPLETED);
+
+    await pressAndSettle("Enter");
+
+    expect(open).toHaveBeenCalledWith(URL_A, ...NEW_TAB_ARGS);
+    expect(vi.mocked(duplicateAndStartTaskAction)).toHaveBeenCalledWith(13, NOW);
+  });
+
+  it("未来日では Enter で打刻しないので開かない（§7）", async () => {
+    const open = spyOnWindowOpen();
+    renderBoard([task({ id: 11, name: NOT_STARTED, taskDate: NEXT_TEST_DATE, url: URL_A })], {
+      date: NEXT_TEST_DATE,
+    });
+    selectRow(NOT_STARTED);
+
+    await pressAndSettle("Enter");
+
+    expect(open).not.toHaveBeenCalled();
+    expect(vi.mocked(startTaskAction)).not.toHaveBeenCalled();
   });
 });

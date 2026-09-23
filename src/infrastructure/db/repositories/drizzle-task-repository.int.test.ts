@@ -69,6 +69,7 @@ describe("DrizzleTaskRepository.listByDate（画面定義書01 §7: 表示日1�
       endedAt,
       // コメント（F-206）は改行を含みうるので、写像で潰れないことも一緒に見る
       comment: "・パンが切れていた\n・買い足す",
+      url: "https://example.com/bread", // F-125
       highlighted: true, // F-118
       postponedCount: 1,
     });
@@ -88,6 +89,7 @@ describe("DrizzleTaskRepository.listByDate（画面定義書01 §7: 表示日1�
         startedAt,
         endedAt,
         comment: "・パンが切れていた\n・買い足す",
+        url: "https://example.com/bread",
         highlighted: true,
         routineId: null,
         splitParentId: null,
@@ -747,6 +749,7 @@ describe("moveToDate（O-7: 日付移動）", () => {
         sectionId: section.id,
         sortOrder: 1000,
         comment: "明日やる",
+        url: "https://example.com/tomorrow",
         highlighted: true,
         postponedCount: 1,
       })
@@ -774,6 +777,7 @@ describe("moveToDate（O-7: 日付移動）", () => {
         startedAt: null,
         endedAt: null,
         comment: "明日やる",
+        url: "https://example.com/tomorrow", // 動かない（F-125 の値は移動で変わらない）
         highlighted: true,
         routineId: null,
         splitParentId: null,
@@ -1059,6 +1063,31 @@ describe("updateComment（F-206 / O-16: コメントの保存と消去）", () =
   });
 });
 
+describe("updateUrl（F-125 / O-18: URL の保存と消去）", () => {
+  it("保存した値を往復し、null で消せる。create の url も往復する", async () => {
+    const created = await repo.create(
+      {
+        taskDate: "2026-07-19",
+        name: "資料作成",
+        estimateMinutes: 0,
+        sectionId: null,
+        modeId: null,
+        projectId: null,
+        sortOrder: 1000,
+        url: "https://example.com/first",
+      },
+      []
+    );
+    expect(created.url).toBe("https://example.com/first");
+
+    await repo.updateUrl(created.id, "https://example.com/second");
+    expect((await repo.findById(created.id))?.url).toBe("https://example.com/second");
+
+    await repo.updateUrl(created.id, null);
+    expect((await repo.findById(created.id))?.url).toBeNull();
+  });
+});
+
 describe("updateHighlight（F-118 / O-17: ハイライトの付け外し）", () => {
   // 既定値（DEFAULT false）と往復を実DBで見る。既定値はルーチン展開が常に OFF になる根拠でもある
   it("既定は false で、付けて外せる", async () => {
@@ -1120,6 +1149,7 @@ describe("存在しない id への更新・削除（0行で静かに終わる�
     await repo.rename(missing, "新名");
     await repo.updateEstimate(missing, 45);
     await repo.updateComment(missing, "書き換え");
+    await repo.updateUrl(missing, "https://example.com");
     await repo.updateClassification(missing, { modeId: null });
 
     expect(await repo.listByDate("2026-07-19")).toEqual(before);
@@ -1160,6 +1190,7 @@ describe("delete / restore（O-8: 削除と取り消し）", () => {
         startedAt,
         endedAt,
         comment: "続きは明日",
+        url: "https://example.com/restore",
         highlighted: true,
         splitParentId: parent.id,
         postponedCount: 2,
@@ -1187,6 +1218,7 @@ describe("delete / restore（O-8: 削除と取り消し）", () => {
       startedAt,
       endedAt,
       comment: "続きは明日",
+      url: "https://example.com/restore",
       highlighted: true,
       routineId: null,
       splitParentId: parent.id,
@@ -1349,6 +1381,7 @@ describe("create の振り直し（データモデル定義書 §3.5: 中間値�
       startedAt: null,
       endedAt: null,
       comment: null,
+      url: null,
       highlighted: false,
       routineId: null,
       splitParentId: null,

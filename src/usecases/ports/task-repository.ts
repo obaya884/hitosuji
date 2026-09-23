@@ -29,6 +29,8 @@ export type NewTask = Readonly<{
   splitParentId?: TaskId | null;
   /** 属するバンドル（F-119）。再開タスクだけが元タスクの値を引き継ぐ（省略時は null。データモデル定義書 §4.8） */
   bundleId?: BundleId | null;
+  /** 参照先 URL（F-125）。複製・再開が元タスクの値を引き継ぐ（省略時は null。手動追加は持たない） */
+  url?: string | null;
 }>;
 
 /**
@@ -121,6 +123,8 @@ export type TaskRepository = Readonly<{
   updateEstimate(id: TaskId, estimateMinutes: number): Promise<void>;
   /** コメントの更新（F-206）。null で未設定に戻す */
   updateComment(id: TaskId, comment: string | null): Promise<void>;
+  /** 参照先 URL の更新（F-125 / O-18）。検証済みの値を受け、null で未設定に戻す */
+  updateUrl(id: TaskId, url: string | null): Promise<void>;
   /** ハイライトの更新（F-118 / 画面定義書01 O-17） */
   updateHighlight(id: TaskId, highlighted: boolean): Promise<void>;
   start(command: StartCommand): Promise<void>;

@@ -22,6 +22,8 @@ type TaskContentDraft = Readonly<{
   highlighted?: boolean;
   splitParentId?: TaskId | null;
   bundleId?: BundleId | null;
+  /** 参照先 URL（F-125）。複製・再開のどちらの draft も元タスクの値を持つ */
+  url: string | null;
 }>;
 
 /**
@@ -48,5 +50,6 @@ export function newTaskFromDraft(
     highlighted: draft.highlighted ?? false,
     splitParentId: draft.splitParentId ?? null,
     bundleId: draft.bundleId ?? null,
+    url: draft.url,
   };
 }

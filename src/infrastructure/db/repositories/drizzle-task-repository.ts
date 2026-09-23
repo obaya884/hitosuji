@@ -79,6 +79,7 @@ function toDomain(row: Row): Task {
     startedAt: row.startedAt,
     endedAt: row.endedAt,
     comment: row.comment,
+    url: row.url,
     highlighted: row.highlighted,
     routineId: row.routineId,
     splitParentId: row.splitParentId,
@@ -121,6 +122,9 @@ export function createTaskRepository(db: Database = defaultDb): TaskRepository {
 
     async updateComment(id: TaskId, comment: string | null) {
       await db.update(tasks).set({ comment, updatedAt: new Date() }).where(eq(tasks.id, id));
+    },
+    async updateUrl(id: TaskId, url: string | null) {
+      await db.update(tasks).set({ url, updatedAt: new Date() }).where(eq(tasks.id, id));
     },
 
     async updateHighlight(id: TaskId, highlighted: boolean) {

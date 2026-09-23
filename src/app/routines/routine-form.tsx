@@ -72,6 +72,7 @@ export function RoutineForm({
   const [modeId, setModeId] = useState(routine?.modeId ?? null);
   const [projectId, setProjectId] = useState(routine?.projectId ?? null);
   const [bundleId, setBundleId] = useState(routine?.bundleId ?? null);
+  const [url, setUrl] = useState(routine?.url ?? "");
 
   function submit() {
     onSubmit({
@@ -81,6 +82,7 @@ export function RoutineForm({
       modeId,
       projectId,
       bundleId,
+      url, // 検証（http(s) のみ・空は未設定）はユースケース側。生の文字列を送る
       recurrenceType,
       weekdays: recurrenceType === "weekly" ? weekdays : null,
       weekInterval: recurrenceType === "weekly" ? Number(weekInterval) : null,
@@ -142,6 +144,23 @@ export function RoutineForm({
           </label>
         </div>
       </div>
+
+      {/* URL（F-125 / 画面定義書02 §4）。一覧に列を持たない項目なので、名前・分類の次に置く。
+          検証（http(s) のみ・空は未設定）はユースケース側で、失敗はフォームのエラー表示に乗る */}
+      <label className="mt-3 block text-sub">
+        <span className="text-meta text-ink-muted">URL</span>
+        <input
+          type="url"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://"
+          className={`mt-1 w-full ${inputBase}`}
+        />
+      </label>
+      {/* 補足はラベルの外に置く（ラベル名に混ぜない）。週間隔・月日の注記と同じ段 */}
+      <p className="mt-1 text-meta text-ink-muted">
+        任意。展開したタスクの開始打刻で開く（保存後に変えても展開済みのタスクには写らない）
+      </p>
 
       <fieldset className="mt-3">
         <legend className="text-meta text-ink-muted">繰り返し</legend>
