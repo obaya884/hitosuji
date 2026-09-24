@@ -59,8 +59,8 @@ export type DailyListProps = Pick<
     /** バンドルの道（F-119 / §3.3）。bundleId → bundle の Map を board が組み、行ごとの解決はここでする */
     bundleById: ReadonlyMap<BundleId, Bundle>;
     /**
-     * 上部の板（h1・日付ナビ＋サマリ・クイック追加欄）の実測高さ（§2）。
-     * 列見出し行とセクション見出し行をこの直下へ順に積む起点になる
+     * 上部の板（構成は §2）の実測高さ。列見出し行とセクション見出し行をこの直下へ順に積む起点。
+     * **定数で置けない**——板は警告バナー（§8）を最下段に含み、その有無と折り返しで高さが動く
      */
     boardHeight: number;
   }>;

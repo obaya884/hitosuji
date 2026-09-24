@@ -6,6 +6,7 @@ import { act, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { Section } from "@/domain/section/section";
+import { addDays } from "@/domain/shared/logical-date";
 import { atJst, NEXT_TEST_DATE, TEST_DATE } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
 
@@ -27,13 +28,24 @@ vi.mock("../actions", async () => (await import("../_testing/action-mocks")).act
 setupBoard();
 
 /**
- * 上部の板（h1・日付ナビ＋サマリ・クイック追加欄の固定領域。§2）。列見出しとセクション見出しは
- * この高さを起点に積まれるので、高さを動かすテストはこの要素で `ResizeObserver` を引く
+ * 上部の板（§2 の固定領域。h1・日付ナビ＋サマリ・クイック追加欄と、出ていれば §8 の警告バナー）。
+ * 列見出しとセクション見出しはこの高さを起点に積まれるので、高さを動かすテストはこの要素で
+ * `ResizeObserver` を引く。
+ *
+ * **貼り付いていることを前提として確かめる**——板の `div` ごと外して子を持ち上げる変異が起きると
+ * h1 の親は RTL のコンテナ（リストも含む要素）になり、「板の中にある」を見るテストが揃って
+ * 偽の緑になる。固定は §2 の条項そのものなので、ここで1度だけ押さえる
  */
 function stickyBoard(): HTMLElement {
   const board = screen.getByRole("heading", { name: "デイリー" }).parentElement;
   if (board === null) throw new Error("上部の板が見つかりません");
+  if (!board.classList.contains("sticky")) throw new Error("上部の板が固定されていません（§2）");
   return board;
+}
+
+/** クイック追加欄（§3.4）。板の中での前後関係を測る基準に使う */
+function quickAddInput(): HTMLElement {
+  return screen.getByPlaceholderText("タスク名を入力して Enter で追加");
 }
 
 /** 上部の板を観測している ResizeObserver。無ければ計測そのものが配線されていない */
@@ -116,7 +128,16 @@ describe("DailyBoard の固定領域の高さ（§2 / §5: 追従した行が固
   });
 });
 
-describe("DailyBoard の表示日に応じた出し分けと警告（§3.1 / §3.2 / F-209）", () => {
+describe("DailyBoard の表示日に応じた出し分けと警告（§2 / §3.1 / §3.2 / §8 / F-124 / F-209）", () => {
+  /**
+   * 前日から実行中のまま残ったタスク（§8 / F-209）。**前日であることは盤面の関心ではない**——
+   * 放置かどうかの判定はサーバ側で、盤面は渡された値を描くだけ。それでも日付を前日に採るのは、
+   * バナーに出る日付が表示日（`TEST_DATE`）と同じだと**取り違えた変異に気づけない**ため
+   */
+  const PREVIOUS_DATE = addDays(TEST_DATE, -1);
+  const staleRunning = () =>
+    task({ id: 5, name: "読書", taskDate: PREVIOUS_DATE, startedAt: atJst("23:00", PREVIOUS_DATE) });
+
   // 移動先が S-04（/review）になっていないことは href でしか判らない（画面定義書04 §3.1
   // 「S-01 と S-04 の表示日は連動させない」の S-01 側。04 の対は review-board.test.tsx）
   it("日付ナビの移動先は S-01 に閉じる（前日・翌日・今日へ）", () => {
@@ -180,14 +201,7 @@ describe("DailyBoard の表示日に応じた出し分けと警告（§3.1 / §3
   });
 
   it("前日以前の実行中タスクがあれば警告バナーを出す（F-209）", () => {
-    renderBoard(defaultTasks(), {
-      staleRunningTask: task({
-        id: 5,
-        name: "読書",
-        taskDate: "2026-07-25",
-        startedAt: atJst("23:00", "2026-07-25"), // 前日
-      }),
-    });
+    renderBoard(defaultTasks(), { staleRunningTask: staleRunning() });
 
     expect(screen.queryByText("読書")).not.toBeNull();
     expect(screen.queryByRole("link", { name: "該当日を開く" })).not.toBeNull();
@@ -216,12 +230,7 @@ describe("DailyBoard の表示日に応じた出し分けと警告（§3.1 / §3
 
   it("実行中の放置（F-209）と同時に出るときは F-209 を上に置く（§8: 終了打刻の失念の方が急ぐ）", () => {
     renderBoard(defaultTasks(), {
-      staleRunningTask: task({
-        id: 5,
-        name: "読書",
-        taskDate: "2026-07-25",
-        startedAt: atJst("23:00", "2026-07-25"),
-      }),
+      staleRunningTask: staleRunning(),
       staleUnstartedCounts: [{ taskDate: "2026-07-23", count: 2 }],
     });
 
@@ -229,6 +238,41 @@ describe("DailyBoard の表示日に応じた出し分けと警告（§3.1 / §3
     const unstarted = screen.getByRole("link", { name: "2026-07-23(木)" });
     // DOCUMENT_POSITION_FOLLOWING: 比較相手（unstarted）が自分（running）より後にある
     expect(running.compareDocumentPosition(unstarted) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  });
+
+  /**
+   * バナーの置き場（§2 / FB-116）。ここが見るのは**構造**だけ——スクロールしても流れないこと
+   * そのもの（幾何）はブラウザ段（`daily-board.scroll.browser.test.tsx`）が測る。
+   *
+   * **2種別それぞれに置く**——片方だけ板へ入れた状態は、上の「同時に出るときの並び」では
+   * 緑のまま通る。リストが板の外にあることを併せて見るのは、板の `div` ごと外す変異で
+   * 包含が自明に真になる経路を塞ぐため
+   */
+  it("実行中の放置の警告を板の中に置く（§2: 板の外はスクロールで流れる）", () => {
+    renderBoard(defaultTasks(), { staleRunningTask: staleRunning() });
+
+    expect(stickyBoard().contains(screen.getByRole("link", { name: "該当日を開く" }))).toBe(true);
+    expect(stickyBoard().contains(taskRow(RUNNING))).toBe(false);
+  });
+
+  it("未実施の残りの警告も板の中に置く（§2: 板の外はスクロールで流れる）", () => {
+    renderBoard(defaultTasks(), { staleUnstartedCounts: [{ taskDate: "2026-07-23", count: 2 }] });
+
+    expect(stickyBoard().contains(screen.getByRole("link", { name: "2026-07-23(木)" }))).toBe(true);
+    expect(stickyBoard().contains(taskRow(RUNNING))).toBe(false);
+  });
+
+  /**
+   * 板の**最下段**（§2）。板の上端（h1 の上）に出す案は log_01 2026-09-24 で却下している
+   * （警告の有無で h1・日付ナビ・クイック追加欄という毎日使う並びが上下に動くため）が、
+   * 「板の中」だけを見る上の2件はその案へ戻る変異を捕まえられない
+   */
+  it("警告はクイック追加欄より後ろに置く（§2: 板の最下段）", () => {
+    renderBoard(defaultTasks(), { staleRunningTask: staleRunning() });
+
+    const banner = screen.getByRole("link", { name: "該当日を開く" });
+    expect(quickAddInput().compareDocumentPosition(banner) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .not.toBe(0);
   });
 });
 
