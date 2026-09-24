@@ -11,7 +11,8 @@ type Props = Readonly<{ counts: readonly UnstartedCountByDate[] }>;
 /**
  * 前日以前の未実施タスクの警告（F-124 / 画面定義書01 §8）。
  * 日付ごとの件数を古い日から並べ、各日付を該当日へのリンクにする。
- * 片付けはその日のリスト上で行うので、バナー自身は操作を持たない
+ * 片付けはその日のリスト上で行うので、バナー自身は操作を持たない。
+ * 外側余白（`mt-3`）は置き場である板の律動に合わせた既定（§2）
  */
 export function StaleUnstartedBanner({ counts }: Props) {
   return (

@@ -10,7 +10,8 @@ type Props = Readonly<{ task: Task }>;
 
 /**
  * 前日以前の実行中タスクの警告（画面定義書01 §8）。
- * 終了打刻の失念対策として、該当日へのリンクを添えてリスト上部に出す
+ * 終了打刻の失念対策として、該当日へのリンクを添える。
+ * 外側余白（`mt-3`）は置き場である板の律動に合わせた既定（§2）
  */
 export function StaleRunningBanner({ task }: Props) {
   return (

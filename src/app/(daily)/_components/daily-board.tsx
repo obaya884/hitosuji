@@ -128,7 +128,7 @@ export function DailyBoard({
   // datepicker（F-117）の開閉。日付クリックと G（Go to date）の両方から開くため board で持つ
   const [showDatePicker, setShowDatePicker] = useState(false);
   const quickAddRef = useRef<HTMLInputElement>(null);
-  // 上部の板（h1・日付ナビ＋サマリ・クイック追加欄）の高さ。列見出し行とセクション見出し行を
+  // 上部の板（構成は §2。警告バナーの有無で高さが変わる）の高さ。列見出し行とセクション見出し行を
   // この直下へ順に積むので（§2）、リストが `top` と追従の停止位置を組むために実測して配る
   const [boardRef, boardHeight] = useElementHeight<HTMLDivElement>();
   const router = useRouter();
@@ -645,7 +645,7 @@ export function DailyBoard({
   return (
     <>
       {/*
-        画面上部（h1・日付ナビ＋サマリ・クイック追加欄）は画面上端に固定する（§2 / FB-22）。
+        画面上部（h1・日付ナビ＋サマリ・クイック追加欄・警告バナー）は画面上端に固定する（§2 / FB-22）。
         本文の余白（main の py-6）の中で固定すると隙間からリストが覗くので、
         負のマージンで余白ぶんまで背景を広げてから内側で戻す
       */}
@@ -695,6 +695,14 @@ export function DailyBoard({
             className={`w-full ${inputBase}`}
           />
         </div>
+
+        {/*
+          放置タスクの警告は板の最下段に置く（§2）——**板の外へ出すとスクロールで流れ**、
+          放置を思い出させるというバナーの目的を失う。高さのぶんは `boardHeight` の実測が吸収する。
+          2つ同時に出るときは終了打刻の失念（F-209）を上に置く（§8）
+        */}
+        {staleRunningTask !== null && <StaleRunningBanner task={staleRunningTask} />}
+        {staleUnstartedCounts.length > 0 && <StaleUnstartedBanner counts={staleUnstartedCounts} />}
       </div>
 
       {showHelp && <ShortcutHelp onClose={() => setShowHelp(false)} />}
@@ -728,10 +736,6 @@ export function DailyBoard({
           {slowPending && <PendingIndicator />}
         </div>
       )}
-
-      {/* 2つ同時に出るときは終了打刻の失念（F-209）を上に置く（§8） */}
-      {staleRunningTask !== null && <StaleRunningBanner task={staleRunningTask} />}
-      {staleUnstartedCounts.length > 0 && <StaleUnstartedBanner counts={staleUnstartedCounts} />}
 
       <DailyList
         groups={optimisticGroups}

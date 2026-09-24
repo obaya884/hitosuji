@@ -3,15 +3,17 @@
 //
 // jsdom 段は `scrollIntoView` を呼んだかどうか（`daily-list.test.tsx`）と、`scroll-margin-top` に
 // 何 px を配ったか（同）までしか主張できない——レイアウトが無いので「行が見出しの裏に隠れたか」は
-// 誰も確かめていなかった。ここが持つのは次の2つだけ:
+// 誰も確かめていなかった。ここが持つのは次の3つだけ:
 //   1. 積み上げた3段の高さ（板＋列見出し＋セクション見出し）が**実際の固定領域と一致する**こと
 //   2. `scrollIntoView({ block: "nearest" })` ＋ `scroll-margin-top` の停止位置が、
 //      上方向へ戻したときに**その固定領域を避ける**こと
+//   3. 板が警告バナー（§8 / FB-116）を含んで高くなっても 1 が保たれ、バナーが画面内に残ること
 import { screen } from "@testing-library/react";
 import { userEvent } from "vitest/browser";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { UNCATEGORIZED_LABEL } from "@/app/_lib/unset";
+import { atJst } from "@/domain/shared/testing/clock";
 import type { Task } from "@/domain/task/task";
 import { task } from "@/domain/task/testing/task";
 
@@ -75,8 +77,8 @@ function selectedRow(): HTMLElement {
 }
 
 /**
- * 上部の板（§2 の1段目。h1・日付ナビ＋サマリ・クイック追加欄）。jsdom 段（`daily-board.display`）
- * と同じく画面見出しから親を引く
+ * 上部の板（§2 の1段目。構成は §2。出ていれば警告バナーも最下段に含む）。
+ * jsdom 段（`daily-board.display`）と同じく画面見出しから親を引く
  */
 function stickyBoard(): HTMLElement {
   const board = screen.getByRole("heading", { name: "デイリー" }).parentElement;
@@ -115,9 +117,23 @@ function sectionHeadTop(): number {
  * `scroll-margin-top` はそれに3段目を足したもの）。分かれて届くようになると 3段目だけ遅れて
  * **赤フレーク**になる——嘘の緑ではないので、落ちたらここを疑う
  */
-async function renderAndSettle() {
-  renderBoard(manyTasks());
+async function renderAndSettle(over: Parameters<typeof renderBoard>[1] = {}) {
+  renderBoard(manyTasks(), over);
   await expect.poll(sectionHeadTop).toBeGreaterThan(0);
+}
+
+/**
+ * 警告バナー（§8）に出す放置タスク。**種別は1つで足りる**——どちらが入っても板が高くなる
+ * という幾何の仕組みは同じで、種別ごとの置き場は jsdom 段（`daily-board.display`）が持つ。
+ * 盤面は渡された値を描くだけなので、**日付が実際に前日である必要はない**（判定はサーバ側）
+ */
+const STALE_RUNNING = task({ id: ROW_COUNT + 1, name: "放置された読書", startedAt: atJst("23:00") });
+
+/** バナー本体（§8）。リンクを持つ要素の親＝バナーの箱 */
+function staleRunningBanner(): HTMLElement {
+  const banner = screen.getByRole("link", { name: "該当日を開く" }).parentElement;
+  if (banner === null) throw new Error("警告バナーが見つかりません");
+  return banner;
 }
 
 /** 最終行まで下る（`moveSelection` は端で止まるので、行数ぶん押せば必ず最後に着く。§5） */
@@ -155,6 +171,37 @@ describe("選択行のスクロール追従（画面定義書01 §5: 固定見�
 
     // 板＋列見出し＋セクション見出しの積み上げ（＝§5 の停止位置）と、貼り付いた見出しの実際の下端。
     // ここがずれたまま追従だけ合わせても、行は見出しの裏に入る
+    expect(fixedAreaBottom()).toBeCloseTo(scrollMarginTop(), 1);
+  });
+
+  /**
+   * バナーは板の一部（§2 / FB-116）。**板が高くなっても3段の継ぎ目が保たれるか**をここで測る——
+   * jsdom はレイアウトを持たないので、板の実測がバナーぶんを含んでいるかは誰も確かめられない
+   * （`absolute` / `h-0` / 板への固定高や `overflow-hidden` はどれも実測をバナーぶん取りこぼし、
+   * 列見出しがバナーの上に貼り付いて**バナーが隠れる** ＝ FB-116 の症状の再発）。
+   * バナーの無い盤面は上の2件が見ているので、ここは**出ている盤面1つ**で足りる
+   */
+  it("警告バナーが出ても板ごと貼り付き、バナーは画面内に残る（§2 / FB-116）", async () => {
+    await renderAndSettle({ staleRunningTask: STALE_RUNNING });
+    window.scrollTo(0, SCROLLED);
+
+    const board = stickyBoard().getBoundingClientRect();
+    const banner = staleRunningBanner().getBoundingClientRect();
+    const columnHead = columnHeadCell().getBoundingClientRect();
+
+    // 前提: スクロールしており、板は貼り付いている（貼り付いていなければ以下は何も試していない）
+    expect(window.scrollY).toBe(SCROLLED);
+    expect(board.top).toBeCloseTo(0, 1);
+
+    // バナーが画面内に残っている（FB-116 の症状の直訳）
+    expect(banner.top).toBeGreaterThanOrEqual(-EPSILON);
+    expect(banner.bottom).toBeLessThanOrEqual(window.innerHeight + EPSILON);
+    expect(banner.height).toBeGreaterThan(0); // 高さを潰して「内側にある」だけ満たす経路を塞ぐ
+
+    // 列見出しはバナーの上ではなく板の下端へ貼り付く（＝実測がバナーぶんを含んでいる）
+    expect(columnHead.top).toBeCloseTo(board.bottom, 1);
+    expect(columnHead.top).toBeGreaterThanOrEqual(banner.bottom - EPSILON);
+    // 高くなった板のぶんも §5 の停止位置に反映されている（FB-77 の退行）
     expect(fixedAreaBottom()).toBeCloseTo(scrollMarginTop(), 1);
   });
 
