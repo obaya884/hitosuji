@@ -126,7 +126,7 @@ function ExecutionLog({
         <table className="mt-2 w-full">
           <thead>
             <tr className={tableHeadRow}>
-              <th className="w-32 py-2 font-normal">時刻</th>
+              <th className="w-32 py-2 font-normal">開始-終了</th>
               <th className="py-2 font-normal">タスク名</th>
               <th className="w-32 py-2 font-normal">プロジェクト</th>
               <th className="w-28 py-2 font-normal">モード</th>

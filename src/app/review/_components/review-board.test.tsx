@@ -132,14 +132,14 @@ describe("ReviewBoard（画面定義書04 §3.3: 実績ログ。F-501）", () =>
     expect(sectionOf("実績ログ").querySelector("table")).toBeNull();
   });
 
-  it("列は 時刻/タスク名/プロジェクト/モード/見積/実績/差異 の順に並べる", () => {
+  it("列は 開始-終了/タスク名/プロジェクト/モード/見積/実績/差異 の順に並べる", () => {
     renderBoard({ log: [done({ id: 1, startedAt: atJst("06:30"), endedAt: atJst("06:48") })] });
 
     const labels = [...sectionOf("実績ログ").querySelectorAll("thead th")].map(
       (th) => th.textContent
     );
     expect(labels).toEqual([
-      "時刻",
+      "開始-終了",
       "タスク名",
       "プロジェクト",
       "モード",
