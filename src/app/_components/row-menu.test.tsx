@@ -15,8 +15,17 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// 先送り（O-7）・打刻済み削除の確認（O-8）の入口。閉じ方は 00_共通 §2.1
-describe("RowMenu（画面定義書01 O-7/O-8: 行メニューから先送り・削除を実行する）", () => {
+// 先送り（O-7）・打刻済み削除の確認（O-8）の入口。S-02 の操作列もこの部品を使う（画面定義書02 §3）。
+// 閉じ方は 00_共通 §2.1
+describe("RowMenu（画面定義書01 O-7/O-8・画面定義書02 §3: 行メニューから操作を選ぶ）", () => {
+  it("`useFlipUp` が返す位置クラスをパネルへ配線する（00_共通 §2.1）", () => {
+    openMenu([{ label: "複製", onSelect: vi.fn() }]);
+
+    // 下向きか上向きかの**判定**はブラウザ段の持ち場（jsdom では幾何が全部 0 なので常に下向き）。
+    // ここで見るのは戻り値がパネルの className に届いているかだけ（`select-popover.test.tsx` と同じ）
+    expect(screen.getByText("複製").parentElement!.classList.contains("mt-1")).toBe(true);
+  });
+
   it("既定では閉じていて、ボタンで開閉する", () => {
     const items = [{ label: "複製", onSelect: vi.fn() }];
     render(<RowMenu items={items} />);
@@ -80,6 +89,18 @@ describe("RowMenu（画面定義書01 O-7/O-8: 行メニューから先送り・
 
     expect(hasClass(screen.getByText("ルーチン化"), disabledPermanent)).toBe(true);
     expect(hasClass(screen.getByText("複製"), disabledPermanent)).toBe(false);
+  });
+
+  // `busy` は一時的な無効なので、開かせないだけで薄くはしない（00_共通 §2.5。理由は実装側 jsdoc）
+  it("保存中（busy）は開けず、薄くもしない（00_共通 §2.5）", () => {
+    render(<RowMenu items={[{ label: "複製", onSelect: vi.fn() }]} busy />);
+
+    const trigger = screen.getByLabelText<HTMLButtonElement>("行メニュー");
+    expect(trigger.disabled).toBe(true);
+    expect(hasClass(trigger, disabledPermanent)).toBe(false);
+
+    fireEvent.click(trigger);
+    expect(screen.queryByText("複製")).toBeNull();
   });
 
   it("確認付きの項目は承認したときだけ実行する（O-8: 打刻済みの削除）", () => {

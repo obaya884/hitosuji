@@ -95,6 +95,9 @@ export async function loadBrowserCheckFixtures(
           name: "確認用ルーチン（朝）",
           scheduledStartTime: "07:00",
           modeId: life,
+          // 見積もりは1分以上が必須（画面定義書02 §5）。ファクトリ既定の 0（未設定）のままだと
+          // 一覧に `--:--` が出て**実データではありえない見え方**になる（狭い幅で桁が折り返す）
+          estimateMinutes: 20,
         }),
         routine({
           id: 2,

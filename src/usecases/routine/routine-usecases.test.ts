@@ -7,6 +7,7 @@ import { task } from "@/domain/task/testing/task";
 import { inMemoryTaskRepository } from "@/usecases/task/testing/in-memory-repository";
 import {
   addRoutineToBundle,
+  copyRoutineToDate,
   createRoutine,
   createRoutineFromTask,
   deleteRoutine,
@@ -299,5 +300,130 @@ describe("removeRoutineFromBundle（画面定義書05 O-6: メンバーを外す
   it("対象が無ければ not_found", async () => {
     const routines = inMemoryRoutineRepository([]);
     expect(await removeRoutineFromBundle(routines, 99)).toEqual({ ok: false, error: "not_found" });
+  });
+});
+
+describe("copyRoutineToDate（F-307 / 画面定義書02 O-6: 今日へコピー）", () => {
+  const TODAY = "2026-09-25";
+
+  it("内容を写した未実行タスクを作る（要件定義書 §5.3）", async () => {
+    const routines = inMemoryRoutineRepository([
+      routine({
+        id: 1,
+        name: "朝食",
+        estimateMinutes: 20,
+        modeId: 3,
+        projectId: 4,
+        bundleId: 5,
+        url: "https://example.com/a",
+      }),
+    ]);
+    const tasks = inMemoryTaskRepository();
+
+    const result = await copyRoutineToDate({ routines, tasks }, 1, TODAY);
+
+    expect(result.ok).toBe(true);
+    expect(tasks.rows).toHaveLength(1);
+    // 写す内容は展開（データモデル定義書 §4.1-3）と同じ6つ。**戻り値も作った行**であることを見る
+    expect(result.ok && result.value).toMatchObject({
+      taskDate: TODAY,
+      name: "朝食",
+      estimateMinutes: 20,
+      modeId: 3,
+      projectId: 4,
+      bundleId: 5,
+      url: "https://example.com/a",
+    });
+    expect(result.ok && result.value.id).toBe(tasks.rows[0].id);
+  });
+
+  // `routine_id` を持てないことは `NewTask` の型が保証しているので、ここで測る値は
+  // **展開の経路を一切通らないこと**（`expand` を使う実装へ倒すと紐付いた行ができる）
+  it("展開の経路を通らず、ルーチンに紐付かない行を作る（データモデル定義書 §3.5）", async () => {
+    const routines = inMemoryRoutineRepository([routine({ id: 1 })]);
+    const tasks = inMemoryTaskRepository();
+
+    await copyRoutineToDate({ routines, tasks }, 1, TODAY);
+
+    expect(routines.expanded).toEqual([]);
+    expect(tasks.rows[0].routineId).toBe(null);
+  });
+
+  it("開始想定時刻を使わず未分類の末尾へ置く（画面定義書02 O-6）", async () => {
+    const routines = inMemoryRoutineRepository([
+      routine({ id: 1, scheduledStartTime: "06:30" }), // 朝のセクションに当たる時刻
+    ]);
+    const tasks = inMemoryTaskRepository([
+      task({ id: 10, taskDate: TODAY, sectionId: null, sortOrder: 2000 }),
+      task({ id: 11, taskDate: TODAY, sectionId: 2, sortOrder: 9000 }), // 別セクションは数えない
+    ]);
+
+    const result = await copyRoutineToDate({ routines, tasks }, 1, TODAY);
+
+    expect(result.ok && result.value.sectionId).toBe(null);
+    expect(result.ok && result.value.sortOrder).toBe(3000);
+    // 末尾追加なので既存行の採番は振り直さない（`create` の renumber は空）
+    expect(tasks.rows.slice(0, 2).map((t) => t.sortOrder)).toEqual([2000, 9000]);
+  });
+
+  it("未分類が0件の日でも末尾採番の先頭値に置く（セクション付きの行は数えない）", async () => {
+    const routines = inMemoryRoutineRepository([routine({ id: 1 })]);
+    const tasks = inMemoryTaskRepository([
+      task({ id: 10, taskDate: TODAY, sectionId: 2, sortOrder: 9000 }),
+    ]);
+
+    const result = await copyRoutineToDate({ routines, tasks }, 1, TODAY);
+
+    expect(result.ok && result.value.sortOrder).toBe(1000);
+  });
+
+  // O-6 が並べる「いつでも押せる」3つ（無効化中・周期の対象外・スキップ済み）のうち2つ。
+  // どれも**展開の判定（`routinesToExpand`）に触れない**ことの帰結で、
+  // ここへガードを足す変更が入ったら落ちる
+  it.each([
+    ["無効化中", routine({ id: 1, isActive: false })],
+    ["有効期間が切れている", routine({ id: 1, endDate: "2026-01-02" })],
+    // TODAY（2026-09-25）は金曜なので、月曜だけの週次は対象日でない
+    ["周期の対象日でない", routine({ id: 1, recurrenceType: "weekly", weekdays: 0b0000001, weekInterval: 1 })],
+  ])("%s ルーチンもコピーできる（画面定義書02 O-6）", async (_label, target) => {
+    const routines = inMemoryRoutineRepository([target]);
+    const tasks = inMemoryTaskRepository();
+
+    expect((await copyRoutineToDate({ routines, tasks }, 1, TODAY)).ok).toBe(true);
+    expect(tasks.rows).toHaveLength(1);
+  });
+
+  it("その日がスキップ済みでもコピーでき、スキップ記録は動かさない（要件定義書 §5.3）", async () => {
+    const routines = inMemoryRoutineRepository([routine({ id: 1 })]);
+    routines.skips.push({ routineId: 1, taskDate: TODAY });
+    const tasks = inMemoryTaskRepository();
+
+    expect((await copyRoutineToDate({ routines, tasks }, 1, TODAY)).ok).toBe(true);
+    expect(routines.skips).toEqual([{ routineId: 1, taskDate: TODAY }]);
+    expect(tasks.skips).toEqual([]);
+  });
+
+  // 測れているのは「その日に展開済みの行があるかを見ずに作る」ところ。部分一意索引
+  // （`uq_tasks_routine_date`）に当たらないこと自体は、`routine_id` が NULL の行が索引の
+  // 対象外なので DB でも測れない（`drizzle-routine-repository.int.test.ts` の同旨のコメント）
+  it("その日のぶんが展開済みでも、それを見ずに2件目を作る", async () => {
+    const routines = inMemoryRoutineRepository([routine({ id: 1, name: "朝食" })]);
+    const tasks = inMemoryTaskRepository([
+      task({ id: 10, taskDate: TODAY, name: "朝食", routineId: 1, sectionId: null }),
+    ]);
+
+    expect((await copyRoutineToDate({ routines, tasks }, 1, TODAY)).ok).toBe(true);
+    expect(tasks.rows.map((r) => r.name)).toEqual(["朝食", "朝食"]);
+  });
+
+  it("対象が無ければ routine_not_found", async () => {
+    const routines = inMemoryRoutineRepository([]);
+    const tasks = inMemoryTaskRepository();
+
+    expect(await copyRoutineToDate({ routines, tasks }, 99, TODAY)).toEqual({
+      ok: false,
+      error: "routine_not_found",
+    });
+    expect(tasks.rows).toEqual([]);
   });
 });
