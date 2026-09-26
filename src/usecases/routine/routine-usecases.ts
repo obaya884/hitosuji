@@ -9,9 +9,13 @@ import {
   type RoutineFromTaskError,
 } from "@/domain/routine/from-task";
 import { validateRoutineInput, type RoutineInput } from "@/domain/routine/input";
+import { routineTaskContent } from "@/domain/routine/task-content";
+import type { LogicalDate } from "@/domain/shared/logical-date";
 import { compareByName } from "@/domain/shared/name-order";
 import { err, ok, type Result } from "@/domain/shared/result";
-import type { TaskId } from "@/domain/task/task";
+import { appendSortOrder } from "@/domain/task/sort-order";
+import type { Task, TaskId } from "@/domain/task/task";
+import { newTaskFromDraft } from "@/usecases/task/from-draft";
 
 export type RoutineUsecaseError = RoutineError | "routine_not_found";
 
@@ -86,6 +90,36 @@ export async function createRoutineFromTask(
   if (!input.ok) return input;
 
   return ok(await deps.routines.create(input.value));
+}
+
+/**
+ * 今日へコピー（F-307 / 画面定義書02 O-6）。
+ * ルーチンの内容を写した未実行タスクを1件作る。**展開（データモデル定義書 §4.1）とは独立した経路**で、
+ * `routine_id` を持たせず（`NewTask` が持たないので構造的に NULL）、スキップ記録
+ * （`routine_skips`）も読まない。**無効化中・周期の対象外・スキップ済みの日でも作れる**のは、
+ * そのどの判定にも触れていないことの帰結（要件定義書 §5.3）。
+ * 置き場は**開始想定時刻を使わず未分類の末尾**（臨時の1件を時間帯の枠に入れない。画面定義書02 O-6）
+ */
+export async function copyRoutineToDate(
+  deps: Readonly<{ routines: RoutineRepository; tasks: TaskRepository }>,
+  id: RoutineId,
+  date: LogicalDate
+): Promise<Result<Task, RoutineUsecaseError>> {
+  const target = await deps.routines.findById(id);
+  if (target === null) return err("routine_not_found");
+
+  const sameDay = await deps.tasks.listByDate(date);
+  const unclassified = sameDay.filter((t) => t.sectionId === null).map((t) => t.sortOrder);
+
+  const created = await deps.tasks.create(
+    newTaskFromDraft(routineTaskContent(target), {
+      taskDate: date,
+      sectionId: null,
+      sortOrder: appendSortOrder(unclassified),
+    }),
+    [] // 末尾追加なので振り直しは伴わない
+  );
+  return ok(created);
 }
 
 /** 削除（O-4）。展開済みタスクは routine_id を NULL にして残る（ログ保全） */

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { deferredAction } from "@/app/_testing/actions";
 import { hasClass, rgbOf } from "@/app/_testing/dom";
+import { otherRouterCalls, router } from "@/app/_testing/next-navigation";
 import { NEW_TAB_ARGS, spyOnWindowOpen } from "@/app/_testing/window-open";
 import { click, clickWithoutServer } from "@/app/_testing/interactions";
 import type { Bundle } from "@/domain/bundle/bundle";
@@ -15,6 +16,7 @@ import { COLOR_PRESETS } from "@/domain/shared/color-presets";
 import { routine } from "@/domain/routine/testing/routine";
 import { BUNDLES, MODES, PROJECTS, SECTIONS, TODAY } from "./_testing/fixtures";
 import {
+  copyRoutineToTodayAction,
   createRoutineAction,
   deleteRoutineAction,
   setRoutineActiveAction,
@@ -31,6 +33,7 @@ vi.mock("./actions", () => ({
   createRoutineAction: vi.fn(),
   updateRoutineAction: vi.fn(),
   setRoutineActiveAction: vi.fn(),
+  copyRoutineToTodayAction: vi.fn(),
   deleteRoutineAction: vi.fn(),
 }));
 
@@ -79,6 +82,30 @@ function names(container: HTMLElement): (string | null)[] {
   return rows(container).map((row) => row.cells[COL.name].textContent);
 }
 
+/**
+ * 行メニュー（`⋯`）を開く。操作の入口はこれ1つ（§3）なので、
+ * 「今日へコピー」「編集」「削除」を押すテストは必ずここを通る。
+ * 行を絞るときは `within(rows(container)[i])` を渡す
+ */
+function openRowMenu(scope: Pick<typeof screen, "getByLabelText"> = screen): void {
+  clickWithoutServer(scope.getByLabelText("行メニュー"));
+}
+
+/**
+ * 行メニューを開いて **Server Action に届く項目**（今日へコピー O-6・削除 O-4）を選ぶ。
+ * デイリー側の同名ヘルパー（`(daily)/_components/daily-board.row-operations.test.tsx`）と同じ形
+ */
+async function chooseRowMenu(label: string): Promise<void> {
+  openRowMenu();
+  await click(screen.getByText(label));
+}
+
+/** 行メニューから「編集」を選んでフォームを開く（O-2。Server Action には届かない） */
+function openEditForm(): void {
+  openRowMenu();
+  clickWithoutServer(screen.getByText("編集"));
+}
+
 function header(label: string): HTMLTableCellElement {
   return screen.getByRole<HTMLTableCellElement>("columnheader", { name: label });
 }
@@ -107,6 +134,7 @@ beforeEach(() => {
   vi.mocked(createRoutineAction).mockResolvedValue({ ok: true });
   vi.mocked(updateRoutineAction).mockResolvedValue({ ok: true });
   vi.mocked(setRoutineActiveAction).mockResolvedValue({ ok: true });
+  vi.mocked(copyRoutineToTodayAction).mockResolvedValue({ ok: true });
   vi.mocked(deleteRoutineAction).mockResolvedValue({ ok: true });
   vi.spyOn(window, "confirm").mockReturnValue(true);
 });
@@ -620,29 +648,29 @@ describe("RoutinesTable（画面定義書02 §5: 有効/無効・削除・編集
 
   // この画面は保存完了を待って反映する（§1 で N-01 対象外）ので、00_共通 §2.3「保存中」の
   // 適用対象。「編集」も止める＝古い値を抱えたフォームを開けない（FB-63）
-  it("保存中は有効トグル・削除・編集のいずれも押せない（00_共通 §2.3「保存中」）", async () => {
+  it("保存中は有効トグルも行メニューも押せない（00_共通 §2.3「保存中」）", async () => {
     const pending = deferredAction();
     vi.mocked(setRoutineActiveAction).mockReturnValue(pending.promise);
     const { container } = renderTable([routine({ id: 7 })]);
     const checkbox = cell(container, 0, COL.active).querySelector<HTMLInputElement>("input")!;
-    const remove = screen.getByText<HTMLButtonElement>("削除");
-    const edit = screen.getByText<HTMLButtonElement>("編集");
+    const menu = screen.getByLabelText<HTMLButtonElement>("行メニュー");
 
     await click(checkbox);
     expect(checkbox.disabled).toBe(true);
-    expect(remove.disabled).toBe(true);
-    expect(edit.disabled).toBe(true);
+    expect(menu.disabled).toBe(true);
 
-    // 送信中に押しても編集フォームは開かない（古い値での上書きを防ぐ）
-    await click(edit);
-    expect(screen.queryByLabelText("名前")).toBeNull();
+    // 送信中はメニューが開かない＝編集・削除・コピーのどれにも入れない
+    // （古い値を抱えたフォームを開けない。FB-63）
+    openRowMenu();
+    expect(screen.queryByText("今日へコピー")).toBeNull();
+    expect(screen.queryByText("編集")).toBeNull();
+    expect(screen.queryByText("削除")).toBeNull();
 
     await act(async () => {
       pending.resolve({ ok: true });
     });
     expect(checkbox.disabled).toBe(false);
-    expect(remove.disabled).toBe(false);
-    expect(edit.disabled).toBe(false);
+    expect(menu.disabled).toBe(false);
   });
 
   // 「保存中に始める操作」も止める（00_共通 §2.3）——開いていたフォームが閉じてしまうため。
@@ -712,13 +740,13 @@ describe("RoutinesTable（画面定義書02 §5: 有効/無効・削除・編集
 
     await click(checkboxOfRow0);
 
-    expect(otherRow.getByRole<HTMLButtonElement>("button", { name: "削除" }).disabled).toBe(true);
+    expect(otherRow.getByLabelText<HTMLButtonElement>("行メニュー").disabled).toBe(true);
     expect(otherRow.getByRole<HTMLInputElement>("checkbox").disabled).toBe(true);
 
     await act(async () => {
       pending.resolve({ ok: true });
     });
-    expect(otherRow.getByRole<HTMLButtonElement>("button", { name: "削除" }).disabled).toBe(false);
+    expect(otherRow.getByLabelText<HTMLButtonElement>("行メニュー").disabled).toBe(false);
     expect(otherRow.getByRole<HTMLInputElement>("checkbox").disabled).toBe(false);
   });
 
@@ -726,7 +754,7 @@ describe("RoutinesTable（画面定義書02 §5: 有効/無効・削除・編集
     vi.mocked(window.confirm).mockReturnValue(false);
     renderTable([routine({ id: 7 })]);
 
-    await click(screen.getByText("削除"));
+    await chooseRowMenu("削除");
 
     expect(deleteRoutineAction).not.toHaveBeenCalled();
   });
@@ -734,7 +762,7 @@ describe("RoutinesTable（画面定義書02 §5: 有効/無効・削除・編集
   it("削除は確認のうえ実行し、展開済みタスクが残ることを告げる（O-4 ログ保全）", async () => {
     renderTable([routine({ id: 7, name: "点検" })]);
 
-    await click(screen.getByText("削除"));
+    await chooseRowMenu("削除");
 
     expect(vi.mocked(window.confirm).mock.calls[0][0]).toBe(
       "「点検」を削除しますか？\n展開済みのタスクは残ります。"
@@ -749,10 +777,69 @@ describe("RoutinesTable（画面定義書02 §5: 有効/無効・削除・編集
     });
     renderTable([routine({ id: 7 })]);
 
-    await click(screen.getByText("削除"));
+    await chooseRowMenu("削除");
 
     const notice = screen.getByText("ルーチンが見つかりませんでした");
     expect(hasClass(notice, "text-danger")).toBe(true);
+  });
+
+  // O-6（F-307）。**表示順は開始想定時刻で並べ替えた結果**なので、渡す id を props の並びから
+  // 取り違えても1行だけのテストでは緑になる。押した行と渡る id の対応は複数行で固める
+  it("「今日へコピー」は押した行のコピーを依頼し、成功したら今日のデイリーへ移る（O-6）", async () => {
+    const { container } = renderTable([
+      routine({ id: 7, scheduledStartTime: "09:00" }),
+      routine({ id: 8, scheduledStartTime: "06:30" }), // 並べ替えでこちらが先頭に来る
+    ]);
+
+    openRowMenu(within(rows(container)[0]));
+    await click(screen.getByText("今日へコピー"));
+
+    // 「今日」の解決に使う現在時刻はクライアントが渡す（サーバ時刻を使わない。デイリーの打刻系と同じ）
+    expect(copyRoutineToTodayAction).toHaveBeenCalledWith(8, expect.any(Date));
+    // コピーは破壊的操作ではないので確認は挟まない（00_共通 §2.5 / 削除だけが確認を持つ）
+    expect(window.confirm).not.toHaveBeenCalled();
+    expect(router.push).toHaveBeenCalledWith("/");
+    expect(otherRouterCalls()).toEqual([]);
+  });
+
+  // 一覧は変わらないので、失敗したことはこの画面のエラー帯だけが伝える（移動してしまうと読めない）
+  it("コピーが失敗したらエラーを出し、画面を移さない（O-6）", async () => {
+    vi.mocked(copyRoutineToTodayAction).mockResolvedValue({
+      ok: false,
+      message: "ルーチンが見つかりませんでした",
+    });
+    renderTable([routine({ id: 7 })]);
+
+    await chooseRowMenu("今日へコピー");
+
+    expect(screen.queryByText("ルーチンが見つかりませんでした")).not.toBeNull();
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
+  // 「今日のリストに出ていないルーチンを今日だけやりたい」が主要ユースケース（O-6）なので、
+  // 無効な行でこそ押せる必要がある（削除・編集と同じく恒久的な無効にしない）
+  it("無効化中の行でもコピーできる（O-6）", async () => {
+    renderTable([routine({ id: 7, isActive: false })]);
+
+    openRowMenu();
+    const copy = screen.getByText<HTMLButtonElement>("今日へコピー");
+    expect(copy.disabled).toBe(false);
+
+    await click(copy);
+    expect(copyRoutineToTodayAction).toHaveBeenCalledWith(7, expect.any(Date));
+  });
+
+  // §3「使う頻度の高い順に並べ、破壊的な削除を末尾に置く」
+  it("メニューの項目は 今日へコピー → 編集 → 削除 の3つだけ（§3）", () => {
+    const { container } = renderTable([routine({ id: 7 })]);
+
+    openRowMenu();
+
+    // パネルは行の中に開く。行内のボタンからメニューのトリガ（⋯）を除くと項目だけが残る
+    const items = [...rows(container)[0].querySelectorAll("button")]
+      .filter((button) => button.getAttribute("aria-label") !== "行メニュー")
+      .map((button) => button.textContent);
+    expect(items).toEqual(["今日へコピー", "編集", "削除"]);
   });
 });
 
@@ -786,12 +873,14 @@ describe("RoutinesTable（画面定義書02 §4・§5: 新規/編集フォーム
     expect(screen.queryByLabelText("名前")).not.toBeNull();
   });
 
-  it("編集ボタンでその行のフォームを開き、ボタンは「閉じる」になる（O-2）", async () => {
+  it("メニューの「編集」でその行のフォームを開き、項目は「閉じる」になる（O-2）", async () => {
     renderTable([routine({ id: 7, name: "点検" })]);
 
-    clickWithoutServer(screen.getByText("編集"));
+    openEditForm();
 
     expect(screen.getByLabelText<HTMLInputElement>("名前").value).toBe("点検");
+    // 項目を押すとメニューは閉じるので、ラベルの入れ替わりは開き直して見る
+    openRowMenu();
     expect(screen.queryByText("閉じる")).not.toBeNull();
     expect(screen.queryByText("編集")).toBeNull();
   });
@@ -799,7 +888,8 @@ describe("RoutinesTable（画面定義書02 §4・§5: 新規/編集フォーム
   it("「閉じる」でフォームを閉じる", async () => {
     renderTable([routine({ id: 7 })]);
 
-    clickWithoutServer(screen.getByText("編集"));
+    openEditForm();
+    openRowMenu();
     clickWithoutServer(screen.getByText("閉じる"));
 
     expect(screen.queryByLabelText("名前")).toBeNull();
@@ -808,7 +898,7 @@ describe("RoutinesTable（画面定義書02 §4・§5: 新規/編集フォーム
   it("編集の保存はその行の id で更新を依頼し、成功するとフォームを閉じる", async () => {
     renderTable([routine({ id: 7, name: "点検" })]);
 
-    clickWithoutServer(screen.getByText("編集"));
+    openEditForm();
     fireEvent.change(screen.getByLabelText("名前"), { target: { value: "点検（改）" } });
     await click(screen.getByText("保存"));
 
@@ -824,7 +914,7 @@ describe("RoutinesTable（画面定義書02 §4・§5: 新規/編集フォーム
     });
     renderTable([routine({ id: 7, name: "点検" })]);
 
-    clickWithoutServer(screen.getByText("編集"));
+    openEditForm();
     fireEvent.change(screen.getByLabelText("見積もり（分）"), { target: { value: "" } });
     await click(screen.getByText("保存"));
 
@@ -836,10 +926,10 @@ describe("RoutinesTable（画面定義書02 §4・§5: 新規/編集フォーム
     vi.mocked(deleteRoutineAction).mockResolvedValue({ ok: false, message: "削除できません" });
     renderTable([routine({ id: 7 })]);
 
-    await click(screen.getByText("削除"));
+    await chooseRowMenu("削除");
     expect(screen.queryByText("削除できません")).not.toBeNull();
 
-    clickWithoutServer(screen.getByText("編集"));
+    openEditForm();
 
     expect(screen.queryByText("削除できません")).toBeNull();
   });
@@ -849,7 +939,7 @@ describe("RoutinesTable（画面定義書02 §4・§5: 新規/編集フォーム
     vi.mocked(deleteRoutineAction).mockResolvedValue({ ok: false, message: "削除できません" });
     renderTable([routine({ id: 7 })]);
 
-    await click(screen.getByText("削除"));
+    await chooseRowMenu("削除");
     expect(screen.queryByText("削除できません")).not.toBeNull();
 
     clickWithoutServer(screen.getByText("新規ルーチン"));
@@ -861,7 +951,7 @@ describe("RoutinesTable（画面定義書02 §4・§5: 新規/編集フォーム
   it("編集フォームの取消では保存を依頼しない", async () => {
     renderTable([routine({ id: 7 })]);
 
-    clickWithoutServer(screen.getByText("編集"));
+    openEditForm();
     clickWithoutServer(screen.getByText("取消"));
 
     expect(updateRoutineAction).not.toHaveBeenCalled();

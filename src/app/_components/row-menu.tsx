@@ -14,8 +14,20 @@ export type RowMenuItem = Readonly<{
   confirmMessage?: string;
 }>;
 
-/** 行メニュー（画面定義書01 O-7/O-8）。日付移動はここからのみ実行できる */
-export function RowMenu({ items }: Readonly<{ items: readonly RowMenuItem[] }>) {
+/**
+ * 行メニュー（S-01 の画面定義書01 O-7/O-8、S-02 の画面定義書02 §3）。
+ * デイリー（S-01）では日付移動はここからのみ実行でき、ルーチン管理（S-02）では操作列の入口がこれ1つになる。
+ *
+ * `busy` は**保存中の一時的な無効**（00_共通 §2.5）で、メニューを**開かせないだけ**にする
+ * ——項目側の `disabled`（恒久的な無効）と違い薄くしない。保存完了を待って反映する画面
+ * （画面定義書02 §1）が使う。**項目側と名前を分けている**のは、同じ `disabled` だと
+ * 「薄くする無効」と読み違えるため。**開いている最中に `busy` になってもパネルは閉じない**
+ * （項目を押した時点でメニューは閉じるので、保存中に開いたままにはならない）
+ */
+export function RowMenu({
+  items,
+  busy,
+}: Readonly<{ items: readonly RowMenuItem[]; busy?: boolean }>) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   // 画面下部の行では上向きに開く（00_共通 §2.1「表示位置」）
@@ -29,6 +41,7 @@ export function RowMenu({ items }: Readonly<{ items: readonly RowMenuItem[] }>) 
       <button
         type="button"
         aria-label="行メニュー"
+        disabled={busy}
         onClick={() => setOpen((v) => !v)}
         className="px-1 py-1 text-ink-faint hover:text-ink"
       >

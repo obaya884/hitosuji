@@ -57,6 +57,7 @@ const FAILURE_ARGS: { [K in keyof typeof actions]: Parameters<(typeof actions)[K
   createRoutineAction: [{ ...VALID_INPUT, name: "" }],
   updateRoutineAction: [MISSING_ID, VALID_INPUT],
   setRoutineActiveAction: [MISSING_ID, false],
+  copyRoutineToTodayAction: [MISSING_ID, new Date()],
   deleteRoutineAction: [MISSING_ID],
 };
 

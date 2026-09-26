@@ -1,26 +1,23 @@
 import type { BundleId } from "@/domain/bundle/bundle";
-import type { ModeId } from "@/domain/mode/mode";
-import type { ProjectId } from "@/domain/project/project";
 import type { Routine, RoutineId } from "@/domain/routine/routine";
 import type { ValidRoutineInput } from "@/domain/routine/input";
+import type { RoutineTaskContent } from "@/domain/routine/task-content";
 import type { SectionId } from "@/domain/section/section";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 
-/** 展開で生成するタスク（データモデル定義書 §4.1-3） */
-export type RoutineTaskSeed = Readonly<{
-  routineId: RoutineId;
-  taskDate: LogicalDate;
-  name: string;
-  estimateMinutes: number;
-  sectionId: SectionId | null;
-  modeId: ModeId | null;
-  projectId: ProjectId | null;
-  /** 属するバンドル（F-119）。ルーチンの bundleId をそのまま写す */
-  bundleId: BundleId | null;
-  /** 参照先 URL（F-125）。ルーチンの url をそのまま写す（データモデル定義書 §4.1-3） */
-  url: string | null;
-  sortOrder: number;
-}>;
+/**
+ * 展開で生成するタスク（データモデル定義書 §4.1-3）。
+ * ルーチンから写す内容は `RoutineTaskContent`（手動コピー F-307 と共通）で、
+ * ここが足すのは**展開だけが決める4つ**——紐付け・日付・配置。
+ * 写す項目を増やすときは `RoutineTaskContent` に足せば両方の経路に効く
+ */
+export type RoutineTaskSeed = RoutineTaskContent &
+  Readonly<{
+    routineId: RoutineId;
+    taskDate: LogicalDate;
+    sectionId: SectionId | null;
+    sortOrder: number;
+  }>;
 
 export type RoutineRepository = Readonly<{
   listAll(): Promise<Routine[]>;

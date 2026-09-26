@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { Fragment, useState } from "react";
 import type { Bundle } from "@/domain/bundle/bundle";
 import type { Mode } from "@/domain/mode/mode";
@@ -13,14 +14,17 @@ import {
 } from "@/domain/routine/order";
 import { ColorSwatch } from "@/app/_components/color-picker";
 import { OpenUrlButton } from "@/app/_components/open-url-button";
+import { RowMenu } from "@/app/_components/row-menu";
 import { sectionAt, type Section } from "@/domain/section/section";
+import { DAILY_PATH } from "@/app/_lib/date-href";
 import { EMPTY_ROUTINES } from "@/app/_lib/notice-messages";
 import { useServerAction } from "@/app/_lib/use-server-action";
-import { hoverWord, linkAccent, linkMuted, tableHeadRow } from "@/app/_lib/ui";
+import { hoverWord, tableHeadRow } from "@/app/_lib/ui";
 import { DurationValue } from "@/app/_components/duration-value";
 import { TableFrame } from "@/app/_components/table-frame";
 import { UnsetMark } from "@/app/_components/unset-mark";
 import {
+  copyRoutineToTodayAction,
   createRoutineAction,
   deleteRoutineAction,
   setRoutineActiveAction,
@@ -100,6 +104,8 @@ export function RoutinesTable({
     { key: "scheduledStartTime", direction: "asc" }
   );
   const { error, setError, isPending, run } = useServerAction();
+  // コピー（O-6）の成功後に今日のデイリーへ移る（画面定義書02 O-6）
+  const router = useRouter();
 
   const bundleById = new Map(allBundles.map((b) => [b.id, b]));
   const modeById = new Map(allModes.map((m) => [m.id, m]));
@@ -174,7 +180,7 @@ export function RoutinesTable({
         */}
         <colgroup>
           {/* 名前。折り返せるので、詰めるときはここから融通する */}
-          <col className="w-[18%]" />
+          <col className="w-[25%]" />
           {/* プロジェクト */}
           <col className="w-[10%]" />
           {/* モード */}
@@ -189,9 +195,9 @@ export function RoutinesTable({
           <col className="w-[15%]" />
           {/* 有効 */}
           <col className="w-[4%]" />
-          {/* 操作。「編集」「削除」は折り返せない（whitespace-nowrap）ので、
-              最も狭い 1024px でもボタン2つ分（88px）が収まる割合を取る */}
-          <col className="w-[12%]" />
+          {/* 操作。中身は `⋯` の1つだけ（§3）なので、アイコン1つ分が収まれば足りる。
+              空いたぶんは名前へ回した（折り返しが減る） */}
+          <col className="w-[5%]" />
         </colgroup>
         <thead>
           <tr className={tableHeadRow}>
@@ -283,35 +289,35 @@ export function RoutinesTable({
                     className="accent-accent"
                   />
                 </td>
-                <td className="py-2 text-right whitespace-nowrap">
-                  <button
-                    onClick={() => {
-                      setError(null);
-                      setEditing(isEditing ? null : routine);
-                    }}
-                    // 保存中は編集を開かせない（この画面は保存完了を待って反映する＝§1 なので
-                    // 00_共通 §2.3「保存中」の適用対象。古い値での上書きを防ぐ。FB-63）
-                    disabled={isPending}
-                    className={`px-2 ${linkAccent}`}
-                  >
-                    {isEditing ? "閉じる" : "編集"}
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (
-                        !window.confirm(
-                          `「${routine.name}」を削除しますか？\n展開済みのタスクは残ります。`
-                        )
-                      ) {
-                        return;
-                      }
-                      run(() => deleteRoutineAction(routine.id));
-                    }}
-                    disabled={isPending}
-                    className={`px-2 ${linkMuted}`}
-                  >
-                    削除
-                  </button>
+                <td className="py-2 text-right">
+                  {/* 操作はこのメニュー1つに畳む（画面定義書02 §3）。
+                      保存中はメニューを開かせない（この画面は保存完了を待って反映する＝§1 なので
+                      00_共通 §2.3「保存中」の適用対象。古い値での上書きを防ぐ。FB-63） */}
+                  <RowMenu
+                    busy={isPending}
+                    items={[
+                      {
+                        label: "今日へコピー",
+                        onSelect: () =>
+                          // 「今日」は押した時点のクライアント時刻から解決する（サーバ側で日界を踏まえる）
+                          run(() => copyRoutineToTodayAction(routine.id, new Date()), () =>
+                            router.push(DAILY_PATH)
+                          ),
+                      },
+                      {
+                        label: isEditing ? "閉じる" : "編集",
+                        onSelect: () => {
+                          setError(null);
+                          setEditing(isEditing ? null : routine);
+                        },
+                      },
+                      {
+                        label: "削除",
+                        onSelect: () => run(() => deleteRoutineAction(routine.id)),
+                        confirmMessage: `「${routine.name}」を削除しますか？\n展開済みのタスクは残ります。`,
+                      },
+                    ]}
+                  />
                 </td>
               </tr>
             );

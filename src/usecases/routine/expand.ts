@@ -3,6 +3,7 @@ import type { RoutineRepository, RoutineTaskSeed } from "@/usecases/ports/routin
 import type { SectionRepository } from "@/usecases/ports/section-repository";
 import type { TaskRepository } from "@/usecases/ports/task-repository";
 import { routinesToExpand } from "@/domain/routine/expansion";
+import { routineTaskContent } from "@/domain/routine/task-content";
 import { sectionAt, type SectionId } from "@/domain/section/section";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import { appendSortOrder } from "@/domain/task/sort-order";
@@ -52,15 +53,10 @@ export async function expandRoutinesFor(
     nextSortOrders.set(sectionId, sortOrder + 1000);
 
     return {
+      ...routineTaskContent(routine), // 写す内容は手動コピー（F-307）と共通
       routineId: routine.id,
       taskDate: date,
-      name: routine.name,
-      estimateMinutes: routine.estimateMinutes,
       sectionId,
-      modeId: routine.modeId,
-      projectId: routine.projectId,
-      bundleId: routine.bundleId,
-      url: routine.url,
       sortOrder,
     };
   });

@@ -1,4 +1,4 @@
-// draft（複製・再開）から永続化入力 NewTask を組み立てる共通ヘルパー（T-18）
+// draft（複製・再開・ルーチンのコピー）から永続化入力 NewTask を組み立てる共通ヘルパー（T-18）
 import type { BundleId } from "@/domain/bundle/bundle";
 import type { ModeId } from "@/domain/mode/mode";
 import type { ProjectId } from "@/domain/project/project";
@@ -8,11 +8,13 @@ import type { TaskId } from "@/domain/task/task";
 import type { NewTask } from "@/usecases/ports/task-repository";
 
 /**
- * draft（複製・再開）が共通で持つ内容フィールド。配置は別途決める。
- * `splitParentId`・`highlighted`・`bundleId` は再開 draft のみが持ち、複製 draft は持たない。
- * `splitParentId` は系譜属性、`highlighted` は「同じ仕事の続きにだけ引き継ぐ」印（F-118）、
- * `bundleId` は中断・割り込みの残りにだけ引き継ぐバンドルの所属
- *（データモデル定義書 §4.2・§4.6・§4.8）
+ * draft が共通で持つ内容フィールド。配置は別途決める。
+ * 任意の3つ（`splitParentId`・`highlighted`・`bundleId`）は**持つ draft が違う**——
+ * `splitParentId` は系譜属性、`highlighted` は「同じ仕事の続きにだけ引き継ぐ」印（F-118）で
+ * どちらも再開 draft だけが持ち、`bundleId` は**中断・割り込みの残り（§4.2）と
+ * ルーチンのコピー（F-307。ルーチンの所属をそのまま写す＝展開 §4.1 と同じ）**が持つ。
+ * 複製 draft（F-111）は3つとも持たない
+ *（データモデル定義書 §4.1・§4.2・§4.6・§4.8）
  */
 type TaskContentDraft = Readonly<{
   name: string;
@@ -22,14 +24,14 @@ type TaskContentDraft = Readonly<{
   highlighted?: boolean;
   splitParentId?: TaskId | null;
   bundleId?: BundleId | null;
-  /** 参照先 URL（F-125）。複製・再開のどちらの draft も元タスクの値を持つ */
+  /** 参照先 URL（F-125）。どの draft も写す（複製・再開は元タスクの値、コピーはルーチンの値） */
   url: string | null;
 }>;
 
 /**
  * draft の内容フィールドに配置（日付・セクション・並び順）を与えて NewTask を組み立てる（T-18）。
- * `splitParentId`・`highlighted`・`bundleId` は draft から拾う（再開 draft は元タスクの値、
- * 複製 draft は持たないため null / false になる。各フィールドの根拠は上の TaskContentDraft のコメント）
+ * `splitParentId`・`highlighted`・`bundleId` は draft から拾う（持たない draft では
+ * null / false になる。どの draft が持つかは上の TaskContentDraft のコメント）
  */
 export function newTaskFromDraft(
   draft: TaskContentDraft,

@@ -16,12 +16,12 @@ import { modeAppearance } from "@/app/_lib/mode-appearance";
 import { disabledPermanent, hoverSurfaceOnAccent, hoverWord, inputBase } from "@/app/_lib/ui";
 import { UNCATEGORIZED_LABEL } from "@/app/_lib/unset";
 import { OpenUrlButton } from "@/app/_components/open-url-button";
+import { RowMenu } from "@/app/_components/row-menu";
 import { showsDetailRow, type EditField } from "../_lib/editing";
 import { toModeOptions, toProjectOptions } from "../_lib/master-options";
 import { rowBackgroundClass } from "../_lib/row-background";
 import { AssignCell } from "./assign-cell";
 import { BundleRoadCell } from "./bundle-road-cell";
-import { RowMenu } from "./row-menu";
 import { RoutinizePopover } from "./routinize-popover";
 import { SelectPopover, type PopoverOption } from "./select-popover";
 
