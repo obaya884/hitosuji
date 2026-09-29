@@ -304,7 +304,8 @@ function sectionRemainings(
 /**
  * 未実行タスクの予想開始時刻の表示文字列（F-120 / §3.3）を taskId で引ける Map。
  * groups は表示順（§3.2 の回転順 → sort_order）なので平坦化してそのまま積み上げる
- * （セクションをまたいでもリセットしない）。表示日が今日でなければ null（行に出さない）
+ * （セクションをまたいでもリセットしない。未分類を積まない判定は `projectedStartTimes` 側が持つ）。
+ * 表示日が今日でなければ null（行に出さない）
  */
 function projectedStartLabels(
   groups: readonly DailyGroup[],

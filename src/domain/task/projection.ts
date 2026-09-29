@@ -55,11 +55,13 @@ export function projectedEndTime(tasks: readonly Task[], now: Date): Date {
 
 /**
  * 未実行タスクの予想開始時刻（F-120 / データモデル定義書 §4.3）。終了予定時刻（F-104）と同じ
- * 積み上げの途中経過で、`now + 実行中タスクの残り + それより前にある未実行タスクの見積もり合計`。
- * `tasks` は表示順（画面定義書01 §3.2 の回転順 → sort_order）で渡す。実行中タスクの残りは
- * 積み上げの起点に常に含める（未実行行が実行中タスクより上にあっても引かない）ため、
- * 最後の未実行タスクの予想開始 + その見積もり = 終了予定時刻 が保たれる。
- * セクションをまたいでもリセットしない。戻り値は未実行タスクのみを持つ（実行中・完了は実打刻を持つ）
+ * 積み上げの途中経過で、`now + 実行中タスクの残り + それより前にある、セクションに配置された
+ * 未実行タスクの見積もり合計`。`tasks` は表示順（画面定義書01 §3.2 の回転順 → sort_order）で渡す。
+ * 実行中タスクの残りは所属と位置に依らず積み上げの起点に常に含める（未実行行が実行中タスクより
+ * 上にあっても引かない）。未分類の未実行タスクは積まない（FB-117）ため、
+ * 最後の未実行タスクの予想開始 + その見積もり + 未分類の未実行見積もり合計 = 終了予定時刻 が保たれる。
+ * セクションをまたいでもリセットしない。戻り値はセクションに配置された未実行タスクのみを持つ
+ * （実行中・完了は実打刻を持ち、未分類は予想開始を持たない）
  */
 export function projectedStartTimes(tasks: readonly Task[], now: Date): Map<TaskId, Date> {
   let offset = tasks
@@ -68,7 +70,7 @@ export function projectedStartTimes(tasks: readonly Task[], now: Date): Map<Task
 
   const startTimes = new Map<TaskId, Date>();
   for (const task of tasks) {
-    if (taskStatus(task) !== "not_started") continue;
+    if (taskStatus(task) !== "not_started" || task.sectionId === null) continue;
     startTimes.set(task.id, new Date(now.getTime() + offset * 60_000));
     offset += task.estimateMinutes; // 未設定（0分）は0として積む（データモデル定義書 §4.3）
   }

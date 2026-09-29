@@ -15,6 +15,7 @@ import {
   MODES,
   PROJECTS,
   SECTIONS,
+  sectionOf,
   unclassifiedGroup,
 } from "../_testing/factories";
 import { cellsOf, headingOf, popoverLabels, taskRow } from "../_testing/table-helpers";
@@ -437,14 +438,25 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
   });
 
   describe("予想開始時刻（F-120 / §3.3）", () => {
+    // 予想開始は未分類を積まない（FB-117）ので、セクションの行は `sectionId` を群と揃えて組む
+    // （`morning()` などはタスクを群に入れるだけで `sectionId` を書き換えない）
+    const MORNING = sectionOf("朝");
+    const FORENOON = sectionOf("午前");
+
     it("未実行行にだけ弱色で `HH:MM–` を併記する", () => {
       renderList({
         now: atJst("10:00"), // 予想開始も `APP_TIME_ZONE` 基準（T-47）
         groups: [
           morning([
-            task({ id: 1, name: "朝食", startedAt: atJst("06:30"), endedAt: atJst("06:48") }),
-            task({ id: 2, name: "メール", startedAt: atJst("08:05") }),
-            task({ id: 3, name: "日次プラン", estimateMinutes: 15 }),
+            task({
+              id: 1,
+              name: "朝食",
+              sectionId: MORNING.id,
+              startedAt: atJst("06:30"),
+              endedAt: atJst("06:48"),
+            }),
+            task({ id: 2, name: "メール", sectionId: MORNING.id, startedAt: atJst("08:05") }),
+            task({ id: 3, name: "日次プラン", sectionId: MORNING.id, estimateMinutes: 15 }),
           ]),
         ],
       });
@@ -469,8 +481,8 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
         now: atJst("10:00"),
         groups: [
           morning([
-            task({ id: 1, name: "資料作成", estimateMinutes: 30 }),
-            task({ id: 2, name: "レビュー依頼", estimateMinutes: 15 }),
+            task({ id: 1, name: "資料作成", sectionId: MORNING.id, estimateMinutes: 30 }),
+            task({ id: 2, name: "レビュー依頼", sectionId: MORNING.id, estimateMinutes: 15 }),
           ]),
         ],
       });
@@ -485,8 +497,10 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
         dayStartMinutes: 360,
         now: atJst("02:00", "2026-07-27"),
         groups: [
-          morning([task({ id: 1, name: "夜の片付け", estimateMinutes: 90 })]),
-          forenoon([task({ id: 2, name: "日記", estimateMinutes: 15 })]),
+          morning([
+            task({ id: 1, name: "夜の片付け", sectionId: MORNING.id, estimateMinutes: 90 }),
+          ]),
+          forenoon([task({ id: 2, name: "日記", sectionId: FORENOON.id, estimateMinutes: 15 })]),
         ],
       });
 
@@ -498,11 +512,30 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
       expect(cellsOf(taskRow("夜の片付け")).time.querySelector(".text-danger")).toBe(null);
     });
 
+    it("未分類の行には出さず、その見積もりをセクションの行へ積まない（FB-117）", () => {
+      renderList({
+        now: atJst("10:00"),
+        groups: [
+          unclassifiedGroup([task({ id: 1, name: "買い出しメモ", estimateMinutes: 30 })]),
+          morning([
+            task({ id: 2, name: "日次プラン", sectionId: MORNING.id, estimateMinutes: 15 }),
+          ]),
+        ],
+      });
+
+      expect(cellsOf(taskRow("買い出しメモ")).time.textContent).toBe("");
+      expect(cellsOf(taskRow("日次プラン")).time.textContent).toBe("10:00–");
+    });
+
     it("表示日が過去なら出さない（終了予定 F-104 と同じ規律）", () => {
       renderList({
         isToday: false,
         date: "2026-07-25",
-        groups: [morning([task({ id: 1, name: "日次プラン", estimateMinutes: 15 })])],
+        groups: [
+          morning([
+            task({ id: 1, name: "日次プラン", sectionId: MORNING.id, estimateMinutes: 15 }),
+          ]),
+        ],
       });
 
       expect(cellsOf(taskRow("日次プラン")).time.textContent).toBe("");
@@ -513,7 +546,11 @@ describe("DailyList（画面定義書01 §3.2/§3.3: 1タスク=1行のテーブ
         isToday: false,
         isFutureDate: true,
         date: NEXT_TEST_DATE,
-        groups: [morning([task({ id: 1, name: "日次プラン", estimateMinutes: 15 })])],
+        groups: [
+          morning([
+            task({ id: 1, name: "日次プラン", sectionId: MORNING.id, estimateMinutes: 15 }),
+          ]),
+        ],
       });
 
       expect(cellsOf(taskRow("日次プラン")).time.textContent).toBe("");
