@@ -12,6 +12,7 @@ import { task } from "@/domain/task/testing/task";
 
 import { SECTIONS } from "../_testing/factories";
 import {
+  AFTERNOON,
   defaultTasks,
   FORENOON,
   NOT_STARTED,
@@ -294,7 +295,10 @@ describe("DailyBoard の日界の配線（F-116 / §3.1 / §3.3: 日またぎは
    */
   function renderLateNightBoard(sections: readonly Section[]): void {
     vi.setSystemTime(atJst("02:00", NEXT_TEST_DATE));
-    renderBoard([task({ id: 9, name: NOT_STARTED, estimateMinutes: 180 })], { sections });
+    // 予想開始（F-120）は未分類を積まないので、セクションに置く（FB-117）
+    renderBoard([task({ id: 9, name: NOT_STARTED, sectionId: AFTERNOON.id, estimateMinutes: 180 })], {
+      sections,
+    });
   }
 
   it("日界 06:00 なら終了予定を翌暦日として出す（DailySummary への配線）", () => {

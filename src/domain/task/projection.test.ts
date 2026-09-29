@@ -19,6 +19,14 @@ import { task } from "./testing/task";
 // 終了予定・セクション残り時間は運用タイムゾーン（`APP_TIME_ZONE`）の壁時計を基準に導出するため、
 // 期待値も同じ壁時計で組む（`atJst`）。実行環境の TZ には依らない（T-47）
 
+/**
+ * セクションに配置したタスク。予想開始（F-120）は未分類を積まない（データモデル定義書 §4.3）ので、
+ * `task()` の既定（sectionId: null＝未分類）のままでは積み上げの対象にならない
+ */
+function placed(over: Partial<Task> & { id: number }): Task {
+  return task({ sectionId: 1, ...over });
+}
+
 describe("remainingMinutes（F-104 / データモデル定義書 §4.3）", () => {
   it("未実行タスクの見積もりを合計する", () => {
     const tasks = [task({ id: 1, estimateMinutes: 30 }), task({ id: 2, estimateMinutes: 45 })];
@@ -63,9 +71,9 @@ describe("projectedEndTime（F-104: 現在時刻 + 残時間）", () => {
 describe("projectedStartTimes（F-120 / データモデル定義書 §4.3: 未実行タスクの予想開始時刻）", () => {
   it("表示順に並べた未実行タスクを現在時刻から積み上げる", () => {
     const tasks = [
-      task({ id: 1, estimateMinutes: 30 }),
-      task({ id: 2, estimateMinutes: 45 }),
-      task({ id: 3, estimateMinutes: 15 }),
+      placed({ id: 1, estimateMinutes: 30 }),
+      placed({ id: 2, estimateMinutes: 45 }),
+      placed({ id: 3, estimateMinutes: 15 }),
     ];
     const starts = projectedStartTimes(tasks, atJst("09:00"));
     expect(starts.get(1)).toEqual(atJst("09:00"));
@@ -75,8 +83,8 @@ describe("projectedStartTimes（F-120 / データモデル定義書 §4.3: 未�
 
   it("実行中タスクの残り（見積もり − 経過）を積み上げの起点に含める", () => {
     const tasks = [
-      task({ id: 1, estimateMinutes: 30, startedAt: atJst("08:50") }), // 経過10分・残り20分
-      task({ id: 2, estimateMinutes: 45 }),
+      placed({ id: 1, estimateMinutes: 30, startedAt: atJst("08:50") }), // 経過10分・残り20分
+      placed({ id: 2, estimateMinutes: 45 }),
     ];
     const starts = projectedStartTimes(tasks, atJst("09:00"));
     expect(starts.get(2)).toEqual(atJst("09:20"));
@@ -84,25 +92,25 @@ describe("projectedStartTimes（F-120 / データモデル定義書 §4.3: 未�
 
   it("実行中タスクが見積もりを超過していても残りは0として起点に含める", () => {
     const tasks = [
-      task({ id: 1, estimateMinutes: 10, startedAt: atJst("08:00") }), // 経過60分
-      task({ id: 2, estimateMinutes: 45 }),
+      placed({ id: 1, estimateMinutes: 10, startedAt: atJst("08:00") }), // 経過60分
+      placed({ id: 2, estimateMinutes: 45 }),
     ];
     expect(projectedStartTimes(tasks, atJst("09:00")).get(2)).toEqual(atJst("09:00"));
   });
 
   it("未実行行より後ろに実行中タスクがあっても、その残りは起点に含める（データモデル定義書 §4.3 の式）", () => {
     const tasks = [
-      task({ id: 1, estimateMinutes: 45 }),
-      task({ id: 2, estimateMinutes: 30, startedAt: atJst("08:50") }), // 経過10分・残り20分
+      placed({ id: 1, estimateMinutes: 45 }),
+      placed({ id: 2, estimateMinutes: 30, startedAt: atJst("08:50") }), // 経過10分・残り20分
     ];
     expect(projectedStartTimes(tasks, atJst("09:00")).get(1)).toEqual(atJst("09:20"));
   });
 
   it("実行中・完了タスクには予想開始時刻を持たせない（対象は未実行行のみ。画面定義書01 §3.3）", () => {
     const tasks = [
-      task({ id: 1, startedAt: atJst("08:00"), endedAt: atJst("08:30") }), // 完了
-      task({ id: 2, startedAt: atJst("08:50") }), // 実行中
-      task({ id: 3 }), // 未実行
+      placed({ id: 1, startedAt: atJst("08:00"), endedAt: atJst("08:30") }), // 完了
+      placed({ id: 2, startedAt: atJst("08:50") }), // 実行中
+      placed({ id: 3 }), // 未実行
     ];
     const starts = projectedStartTimes(tasks, atJst("09:00"));
     expect(starts.has(1)).toBe(false);
@@ -112,39 +120,59 @@ describe("projectedStartTimes（F-120 / データモデル定義書 §4.3: 未�
 
   it("完了タスクは積み上げに加えない", () => {
     const tasks = [
-      task({ id: 1, estimateMinutes: 60, startedAt: atJst("08:00"), endedAt: atJst("08:30") }),
-      task({ id: 2, estimateMinutes: 30 }),
+      placed({ id: 1, estimateMinutes: 60, startedAt: atJst("08:00"), endedAt: atJst("08:30") }),
+      placed({ id: 2, estimateMinutes: 30 }),
     ];
     expect(projectedStartTimes(tasks, atJst("09:00")).get(2)).toEqual(atJst("09:00"));
   });
 
   it("見積もり未設定（0分）は0として積むため、直前のタスクと同じ時刻になる", () => {
     const tasks = [
-      task({ id: 1, estimateMinutes: 30 }),
-      task({ id: 2, estimateMinutes: 0 }),
-      task({ id: 3, estimateMinutes: 15 }),
+      placed({ id: 1, estimateMinutes: 30 }),
+      placed({ id: 2, estimateMinutes: 0 }),
+      placed({ id: 3, estimateMinutes: 15 }),
     ];
     const starts = projectedStartTimes(tasks, atJst("09:00"));
     expect(starts.get(2)).toEqual(atJst("09:30"));
     expect(starts.get(3)).toEqual(atJst("09:30"));
   });
 
-  it("sectionId を見ずに積み上げを続ける（セクションをまたいでもリセットせず、セクション開始時刻を起点にしない）", () => {
-    // 表示順の列（未分類 → セクション → sort_order。画面定義書01 §3.2）で渡す。
-    // 未分類（sectionId: null）が起点側に来ても、セクションの境目でも 9:00 起点の積み上げが続く
+  it("セクションをまたいでも積み上げをリセットせず、セクション開始時刻を起点にしない", () => {
     const tasks = [
-      task({ id: 1, sectionId: null, estimateMinutes: 30 }),
-      task({ id: 2, sectionId: 1, estimateMinutes: 45 }),
-      task({ id: 3, sectionId: 2, estimateMinutes: 15 }),
+      task({ id: 1, sectionId: 1, estimateMinutes: 30 }),
+      task({ id: 2, sectionId: 2, estimateMinutes: 45 }),
+      task({ id: 3, sectionId: 3, estimateMinutes: 15 }),
     ];
     const starts = projectedStartTimes(tasks, atJst("09:00"));
     expect(starts.get(2)).toEqual(atJst("09:30"));
     expect(starts.get(3)).toEqual(atJst("10:15"));
   });
 
+  it("未分類の未実行タスクは積まず、予想開始も持たない（FB-117）", () => {
+    // 表示順の列（未分類 → セクション → sort_order。画面定義書01 §3.2）で渡す。
+    // 先頭の未分類の見積もりは、後ろのセクションのタスクの予想開始に上乗せされない
+    const tasks = [
+      task({ id: 1, sectionId: null, estimateMinutes: 30 }),
+      placed({ id: 2, estimateMinutes: 45 }),
+      placed({ id: 3, estimateMinutes: 15 }),
+    ];
+    const starts = projectedStartTimes(tasks, atJst("09:00"));
+    expect(starts.has(1)).toBe(false);
+    expect(starts.get(2)).toEqual(atJst("09:00"));
+    expect(starts.get(3)).toEqual(atJst("09:45"));
+  });
+
+  it("未分類にある実行中タスクの残りも起点に含める（実行中は所属に依らない）", () => {
+    const tasks = [
+      task({ id: 1, sectionId: null, estimateMinutes: 30, startedAt: atJst("08:50") }), // 残り20分
+      placed({ id: 2, estimateMinutes: 45 }),
+    ];
+    expect(projectedStartTimes(tasks, atJst("09:00")).get(2)).toEqual(atJst("09:20"));
+  });
+
   it("秒を含む現在時刻でもそのまま積み上げる（表示側で切り捨てる）", () => {
     const now = new Date(atJst("09:00").getTime() + 40_000);
-    const tasks = [task({ id: 1, estimateMinutes: 30 }), task({ id: 2, estimateMinutes: 15 })];
+    const tasks = [placed({ id: 1, estimateMinutes: 30 }), placed({ id: 2, estimateMinutes: 15 })];
     expect(projectedStartTimes(tasks, now)).toEqual(
       new Map([
         [1, now],
@@ -155,9 +183,9 @@ describe("projectedStartTimes（F-120 / データモデル定義書 §4.3: 未�
 
   it("最後の未実行タスクの予想開始 + その見積もり = 終了予定時刻（F-104 と同じ積み上げの途中経過）", () => {
     const tasks = [
-      task({ id: 1, estimateMinutes: 30, startedAt: atJst("08:50") }), // 実行中・残り20分
-      task({ id: 2, estimateMinutes: 45 }),
-      task({ id: 3, estimateMinutes: 15 }),
+      placed({ id: 1, estimateMinutes: 30, startedAt: atJst("08:50") }), // 実行中・残り20分
+      placed({ id: 2, estimateMinutes: 45 }),
+      placed({ id: 3, estimateMinutes: 15 }),
     ];
     const now = atJst("09:00");
     const starts = projectedStartTimes(tasks, now);
@@ -166,6 +194,24 @@ describe("projectedStartTimes（F-120 / データモデル定義書 §4.3: 未�
     expect(projectedEndTime(tasks, now)).toEqual(atJst("10:20")); // + 15分
     // 終了予定 − 末尾タスクの見積もり = 末尾タスクの予想開始（同じ積み上げの途中経過であること）
     expect(starts.get(3)).toEqual(new Date(projectedEndTime(tasks, now).getTime() - 15 * 60_000));
+  });
+
+  it("未分類があれば、最後の未実行タスクの予想開始 + その見積もり + 未分類の見積もり合計 = 終了予定時刻", () => {
+    const tasks = [
+      task({ id: 1, sectionId: null, estimateMinutes: 20 }),
+      task({ id: 2, sectionId: null, estimateMinutes: 10 }),
+      placed({ id: 3, estimateMinutes: 45 }),
+      placed({ id: 4, estimateMinutes: 15 }),
+    ];
+    const now = atJst("09:00");
+    const starts = projectedStartTimes(tasks, now);
+    expect(starts.get(4)).toEqual(atJst("09:45"));
+    // 終了予定（F-104）は未分類を含むので、予想開始の積み上げより未分類の 30 分ぶん先になる
+    expect(projectedEndTime(tasks, now)).toEqual(atJst("10:30"));
+    // 末尾タスクの予想開始 + その見積もり 15 分 + 未分類の合計 30 分 = 終了予定
+    expect(projectedEndTime(tasks, now)).toEqual(
+      new Date((starts.get(4) ?? now).getTime() + (15 + 30) * 60_000)
+    );
   });
 
   it("タスクが0件なら空", () => {
@@ -221,9 +267,9 @@ describe("F-120: 積み上げの結果が日をまたぐ場合の見え方（デ
   it("翌 01:30 に達する予想開始は `翌 01:30-` になる", () => {
     const now = atJst("22:00");
     const tasks = [
-      task({ id: 1, estimateMinutes: 90 }),
-      task({ id: 2, estimateMinutes: 120 }),
-      task({ id: 3, estimateMinutes: 30 }),
+      placed({ id: 1, estimateMinutes: 90 }),
+      placed({ id: 2, estimateMinutes: 120 }),
+      placed({ id: 3, estimateMinutes: 30 }),
     ];
     // 取れなければ下の1本目で落ちる（`?? now` は Map の戻り型都合のフォールバック）
     const start = projectedStartTimes(tasks, now).get(3) ?? now;
