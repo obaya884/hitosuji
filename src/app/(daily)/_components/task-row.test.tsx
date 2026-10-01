@@ -633,6 +633,19 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
       expect(screen.getByRole("textbox")).toHaveProperty("value", "");
     });
 
+    it("見積もりの編集を始めたときは既存の値を全選択する（打刻時刻と同じ。FB-118）", () => {
+      renderRow({
+        editing: "estimate",
+        task: task({ id: 1, name: "朝食", estimateMinutes: 20 }),
+      });
+
+      const input = screen.getByRole("textbox") as HTMLInputElement;
+      fireEvent.focus(input);
+
+      expect(input.selectionStart).toBe(0);
+      expect(input.selectionEnd).toBe("20".length);
+    });
+
     it("見積もりセルのクリックで編集を始める", () => {
       const { onBeginEdit } = renderRow({
         task: task({ id: 1, name: "朝食", estimateMinutes: 20 }),

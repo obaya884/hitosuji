@@ -305,6 +305,8 @@ export function TaskRow({
             autoFocus
             inputMode="numeric"
             defaultValue={String(task.estimateMinutes || "")}
+            // 打刻時刻と同じく既存値を全選択して始め、そのまま打ち直せるようにする（§3.3 / FB-118）
+            onFocus={(e) => e.currentTarget.select()}
             onKeyDown={onKeyDown}
             onBlur={(e) => commit(e.currentTarget)}
             placeholder="分"
