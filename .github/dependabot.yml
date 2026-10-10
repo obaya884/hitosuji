@@ -11,6 +11,12 @@ updates:
       interval: "daily"
     open-pull-requests-limit: 5
     groups:
+      # vitest 本体と @vitest/* は同じ版でないと peer が解決できないので、major も含めて一式で上げる（T-160）。
+      # 先に書いたグループが優先されるので minor-and-patch より前に置く
+      vitest:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
       # マイナー・パッチ更新はまとめて1つのPRにする
       minor-and-patch:
         update-types:

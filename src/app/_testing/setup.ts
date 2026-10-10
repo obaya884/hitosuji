@@ -24,6 +24,7 @@ startConsoleErrorGuard();
 //
 // `clearAllMocks` は**呼び出し記録だけ**を消す（実装は残る）ので、`mockReturnValue` 等で
 // 組んだ既定は生き残る。これも各ファイルの `beforeEach` に散らさずここで一括して行う
+// （vitest の既定 `clearMocks: true` が各テストの前に同じことをするので重複している。畳むのは T-146）
 //
 // `console.error` の検査は**最後**に置く。`cleanup()`（アンマウント）や `useRealTimers()`
 // （保留タイマーの破棄）が出す警告まで含めて拾うため。`cleanup()` が投げたときは検査せず
