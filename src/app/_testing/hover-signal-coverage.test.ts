@@ -25,8 +25,8 @@ const EXCLUDED = [
 ];
 
 const sources = globSync("src/app/**/*.{ts,tsx}", { cwd: repoRoot }).filter(
-  // ブラウザ段のスクリーンショットは `__screenshots__/<テスト名>.tsx/` という **`.tsx` で終わる
-  // ディレクトリ**に入るので、名前だけでは除けない
+  // ブラウザ段で `toMatchScreenshot` / `page.screenshot()` を使うと、既定で `__screenshots__/<テストファイル名>/`
+  // という **`.tsx` で終わるディレクトリ**ができるので、名前だけでは除けない
   (file) => !EXCLUDED.includes(file) && statSync(path.join(repoRoot, file)).isFile()
 );
 

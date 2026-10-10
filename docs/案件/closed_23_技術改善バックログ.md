@@ -107,6 +107,7 @@
 | T-124 | 画面定義書がエラー文言そのものを書いており、辞書と二重管理になっている箇所が残る | 調査 | 低 | 完了（2026-09-19）→ 辞書の写し6箇所を意味だけの記述へ畳み、基準を共通 §4 に条項化。辞書を持たない UI 文言は [T-153](#t-153) へ分離 | [詳細](#t-124) |
 | T-153 | 辞書を持たない UI 文言（空状態・バナー・ボタン名・完了トースト）が画面定義書とコンポーネントの二重管理になっている | 内部設計 | 低 | 完了（2026-09-20）→ 状態を伝える11件を `notice-messages.ts` へ集約。ボタン名・画面名・列見出し・繰り返しの表記は「その語自体が仕様」として画面定義書に残す線を共通 §4 に条項化 | [詳細](#t-153) |
 | T-159 | Dependabot 依存追随（undici・minor-and-patch 6件・brace-expansion の脆弱性8件、major 4件クローズ） | 依存追随 | 中 | 完了（2026-10-02） | [詳細](#t-159) |
+| T-160 | vitest 5 への移行（`vitest` / `@vitest/*` 一式と Dependabot のグループ化） | 依存追随 | 中 | 完了（2026-10-10） | [詳細](#t-160) |
 
 ## 詳細
 
@@ -1193,6 +1194,18 @@
 - **根治（本 PR、`brace-expansion` 1.1.16→1.1.21・5.0.9→5.0.12）**: アラート #31（`eslint` → `minimatch@3` 経由）と #30（`typescript-eslint` → `minimatch@10` 経由）。どちらも dev スコープ。#30 には Dependabot の PR が無く、#31 の PR #205 は #200 より前の main が起点だった。どちらも親の semver 範囲内で上がるため `overrides` を使わず `npm update brace-expansion` で lockfile だけを更新し、2件を1本で閉じて #205 はクローズした
 - **判明したこと**: 古い major の PR 4本（#186〜#189）が開いたまま残り、`dependabot.yml` の `open-pull-requests-limit: 5` をほぼ埋めていた。閉じる判断の PR を放置すると**新しい version-update PR が出なくなる**ので、クローズはトリアージのその場で済ませる
 - 関連: 本書 [T-152](#t-152)（同型の依存追随トリアージ）/ [T-02](./23_技術改善バックログ.md#t-02)（eslint 10）/ [アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md) §11（版の追随関係）/ [dependabot-triage スキル](../../.claude/skills/dependabot-triage/SKILL.md)
+
+### T-160
+
+- 背景: [T-159](#t-159) で `@vitest/browser` / `@vitest/browser-playwright` 5 の Dependabot PR（#186・#187、のち #207）を閉じた。理由は vitest 本体 4.1.x と peer が噛み合わず `npm ci` が ERESOLVE で落ちることだけで、**vitest 5 そのものの阻害要因は確認されていなかった**
+- 前提の確認: vitest 5.0.3 の要件（Node `^22.12 / ^24 / >=26`・vite `^6.4 / ^7 / ^8`・`@types/node` `^22 / >=24`）は本番追随の Node 24・vite 8.2.2・`@types/node` `^24` で満たしている（[アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md) §11 を動かさずに済む）
+- 対応: `vitest` / `@vitest/browser` / `@vitest/browser-playwright` / `@vitest/coverage-v8` をまとめて 5.0.3 へ。**設定ファイル（`vitest.config.mts` / `vitest.browser.config.mts`）とテストコードは無変更で通った**。移行ガイドの破壊的変更のうち当たりうるもの——projects の `extends` 既定 true（既に全 project が明示）、`clearMocks` 既定 true、`vi.mock` のトップレベル強制、ブラウザ段の locator 厳密化——は、いずれも全件緑で踏んでいないことを確かめた
+- `dependabot.yml` に `vitest` グループ（`vitest` / `@vitest/*`、major を含む）を `minor-and-patch` より前に足した。以後は一式そろった PR が1本で来るので、CI が実際に版の組を検証できる
+- 生成物の置き場が変わった: 失敗時スクリーンショットと添付が `.vitest-attachments/`・`src/**/__screenshots__/` からルートの `.vitest/` へ集約された（ブラウザ段のテストを1か所壊して実測）。`.gitignore` は `/.vitest/` だけにした（`__screenshots__/` は `toMatchScreenshot` を使えばコミットすべき基準画像になるので無視しない）。`__screenshots__/` を避ける `isFile` ガード3か所は予防として残し、コメントだけ直した
+- 検証: typecheck・lint・build、3段（2,359件）、ブラウザ段（22件）。カバレッジは v4（main の worktree）と突き合わせ、**計測対象152ファイル・行数 2,460/2,626 まで完全一致**（`include` / `exclude` の照合規則の変更が効いていないことの確認）
+- 揺らぎ1件: インストール直後の1回目に `modes-table.test.tsx`「新規追加を押すとエラー表示を消す」が `waitFor` の既定1秒で「保存中」が解けず落ちた。以後 v5 で7回、v4 で4回いずれも全件緑で、v5 固有の退行とは判定できなかった（キャッシュが冷えた高負荷時の時間切れと見ている）。再発したら `waitFor` の待ち時間ではなく「保存中が解ける」ことを待つ形を検討する
+- 残したもの: `setup.ts` の `afterEach` の `clearAllMocks` は v5 既定の `clearMocks`（各テスト前）と重なるが無害なので触っていない。畳むなら [T-146](./23_技術改善バックログ.md#t-146)（後始末を段の既定へ寄せる）の範囲で一緒に決める
+- 関連: [T-159](#t-159)（発端のクローズ）/ [T-03](#t-03)（ブラウザ段の導入。`.gitignore` の出力置き場）/ [T-146](./23_技術改善バックログ.md#t-146) / [テスト戦略定義書](../仕様/17_テスト戦略定義書.md)
 
 ## 旧書式の記録（2026-07-26 以前）
 

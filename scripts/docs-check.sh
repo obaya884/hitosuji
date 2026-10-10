@@ -60,8 +60,8 @@ DOCS = sorted(glob.glob("docs/**/*.md", recursive=True))
 # AGENTS.md だけは `next dev` が生成し直すので対象から外す
 TARGETS = DOCS + ["CLAUDE.md", "README.md"] + sorted(glob.glob(".claude/**/*.md", recursive=True))
 # コード内の `§` 参照も docs を指すので同じ検査に載せる（T-113。規則はアーキテクチャ定義書 §2）
-# `isfile` は必須——ブラウザ段のスクリーンショット置き場が `__screenshots__/<テスト名>.tsx/` と
-# **テストファイル名のディレクトリ**になっており、外すと glob がそれを拾って読み込みで落ちる
+# `isfile` は予防——ブラウザ段で `toMatchScreenshot` / `page.screenshot()` を使うと、既定で
+# `__screenshots__/<テストファイル名>/` という**テストファイル名のディレクトリ**ができ、glob がそれを拾って読み込みで落ちる
 SOURCES = sorted(
     p
     for pattern in ("src/**/*.ts", "src/**/*.tsx")

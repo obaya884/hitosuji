@@ -18,8 +18,8 @@ const repoRoot = path.resolve(import.meta.dirname, "../../..");
 const SELF = "src/app/_testing/text-step-coverage.test.ts";
 
 const sources = globSync("src/app/**/*.{ts,tsx}", { cwd: repoRoot }).filter(
-  // ディレクトリも拾う——ブラウザ段のスクリーンショットは `__screenshots__/<テスト名>.tsx/` という
-  // **`.tsx` で終わるディレクトリ**に入るので、名前だけで除けず `statSync` で確かめる
+  // ディレクトリも拾う——ブラウザ段で `toMatchScreenshot` / `page.screenshot()` を使うと、既定で
+  // `__screenshots__/<テストファイル名>/` という **`.tsx` で終わるディレクトリ**ができるので、名前だけで除けず `statSync` で確かめる
   (file) => file !== SELF && statSync(path.join(repoRoot, file)).isFile()
 );
 
