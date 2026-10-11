@@ -130,6 +130,8 @@ describe("RoutineForm（画面定義書02 §4: 繰り返し種別に応じて入
     expect(screen.getByLabelText<HTMLInputElement>("火").checked).toBe(true);
     expect(screen.getByLabelText<HTMLInputElement>("月").checked).toBe(false);
     expect(screen.getByLabelText<HTMLInputElement>(/週間隔/).value).toBe("2");
+    // 注記はルーチン化ポップオーバー（画面定義書01 §4.1）と同じ文言（T-154 で経路間の割れを揃えた）
+    expect(screen.queryByText("週おき（1=毎週・2=隔週）")).not.toBeNull();
     expect(screen.getByLabelText<HTMLInputElement>("開始日").value).toBe("2026-06-01");
     expect(screen.getByLabelText<HTMLInputElement>("終了日（任意）").value).toBe("2026-09-30");
     expect(screen.getByLabelText<HTMLSelectElement>("モード").value).toBe("2");

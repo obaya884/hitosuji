@@ -17,6 +17,7 @@
 // 無条件にクリアする——それは実際に新しい応答を待ち始める瞬間なので、古い通知を残す理由が無い
 import { useState } from "react";
 import { EMPTY_BUNDLES } from "@/app/_lib/notice-messages";
+import { ARCHIVE_LABEL } from "@/app/_lib/operation-labels";
 import { hoverSurface, linkMuted } from "@/app/_lib/ui";
 import { useServerActionRunner } from "@/app/_lib/use-server-action";
 import type { Bundle, BundleId } from "@/domain/bundle/bundle";
@@ -254,7 +255,7 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
                 disabled={isPending}
                 className={`ml-auto px-2 ${linkMuted}`}
               >
-                アーカイブ
+                {ARCHIVE_LABEL}
               </button>
             </header>
             {/* key でバンドルを切り替えるたびに作り直す（編集中セル・候補一覧の開閉を前のバンドル

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useServerAction } from "@/app/_lib/use-server-action";
 import { formatDuration } from "@/app/_lib/format";
+import { ARCHIVE_LABEL } from "@/app/_lib/operation-labels";
 import { disabledPermanent, linkMuted, tableHeadRow } from "@/app/_lib/ui";
 import { sectionCapacityMinutes, type Section, type SectionId } from "@/domain/section/section";
 import { TableFrame } from "@/app/_components/table-frame";
@@ -176,7 +177,7 @@ export function SectionsTable({ ranges, archived, deletableIds }: Props) {
                     // 日界の不可は恒久的なので条件で薄くする（00_共通 §2.5）
                     className={`px-2 ${linkMuted} ${isDayStart ? disabledPermanent : ""}`}
                   >
-                    アーカイブ
+                    {ARCHIVE_LABEL}
                   </button>
                 </td>
               </tr>

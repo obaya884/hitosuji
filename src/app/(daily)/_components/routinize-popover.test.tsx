@@ -74,7 +74,7 @@ describe("RoutinizePopover（画面定義書01 §4.1 / O-12: 最小の入力で�
     expect(pressedLabels(container)).toEqual(["週次", "日"]);
     expect(screen.queryByText("平日")).not.toBeNull();
     expect(screen.queryByText("土日")).not.toBeNull();
-    expect(screen.queryByText("週おき（1=毎週）")).not.toBeNull();
+    expect(screen.queryByText("週おき（1=毎週・2=隔週）")).not.toBeNull();
   });
 
   it("曜日はトグルで増減できる", () => {

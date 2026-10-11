@@ -12,6 +12,7 @@ import {
   type Routine,
 } from "@/domain/routine/routine";
 import type { RoutineInput } from "@/domain/routine/input";
+import { RECURRENCE_LABELS, WEEK_INTERVAL_NOTE } from "@/app/_lib/recurrence-labels";
 import { btnPrimary, btnSecondary, inputBase, linkMuted } from "@/app/_lib/ui";
 import { UNSET_LABEL } from "@/app/_lib/unset";
 
@@ -28,13 +29,6 @@ type Props = Readonly<{
   onSubmit: (input: RoutineInput) => void;
   onCancel: () => void;
 }>;
-
-const RECURRENCE_LABELS: Readonly<Record<RecurrenceType, string>> = {
-  daily: "毎日",
-  weekly: "週次",
-  monthly: "月次",
-  interval: "n日ごと",
-};
 
 /**
  * 新規/編集フォーム（画面定義書02 §4）。項目は一覧の列順（§3）に沿って並べ、繰り返し種別に
@@ -220,7 +214,7 @@ export function RoutineForm({
                 onChange={(e) => setWeekInterval(e.target.value)}
                 className={`ml-2 w-16 ${inputBase}`}
               />
-              <span className="ml-2 text-meta text-ink-muted">週おき（1=毎週・2=隔週）</span>
+              <span className="ml-2 text-meta text-ink-muted">{WEEK_INTERVAL_NOTE}</span>
             </label>
           </div>
         )}
