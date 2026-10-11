@@ -16,24 +16,24 @@ import {
   defaultTasks,
   FORENOON,
   NOT_STARTED,
+  quickAddInput,
   renderBoard,
   RUNNING,
   setupBoard,
+  stickyBoard,
 } from "../_testing/board-helpers";
 import { ResizeObserverStub } from "@/app/_testing/resize-observer";
 import { summaryValueOf } from "../_testing/summary-helpers";
-import { cellsOf, headingOf, stickyBoard, taskRow, taskRows } from "../_testing/table-helpers";
+import { cellsOf, headingOf, taskRow, taskRows } from "../_testing/table-helpers";
 
 vi.mock("../actions", async () => (await import("../_testing/action-mocks")).actionMocks());
 
 setupBoard();
 
-/** クイック追加欄（§3.4）。板の中での前後関係を測る基準に使う */
-function quickAddInput(): HTMLElement {
-  return screen.getByPlaceholderText("タスク名を入力して Enter で追加");
-}
-
-/** 上部の板を観測している ResizeObserver。無ければ計測そのものが配線されていない */
+/**
+ * 上部の板を観測している ResizeObserver。無ければ計測そのものが配線されていない。
+ * 列見出しとセクション見出しは板の高さを起点に積まれるので、高さを動かすテストはこれで引く
+ */
 function stickyObserver(): ResizeObserverStub {
   return ResizeObserverStub.observing(stickyBoard());
 }

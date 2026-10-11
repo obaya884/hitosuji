@@ -109,7 +109,7 @@
 | T-159 | Dependabot 依存追随（undici・minor-and-patch 6件・brace-expansion の脆弱性8件、major 4件クローズ） | 依存追随 | 中 | 完了（2026-10-02） | [詳細](#t-159) |
 | T-160 | vitest 5 への移行（`vitest` / `@vitest/*` 一式と Dependabot のグループ化） | 依存追随 | 中 | 完了（2026-10-10） | [詳細](#t-160) |
 | T-161 | Dependabot 依存追随（next 16.4.0 ほか minor-and-patch 4件・sharp と source-map-js の脆弱性2件） | 依存追随 | 中 | 完了（2026-10-10） | [詳細](#t-161) |
-| T-157 | デイリーの固定領域を引くヘルパが jsdom 段とブラウザ段に同じ実装で二重にある | テスト | 低 | 完了 2026-10-11 → `stickyBoard()` を `(daily)/_testing/table-helpers.ts` へ寄せ、jsdom 段・ブラウザ段の2本を削除。貼り付きの前提検査ごと移したのでブラウザ段にも前提が入った | [詳細](#t-157) |
+| T-157 | デイリーの固定領域を引くヘルパが jsdom 段とブラウザ段に同じ実装で二重にある | テスト | 低 | 完了 2026-10-11 → `stickyBoard()` を `(daily)/_testing/board-helpers.tsx`（盤面の DOM 読み取り `quickAddInput` の隣。板は表 §3.3 の外なので `table-helpers.ts` ではない）へ寄せ、jsdom 段・ブラウザ段の2本を削除。貼り付きの前提検査ごと移したのでブラウザ段にも前提が入った。同型の重複だった jsdom 段ローカルの `quickAddInput` も共有側へ寄せた | [詳細](#t-157) |
 
 ## 詳細
 

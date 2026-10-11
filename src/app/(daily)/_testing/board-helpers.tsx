@@ -227,6 +227,21 @@ export function quickAddInput(): HTMLElement {
   return screen.getByPlaceholderText("タスク名を入力して Enter で追加");
 }
 
+/**
+ * 上部の板（§2 固定領域の1段目。h1・日付ナビ＋サマリ・クイック追加欄と、出ていれば §8 の
+ * 警告バナー）。列見出しとセクション見出しはこの高さを起点に積まれる。
+ *
+ * **貼り付いていることを前提として確かめる**——板の `div` ごと外して子を持ち上げる変異が起きると
+ * h1 の親は RTL のコンテナ（リストも含む要素）になり、「板の中にある」を見るテストが揃って
+ * 偽の緑になる。固定は §2 の条項そのものなので、ここで1度だけ押さえる
+ */
+export function stickyBoard(): HTMLElement {
+  const board = screen.getByRole("heading", { name: "デイリー" }).parentElement;
+  if (board === null) throw new Error("上部の板が見つかりません");
+  if (!board.classList.contains("sticky")) throw new Error("上部の板が固定されていません（§2）");
+  return board;
+}
+
 /** インライン編集の確定（00_共通 §2.3: Enter または blur で確定） */
 export function commit(input: HTMLElement, value: string) {
   fireEvent.change(input, { target: { value } });

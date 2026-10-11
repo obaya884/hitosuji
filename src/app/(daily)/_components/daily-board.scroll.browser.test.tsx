@@ -17,9 +17,9 @@ import { atJst } from "@/domain/shared/testing/clock";
 import type { Task } from "@/domain/task/task";
 import { task } from "@/domain/task/testing/task";
 
-import { renderBoard, setupBoardInBrowser } from "../_testing/board-helpers";
+import { renderBoard, setupBoardInBrowser, stickyBoard } from "../_testing/board-helpers";
 import { ICON_SIZE_CSS, installGeometryStyles } from "../_testing/geometry-styles";
-import { headingOf, isSelected, stickyBoard, taskRows } from "../_testing/table-helpers";
+import { headingOf, isSelected, taskRows } from "../_testing/table-helpers";
 
 vi.mock("../actions", async () => (await import("../_testing/action-mocks")).actionMocks());
 
