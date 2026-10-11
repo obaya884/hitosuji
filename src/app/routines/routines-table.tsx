@@ -18,8 +18,9 @@ import { RowMenu } from "@/app/_components/row-menu";
 import { sectionAt, type Section } from "@/domain/section/section";
 import { DAILY_PATH } from "@/app/_lib/date-href";
 import { EMPTY_ROUTINES } from "@/app/_lib/notice-messages";
+import { DELETE_LABEL } from "@/app/_lib/operation-labels";
 import { useServerAction } from "@/app/_lib/use-server-action";
-import { hoverWord, tableHeadRow } from "@/app/_lib/ui";
+import { emptyNote, hoverWord, tableHeadRow } from "@/app/_lib/ui";
 import { DurationValue } from "@/app/_components/duration-value";
 import { TableFrame } from "@/app/_components/table-frame";
 import { UnsetMark } from "@/app/_components/unset-mark";
@@ -312,7 +313,7 @@ export function RoutinesTable({
                         },
                       },
                       {
-                        label: "削除",
+                        label: DELETE_LABEL,
                         onSelect: () => run(() => deleteRoutineAction(routine.id)),
                         confirmMessage: `「${routine.name}」を削除しますか？\n展開済みのタスクは残ります。`,
                       },
@@ -326,7 +327,7 @@ export function RoutinesTable({
       </table>
 
       {routines.length === 0 && editing === null && (
-        <p className="mt-4 text-sub text-ink-muted">{EMPTY_ROUTINES}</p>
+        <p className={`mt-4 ${emptyNote}`}>{EMPTY_ROUTINES}</p>
       )}
 
       {/* key で行ごとにフォームを作り直す（別の行を開いたとき入力を持ち越さない） */}

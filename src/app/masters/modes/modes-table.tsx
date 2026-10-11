@@ -4,7 +4,7 @@ import { useState } from "react";
 import { EMPTY_MODES } from "@/app/_lib/notice-messages";
 import { ARCHIVE_LABEL } from "@/app/_lib/operation-labels";
 import { useServerAction } from "@/app/_lib/use-server-action";
-import { linkMuted, tableHeadRow } from "@/app/_lib/ui";
+import { emptyNote, linkMuted, tableHeadRow } from "@/app/_lib/ui";
 import type { Mode, ModeId } from "@/domain/mode/mode";
 import { colorPresetName } from "@/domain/shared/color-presets";
 import { TableFrame } from "@/app/_components/table-frame";
@@ -157,7 +157,7 @@ export function ModesTable({ active, archived, deletableIds }: Props) {
       </table>
 
       {active.length === 0 && editingId === null && (
-        <p className="mt-4 text-sub text-ink-muted">{EMPTY_MODES}</p>
+        <p className={`mt-4 ${emptyNote}`}>{EMPTY_MODES}</p>
       )}
 
       <ArchivedSection

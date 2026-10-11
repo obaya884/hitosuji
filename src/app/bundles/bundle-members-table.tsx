@@ -16,7 +16,15 @@ import type { Mode } from "@/domain/mode/mode";
 import { describeRecurrence, type Routine, type RoutineId } from "@/domain/routine/routine";
 import { bundleCandidates, bundleMembers } from "@/domain/bundle/members";
 import { EMPTY_BUNDLE_CANDIDATES, EMPTY_BUNDLE_MEMBERS } from "@/app/_lib/notice-messages";
-import { hoverSurface, hoverWord, linkAccent, linkMuted, noticeDanger, tableHeadRow } from "@/app/_lib/ui";
+import {
+  emptyNote,
+  hoverSurface,
+  hoverWord,
+  linkAccent,
+  linkMuted,
+  noticeDanger,
+  tableHeadRow,
+} from "@/app/_lib/ui";
 import { useDismiss } from "@/app/_lib/use-dismiss";
 import type { useServerActionRunner } from "@/app/_lib/use-server-action";
 import { DurationValue } from "@/app/_components/duration-value";
@@ -81,7 +89,7 @@ export function BundleMembersTable({
       {error !== null && <p className={`mb-2 ${noticeDanger}`}>{error}</p>}
 
       {members.length === 0 ? (
-        <p className="text-sub text-ink-muted">{EMPTY_BUNDLE_MEMBERS}</p>
+        <p className={emptyNote}>{EMPTY_BUNDLE_MEMBERS}</p>
       ) : (
         <table className="w-full">
           <thead>
@@ -148,7 +156,7 @@ export function BundleMembersTable({
 
         {isAddingOpen &&
           (candidates.length === 0 ? (
-            <p className="mt-1 text-sub text-ink-muted">{EMPTY_BUNDLE_CANDIDATES}</p>
+            <p className={`mt-1 ${emptyNote}`}>{EMPTY_BUNDLE_CANDIDATES}</p>
           ) : (
             <ul className="mt-1 divide-y divide-line rounded-control border border-line">
               {candidates.map((candidate) => (

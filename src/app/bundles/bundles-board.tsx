@@ -18,7 +18,7 @@
 import { useState } from "react";
 import { EMPTY_BUNDLES } from "@/app/_lib/notice-messages";
 import { ARCHIVE_LABEL } from "@/app/_lib/operation-labels";
-import { hoverSurface, linkMuted } from "@/app/_lib/ui";
+import { emptyNote, hoverSurface, linkMuted } from "@/app/_lib/ui";
 import { useServerActionRunner } from "@/app/_lib/use-server-action";
 import type { Bundle, BundleId } from "@/domain/bundle/bundle";
 import type { Mode } from "@/domain/mode/mode";
@@ -243,7 +243,7 @@ export function BundlesBoard({ bundles, routines, modes }: Props) {
 
       <div className="mt-4 pl-4">
         {selectedBundle === null ? (
-          <p className="text-sub text-ink-muted">{EMPTY_BUNDLES}</p>
+          <p className={emptyNote}>{EMPTY_BUNDLES}</p>
         ) : (
           <>
             <header className="flex items-center gap-3 border-b border-line pb-3">
