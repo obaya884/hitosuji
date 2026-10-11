@@ -1,16 +1,18 @@
-// ブラウザ段（テスト戦略定義書 §3 / T-138・T-144）。スクロール中の固定領域（画面定義書01 §2）の
+// ブラウザ段（テスト戦略定義書 §3 / T-138・T-144・T-165）。スクロール中の固定領域（画面定義書01 §2）の
 // 貼り付き・重なりと、それに対する選択行のスクロール追従（§5 / FB-20・FB-77）を実測する唯一の場所。
 //
 // jsdom 段は `scrollIntoView` を呼んだかどうか（`daily-list.test.tsx`）と、`scroll-margin-top` に
 // 何 px を配ったか（同）、固定領域のクラスの有無までしか主張できない——レイアウトが無いので
-// 「行が見出しの裏に隠れたか」「どの段が手前か」は誰も確かめていなかった。ここが持つのは次の4つだけ:
+// 「行が見出しの裏に隠れたか」「どの段が手前か」は誰も確かめていなかった。ここが持つのは次の5つだけ:
 //   1. 積み上げた3段の高さ（板＋列見出し＋セクション見出し）が**実際の固定領域と一致する**こと
 //   2. `scrollIntoView({ block: "nearest" })` ＋ `scroll-margin-top` の停止位置が、
 //      上方向へ戻したときに**その固定領域を避ける**こと
 //   3. 板が警告バナー（§8 / FB-116）を含んで高くなっても 1 が保たれ、バナーが画面内に残ること
 //   4. スクロール中に重なった点で**どの段が手前に描かれるか**（§2 の重なり順）——
 //      クラスの有無だけでは、z-index が入れ替わっても全段が緑のまま通る
-import { screen } from "@testing-library/react";
+//   5. 行内の浮遊面（ポップオーバー・行メニュー。画面定義書00_共通 §2.1）が貼り付いた見出しに
+//      かかったとき、**浮遊面のほうが手前に描かれる**こと（§2 の重なり順の後半）
+import { screen, within } from "@testing-library/react";
 import { userEvent } from "vitest/browser";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -19,7 +21,7 @@ import { atJst } from "@/domain/shared/testing/clock";
 import type { Task } from "@/domain/task/task";
 import { task } from "@/domain/task/testing/task";
 
-import { renderBoard, setupBoardInBrowser, stickyBoard } from "../_testing/board-helpers";
+import { FORENOON, renderBoard, setupBoardInBrowser, stickyBoard } from "../_testing/board-helpers";
 import { ICON_SIZE_CSS, installGeometryStyles } from "../_testing/geometry-styles";
 import { cellsOf, headingOf, isSelected, taskRows } from "../_testing/table-helpers";
 
@@ -94,6 +96,11 @@ function columnHeadCell(): HTMLElement {
   return cell;
 }
 
+/** 一覧の表の矩形（列見出しを持つ表）。表の末尾・横の範囲を測るのに使う */
+function tableRect(): DOMRect {
+  return columnHeadCell().closest("table")!.getBoundingClientRect();
+}
+
 /** 固定領域（§2 の3段）の下端。貼り付いた見出しの下端がそのまま境界になる */
 function fixedAreaBottom(): number {
   return headingOf(UNCATEGORIZED_LABEL).getBoundingClientRect().bottom;
@@ -118,8 +125,11 @@ function sectionHeadTop(): number {
  * `scroll-margin-top` はそれに3段目を足したもの）。分かれて届くようになると 3段目だけ遅れて
  * **赤フレーク**になる——嘘の緑ではないので、落ちたらここを疑う
  */
-async function renderAndSettle(over: Parameters<typeof renderBoard>[1] = {}) {
-  renderBoard(manyTasks(), over);
+async function renderAndSettle(
+  over: Parameters<typeof renderBoard>[1] = {},
+  tasks: readonly Task[] = manyTasks()
+) {
+  renderBoard(tasks, over);
   await expect.poll(sectionHeadTop).toBeGreaterThan(0);
 }
 
@@ -275,11 +285,15 @@ describe("選択行のスクロール追従（画面定義書01 §5: 固定見�
  * 画面上の点に**最前面で描かれている**のがどの層か（§2 の3段と、その下を流れる通常の行）。
  * `elementFromPoint` は描画順の一番上を返すので、z-index が実際に効いているかをそのまま読める
  * （クラスの有無では入れ替わりを検出できない）。どれでもなければ何に当たったかを返し、
- * 失敗を読めるようにする
+ * 失敗を読めるようにする。
+ *
+ * `floating` には開いている行内の浮遊面のパネルを渡す。**行の中にある**ので、行より先に引く
+ * （後に回すと浮遊面が手前でも「通常の行」と読んでしまう）
  */
-function layerAt(x: number, y: number): string {
+function layerAt(x: number, y: number, floating?: HTMLElement): string {
   const hit = document.elementFromPoint(x, y);
   if (hit === null) return "（何も無い）";
+  if (floating?.contains(hit) === true) return "浮遊面";
   if (stickyBoard().contains(hit)) return "板";
   if (hit.closest("thead") !== null) return "列見出し";
   // 未分類以外の見出しも同じ位置に重なって残りうる（§2 / 決定ログ 2026-08-27）ので、
@@ -384,8 +398,7 @@ describe("固定領域の重なり順（§2: 板 > 列見出し > セクショ�
 
     try {
       // 文書上の位置へ直す（`scrollY` を足す）。開始位置が 0 であることに頼らない
-      const tableBottom =
-        window.scrollY + columnHeadCell().closest("table")!.getBoundingClientRect().bottom;
+      const tableBottom = window.scrollY + tableRect().bottom;
       const boardHeight = stickyBoard().getBoundingClientRect().height;
       const columnHeadHeight = columnHeadCell().getBoundingClientRect().height;
       window.scrollTo(0, Math.round(tableBottom - (boardHeight + columnHeadHeight / 2)));
@@ -417,5 +430,205 @@ describe("固定領域の重なり順（§2: 板 > 列見出し > セクショ�
     } finally {
       filler.remove();
     }
+  });
+});
+
+/**
+ * 行内の浮遊面を測るために足して敷くもの。パネルの**位置指定**（`absolute`）は測る対象そのもの——
+ * 位置指定の無い要素には z-index が効かず、パネルは行と一緒に見出しの裏を流れるだけになる
+ * （敷かないと、パネルの z-index を落としても上げても同じ盤面を測ることになる）。z-index は
+ * ファイル先頭で敷いた `.z-10` がそのまま当たる。
+ *
+ * パネルに付く他の位置指定（`right-0`・反転時の `bottom-full`）と余白（`mt-1`）は敷かない——
+ * 測るのはどれが手前かだけで、パネルの水平位置は測る点の取り方（パネルの実測から引く）で吸収する。
+ * 向きのクラスを敷かないので、**パネルは反転の判定に関わらず静的な位置（ボタンの直後＝行の中から
+ * 下へ）に出る**。**この describe にだけ敷く**のは、上の3段の主張を `absolute` の無い盤面のまま
+ * 保つため。
+ *
+ * 射程: 浮遊面の z-index が見出しと競るのは、パネルの先祖（`relative` のセル・枠）が重なりの文脈
+ * （stacking context）を作っていないから。**先祖に `isolate`・`opacity-*`・`transform` 系が付いて
+ * パネルが閉じ込められる退行は、それらを敷いていないので測れない**（代表を1か所に絞れるのも
+ * この前提があるから）
+ */
+const FLOATING_CSS = ".absolute { position: absolute }";
+
+/**
+ * パネルと相手が画面内で横に重なる範囲の幅と中点 x。パネルの水平位置は敷いていない
+ * （`FLOATING_CSS` の JSDoc）ので、測る点は実測した重なりから引く。幅が無ければ何も試せていない
+ */
+function horizontalOverlap(
+  panel: DOMRect,
+  other: Readonly<{ left: number; right: number }>
+): Readonly<{ x: number; width: number }> {
+  const left = Math.max(panel.left, other.left);
+  const right = Math.min(panel.right, other.right, window.innerWidth);
+  return { x: (left + right) / 2, width: right - left };
+}
+
+/** 浮遊面のパネル。役割を持たないので、中の要素から親へ遡る */
+function panelOf(inner: Element | null): HTMLElement {
+  const panel = inner?.parentElement;
+  if (panel === null || panel === undefined) throw new Error("浮遊面のパネルが見つかりません");
+  return panel;
+}
+
+/** 行内の浮遊面の1部品と、それを行で開いてパネルを返す手順 */
+type FloatingSurface = Readonly<{
+  name: string;
+  open: (row: HTMLElement) => Promise<HTMLElement>;
+}>;
+
+/** 選択ポップオーバー。モード・プロジェクト・セクションで同じ部品なので、代表としてモードの列で開く */
+const SELECT_POPOVER: FloatingSurface = {
+  name: "選択ポップオーバー（O-5）",
+  open: async (row) => {
+    const cell = cellsOf(row).mode;
+    await userEvent.click(within(cell).getByRole("button"));
+    return panelOf(cell.querySelector("[data-option-index]"));
+  },
+};
+
+const ROW_MENU: FloatingSurface = {
+  name: "行メニュー",
+  open: async (row) => {
+    await userEvent.click(within(row).getByRole("button", { name: "行メニュー" }));
+    return panelOf(within(row).getByRole("button", { name: "複製" }));
+  },
+};
+
+const ROUTINIZE_POPOVER: FloatingSurface = {
+  name: "ルーチン化ポップオーバー（O-12）",
+  open: async (row) => {
+    await userEvent.click(within(row).getByRole("button", { name: "行メニュー" }));
+    await userEvent.click(within(row).getByRole("button", { name: "ルーチン化" }));
+    return panelOf(within(row).getByText("ルーチン化", { selector: "p" }));
+  },
+};
+
+/**
+ * 行内の浮遊面（画面定義書00_共通 §2.1。デイリーの行に開くもの）の全部品。
+ * **z-index は各部品が自分のクラス文字列に別々に書いている**（値は同じ `z-10` だが共有していない）
+ * ので、部品ごとに1件ずつ測る（1つを測っても他の部品の退行は捕まらない）
+ */
+const FLOATING_SURFACES: readonly FloatingSurface[] = [SELECT_POPOVER, ROW_MENU, ROUTINIZE_POPOVER];
+
+/** 2グループの盤面の各グループの行数。未分類の末尾行のパネルが次の見出しまで垂れ、なお送れる長さ */
+const ROWS_PER_GROUP = 25;
+
+/** 未分類と午前の2グループに積んだ一覧（グループの境目で、DOM 上パネルより後ろの見出しを作る） */
+function twoGroupTasks(): Task[] {
+  return Array.from({ length: ROWS_PER_GROUP * 2 }, (_, i) =>
+    task({
+      id: i + 1,
+      name: `タスク${String(i + 1).padStart(2, "0")}`,
+      sectionId: i < ROWS_PER_GROUP ? null : FORENOON.id,
+    })
+  );
+}
+
+describe("行内の浮遊面は貼り付いた見出しより手前（§2 / 画面定義書00_共通 §2.1。ブラウザ段 / T-165）", () => {
+  installGeometryStyles(FLOATING_CSS);
+
+  /**
+   * 敷いた位置指定と z-index がパネルに当たっていること（上の「段の前提」と同じく値は見ない）。
+   * 実装がクラスを変える（`z-[10]` 等）と当たらなくなり、下の実測は**赤になる側で**崩れる——
+   * 嘘の緑にはならないが、z-index の退行か盤面の崩れかを読み分けるためにここで分ける
+   */
+  it.each(FLOATING_SURFACES)(
+    "段の前提: $name のパネルに位置指定と z-index が効いている",
+    async ({ open }) => {
+      await renderAndSettle();
+
+      const style = getComputedStyle(await open(taskRows()[0]!));
+
+      expect({ 位置指定: style.position, z指定あり: style.zIndex !== "auto" }).toEqual({
+        位置指定: "absolute",
+        z指定あり: true,
+      });
+    }
+  );
+
+  /**
+   * 開いたまま一覧を下へ送ると、パネルは行ごと固定領域の裏へ入っていく（位置は開いた直後に決めて
+   * スクロールに追従しない。画面定義書00_共通 §2.1「表示位置」）。パネルの上端を列見出しの上端の
+   * 1px 下まで送り（列見出し・セクション見出しの両方を覆わせる）、**両方にかかった点**で何が描かれるかを見る。
+   * 2段とも測るのは、z-index が同じ値どうしは DOM 順で後ろ（＝行の中のパネル）が手前になるため——
+   * パネルを `z-1` に落とす変異はセクション見出し（`z-1`）の上ではまだ手前に描かれ、列見出し
+   * （`z-2`）の上でだけ裏へ潜る
+   */
+  it.each(FLOATING_SURFACES)(
+    "$name は、かかった列見出し・セクション見出しより手前に描かれる",
+    async ({ open }) => {
+      await renderAndSettle();
+      window.scrollTo(0, SCROLLED);
+      // 固定領域のすぐ下に見えている行で開く（パネルは行の中から下へ出る。`FLOATING_CSS` の JSDoc）
+      const fixedBottom = fixedAreaBottom();
+      const row = taskRows().find((tr) => tr.getBoundingClientRect().top >= fixedBottom - EPSILON);
+      if (row === undefined) throw new Error("固定領域の下に見えている行がありません");
+      const panel = await open(row);
+
+      // 列見出しは貼り付いているので、送る前後で上端は変わらない（送った後の前提で確かめる）
+      const columnHeadEl = columnHeadCell();
+      const shift = panel.getBoundingClientRect().top - (columnHeadEl.getBoundingClientRect().top + 1);
+      window.scrollBy(0, Math.round(shift));
+
+      const board = stickyBoard().getBoundingClientRect();
+      const columnHead = columnHeadEl.getBoundingClientRect();
+      const sectionHead = headingOf(UNCATEGORIZED_LABEL).getBoundingClientRect();
+      const panelBox = panel.getBoundingClientRect();
+      const ys = { 列見出し: middleOf(columnHead), セクション見出し: middleOf(sectionHead) };
+      // 列見出しのセルは列ごとに分かれているので、横の範囲は表で取る（セクション見出しは全列に渡る）
+      const across = horizontalOverlap(panelBox, tableRect());
+
+      // 前提: 2段とも貼り付いたまま、パネルが両方の測る点を覆っている（無ければ何も試していない）
+      expect(board.top).toBeCloseTo(0, 1);
+      expect(columnHead.top).toBeCloseTo(board.bottom, 1);
+      expect(sectionHead.top).toBeCloseTo(columnHead.bottom, 1);
+      expect(panelBox.top).toBeLessThan(ys.列見出し);
+      expect(panelBox.bottom).toBeGreaterThan(ys.セクション見出し);
+      expect(across.width).toBeGreaterThan(1);
+
+      expect({
+        列見出し: layerAt(across.x, ys.列見出し, panel),
+        セクション見出し: layerAt(across.x, ys.セクション見出し, panel),
+      }).toEqual({ 列見出し: "浮遊面", セクション見出し: "浮遊面" });
+    }
+  );
+
+  /**
+   * 上の盤面（1グループ）では見出しがどれも DOM 上でパネルより前にあり、z-index が同値なら
+   * DOM 順でパネルが勝つ——**見出しを浮遊面と同値以上に上げる退行がそこでは測れない**。
+   * グループの境目なら、前のグループの末尾行で開いたパネルが、DOM 上パネルより**後ろ**にある
+   * 次の見出しへ垂れる。その見出しを貼り付く位置まで送り、パネルがかかった点を見る。
+   * z-index の退行は上の部品ごとのケースが見ているので、ここは代表1部品（行メニュー）で足りる
+   */
+  it("グループの境目で、DOM 上パネルより後ろの見出しが貼り付いても浮遊面が手前に描かれる", async () => {
+    await renderAndSettle({}, twoGroupTasks());
+    const nextHeading = headingOf(FORENOON.name);
+    const lastInboxRow = taskRows()[ROWS_PER_GROUP - 1]!;
+
+    // 未分類の末尾行を固定領域のすぐ下へ出して開く（見えていない行はクリックできない）
+    window.scrollTo(0, SCROLLED);
+    const fixedBottom = fixedAreaBottom();
+    window.scrollBy(0, Math.round(lastInboxRow.getBoundingClientRect().top - (fixedBottom + 1)));
+    const panel = await ROW_MENU.open(lastInboxRow);
+
+    // 次の見出しを、貼り付く位置の 2px 先まで送る（＝貼り付いた状態にする）
+    const stuckTop = Number.parseFloat(nextHeading.style.top);
+    window.scrollBy(0, Math.round(nextHeading.getBoundingClientRect().top - (stuckTop - 2)));
+
+    const heading = nextHeading.getBoundingClientRect();
+    const panelBox = panel.getBoundingClientRect();
+    const y = middleOf(heading);
+    const across = horizontalOverlap(panelBox, heading);
+
+    // 前提: 見出しは DOM 上パネルより後ろにあり、貼り付いていて、パネルがその測る点を覆っている
+    expect(panel.compareDocumentPosition(nextHeading) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(heading.top).toBeCloseTo(stuckTop, 1);
+    expect(panelBox.top).toBeLessThan(y);
+    expect(panelBox.bottom).toBeGreaterThan(y);
+    expect(across.width).toBeGreaterThan(1);
+
+    expect(layerAt(across.x, y, panel)).toBe("浮遊面");
   });
 });
