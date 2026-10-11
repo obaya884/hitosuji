@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { EMPTY_PROJECTS } from "@/app/_lib/notice-messages";
+import { ARCHIVE_LABEL } from "@/app/_lib/operation-labels";
 import { useServerAction } from "@/app/_lib/use-server-action";
 import { linkMuted, tableHeadRow } from "@/app/_lib/ui";
 import type { Project, ProjectId } from "@/domain/project/project";
@@ -95,7 +96,7 @@ export function ProjectsTable({ active, archived, deletableIds }: Props) {
                   disabled={isPending}
                   className={`px-2 ${linkMuted}`}
                 >
-                  アーカイブ
+                  {ARCHIVE_LABEL}
                 </button>
               </td>
             </tr>

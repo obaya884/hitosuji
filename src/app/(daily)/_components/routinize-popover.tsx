@@ -17,16 +17,10 @@ import type { Section } from "@/domain/section/section";
 import type { Task } from "@/domain/task/task";
 import { routineFromTaskErrorMessage } from "@/app/_lib/error-messages";
 import { formatClock, normalizeClockInput } from "@/app/_lib/format";
+import { RECURRENCE_LABELS, WEEK_INTERVAL_NOTE } from "@/app/_lib/recurrence-labels";
 import { btnPrimary, floatPanel, hoverSurface, inputBase } from "@/app/_lib/ui";
 import { useDismiss } from "@/app/_lib/use-dismiss";
 import { useFlipUp } from "@/app/_lib/use-flip-up";
-
-const RECURRENCE_LABELS: Readonly<Record<RecurrenceType, string>> = {
-  daily: "毎日",
-  weekly: "週次",
-  monthly: "月次",
-  interval: "n日ごと",
-};
 
 type Props = Readonly<{
   task: Task;
@@ -164,7 +158,7 @@ export function RoutinizePopover({ task, sections, now, onSubmit, onClose }: Pro
               onChange={(e) => updateChoice({ weekInterval: Number(e.target.value) })}
               className={`w-14 ${inputBase}`}
             />
-            <span className="text-meta text-ink-muted">週おき（1=毎週）</span>
+            <span className="text-meta text-ink-muted">{WEEK_INTERVAL_NOTE}</span>
           </label>
         </div>
       )}
