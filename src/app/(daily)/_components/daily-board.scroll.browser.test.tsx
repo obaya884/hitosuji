@@ -17,7 +17,7 @@ import { atJst } from "@/domain/shared/testing/clock";
 import type { Task } from "@/domain/task/task";
 import { task } from "@/domain/task/testing/task";
 
-import { renderBoard, setupBoardInBrowser } from "../_testing/board-helpers";
+import { renderBoard, setupBoardInBrowser, stickyBoard } from "../_testing/board-helpers";
 import { ICON_SIZE_CSS, installGeometryStyles } from "../_testing/geometry-styles";
 import { headingOf, isSelected, taskRows } from "../_testing/table-helpers";
 
@@ -74,16 +74,6 @@ function selectedRow(): HTMLElement {
   const selected = taskRows().filter((tr) => isSelected(tr));
   if (selected.length !== 1) throw new Error(`選択行が ${selected.length} 件あります`);
   return selected[0]!;
-}
-
-/**
- * 上部の板（§2 の1段目。構成は §2。出ていれば警告バナーも最下段に含む）。
- * jsdom 段（`daily-board.display`）と同じく画面見出しから親を引く
- */
-function stickyBoard(): HTMLElement {
-  const board = screen.getByRole("heading", { name: "デイリー" }).parentElement;
-  if (board === null) throw new Error("上部の板が見つかりません");
-  return board;
 }
 
 /** 列見出しのセル（§2 の2段目）。9セルとも同じ `top` なので先頭で測る */
