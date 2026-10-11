@@ -1,15 +1,15 @@
-// ブラウザ段（テスト戦略定義書 §3 / T-138）。選択行のスクロール追従（画面定義書01 §5 /
-// FB-20・FB-77）が**固定領域（§2）の裏で止まらない**ことを測る唯一の場所。
+// ブラウザ段（テスト戦略定義書 §3 / T-138・T-144）。スクロール中の固定領域（画面定義書01 §2）の
+// 貼り付き・重なりと、それに対する選択行のスクロール追従（§5 / FB-20・FB-77）を実測する唯一の場所。
 //
 // jsdom 段は `scrollIntoView` を呼んだかどうか（`daily-list.test.tsx`）と、`scroll-margin-top` に
-// 何 px を配ったか（同）までしか主張できない——レイアウトが無いので「行が見出しの裏に隠れたか」は
-// 誰も確かめていなかった。ここが持つのは次の4つだけ:
+// 何 px を配ったか（同）、固定領域のクラスの有無までしか主張できない——レイアウトが無いので
+// 「行が見出しの裏に隠れたか」「どの段が手前か」は誰も確かめていなかった。ここが持つのは次の4つだけ:
 //   1. 積み上げた3段の高さ（板＋列見出し＋セクション見出し）が**実際の固定領域と一致する**こと
 //   2. `scrollIntoView({ block: "nearest" })` ＋ `scroll-margin-top` の停止位置が、
 //      上方向へ戻したときに**その固定領域を避ける**こと
 //   3. 板が警告バナー（§8 / FB-116）を含んで高くなっても 1 が保たれ、バナーが画面内に残ること
-//   4. スクロール中に重なった点で**どの段が手前に描かれるか**（§2 の重なり順 / T-144）——
-//      jsdom 段はクラスの有無しか見られず、z-index が入れ替わっても全段が緑のまま通る
+//   4. スクロール中に重なった点で**どの段が手前に描かれるか**（§2 の重なり順）——
+//      クラスの有無だけでは、z-index が入れ替わっても全段が緑のまま通る
 import { screen } from "@testing-library/react";
 import { userEvent } from "vitest/browser";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -33,8 +33,8 @@ setupBoardInBrowser();
  * 端数を持つ条件そのもの**（FB-111）なので実物に合わせる——separate のままだと、端数が出ない
  * 楽な盤面で「積み上げが一致する」を主張することになる。
  *
- * 重なり順（§2）を測る分は z-index の3段と、**行の末尾セル（行メニュー）の `relative`**。
- * 後者は重なりの相手側だが、**段に z-index が要る理由そのもの**——位置指定を持たない行は
+ * 重なり順（§2）を測る分は z-index の3段と、**行内で位置指定を持つセルの `relative`**（行メニュー・
+ * 割り当て・バンドルの道のセル等。測る点には行メニューの列を使う）。後者は重なりの相手側だが、**段に z-index が要る理由そのもの**——位置指定を持たない行は
  * どのみち貼り付いた段の下に描かれるので、敷かないと z-index を外しても「段が行より手前」が
  * 緑のまま通る（`border-collapse` と同じく、楽な盤面で主張しないための条件）
  */
@@ -282,9 +282,8 @@ function layerAt(x: number, y: number): string {
   if (hit === null) return "（何も無い）";
   if (stickyBoard().contains(hit)) return "板";
   if (hit.closest("thead") !== null) return "列見出し";
-  // 見出しは未分類に限らない——貼り付きは表全体に閉じ込められるので、過ぎた見出しも同じ位置に
-  // 重なって残り、手前に来るのは DOM 順で最後のもの（画面定義書01 §2 / 決定ログ 2026-08-27）。
-  // 表の本体で貼り付くセルは見出しだけなので、`sticky` を持つ td で引く
+  // 未分類以外の見出しも同じ位置に重なって残りうる（§2 / 決定ログ 2026-08-27）ので、
+  // 表の本体で唯一貼り付くセル＝`sticky` を持つ td で引く
   if (hit.closest("td")?.classList.contains("sticky") === true) return "セクション見出し";
   const tr = hit.closest("tr");
   if (tr !== null && taskRows().includes(tr)) return "通常の行";
@@ -297,17 +296,17 @@ function rowMenuColumnX(): number {
   return rect.left + rect.width / 2;
 }
 
-/** 高さ y の位置を流れているタスク行。無ければ、その点では行との重なりを試せていない */
-function rowAcross(y: number): HTMLElement | undefined {
-  return taskRows().find((tr) => {
+/** 高さ y の位置をタスク行が流れているか。無ければ、その点では行との重なりを試せていない */
+function hasRowAcross(y: number): boolean {
+  return taskRows().some((tr) => {
     const rect = tr.getBoundingClientRect();
     return rect.top <= y && y < rect.bottom;
   });
 }
 
-/** 矩形の縦方向の中心 */
-function middleOf(rect: DOMRect): number {
-  return rect.top + rect.height / 2;
+/** 縦の範囲の中心 */
+function middleOf(range: Readonly<{ top: number; bottom: number }>): number {
+  return (range.top + range.bottom) / 2;
 }
 
 describe("固定領域の重なり順（§2: 板 > 列見出し > セクション見出し > 通常の行。ブラウザ段 / T-144）", () => {
@@ -315,7 +314,10 @@ describe("固定領域の重なり順（§2: 板 > 列見出し > セクショ�
    * 敷いた z-index と `relative` が実物に当たっていること。実装がクラスを変える（`z-[2]` 等）と
    * ここが先に落ちる——当たらないまま下を測ると、z-index の無い盤面の重なりを主張することになる。
    * **値は見ない**（`auto` でないことだけ）。どの値なら正しいかは下の実測が持つ——ここで数字を
-   * 突き合わせると、入れ替えの変異がすべてここで落ち、実測が効いているのかが読めなくなる
+   * 突き合わせると、入れ替えの変異がすべてここで落ち、実測が効いているのかが読めなくなる。
+   * 行メニューのセルの `relative` は測る点の真下にあるものとして見ている。実装が位置指定を
+   * セルから内側の要素へ移しただけでここが落ちたら、**行に位置指定を持つ要素があれば
+   * 下の主張は意味を保つ**ので、見る要素を移せばよい
    */
   it("段の前提: 3段に z-index が、行メニューのセルに位置指定が効いている", async () => {
     await renderAndSettle();
@@ -352,7 +354,7 @@ describe("固定領域の重なり順（§2: 板 > 列見出し > セクショ�
 
     // 前提: どの段の下にも行が流れている（流れていなければ重なりを試せていない）
     for (const [layer, y] of Object.entries(ys)) {
-      expect(rowAcross(y), `${layer}の下に行が無い`).toBeDefined();
+      expect(hasRowAcross(y), `${layer}の下に行が無い`).toBe(true);
     }
     expect({
       板: layerAt(x, ys.板),
@@ -381,7 +383,9 @@ describe("固定領域の重なり順（§2: 板 > 列見出し > セクショ�
     document.body.append(filler);
 
     try {
-      const tableBottom = columnHeadCell().closest("table")!.getBoundingClientRect().bottom;
+      // 文書上の位置へ直す（`scrollY` を足す）。開始位置が 0 であることに頼らない
+      const tableBottom =
+        window.scrollY + columnHeadCell().closest("table")!.getBoundingClientRect().bottom;
       const boardHeight = stickyBoard().getBoundingClientRect().height;
       const columnHeadHeight = columnHeadCell().getBoundingClientRect().height;
       window.scrollTo(0, Math.round(tableBottom - (boardHeight + columnHeadHeight / 2)));
@@ -404,8 +408,8 @@ describe("固定領域の重なり順（§2: 板 > 列見出し > セクショ�
 
       const x = columnHead.left + columnHead.width / 2;
       expect({
-        板と列見出しの重なり: layerAt(x, (upper.top + upper.bottom) / 2),
-        列見出しとセクション見出しの重なり: layerAt(x, (lower.top + lower.bottom) / 2),
+        板と列見出しの重なり: layerAt(x, middleOf(upper)),
+        列見出しとセクション見出しの重なり: layerAt(x, middleOf(lower)),
       }).toEqual({
         板と列見出しの重なり: "板",
         列見出しとセクション見出しの重なり: "列見出し",
