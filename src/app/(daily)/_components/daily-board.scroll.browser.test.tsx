@@ -3,11 +3,13 @@
 //
 // jsdom 段は `scrollIntoView` を呼んだかどうか（`daily-list.test.tsx`）と、`scroll-margin-top` に
 // 何 px を配ったか（同）までしか主張できない——レイアウトが無いので「行が見出しの裏に隠れたか」は
-// 誰も確かめていなかった。ここが持つのは次の3つだけ:
+// 誰も確かめていなかった。ここが持つのは次の4つだけ:
 //   1. 積み上げた3段の高さ（板＋列見出し＋セクション見出し）が**実際の固定領域と一致する**こと
 //   2. `scrollIntoView({ block: "nearest" })` ＋ `scroll-margin-top` の停止位置が、
 //      上方向へ戻したときに**その固定領域を避ける**こと
 //   3. 板が警告バナー（§8 / FB-116）を含んで高くなっても 1 が保たれ、バナーが画面内に残ること
+//   4. スクロール中に重なった点で**どの段が手前に描かれるか**（§2 の重なり順 / T-144）——
+//      jsdom 段はクラスの有無しか見られず、z-index が入れ替わっても全段が緑のまま通る
 import { screen } from "@testing-library/react";
 import { userEvent } from "vitest/browser";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -19,7 +21,7 @@ import { task } from "@/domain/task/testing/task";
 
 import { renderBoard, setupBoardInBrowser, stickyBoard } from "../_testing/board-helpers";
 import { ICON_SIZE_CSS, installGeometryStyles } from "../_testing/geometry-styles";
-import { headingOf, isSelected, taskRows } from "../_testing/table-helpers";
+import { cellsOf, headingOf, isSelected, taskRows } from "../_testing/table-helpers";
 
 vi.mock("../actions", async () => (await import("../_testing/action-mocks")).actionMocks());
 
@@ -29,11 +31,20 @@ setupBoardInBrowser();
  * 測る対象は貼り付きそのもの（貼り付かなければ隠れようがない）なので、実物のクラス名に敷く。
  * `border-collapse` だけはクラスではなく Tailwind の preflight が与えるものだが、**セルの実高が
  * 端数を持つ条件そのもの**（FB-111）なので実物に合わせる——separate のままだと、端数が出ない
- * 楽な盤面で「積み上げが一致する」を主張することになる
+ * 楽な盤面で「積み上げが一致する」を主張することになる。
+ *
+ * 重なり順（§2）を測る分は z-index の3段と、**行の末尾セル（行メニュー）の `relative`**。
+ * 後者は重なりの相手側だが、**段に z-index が要る理由そのもの**——位置指定を持たない行は
+ * どのみち貼り付いた段の下に描かれるので、敷かないと z-index を外しても「段が行より手前」が
+ * 緑のまま通る（`border-collapse` と同じく、楽な盤面で主張しないための条件）
  */
 installGeometryStyles(`
   .sticky { position: sticky }
   .top-0 { top: 0 }
+  .z-10 { z-index: 10 }
+  .z-2 { z-index: 2 }
+  .z-1 { z-index: 1 }
+  .relative { position: relative }
   table { border-collapse: collapse }
   ${ICON_SIZE_CSS}
 `);
@@ -257,5 +268,150 @@ describe("選択行のスクロール追従（画面定義書01 §5: 固定見�
     expect(problems).toEqual([]);
     // 前提: 実際に上方向のスクロールが起きた段が十分にある（無ければ何も試していない）
     expect(scrollingSteps).toBeGreaterThanOrEqual(MIN_SCROLLING_STEPS);
+  });
+});
+
+/**
+ * 画面上の点に**最前面で描かれている**のがどの層か（§2 の3段と、その下を流れる通常の行）。
+ * `elementFromPoint` は描画順の一番上を返すので、z-index が実際に効いているかをそのまま読める
+ * （クラスの有無では入れ替わりを検出できない）。どれでもなければ何に当たったかを返し、
+ * 失敗を読めるようにする
+ */
+function layerAt(x: number, y: number): string {
+  const hit = document.elementFromPoint(x, y);
+  if (hit === null) return "（何も無い）";
+  if (stickyBoard().contains(hit)) return "板";
+  if (hit.closest("thead") !== null) return "列見出し";
+  // 見出しは未分類に限らない——貼り付きは表全体に閉じ込められるので、過ぎた見出しも同じ位置に
+  // 重なって残り、手前に来るのは DOM 順で最後のもの（画面定義書01 §2 / 決定ログ 2026-08-27）。
+  // 表の本体で貼り付くセルは見出しだけなので、`sticky` を持つ td で引く
+  if (hit.closest("td")?.classList.contains("sticky") === true) return "セクション見出し";
+  const tr = hit.closest("tr");
+  if (tr !== null && taskRows().includes(tr)) return "通常の行";
+  return `想定外の要素 <${hit.tagName.toLowerCase()}>`;
+}
+
+/** 行メニューの列（行の末尾セル）の中心 x。**`relative` を持つセルの上で測る**（敷く CSS の JSDoc） */
+function rowMenuColumnX(): number {
+  const rect = cellsOf(taskRows()[0]!).menu.getBoundingClientRect();
+  return rect.left + rect.width / 2;
+}
+
+/** 高さ y の位置を流れているタスク行。無ければ、その点では行との重なりを試せていない */
+function rowAcross(y: number): HTMLElement | undefined {
+  return taskRows().find((tr) => {
+    const rect = tr.getBoundingClientRect();
+    return rect.top <= y && y < rect.bottom;
+  });
+}
+
+/** 矩形の縦方向の中心 */
+function middleOf(rect: DOMRect): number {
+  return rect.top + rect.height / 2;
+}
+
+describe("固定領域の重なり順（§2: 板 > 列見出し > セクション見出し > 通常の行。ブラウザ段 / T-144）", () => {
+  /**
+   * 敷いた z-index と `relative` が実物に当たっていること。実装がクラスを変える（`z-[2]` 等）と
+   * ここが先に落ちる——当たらないまま下を測ると、z-index の無い盤面の重なりを主張することになる。
+   * **値は見ない**（`auto` でないことだけ）。どの値なら正しいかは下の実測が持つ——ここで数字を
+   * 突き合わせると、入れ替えの変異がすべてここで落ち、実測が効いているのかが読めなくなる
+   */
+  it("段の前提: 3段に z-index が、行メニューのセルに位置指定が効いている", async () => {
+    await renderAndSettle();
+
+    const hasZIndex = (el: HTMLElement) => getComputedStyle(el).zIndex !== "auto";
+    expect({
+      板: hasZIndex(stickyBoard()),
+      列見出し: hasZIndex(columnHeadCell()),
+      セクション見出し: hasZIndex(headingOf(UNCATEGORIZED_LABEL)),
+      行メニューのセル: getComputedStyle(cellsOf(taskRows()[0]!).menu).position,
+    }).toEqual({
+      板: true,
+      列見出し: true,
+      セクション見出し: true,
+      行メニューのセル: "relative",
+    });
+  });
+
+  /**
+   * 3段それぞれの下を行が流れている状態で、段の中心に何が描かれているかを見る。
+   * **位置指定を持つ行メニューのセルは DOM 順で段より後ろ**なので、段の z-index が欠ける・
+   * 行以下に落ちると、そのセルが段の上に描かれる（行メニューが見出しや板に被って見える）
+   */
+  it("貼り付いた3段はどれも、下を流れる行より手前に描かれる", async () => {
+    await renderAndSettle();
+    window.scrollTo(0, SCROLLED);
+
+    const x = rowMenuColumnX();
+    const ys = {
+      板: middleOf(stickyBoard().getBoundingClientRect()),
+      列見出し: middleOf(columnHeadCell().getBoundingClientRect()),
+      セクション見出し: middleOf(headingOf(UNCATEGORIZED_LABEL).getBoundingClientRect()),
+    };
+
+    // 前提: どの段の下にも行が流れている（流れていなければ重なりを試せていない）
+    for (const [layer, y] of Object.entries(ys)) {
+      expect(rowAcross(y), `${layer}の下に行が無い`).toBeDefined();
+    }
+    expect({
+      板: layerAt(x, ys.板),
+      列見出し: layerAt(x, ys.列見出し),
+      セクション見出し: layerAt(x, ys.セクション見出し),
+    }).toEqual({
+      板: "板",
+      列見出し: "列見出し",
+      セクション見出し: "セクション見出し",
+    });
+  });
+
+  /**
+   * 3段どうしの順序（`z-10 > z-2 > z-1`）。貼り付いている間の3段は縦に並んで重ならないので、
+   * **重なるのは表の末尾が固定領域へ差しかかったときだけ**——列見出しとセクション見出しの貼り付きは
+   * 表に閉じ込められ、表の下端に押し上げられて上の段へ潜り込む（板の閉じ込め先は表を包む外側の箱で、
+   * 表の下端が板の下端より下にあるうちは押し上げられない。下の前提がそれを確かめる）。
+   * 実物の画面は一覧の下に余白しか無くそこまで送れないので、**表の後ろに viewport 1枚ぶんの
+   * 詰め物を足して**送れるようにする。表の下端を「板の下端＋列見出しの半分」に置くと、
+   * 列見出しの上半分が板に、セクション見出しが列見出しに重なる
+   */
+  it("表の末尾で押し上げられた段は、上の段の裏へ潜る（板 > 列見出し > セクション見出し）", async () => {
+    await renderAndSettle();
+    const filler = document.createElement("div");
+    filler.style.height = `${window.innerHeight}px`;
+    document.body.append(filler);
+
+    try {
+      const tableBottom = columnHeadCell().closest("table")!.getBoundingClientRect().bottom;
+      const boardHeight = stickyBoard().getBoundingClientRect().height;
+      const columnHeadHeight = columnHeadCell().getBoundingClientRect().height;
+      window.scrollTo(0, Math.round(tableBottom - (boardHeight + columnHeadHeight / 2)));
+
+      const board = stickyBoard().getBoundingClientRect();
+      const columnHead = columnHeadCell().getBoundingClientRect();
+      const sectionHead = headingOf(UNCATEGORIZED_LABEL).getBoundingClientRect();
+
+      // 2つの重なりの縦の範囲。下の側は**板の下に出ている部分だけ**を取る（板の裏は上の主張が見る）
+      const upper = { top: columnHead.top, bottom: board.bottom };
+      const lower = {
+        top: Math.max(sectionHead.top, columnHead.top, board.bottom),
+        bottom: Math.min(sectionHead.bottom, columnHead.bottom),
+      };
+
+      // 前提: 板は貼り付いたまま、2つの重なりがどちらも実際にできている（無ければ何も試していない）
+      expect(board.top).toBeCloseTo(0, 1);
+      expect(upper.bottom - upper.top).toBeGreaterThan(1);
+      expect(lower.bottom - lower.top).toBeGreaterThan(1);
+
+      const x = columnHead.left + columnHead.width / 2;
+      expect({
+        板と列見出しの重なり: layerAt(x, (upper.top + upper.bottom) / 2),
+        列見出しとセクション見出しの重なり: layerAt(x, (lower.top + lower.bottom) / 2),
+      }).toEqual({
+        板と列見出しの重なり: "板",
+        列見出しとセクション見出しの重なり: "列見出し",
+      });
+    } finally {
+      filler.remove();
+    }
   });
 });
