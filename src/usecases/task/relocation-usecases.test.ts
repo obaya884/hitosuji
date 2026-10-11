@@ -52,16 +52,17 @@ describe("applyCarryOver（F-113 / 画面定義書01 §4.2-b）", () => {
 });
 
 describe("applyCarryOverAfterPunch（画面定義書01 §4.2「移動に失敗したとき」: 打刻は成立させる）", () => {
-  it("移動が失敗しても reject せず、打刻フローを止めない（冪等なので後で再試行される）", async () => {
+  it("移動が失敗しても reject せず打刻フローを止めない（冪等なので後で再試行される）。失敗はコンソールに残す", async () => {
     // 繰り下げ対象がある状態で relocate だけが失敗するリポジトリ
     const base = inMemoryTaskRepository([
       task({ id: 1, sectionId: 1 }), // 朝のやり残し → 繰り下げ対象
       task({ id: 2, sectionId: 2 }),
     ]);
+    const cause = new Error("relocate failed");
     const failingTasks = {
       ...base,
       relocate: async () => {
-        throw new Error("relocate failed");
+        throw cause;
       },
     };
     const deps = { tasks: failingTasks, sections: inMemorySectionRepository(sections) };
@@ -72,19 +73,21 @@ describe("applyCarryOverAfterPunch（画面定義書01 §4.2「移動に失敗�
     await expect(
       applyCarryOverAfterPunch(deps, { date: today, today, nowClock: "10:00" })
     ).resolves.toBeUndefined();
-    // 画面には何も出ないので、握りつぶした失敗がコンソールに残ることが唯一の手がかりになる
+    // 画面には何も出ないので、握りつぶした失敗がコンソールに残ることが唯一の手がかりになる。
+    // 直接版は投げるだけでログを出さないので、数えた1回は After 版のもの
     expect(logged).toHaveBeenCalledOnce();
-    expect(logged.mock.calls[0][1]).toBeInstanceOf(Error);
-    expect((logged.mock.calls[0][1] as Error).message).toBe("relocate failed");
+    expect(logged.mock.calls[0]).toContain(cause);
   });
 
   // 失敗したときだけがログの対象。打刻のたびに走るので、成功で吐くとコンソールが埋まる
   it("移動が成功したときはログを出さない", async () => {
-    const { deps } = depsOf([task({ id: 1, sectionId: 1 }), task({ id: 2, sectionId: 2 })]);
+    const { deps, tasks } = depsOf([task({ id: 1, sectionId: 1 }), task({ id: 2, sectionId: 2 })]);
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await applyCarryOverAfterPunch(deps, { date: today, today, nowClock: "10:00" });
 
+    // 移動が起きないまま早期に返る経路では、ログが無いことを言っても意味がない
+    expect(tasks.rows.find((t) => t.id === 1)?.sectionId).toBe(2);
     expect(logged).not.toHaveBeenCalled();
   });
 });
