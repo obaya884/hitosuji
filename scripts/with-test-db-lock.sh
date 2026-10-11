@@ -42,14 +42,9 @@ fi
 
 # 読み込みは cd の前に済ませる（$0 が相対パスのとき、移動した後では解決できなくなる）
 . "$(dirname "$0")/lib/lock.sh"
+. "$(dirname "$0")/lib/repo-root.sh"
 
-# 素の `cd "$(git rev-parse --show-toplevel)"` はリポジトリ外で空文字列の cd になり、
-# 失敗扱いにならないままカレントディレクトリで走り出す（読めない理由で落ちて原因が分かりにくい）
-repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || {
-  echo "hitosuji リポジトリの中で実行してください" >&2
-  exit 1
-}
-cd "$repo_root"
+cd_repo_root
 
 lock="node_modules/.cache/hitosuji-test-db.lock"
 timeout="${TEST_DB_LOCK_TIMEOUT:-600}"

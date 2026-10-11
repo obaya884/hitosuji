@@ -11,13 +11,8 @@
 # 「domain は高く app は意図的に低い」という実態が読めないため（テスト戦略定義書 §7）。
 set -eu
 
-# 素の `cd "$(git rev-parse --show-toplevel)"` はリポジトリ外で空文字列の cd になり、
-# 失敗扱いにならないままカレントディレクトリで走り出す（読めない理由で落ちて原因が分かりにくい）
-repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || {
-  echo "hitosuji リポジトリの中で実行してください" >&2
-  exit 1
-}
-cd "$repo_root"
+. "$(dirname "$0")/lib/repo-root.sh"
+cd_repo_root
 
 exec python3 - "$@" <<'PY'
 import json
@@ -100,6 +95,8 @@ def changed_lines(base):
         text=True,
     )
     if diff.returncode != 0:
+        # PR コメント側は「判定していない」で足りるが、原因（fetch 深度・base の消失）はジョブログに残す
+        print(diff.stderr, file=sys.stderr, end="")
         return None
     changed, path = {}, None
     for line in diff.stdout.splitlines():

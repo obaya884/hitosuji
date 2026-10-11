@@ -3,7 +3,7 @@
 # markdown の表に整形し、標準出力へ書く（T-126）。
 #
 # 使い方:
-#   sh scripts/diff-breakdown.sh <base>   # <base>...HEAD の差分を集計
+#   npm run diff:breakdown -- <base>   # <base>...HEAD の差分を集計
 #
 # CI はこの出力をカバレッジ表（scripts/coverage-summary.sh）の後ろへ足して、
 # 1つの PR コメントとして投稿する（.github/workflows/ci.yml）。
@@ -11,13 +11,8 @@
 # テストは src へコロケーションされる（テスト戦略定義書 §4）ため。
 set -eu
 
-# 素の `cd "$(git rev-parse --show-toplevel)"` はリポジトリ外で空文字列の cd になり、
-# 失敗扱いにならないままカレントディレクトリで走り出す（読めない理由で落ちて原因が分かりにくい）
-repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || {
-  echo "hitosuji リポジトリの中で実行してください" >&2
-  exit 1
-}
-cd "$repo_root"
+. "$(dirname "$0")/lib/repo-root.sh"
+cd_repo_root
 
 exec python3 - "$@" <<'PY'
 import re
