@@ -1,7 +1,7 @@
 // デイリーの表（画面定義書01 §3.3）の DOM 読み取り。列位置の取り違えとポップオーバーの
 // 候補順は仕様そのものなので、どのテストからも同じ読み方をするためここに集約する。
 // ここが持つのは**デイリーの表に固有の「行の形」**——名前セルがボタンである・列が8つある・
-// 選択行が地色で示される、といった前提に依る読み取り（と、表の積み上げの起点になる上部の板）。**行の取り方は表の作りごとに違う**ので
+// 選択行が地色で示される、といった前提に依る読み取り。**行の取り方は表の作りごとに違う**ので
 // 共有側（`@/app/_testing/dom`）には置かない（マスタは `masters/_testing/table-helpers.ts`）。
 import { screen, within } from "@testing-library/react";
 
@@ -104,22 +104,6 @@ export function headingOf(label: string): HTMLElement {
   const cell = heading.querySelector("td");
   if (cell === null) throw new Error(`セクション見出し「${label}」にセルがありません`);
   return cell;
-}
-
-/**
- * 上部の板（§2 の固定領域。h1・日付ナビ＋サマリ・クイック追加欄と、出ていれば §8 の警告バナー）。
- * 列見出しとセクション見出しはこの高さを起点に積まれる。jsdom 段・ブラウザ段の両方が同じ引き方を
- * するためここに置く。
- *
- * **貼り付いていることを前提として確かめる**——板の `div` ごと外して子を持ち上げる変異が起きると
- * h1 の親は RTL のコンテナ（リストも含む要素）になり、「板の中にある」を見るテストが揃って
- * 偽の緑になる。固定は §2 の条項そのものなので、ここで1度だけ押さえる
- */
-export function stickyBoard(): HTMLElement {
-  const board = screen.getByRole("heading", { name: "デイリー" }).parentElement;
-  if (board === null) throw new Error("上部の板が見つかりません");
-  if (!board.classList.contains("sticky")) throw new Error("上部の板が固定されていません（§2）");
-  return board;
 }
 
 /** 画面上のすべての `tr`（この表以外の行も含む）。行の形で絞る読み取りが同じ経路を通るために持つ */
