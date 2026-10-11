@@ -22,27 +22,11 @@ import {
 } from "../_testing/board-helpers";
 import { ResizeObserverStub } from "@/app/_testing/resize-observer";
 import { summaryValueOf } from "../_testing/summary-helpers";
-import { cellsOf, headingOf, taskRow, taskRows } from "../_testing/table-helpers";
+import { cellsOf, headingOf, stickyBoard, taskRow, taskRows } from "../_testing/table-helpers";
 
 vi.mock("../actions", async () => (await import("../_testing/action-mocks")).actionMocks());
 
 setupBoard();
-
-/**
- * 上部の板（§2 の固定領域。h1・日付ナビ＋サマリ・クイック追加欄と、出ていれば §8 の警告バナー）。
- * 列見出しとセクション見出しはこの高さを起点に積まれるので、高さを動かすテストはこの要素で
- * `ResizeObserver` を引く。
- *
- * **貼り付いていることを前提として確かめる**——板の `div` ごと外して子を持ち上げる変異が起きると
- * h1 の親は RTL のコンテナ（リストも含む要素）になり、「板の中にある」を見るテストが揃って
- * 偽の緑になる。固定は §2 の条項そのものなので、ここで1度だけ押さえる
- */
-function stickyBoard(): HTMLElement {
-  const board = screen.getByRole("heading", { name: "デイリー" }).parentElement;
-  if (board === null) throw new Error("上部の板が見つかりません");
-  if (!board.classList.contains("sticky")) throw new Error("上部の板が固定されていません（§2）");
-  return board;
-}
 
 /** クイック追加欄（§3.4）。板の中での前後関係を測る基準に使う */
 function quickAddInput(): HTMLElement {
