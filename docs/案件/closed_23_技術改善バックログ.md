@@ -109,7 +109,7 @@
 | T-159 | Dependabot 依存追随（undici・minor-and-patch 6件・brace-expansion の脆弱性8件、major 4件クローズ） | 依存追随 | 中 | 完了（2026-10-02） | [詳細](#t-159) |
 | T-160 | vitest 5 への移行（`vitest` / `@vitest/*` 一式と Dependabot のグループ化） | 依存追随 | 中 | 完了（2026-10-10） | [詳細](#t-160) |
 | T-161 | Dependabot 依存追随（next 16.4.0 ほか minor-and-patch 4件・sharp と source-map-js の脆弱性2件） | 依存追随 | 中 | 完了（2026-10-10） | [詳細](#t-161) |
-| T-151 | `applyCarryOverAfterPunch` のテストが握りつぶした `console.error` を主張していない | テスト | 低 | 完了 2026-10-11 → `relocation-usecases.test.ts` で握りつぶした失敗が `console.error` に1回・原因つきで出ること、成功時は出ないことを主張（実装は変更なし。ログを消す変異で赤を確認） | [詳細](#t-151) |
+| T-151 | `applyCarryOverAfterPunch` のテストが握りつぶした `console.error` を主張していない | テスト | 低 | 完了 2026-10-11 → `relocation-usecases.test.ts` で握りつぶした失敗が `console.error` に1回・原因つきで出ること、成功時は出ないことを主張（実装は変更なし。ログを消す変異で赤を確認）。方針にあった「値に接続文字列などを含まない」の主張は入れない——実装は受け取った error を転送するだけで値を組み立てないため、恒真になる | [詳細](#t-151) |
 
 ## 詳細
 
