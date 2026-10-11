@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Section } from "@/domain/section/section";
 import type { Task } from "@/domain/task/task";
 import { TEST_DATE } from "@/domain/shared/testing/clock";
@@ -13,6 +13,11 @@ const sections: Section[] = [
 ];
 
 const today = TEST_DATE;
+
+// 握りつぶしのテストで console.error を黙らせるので、ここで本物へ戻す（unit 段には共通の setup が無い）
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 function depsOf(rows: readonly Task[]) {
   const tasks = inMemoryTaskRepository(rows);
@@ -60,11 +65,26 @@ describe("applyCarryOverAfterPunch（画面定義書01 §4.2「移動に失敗�
       },
     };
     const deps = { tasks: failingTasks, sections: inMemorySectionRepository(sections) };
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
 
     // 直接 applyCarryOver ならこの状況で失敗するが、After 版は握りつぶす
     await expect(applyCarryOver(deps, { date: today, today, nowClock: "10:00" })).rejects.toThrow();
     await expect(
       applyCarryOverAfterPunch(deps, { date: today, today, nowClock: "10:00" })
     ).resolves.toBeUndefined();
+    // 画面には何も出ないので、握りつぶした失敗がコンソールに残ることが唯一の手がかりになる
+    expect(logged).toHaveBeenCalledOnce();
+    expect(logged.mock.calls[0][1]).toBeInstanceOf(Error);
+    expect((logged.mock.calls[0][1] as Error).message).toBe("relocate failed");
+  });
+
+  // 失敗したときだけがログの対象。打刻のたびに走るので、成功で吐くとコンソールが埋まる
+  it("移動が成功したときはログを出さない", async () => {
+    const { deps } = depsOf([task({ id: 1, sectionId: 1 }), task({ id: 2, sectionId: 2 })]);
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await applyCarryOverAfterPunch(deps, { date: today, today, nowClock: "10:00" });
+
+    expect(logged).not.toHaveBeenCalled();
   });
 });
