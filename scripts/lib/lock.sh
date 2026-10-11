@@ -1,7 +1,7 @@
 #!/bin/sh
 # プロセス間の排他ロックの共通処理（T-65）。
-# scripts/with-test-db-lock.sh（テストDBの排他・T-65）と scripts/test-coverage.sh
-# （カバレッジ出力先の排他・T-58）が読み込む。
+# scripts/with-test-db-lock.sh（テストDBの排他・T-65）・scripts/test-coverage.sh
+# （カバレッジ出力先の排他・T-58）・scripts/dev-check.sh（確認専用DBの作り直しの排他・T-142）が読み込む。
 #
 # 実行するのではなく `.` で読み込んで使う。呼び出し側が set -eu を敷いている前提。
 # sh に `local` が無く関数内の変数は読み込んだスクリプトのグローバルを汚すため、

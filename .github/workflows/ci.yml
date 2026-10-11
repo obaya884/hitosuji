@@ -129,7 +129,7 @@ jobs:
       # docs 先行の運用では PR 全体の変更行数からコードの増減が読めないので、区分ごとの内訳を
       # 同じコメントへ足す（T-126）。既存コメントを探す目印は本文の1行目なので、必ず追記側に置く
       - name: 変更行数の内訳を添える
-        run: sh scripts/diff-breakdown.sh "$BASE_SHA" >> coverage/summary.md
+        run: npm run --silent diff:breakdown -- "$BASE_SHA" >> coverage/summary.md
 
       - name: ジョブサマリへ出力する
         run: cat coverage/summary.md >> "$GITHUB_STEP_SUMMARY"

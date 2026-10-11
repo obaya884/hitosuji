@@ -10,6 +10,7 @@
 set -eu
 
 . "$(dirname "$0")/lib/db-test.sh"
+. "$(dirname "$0")/lib/lock.sh"
 . "$(dirname "$0")/lib/port.sh"
 
 DB_NAME=hitosuji_check
@@ -20,9 +21,32 @@ CHECK_DEV_PORT=3100
 
 # **確認環境は機械全体で1本まで**。DB名もポートも固定なので、worktree ごとに分かれる
 # テストDB（hitosuji_test_<ブランチ>）とは違い、2本目は1本目のデータを TRUNCATE で壊す。
-# このポート確認が DB に触る前に走ることが唯一の歯止めなので、**下の docker/migrate/
-# フィクスチャより前から動かさないこと**（並行開発時はヘッド・ワーカーのどちらが使うかを
-# 先に決める。仕様16 §2）
+# 歯止めは2段で、どちらも **下の docker/migrate/フィクスチャより前から動かさないこと**
+# （並行開発時はヘッド・ワーカーのどちらが使うかを先に決める。仕様16 §2）:
+#   1. ロック（T-142）— 作り直しの最中どうしの衝突を止める。ポートはサーバが立つまで
+#      空いているので、ポート確認だけでは2本が同時に作り直しへ進めてしまう
+#   2. ポート確認 — 立ち上がった後の確認環境を止める（ロックは作り直しが済むと手放す）
+#
+# ロックは worktree ではなく機械全体で1つ（/tmp に置く）。DB もポートも worktree をまたいで
+# 共有だから。待たずに落とす（第2引数 0）——先客は作り直しの後に dev サーバとして
+# :3100 に居座るので、ロックが空くまで待っても次のポート確認で落ちるだけになる
+lock=/tmp/hitosuji-dev-check.lock
+rc=0
+acquire_lock "$lock" 0 "確認環境" || rc=$?
+# 2 は呼び出し方や環境の誤りで、競合ではない（出し分ける理由は lock.sh の契約）
+if [ "$rc" -eq 2 ]; then
+  exit 2
+fi
+if [ "$rc" -ne 0 ]; then
+  echo "別の dev:check（PID ${lock_holder_pid:-不明}）が確認環境を作り直しています（確認環境は機械全体で1本まで）" >&2
+  echo "  同時に走らせると確認専用DB ${DB_NAME} のデータを互いに壊します" >&2
+  echo "  作り直し中でないのに出る場合は残骸なので消してください: rm -f ${lock}" >&2
+  exit 1
+fi
+trap 'release_lock "$lock"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
 if lsof -ti:"$CHECK_DEV_PORT" >/dev/null 2>&1; then
   echo "確認用ポート :${CHECK_DEV_PORT} は既に使用中です（確認環境は機械全体で1本まで。先に起動した dev:check が残っていないか確認してください）" >&2
   print_port_holders "$CHECK_DEV_PORT" "  "
@@ -42,6 +66,11 @@ echo "  DB: ${DB_NAME}（db-test インスタンス内。実データを持つ�
 echo "  データは起動のたびに入れ直されます。破壊的操作（打刻・削除・複製）を試して構いません"
 echo "  データを元に戻すには: Ctrl+C で止めて npm run dev:check をもう一度実行してください"
 echo ""
+# exec すると EXIT トラップは走らないので、ここで手放す。サーバが :3100 を掴むまでの数秒は
+# どちらの歯止めも効かないが、その間に2本目が来ても同じフィクスチャを入れ直すだけで、
+# 2本目の dev サーバは :3100 が埋まっていて別のポートへ流れる（dev.sh が警告を出す）
+release_lock "$lock"
+trap - EXIT INT TERM
 # NEXT_DIST_DIR は next.config.ts が読む。本体の dev サーバ（:3000）と .next を
 # 共有すると2つの next dev が同じ場所へ書き合うため、確認用は出力先ごと分ける
 exec env DATABASE_URL="$CHECK_DATABASE_URL" DEV_PORT="$CHECK_DEV_PORT" \

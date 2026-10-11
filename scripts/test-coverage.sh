@@ -19,16 +19,11 @@ set -eu
 
 # 読み込みは cd の前に済ませる（$0 が相対パスのとき、移動した後では解決できなくなる）
 . "$(dirname "$0")/lib/lock.sh"
+. "$(dirname "$0")/lib/repo-root.sh"
+
+cd_repo_root
 
 # ロックはワークツリー単位（worktree ごとに coverage/ も node_modules/ も別）
-# 素の `cd "$(git rev-parse --show-toplevel)"` はリポジトリ外で空文字列の cd になり、
-# 失敗扱いにならないままカレントディレクトリで走り出す（読めない理由で落ちて原因が分かりにくい）
-repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || {
-  echo "hitosuji リポジトリの中で実行してください" >&2
-  exit 1
-}
-cd "$repo_root"
-
 lock="node_modules/.cache/hitosuji-coverage.lock"
 
 # 待たない（第2引数 0）。同時に走らせると出力が壊れるだけなので、順番待ちさせるより
