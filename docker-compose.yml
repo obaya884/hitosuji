@@ -1,3 +1,7 @@
+# プロジェクト名を固定する。無いと実行したディレクトリ名になり、worktree の中から叩くと
+# 本体のプロジェクトが持つ同名コンテナ（container_name 固定）とぶつかる（T-163）
+name: hitosuji
+
 services:
   db:
     image: postgres:17-alpine

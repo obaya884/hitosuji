@@ -84,6 +84,8 @@ worktree はファイルを分けるが、次の5つは worktree を作っただ
 | Drizzle マイグレーション（ジャーナル＋連番） | 並行させない（スキーマ変更は常に最大1本） | §3.3 |
 | 共有 docs（台帳21〜23・`log_*`） | ヘッドが一元記入（文案はワーカー） | §3.4 |
 
+表の上2行が載るコンテナ（`db` / `db-test`）は全 worktree で1組を共有する。`docker-compose.yml` がプロジェクト名を `hitosuji` に固定しているので（T-163）、**worktree の中から叩いた `docker compose` も本体と同じコンテナを指す**——`up -d` / `exec` はそのまま使えるが、`down` / `stop` は本体と他の worktree のコンテナごと止める。
+
 ### 3.1 テストDB — worktree ごとに分離
 
 - **unit テストは DB 不要**なので並行しても無干渉
