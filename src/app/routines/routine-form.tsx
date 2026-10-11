@@ -12,6 +12,7 @@ import {
   type Routine,
 } from "@/domain/routine/routine";
 import type { RoutineInput } from "@/domain/routine/input";
+import { SAVE_LABEL } from "@/app/_lib/operation-labels";
 import { RECURRENCE_LABELS, WEEK_INTERVAL_NOTE } from "@/app/_lib/recurrence-labels";
 import { btnPrimary, btnSecondary, inputBase, linkMuted } from "@/app/_lib/ui";
 import { UNSET_LABEL } from "@/app/_lib/unset";
@@ -325,7 +326,7 @@ export function RoutineForm({
           取消
         </button>
         <button type="button" onClick={submit} disabled={isPending} className={btnPrimary}>
-          保存
+          {SAVE_LABEL}
         </button>
       </div>
     </div>

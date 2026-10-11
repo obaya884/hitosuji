@@ -13,6 +13,7 @@ import { CheckIcon, CommentIcon, PlayIcon, StarIcon, StopIcon } from "@/app/_com
 import { formatCarryOver, formatClock, formatDuration } from "@/app/_lib/format";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { modeAppearance } from "@/app/_lib/mode-appearance";
+import { DELETE_LABEL } from "@/app/_lib/operation-labels";
 import { disabledPermanent, hoverSurfaceOnAccent, hoverWord, inputBase } from "@/app/_lib/ui";
 import { UNCATEGORIZED_LABEL } from "@/app/_lib/unset";
 import { OpenUrlButton } from "@/app/_components/open-url-button";
@@ -407,7 +408,7 @@ export function TaskRow({
               disabled: status !== "not_started", // 未実行のみ（F-107 / F-123）
             },
             {
-              label: "削除",
+              label: DELETE_LABEL,
               onSelect: () => onOperate(task, "delete"),
               // 打刻済みは確認ダイアログ（O-8）
               confirmMessage:

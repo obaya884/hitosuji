@@ -5,6 +5,7 @@
 // 入力欄の並びは表ごとに違うので `renderCells` で受け取り、値は `data-field` から読む（T-44）。
 import type { KeyboardEventHandler, ReactNode } from "react";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
+import { SAVE_LABEL } from "@/app/_lib/operation-labels";
 import { linkAccent, linkMuted } from "@/app/_lib/ui";
 import { inlineInputClass, type InlineInputType } from "./editable-cell";
 
@@ -59,7 +60,7 @@ export function NewRow({ isPending, onSave, onCancel, renderCells }: Props) {
           disabled={isPending}
           className={`px-2 ${linkAccent}`}
         >
-          保存
+          {SAVE_LABEL}
         </button>
         <button onClick={onCancel} disabled={isPending} className={`px-2 ${linkMuted}`}>
           取消

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { EMPTY_PROJECTS } from "@/app/_lib/notice-messages";
 import { ARCHIVE_LABEL } from "@/app/_lib/operation-labels";
 import { useServerAction } from "@/app/_lib/use-server-action";
-import { linkMuted, tableHeadRow } from "@/app/_lib/ui";
+import { emptyNote, linkMuted, tableHeadRow } from "@/app/_lib/ui";
 import type { Project, ProjectId } from "@/domain/project/project";
 import { TableFrame } from "@/app/_components/table-frame";
 import { ArchivedSection } from "@/app/_components/archived-section";
@@ -106,7 +106,7 @@ export function ProjectsTable({ active, archived, deletableIds }: Props) {
       </table>
 
       {active.length === 0 && editingId === null && (
-        <p className="mt-4 text-sub text-ink-muted">{EMPTY_PROJECTS}</p>
+        <p className={`mt-4 ${emptyNote}`}>{EMPTY_PROJECTS}</p>
       )}
 
       <ArchivedSection
