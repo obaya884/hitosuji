@@ -5,7 +5,7 @@
 import type { RecurrenceType } from "@/domain/routine/routine";
 
 /**
- * 繰り返し種別のラジオのラベル（画面定義書02 §4 / 01 §4.1）。キーの並びがそのまま
+ * 繰り返し種別のラジオのラベル（画面定義書02 §4 / 画面定義書01 §4.1）。キーの並びがそのまま
  * 選択肢の並びになる
  */
 export const RECURRENCE_LABELS: Readonly<Record<RecurrenceType, string>> = {
@@ -15,5 +15,5 @@ export const RECURRENCE_LABELS: Readonly<Record<RecurrenceType, string>> = {
   interval: "n日ごと",
 };
 
-/** 週間隔の入力欄の注記（画面定義書02 §4 / 01 §4.1） */
+/** 週間隔の入力欄の注記（画面定義書02 §4 / 画面定義書01 §4.1） */
 export const WEEK_INTERVAL_NOTE = "週おき（1=毎週・2=隔週）";
