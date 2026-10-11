@@ -83,7 +83,7 @@ export const tableHeadRule = "border-b border-line-strong";
 export const tableHeadRow = `${tableHeadText} ${tableHeadRule}`;
 
 // 空状態の案内の文字。余白は置き場所ごとに違うので呼び出し側が持つ。部品にはしない
-// ——出す・出さないの条件は各一覧が持つ（`TableFrame` の `children` を参照）
+// ——出す・出さないの条件は各一覧が持つ
 export const emptyNote = "text-sub text-ink-muted";
 
 // 重なり順の全体像（数字が大きいほど手前）。**新しく積むときはこの一覧に足す**——
