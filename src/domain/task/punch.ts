@@ -10,7 +10,9 @@ export type PunchError =
   | "already_started"
   | "not_running"
   | "not_completed"
-  | "ended_before_started";
+  | "ended_before_started"
+  /** 未実行のタスクへ開始だけを入れようとした（画面定義書01 §3.3 ④。実行中を作らない） */
+  | "ended_at_required";
 
 /**
  * 再開タスクの名前に付ける接尾辞（データモデル定義書 §4.2）。

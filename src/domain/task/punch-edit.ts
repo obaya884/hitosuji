@@ -1,4 +1,4 @@
-// 打刻時刻のインライン修正（F-203 / 画面定義書01 §3.3・§8）
+// 打刻時刻のインライン修正・入力（F-203 / 画面定義書01 §3.3・§8）
 import { atLogicalDayClock } from "../shared/logical-date";
 import { err, ok, type Result } from "../shared/result";
 import { fromZonedClock, zonedParts } from "../shared/time-zone";
@@ -10,6 +10,34 @@ export type PunchEditError =
   | "ended_before_started"
   | "future_time"
   | "no_started_at";
+
+/**
+ * `B`/`F` で開く欄の種類（画面定義書01 §3.3「開始-終了時刻」の①〜④）。
+ * - `edit`: 打刻済みの時刻を直す（①開始済みの開始 ②完了の終了）
+ * - `finish`: 実行中の終了時刻を入れて完了させる（③。初期値は現在時刻）
+ * - `pair`: 未実行に開始と終了をまとめて入れて完了させる（④）
+ */
+export type PunchInputKind = "edit" | "finish" | "pair";
+
+/** 打刻時刻の欄か（編集中の欄の名前から `B` / `F` の2つを見分ける） */
+export function isPunchField(field: string): field is "startedAt" | "endedAt" {
+  return field === "startedAt" || field === "endedAt";
+}
+
+/**
+ * `B`/`F` で開く欄。**行の状態だけで決まる1つの規則**で、描画側（入力欄を出すか）と編集開始側
+ * （キーで開くか）の両方がこれを引く——片方だけ開くと「編集中だが入力欄が無い」状態になり、
+ * キー操作が止まる（FB-68）。`null` は開かない（未来日の未打刻。どの `HH:MM` も未来で確定できない。§7）
+ */
+export function punchInputKind(
+  task: Task,
+  field: "startedAt" | "endedAt",
+  isFutureDate: boolean
+): PunchInputKind | null {
+  if (task[field] !== null) return "edit";
+  if (isFutureDate) return null;
+  return field === "endedAt" && task.startedAt !== null ? "finish" : "pair";
+}
 
 /** 時刻入力を解釈した「時・分」（0時からの分ではなく壁時計そのもの） */
 export type ClockTime = Readonly<{ hours: number; minutes: number }>;
@@ -67,17 +95,15 @@ function firstClockAtOrAfter(from: Date, clock: ClockTime, timeZone: string): Da
 }
 
 /**
- * 開始時刻の修正（F-203）。入力は**そのタスクが属する論理日の時刻**として読むので、日界（F-116）
- * より前の時刻は論理日の翌暦日に落ちる（画面定義書01 §3.3）。落とし先は `task_date` と日界だけで
- * 決まり、いつ確定しても同じ結果になる。未来は不可・終了済みなら 開始 ≦ 終了 を保つ
+ * 開始時刻の `HH:MM` を絶対時刻へ落とす。入力は**そのタスクが属する論理日の時刻**として読むので、
+ * 日界（F-116）より前の時刻は論理日の翌暦日に落ちる（画面定義書01 §3.3）。落とし先は `task_date` と
+ * 日界だけで決まり、いつ確定しても同じ結果になる。未来は不可
  */
-export function editStartedAt(
+function startedAtFor(
   task: Task,
   hhmm: string,
   context: PunchEditContext
 ): Result<Date, PunchEditError> {
-  if (task.startedAt === null) return err("not_punched");
-
   const parsed = parseClockTime(hhmm);
   if (!parsed.ok) return parsed;
 
@@ -87,8 +113,43 @@ export function editStartedAt(
     context.timeZone,
     context.dayStartMinutes
   );
+  return isFuture(applied, context.now) ? err("future_time") : ok(applied);
+}
 
-  if (isFuture(applied, context.now)) return err("future_time");
+/**
+ * 終了時刻の `HH:MM` を絶対時刻へ落とす。入力は**開始時刻以降で最も早い候補**として読むので、日を
+ * またいで走り続けたタスクの終了（画面定義書01 §8）も入れられる。組み立てが 開始 ≦ 終了 を保証する
+ * （秒の分だけ手前に落ちる場合は開始時刻へ寄せる）。未来は不可
+ */
+function endedAtFor(
+  startedAt: Date,
+  hhmm: string,
+  context: PunchEditContext
+): Result<Date, PunchEditError> {
+  const parsed = parseClockTime(hhmm);
+  if (!parsed.ok) return parsed;
+
+  const candidate = firstClockAtOrAfter(startedAt, parsed.value, context.timeZone);
+  // 開始と同じ分を指したときは開始時刻そのものへ寄せる。打刻は秒を持つ（`new Date()`）ので、
+  // 分の頭に落とすと絶対時刻では開始より前になり ck_tasks_time に触れる（実績は 0:00 表示）
+  const applied = candidate.getTime() < startedAt.getTime() ? startedAt : candidate;
+  return isFuture(applied, context.now) ? err("future_time") : ok(applied);
+}
+
+/**
+ * 開始時刻の修正（F-203 / 画面定義書01 §3.3 ①）。解釈は `startedAtFor`。終了済みなら 開始 ≦ 終了 を保つ
+ */
+export function editStartedAt(
+  task: Task,
+  hhmm: string,
+  context: PunchEditContext
+): Result<Date, PunchEditError> {
+  if (task.startedAt === null) return err("not_punched");
+
+  const started = startedAtFor(task, hhmm, context);
+  if (!started.ok) return started;
+  const applied = started.value;
+
   if (task.endedAt !== null && applied.getTime() > task.endedAt.getTime()) {
     return err("ended_before_started");
   }
@@ -96,10 +157,9 @@ export function editStartedAt(
 }
 
 /**
- * 終了時刻の修正（F-203）。入力は**開始時刻以降で最も早い候補**として読むので、日をまたいで
- * 走り続けたタスクの終了（画面定義書01 §8）も入れられる。組み立てが 開始 ≦ 終了 を保証する
- * ため向きの検査は要らない（秒の分だけ手前に落ちる場合は下で開始時刻へ寄せる）。
- * 開始打刻がない状態では終了時刻を持てない（ck_tasks_time と同じ制約）
+ * 終了時刻の修正・入力（F-203 / 画面定義書01 §3.3 ②③）。完了した行なら打刻の修正、実行中の行なら
+ * 終了時刻を入れて完了させる（どちらも解釈は `endedAtFor`）。
+ * 開始打刻がない状態では終了時刻を持てない（ck_tasks_time と同じ制約。未実行は `editPunchPair`）
  */
 export function editEndedAt(
   task: Task,
@@ -107,15 +167,23 @@ export function editEndedAt(
   context: PunchEditContext
 ): Result<Date, PunchEditError> {
   if (task.startedAt === null) return err("no_started_at");
-  if (task.endedAt === null) return err("not_punched");
+  return endedAtFor(task.startedAt, hhmm, context);
+}
 
-  const parsed = parseClockTime(hhmm);
-  if (!parsed.ok) return parsed;
-
-  const candidate = firstClockAtOrAfter(task.startedAt, parsed.value, context.timeZone);
-  // 開始と同じ分を指したときは開始時刻そのものへ寄せる。打刻は秒を持つ（`new Date()`）ので、
-  // 分の頭に落とすと絶対時刻では開始より前になり ck_tasks_time に触れる（実績は 0:00 表示）
-  const applied = candidate.getTime() < task.startedAt.getTime() ? task.startedAt : candidate;
-
-  return isFuture(applied, context.now) ? err("future_time") : ok(applied);
+/**
+ * 未実行のタスクに開始と終了をまとめて入れる（F-203 / 画面定義書01 §3.3 ④）。開始だけでは
+ * 実行中ができてしまうので、2つそろって初めて確定できる（そろっていないかは呼び出し側が先に見る）。
+ * 終了は**入力中の開始**を基準に落とす（画面定義書01 §3.3「打刻修正での時刻の解釈」）
+ */
+export function editPunchPair(
+  task: Task,
+  startHhmm: string,
+  endHhmm: string,
+  context: PunchEditContext
+): Result<Readonly<{ startedAt: Date; endedAt: Date }>, PunchEditError> {
+  const started = startedAtFor(task, startHhmm, context);
+  if (!started.ok) return started;
+  const ended = endedAtFor(started.value, endHhmm, context);
+  if (!ended.ok) return ended;
+  return ok({ startedAt: started.value, endedAt: ended.value });
 }

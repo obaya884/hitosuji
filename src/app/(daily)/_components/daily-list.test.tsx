@@ -69,6 +69,7 @@ type Handlers = Pick<
   | "onUrl"
   | "onPunch"
   | "onEditPunch"
+  | "onEditPunchPair"
   | "onAssign"
   | "onOperate"
   | "onToggleHighlight"
@@ -86,6 +87,7 @@ function renderList(overrides: Overrides) {
     onUrl: vi.fn(),
     onPunch: vi.fn(),
     onEditPunch: vi.fn(),
+    onEditPunchPair: vi.fn(),
     onAssign: vi.fn(),
     onOperate: vi.fn(),
     onToggleHighlight: vi.fn(),

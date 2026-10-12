@@ -32,6 +32,7 @@ export type DailyListProps = Pick<
   | "onPunch"
   | "isFutureDate"
   | "onEditPunch"
+  | "onEditPunchPair"
   | "onAssign"
   | "onOperate"
   | "onToggleHighlight"
@@ -77,6 +78,7 @@ export function DailyList({
   onPunch,
   isFutureDate,
   onEditPunch,
+  onEditPunchPair,
   sections,
   onAssign,
   onOperate,
@@ -213,6 +215,7 @@ export function DailyList({
                   isFutureDate={isFutureDate}
                   isToday={isToday}
                   onEditPunch={onEditPunch}
+                  onEditPunchPair={onEditPunchPair}
                   now={now}
                   projectedStart={projectedStarts?.get(task.id) ?? null}
                   scrollMarginTop={rowScrollMarginTop}

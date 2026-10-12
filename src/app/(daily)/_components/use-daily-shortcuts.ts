@@ -3,6 +3,7 @@ import type { SectionId } from "@/domain/section/section";
 import { type LogicalDate } from "@/domain/shared/logical-date";
 import type { SectionOrder } from "@/domain/task/daily-list";
 import { currentTaskId, moveSelection } from "@/domain/task/selection";
+import { isPunchField, punchInputKind } from "@/domain/task/punch-edit";
 import { taskStatus } from "@/domain/task/status";
 import type { Task, TaskId } from "@/domain/task/task";
 import { dateHref, DAILY_PATH } from "@/app/_lib/date-href";
@@ -21,6 +22,8 @@ export type DailyShortcutParams = Readonly<{
    * （画面定義書01 §4 冒頭「仮の行」。選択が複製行へ移る前の複製元に当たらないように）
    */
   keysLocked: boolean;
+  /** 未来日を表示中か。未打刻の時刻を入れる B / F（§3.3 ③④）は開かない（§7） */
+  isFutureDate: boolean;
   orderedTasks: readonly Task[];
   /** 表示時に導出された選択行 ID（keepSelection 後の値） */
   selectedId: TaskId | null;
@@ -58,6 +61,7 @@ export function useDailyShortcuts(params: DailyShortcutParams): void {
     editing,
     pickerOpen,
     keysLocked,
+    isFutureDate,
     orderedTasks,
     selectedId,
     currentSectionId,
@@ -95,11 +99,10 @@ export function useDailyShortcuts(params: DailyShortcutParams): void {
         if (selected === null) return;
         // 仮の行（確定前）は編集を開かない（画面定義書01 §4 冒頭「仮の行」: 選択はできるが操作は効かない）
         if (isProvisional(selected)) return;
-        // 打刻時刻を修正できるのは打刻済みの側だけ（§3.3 / §6 / F-203）。行側も同じ条件で
-        // 入力欄を描くので、ここで揃えないと「編集中だが入力欄が無い」状態になり、
+        // B / F で開く欄は行の状態で決まる（§3.3 ①〜④ / §6 / F-203）。行側も同じ規則
+        // （`punchInputKind`）で入力欄を描くので、ここで揃えないと「編集中だが入力欄が無い」状態になり、
         // editing を解除する発火源が無いまま全ショートカットが止まる（FB-68）
-        if (field === "startedAt" && selected.startedAt === null) return;
-        if (field === "endedAt" && selected.endedAt === null) return;
+        if (isPunchField(field) && punchInputKind(selected, field, isFutureDate) === null) return;
         // 押したキー自体が編集欄へ入力されないように既定動作を止める
         e.preventDefault();
         setEditing({ taskId: selected.id, field });

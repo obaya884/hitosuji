@@ -65,6 +65,9 @@ export const disabledPermanent = "opacity-40";
 export const inputBase =
   "rounded-control border border-line bg-surface px-2 py-1 text-sub text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none";
 
+// 打刻時刻（`HH:MM`）の入力欄の幅と寄せ（画面定義書01 §3.3）。修正・入力のどの欄も同じ見た目にする
+export const clockInput = `w-16 text-right ${inputBase}`;
+
 export const floatPanel =
   // text-ink を明示し、行のモード色（F-401）を継承しないようにする（FB-38）
   "rounded-float border border-line bg-surface text-ink shadow-float";

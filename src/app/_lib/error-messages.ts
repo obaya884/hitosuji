@@ -66,6 +66,7 @@ export const PUNCH_MESSAGES: Record<PunchUsecaseError, string> = {
   not_running: "実行中のタスクではありません",
   not_completed: "完了したタスクではありません",
   ended_before_started: ENDED_BEFORE_STARTED,
+  ended_at_required: "未実行のタスクには開始と終了をまとめて入れてください",
 };
 
 /** 打刻時刻のインライン修正（F-203）。HH:MM の解釈はクライアントで済ませるのでサーバでは発生しない */

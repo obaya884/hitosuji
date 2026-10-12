@@ -5,6 +5,7 @@ import { faintTextOf, hasClass } from "@/app/_testing/dom";
 import { NEW_TAB_ARGS, spyOnWindowOpen } from "@/app/_testing/window-open";
 import { disabledPermanent } from "@/app/_lib/ui";
 import { atJst } from "@/domain/shared/testing/clock";
+import { formatClock } from "@/app/_lib/format";
 import { task } from "@/domain/task/testing/task";
 import {
   bundleColorOf,
@@ -30,6 +31,7 @@ function renderRow(overrides: Overrides) {
     onEstimate: vi.fn(),
     onPunch: vi.fn(),
     onEditPunch: vi.fn(),
+    onEditPunchPair: vi.fn(),
     onAssign: vi.fn(),
     onOperate: vi.fn(),
     onToggleHighlight: vi.fn(),
@@ -676,15 +678,116 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
         expect(time.querySelector("button")).toBeNull();
       });
 
-      // 打刻済みの時刻だけを修正できる（§3.3）。`B`/`F` 側も同じ条件で編集状態に入らない
+      // 開く欄は行の状態で決まる（§3.3 ①〜④ / `punchInputKind`）。`B`/`F` 側も同じ規則で編集状態に入る
       // （use-daily-shortcuts。FB-68）ので、ここは行側の受け止めを固定する
-      it("未実行タスクは開始時刻の編集状態でも入力欄を出さない", () => {
-        renderRow({
-          editing: "startedAt",
-          task: task({ id: 1, name: "日次プラン", estimateMinutes: 15 }),
+      describe("未実行タスクへのまとめての入力（§3.3 ④ / §8）", () => {
+        const notStarted = task({ id: 1, name: "日次プラン", estimateMinutes: 15 });
+        const startInput = () => screen.getByLabelText("開始時刻") as HTMLInputElement;
+        const endInput = () => screen.getByLabelText("終了時刻") as HTMLInputElement;
+
+        it.each([
+          ["startedAt", "開始時刻"],
+          ["endedAt", "終了時刻"],
+        ] as const)("%s の編集では開始と終了の2つの空欄を出し、押したキーの側（%s）にフォーカスする", (field, label) => {
+          renderRow({ editing: field, task: notStarted });
+
+          expect(startInput().value).toBe("");
+          expect(endInput().value).toBe("");
+          expect(document.activeElement).toBe(screen.getByLabelText(label));
         });
 
-        expect(screen.queryByRole("textbox")).toBeNull();
+        it("2つ入れて Enter で確定する", () => {
+          const { onEditPunchPair, onEndEdit } = renderRow({ editing: "startedAt", task: notStarted });
+
+          fireEvent.change(startInput(), { target: { value: "0900" } });
+          fireEvent.change(endInput(), { target: { value: "0930" } });
+          fireEvent.keyDown(endInput(), { key: "Enter" });
+          // 閉じたあとに続いて届く blur で二重に確定しない
+          fireEvent.blur(endInput(), { relatedTarget: null });
+
+          expect(onEditPunchPair).toHaveBeenCalledOnce();
+          expect(onEditPunchPair).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), "0900", "0930");
+          expect(onEndEdit).toHaveBeenCalledOnce();
+        });
+
+        it.each([
+          ["終了", "0900", "", () => endInput()],
+          ["開始", "", "0930", () => startInput()],
+        ] as const)("片方が空の Enter は送らず、入れた側を残して空の側（%s）へフォーカスを移す", (_, start, end, empty) => {
+          const { onEditPunchPair, onEndEdit } = renderRow({ editing: "startedAt", task: notStarted });
+
+          fireEvent.change(startInput(), { target: { value: start } });
+          fireEvent.change(endInput(), { target: { value: end } });
+          fireEvent.keyDown(startInput(), { key: "Enter" });
+
+          expect(onEditPunchPair).not.toHaveBeenCalled();
+          expect(onEndEdit).not.toHaveBeenCalled();
+          expect(document.activeElement).toBe(empty());
+          expect([startInput().value, endInput().value]).toEqual([start, end]);
+        });
+
+        it("空白だけの入力は空とみなす", () => {
+          const { onEditPunchPair } = renderRow({ editing: "endedAt", task: notStarted });
+
+          fireEvent.change(startInput(), { target: { value: "  " } });
+          fireEvent.change(endInput(), { target: { value: "0930" } });
+          fireEvent.keyDown(endInput(), { key: "Enter" });
+
+          expect(onEditPunchPair).not.toHaveBeenCalled();
+          expect(document.activeElement).toBe(startInput());
+        });
+
+        it("2つの欄のあいだの移動では閉じない", () => {
+          const { onEndEdit } = renderRow({ editing: "startedAt", task: notStarted });
+
+          fireEvent.blur(startInput(), { relatedTarget: endInput() });
+
+          expect(onEndEdit).not.toHaveBeenCalled();
+        });
+
+        it("片方が空のままフォーカスが外へ出たら、送らずに閉じる", () => {
+          const { onEditPunchPair, onEndEdit } = renderRow({ editing: "startedAt", task: notStarted });
+
+          fireEvent.change(startInput(), { target: { value: "0900" } });
+          fireEvent.blur(startInput(), { relatedTarget: null });
+
+          expect(onEditPunchPair).not.toHaveBeenCalled();
+          expect(onEndEdit).toHaveBeenCalled();
+        });
+
+        it("2つそろってフォーカスが外へ出たら確定する（00_共通 §2.3）", () => {
+          const { onEditPunchPair } = renderRow({ editing: "startedAt", task: notStarted });
+
+          fireEvent.change(startInput(), { target: { value: "0900" } });
+          fireEvent.change(endInput(), { target: { value: "0930" } });
+          fireEvent.blur(endInput(), { relatedTarget: null });
+
+          expect(onEditPunchPair).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), "0900", "0930");
+        });
+
+        it("Esc は送らずに閉じ、続く blur でも確定しない", () => {
+          const { onEditPunchPair, onEndEdit } = renderRow({ editing: "startedAt", task: notStarted });
+
+          fireEvent.change(startInput(), { target: { value: "0900" } });
+          fireEvent.change(endInput(), { target: { value: "0930" } });
+          fireEvent.keyDown(endInput(), { key: "Escape" });
+          fireEvent.blur(endInput(), { relatedTarget: null });
+
+          expect(onEditPunchPair).not.toHaveBeenCalled();
+          expect(onEndEdit).toHaveBeenCalledOnce();
+        });
+
+        it("予想開始時刻は入力のあいだ隠す（同じ位置に入力欄が出る）", () => {
+          renderRow({ editing: "startedAt", task: notStarted, projectedStart: "11:00-" });
+
+          expect(screen.queryByText("11:00-")).toBeNull();
+        });
+
+        it("未来日では開かない（どの HH:MM も未来で確定できない。§7）", () => {
+          renderRow({ editing: "startedAt", task: notStarted, isFutureDate: true });
+
+          expect(screen.queryByRole("textbox")).toBeNull();
+        });
       });
 
       it("編集を始めたときは既存の値を全選択する（打ち直しが前提のため。FB-23）", () => {
@@ -725,13 +828,19 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
         expect(onEndEdit).toHaveBeenCalledOnce();
       });
 
-      it("実行中タスクは終了時刻の編集状態でも入力欄を出さない（§3.3: 修正できるのは打刻済みの時刻だけ）", () => {
-        renderRow({
+      it("実行中タスクの終了時刻の編集では、現在時刻を初期値にした欄を出す（§3.3 ③）", () => {
+        const { onEditPunch } = renderRow({
           editing: "endedAt",
           task: task({ id: 1, name: "メール", startedAt: atJst("08:05") }),
+          now: atJst("10:00"),
         });
 
-        expect(screen.queryByRole("textbox")).toBeNull();
+        const input = screen.getByRole("textbox") as HTMLInputElement;
+        expect(input.value).toBe(formatClock(atJst("10:00")));
+        fireEvent.change(input, { target: { value: "0950" } });
+        fireEvent.blur(input);
+
+        expect(onEditPunch).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), "endedAt", "0950");
       });
 
       it("実行中タスクは終了時刻のクリック入口を出さない（開始時刻だけ押せる）", () => {
