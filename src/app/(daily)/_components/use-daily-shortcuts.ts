@@ -3,7 +3,7 @@ import type { SectionId } from "@/domain/section/section";
 import { type LogicalDate } from "@/domain/shared/logical-date";
 import type { SectionOrder } from "@/domain/task/daily-list";
 import { currentTaskId, moveSelection } from "@/domain/task/selection";
-import { punchInputKind } from "@/domain/task/punch-edit";
+import { isPunchField, punchInputKind } from "@/domain/task/punch-edit";
 import { taskStatus } from "@/domain/task/status";
 import type { Task, TaskId } from "@/domain/task/task";
 import { dateHref, DAILY_PATH } from "@/app/_lib/date-href";
@@ -102,12 +102,7 @@ export function useDailyShortcuts(params: DailyShortcutParams): void {
         // B / F で開く欄は行の状態で決まる（§3.3 ①〜④ / §6 / F-203）。行側も同じ規則
         // （`punchInputKind`）で入力欄を描くので、ここで揃えないと「編集中だが入力欄が無い」状態になり、
         // editing を解除する発火源が無いまま全ショートカットが止まる（FB-68）
-        if (
-          (field === "startedAt" || field === "endedAt") &&
-          punchInputKind(selected, field, isFutureDate) === null
-        ) {
-          return;
-        }
+        if (isPunchField(field) && punchInputKind(selected, field, isFutureDate) === null) return;
         // 押したキー自体が編集欄へ入力されないように既定動作を止める
         e.preventDefault();
         setEditing({ taskId: selected.id, field });

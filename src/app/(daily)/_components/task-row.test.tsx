@@ -702,20 +702,39 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
           fireEvent.change(startInput(), { target: { value: "0900" } });
           fireEvent.change(endInput(), { target: { value: "0930" } });
           fireEvent.keyDown(endInput(), { key: "Enter" });
+          // 閉じたあとに続いて届く blur で二重に確定しない
+          fireEvent.blur(endInput(), { relatedTarget: null });
 
+          expect(onEditPunchPair).toHaveBeenCalledOnce();
           expect(onEditPunchPair).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), "0900", "0930");
-          expect(onEndEdit).toHaveBeenCalled();
+          expect(onEndEdit).toHaveBeenCalledOnce();
         });
 
-        it("片方が空の Enter は送らず、空の側へフォーカスを移す", () => {
+        it.each([
+          ["終了", "0900", "", () => endInput()],
+          ["開始", "", "0930", () => startInput()],
+        ] as const)("片方が空の Enter は送らず、入れた側を残して空の側（%s）へフォーカスを移す", (_, start, end, empty) => {
           const { onEditPunchPair, onEndEdit } = renderRow({ editing: "startedAt", task: notStarted });
 
-          fireEvent.change(startInput(), { target: { value: "0900" } });
+          fireEvent.change(startInput(), { target: { value: start } });
+          fireEvent.change(endInput(), { target: { value: end } });
           fireEvent.keyDown(startInput(), { key: "Enter" });
 
           expect(onEditPunchPair).not.toHaveBeenCalled();
           expect(onEndEdit).not.toHaveBeenCalled();
-          expect(document.activeElement).toBe(endInput());
+          expect(document.activeElement).toBe(empty());
+          expect([startInput().value, endInput().value]).toEqual([start, end]);
+        });
+
+        it("空白だけの入力は空とみなす", () => {
+          const { onEditPunchPair } = renderRow({ editing: "endedAt", task: notStarted });
+
+          fireEvent.change(startInput(), { target: { value: "  " } });
+          fireEvent.change(endInput(), { target: { value: "0930" } });
+          fireEvent.keyDown(endInput(), { key: "Enter" });
+
+          expect(onEditPunchPair).not.toHaveBeenCalled();
+          expect(document.activeElement).toBe(startInput());
         });
 
         it("2つの欄のあいだの移動では閉じない", () => {

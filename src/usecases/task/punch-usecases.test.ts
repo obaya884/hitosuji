@@ -601,6 +601,15 @@ describe("updateTaskPunch（F-203: 打刻時刻の修正）", () => {
     expect(repo.rows[0]).toMatchObject({ startedAt, endedAt });
   });
 
+  it("未実行タスクへのまとめての入力でも、終了が開始より前なら拒んで未実行のまま残す", async () => {
+    const repo = inMemoryTaskRepository([task({ id: 1 })]);
+
+    expect(
+      await editPunch(repo, { taskId: 1, startedAt: endedAt, endedAt: startedAt })
+    ).toEqual({ ok: false, error: "ended_before_started" });
+    expect(repo.rows[0]).toMatchObject({ startedAt: null, endedAt: null });
+  });
+
   it("実行中タスクに終了時刻を入れると完了する（画面定義書01 §3.3 ③）", async () => {
     const repo = inMemoryTaskRepository([task({ id: 1, startedAt })]);
 

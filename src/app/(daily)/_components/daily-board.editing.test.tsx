@@ -319,7 +319,7 @@ describe("DailyBoard のインライン編集の検証（§8 / 00_共通 §2.3�
     expect(isSelected(RUNNING)).toBe(true);
   });
 
-  it("未実行タスクに開始と終了をまとめて入れると、確定前に完了して開始時刻のセクションへ移る（§3.3 ④ / §4.2-c）", () => {
+  it("未実行タスクに開始と終了をまとめて入れると、確定前に完了して開始時刻順の位置へ入る（§3.3 ④ / §4.2-c）", () => {
     const gate = hold<DailyActionResult>(OK);
     vi.mocked(updateTaskPunchAction).mockReturnValue(gate.promise);
     renderBoard(settledTasks());
@@ -338,6 +338,44 @@ describe("DailyBoard のインライン編集の検証（§8 / 00_共通 §2.3�
     // 09:00 開始は午前。10:00 開始の実行中より前（開始時刻順）へ入る
     expect(rowNames()).toEqual([NOT_STARTED, RUNNING, COMPLETED]);
     expect(within(taskRow(NOT_STARTED)).queryByLabelText("完了済み")).not.toBeNull();
+
+    // 確定で欄が閉じ、キー操作が戻る（FB-68 の合成の成功経路）
+    press("j");
+    expect(isSelected(RUNNING)).toBe(true);
+  });
+
+  it("未実行タスクへのまとめての入力が拒まれたら、未実行・元の位置へ戻す（00_共通 §4.1）", async () => {
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(updateTaskPunchAction).mockReturnValue(gate.promise);
+    renderBoard(settledTasks());
+    selectRow(NOT_STARTED);
+
+    press("b");
+    fireEvent.change(screen.getByLabelText("開始時刻"), { target: { value: "0900" } });
+    fireEvent.change(screen.getByLabelText("終了時刻"), { target: { value: "0915" } });
+    fireEvent.keyDown(screen.getByLabelText("終了時刻"), { key: "Enter" });
+    await gate.resolve({ ok: false, message: "保存に失敗しました" });
+
+    expect(rowNames()).toEqual([RUNNING, NOT_STARTED, COMPLETED]);
+    expect(within(taskRow(NOT_STARTED)).queryByLabelText("開始")).not.toBeNull();
+    expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
+  });
+
+  it("まとめての入力も日界より前の時刻は論理日の翌暦日として送る（F-116 / §3.3）", () => {
+    vi.setSystemTime(atJst("10:00", NEXT_TEST_DATE)); // 前日のリストを翌朝に開いている
+    renderBoard(settledTasks());
+    selectRow(NOT_STARTED);
+
+    press("b");
+    fireEvent.change(screen.getByLabelText("開始時刻"), { target: { value: "0300" } });
+    fireEvent.change(screen.getByLabelText("終了時刻"), { target: { value: "0330" } });
+    fireEvent.keyDown(screen.getByLabelText("終了時刻"), { key: "Enter" });
+
+    // 日界 06:00（フィクスチャの「朝」）より前なので、論理日 TEST_DATE の 03:00 は翌暦日
+    expect(vi.mocked(updateTaskPunchAction).mock.calls[0][1]).toEqual({
+      startedAt: atJst("03:00", NEXT_TEST_DATE),
+      endedAt: atJst("03:30", NEXT_TEST_DATE),
+    });
   });
 
   it("未実行タスクへのまとめての入力が未来なら送らずエラートーストを出す（§8）", () => {
@@ -369,6 +407,19 @@ describe("DailyBoard のインライン編集の検証（§8 / 00_共通 §2.3�
       formatClock(atJst("10:00"))
     );
     expect(within(taskRow(RUNNING)).queryByLabelText("完了済み")).not.toBeNull();
+  });
+
+  it("実行中タスクへの終了時刻の入力が拒まれたら、実行中へ戻す（00_共通 §4.1）", async () => {
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(updateTaskPunchAction).mockReturnValue(gate.promise);
+    renderBoard(settledTasks());
+    selectRow(RUNNING);
+
+    press("f");
+    commit(punchInput(), "1020");
+    await gate.resolve({ ok: false, message: "保存に失敗しました" });
+
+    expect(within(taskRow(RUNNING)).queryByLabelText("終了")).not.toBeNull();
   });
 
   it("打刻の修正（F-203）は不正な時刻を送信せずエラートーストを出す", () => {

@@ -25,11 +25,7 @@ import type { DailyGroup, SectionOrder } from "@/domain/task/daily-list";
 import { stepMoveDestination } from "@/domain/task/reorder";
 import { currentNotStartedId, keepSelection, selectionAfterRemoval } from "@/domain/task/selection";
 import { taskStatus } from "@/domain/task/status";
-import {
-  editEndedAt,
-  editPunchPair as editPunchPairOf,
-  editStartedAt,
-} from "@/domain/task/punch-edit";
+import { editEndedAt, editPunchPair, editStartedAt } from "@/domain/task/punch-edit";
 import { normalizeComment, validateEstimateMinutes, validateTaskName } from "@/domain/task/edit";
 import { validateUrl } from "@/domain/shared/url";
 import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
@@ -498,15 +494,13 @@ export function DailyBoard({
   }
 
   /**
-   * 開始・終了時刻のインライン修正（F-203）。HH:MM の解釈は運用タイムゾーン固定（T-47）で、
-   * どの暦日へ落とすかは日界（F-116）とタスクの論理日で決まる（画面定義書01 §3.3）。
-   * 現在時刻は未来への修正を弾くために渡す（他の打刻と同じくクライアントのもの）
+   * 開始・終了時刻のインライン修正（F-203 / 画面定義書01 §3.3 ①②）と、実行中の終了時刻の入力（③。
+   * 確定で完了する）。HH:MM の解釈は運用タイムゾーン固定（T-47）で、どの暦日へ落とすかは日界（F-116）と
+   * タスクの論理日で決まる（画面定義書01 §3.3）
    */
   function editPunch(task: Task, field: "startedAt" | "endedAt", hhmm: string) {
     if (isProvisional(task)) return;
-    // 検証と送信で同じ現在時刻を使う（分をまたぐ瞬間に判定と保存で日が割れないように）
-    const now = new Date();
-    const context = { timeZone: APP_TIME_ZONE, dayStartMinutes, now };
+    const context = punchEditContext();
     const edited =
       field === "startedAt"
         ? editStartedAt(task, hhmm, context)
@@ -518,15 +512,11 @@ export function DailyBoard({
 
     // editStartedAt / editEndedAt を通った時点で startedAt は必ず存在する
     if (task.startedAt === null) return;
-    const punch =
+    sendPunch(
+      task,
       field === "startedAt"
         ? { startedAt: edited.value, endedAt: task.endedAt }
-        : { startedAt: task.startedAt, endedAt: edited.value };
-
-    // 移動先セクションの判定に使う HH:MM は、運用タイムゾーンで整形して送る（§4.2-c）
-    run(
-      () => updateTaskPunchAction(task.id, punch, formatClock(punch.startedAt)),
-      { type: "punch", id: task.id, ...punch }
+        : { startedAt: task.startedAt, endedAt: edited.value }
     );
   }
 
@@ -535,20 +525,23 @@ export function DailyBoard({
    * （そろわない入力は欄が破棄する）。確定するといきなり完了し、開始時刻を含むセクションへ規則c で移る——
    * 楽観的更新の `punch` がサーバと同じ計画（`planPunchEdit`）で先に移す
    */
-  function editPunchPair(task: Task, startHhmm: string, endHhmm: string) {
+  function enterPunchPair(task: Task, startHhmm: string, endHhmm: string) {
     if (isProvisional(task)) return;
-    const now = new Date(); // 未来の判定（§3.3）。打刻修正と同じくクライアントの現在時刻
-    const edited = editPunchPairOf(task, startHhmm, endHhmm, {
-      timeZone: APP_TIME_ZONE,
-      dayStartMinutes,
-      now,
-    });
+    const edited = editPunchPair(task, startHhmm, endHhmm, punchEditContext());
     if (!edited.ok) {
       setError(PUNCH_EDIT_MESSAGES[edited.error]);
       return;
     }
+    sendPunch(task, edited.value);
+  }
 
-    const punch = edited.value;
+  /** 打刻時刻の解釈の文脈。現在時刻は未来への修正を弾くためだけに使う（他の打刻と同じくクライアントのもの） */
+  function punchEditContext() {
+    return { timeZone: APP_TIME_ZONE, dayStartMinutes, now: new Date() };
+  }
+
+  /** 解釈済みの打刻を送る。移動先セクションの判定に使う HH:MM は運用タイムゾーンで整形して送る（§4.2-c） */
+  function sendPunch(task: Task, punch: Readonly<{ startedAt: Date; endedAt: Date | null }>) {
     run(
       () => updateTaskPunchAction(task.id, punch, formatClock(punch.startedAt)),
       { type: "punch", id: task.id, ...punch }
@@ -843,7 +836,7 @@ export function DailyBoard({
         onPunch={punch}
         isFutureDate={isFutureDate}
         onEditPunch={editPunch}
-        onEditPunchPair={editPunchPair}
+        onEditPunchPair={enterPunchPair}
         sections={sections}
         onAssign={assign}
         onOperate={operate}

@@ -6,7 +6,7 @@ import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
 import type { Section, SectionId } from "@/domain/section/section";
-import { punchInputKind } from "@/domain/task/punch-edit";
+import { isPunchField, punchInputKind } from "@/domain/task/punch-edit";
 import { taskStatus } from "@/domain/task/status";
 import { actualMinutes, elapsedMinutes, type Task, type TaskId } from "@/domain/task/task";
 import { DurationValue } from "@/app/_components/duration-value";
@@ -15,7 +15,13 @@ import { formatCarryOver, formatClock, formatDuration } from "@/app/_lib/format"
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { modeAppearance } from "@/app/_lib/mode-appearance";
 import { DELETE_LABEL } from "@/app/_lib/operation-labels";
-import { disabledPermanent, hoverSurfaceOnAccent, hoverWord, inputBase } from "@/app/_lib/ui";
+import {
+  clockInput,
+  disabledPermanent,
+  hoverSurfaceOnAccent,
+  hoverWord,
+  inputBase,
+} from "@/app/_lib/ui";
 import { UNCATEGORIZED_LABEL } from "@/app/_lib/unset";
 import { OpenUrlButton } from "@/app/_components/open-url-button";
 import { RowMenu } from "@/app/_components/row-menu";
@@ -135,17 +141,19 @@ export function TaskRow({
   const elapsed = elapsedMinutes(task, now);
 
   // 開く欄は行の状態で決まる（§3.3 ①〜④）。キーで開く側（use-daily-shortcuts）と同じ規則を引く（FB-68）
-  const punchField = editing === "startedAt" || editing === "endedAt" ? editing : null;
-  const punchInput = punchField === null ? null : punchInputKind(task, punchField, isFutureDate);
-  // 1つの欄で入れる時刻の初期値。③（実行中の終了）は現在時刻、①②は打刻済みの値
+  const punch =
+    editing !== null && isPunchField(editing)
+      ? { field: editing, kind: punchInputKind(task, editing, isFutureDate) }
+      : null;
+  // 1つの欄で入れる時刻の初期値。③（実行中の終了）は現在時刻、①②は打刻済みの値。④は2欄なので持たない
   const editingPunchAt =
-    punchInput === "finish" ? now : punchInput === "edit" && punchField !== null ? task[punchField] : null;
+    punch?.kind === "finish" ? now : punch?.kind === "edit" ? task[punch.field] : null;
 
   function commit(input: HTMLInputElement) {
     const value = input.value;
     if (editing === "name") onRename(task, value);
     if (editing === "estimate") onEstimate(task, value);
-    if (editing === "startedAt" || editing === "endedAt") onEditPunch(task, editing, value);
+    if (editing !== null && isPunchField(editing)) onEditPunch(task, editing, value);
     onEndEdit();
   }
 
@@ -346,9 +354,9 @@ export function TaskRow({
       </td>
       <td className={`py-2.5 text-right font-mono text-main tabular-nums ${dimmedClass}`}>
         {/* 未実行に開始と終了をまとめて入れる（F-203 / §3.3 ④）。キーだけの入口なので表示用のボタンは無い */}
-        {punchInput === "pair" && punchField !== null && (
+        {punch?.kind === "pair" && (
           <PunchPairInput
-            focus={punchField}
+            focus={punch.field}
             onCommit={(start, end) => {
               onEditPunchPair(task, start, end);
               onEndEdit();
@@ -368,7 +376,7 @@ export function TaskRow({
               onKeyDown={onKeyDown}
               onBlur={(e) => commit(e.currentTarget)}
               placeholder="1935"
-              className={`w-16 text-right ${inputBase}`}
+              className={clockInput}
             />
           ) : (
             <>
@@ -392,7 +400,7 @@ export function TaskRow({
             </>
           ))}
         {/* 未実行行は実打刻と同じ位置に予想開始時刻を弱色で併記する（F-120 / §3.3。出す行の判定は親） */}
-        {projectedStart !== null && punchInput !== "pair" && (
+        {projectedStart !== null && punch?.kind !== "pair" && (
           <span className="text-ink-faint">{projectedStart}</span>
         )}
       </td>

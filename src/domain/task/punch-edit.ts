@@ -12,16 +12,23 @@ export type PunchEditError =
   | "no_started_at";
 
 /**
- * `B`/`F` で開く欄（画面定義書01 §3.3「開始-終了時刻」の①〜④）。**行の状態だけで決まる1つの規則**で、
- * 描画側（入力欄を出すか）と編集開始側（キーで開くか）の両方がこれを引く——片方だけ開くと
- * 「編集中だが入力欄が無い」状態になり、キー操作が止まる（FB-68）。
+ * `B`/`F` で開く欄の種類（画面定義書01 §3.3「開始-終了時刻」の①〜④）。
  * - `edit`: 打刻済みの時刻を直す（①開始済みの開始 ②完了の終了）
  * - `finish`: 実行中の終了時刻を入れて完了させる（③。初期値は現在時刻）
  * - `pair`: 未実行に開始と終了をまとめて入れて完了させる（④）
- * - `null`: 開かない（未来日の未打刻。どの `HH:MM` も未来で確定できない。§7）
  */
 export type PunchInputKind = "edit" | "finish" | "pair";
 
+/** 打刻時刻の欄か（編集中の欄の名前から `B` / `F` の2つを見分ける） */
+export function isPunchField(field: string): field is "startedAt" | "endedAt" {
+  return field === "startedAt" || field === "endedAt";
+}
+
+/**
+ * `B`/`F` で開く欄。**行の状態だけで決まる1つの規則**で、描画側（入力欄を出すか）と編集開始側
+ * （キーで開くか）の両方がこれを引く——片方だけ開くと「編集中だが入力欄が無い」状態になり、
+ * キー操作が止まる（FB-68）。`null` は開かない（未来日の未打刻。どの `HH:MM` も未来で確定できない。§7）
+ */
 export function punchInputKind(
   task: Task,
   field: "startedAt" | "endedAt",
@@ -174,9 +181,9 @@ export function editPunchPair(
   endHhmm: string,
   context: PunchEditContext
 ): Result<Readonly<{ startedAt: Date; endedAt: Date }>, PunchEditError> {
-  const startedAt = startedAtFor(task, startHhmm, context);
-  if (!startedAt.ok) return startedAt;
-  const endedAt = endedAtFor(startedAt.value, endHhmm, context);
-  if (!endedAt.ok) return endedAt;
-  return ok({ startedAt: startedAt.value, endedAt: endedAt.value });
+  const started = startedAtFor(task, startHhmm, context);
+  if (!started.ok) return started;
+  const ended = endedAtFor(started.value, endHhmm, context);
+  if (!ended.ok) return ended;
+  return ok({ startedAt: started.value, endedAt: ended.value });
 }

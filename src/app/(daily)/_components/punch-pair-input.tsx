@@ -2,7 +2,7 @@
 
 import { useRef, type FocusEvent, type KeyboardEvent } from "react";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
-import { inputBase } from "@/app/_lib/ui";
+import { clockInput } from "@/app/_lib/ui";
 
 type Props = Readonly<{
   /** 押したキーの側（`B` = 開始 / `F` = 終了）。その欄にフォーカスして開く */
@@ -25,10 +25,17 @@ export function PunchPairInput({ focus, onCommit, onCancel }: Props) {
   // Enter・Esc で閉じたあとに続いて届く blur で二重に確定しないための印
   const settled = useRef(false);
 
+  /** いまの2つの入力（空白だけは空とみなす） */
+  function values() {
+    return {
+      start: startRef.current?.value.trim() ?? "",
+      end: endRef.current?.value.trim() ?? "",
+    };
+  }
+
   /** 2つそろっていれば確定して true。欠けていれば false（呼び出し側が次の動きを決める） */
   function commitIfComplete(): boolean {
-    const start = startRef.current?.value.trim() ?? "";
-    const end = endRef.current?.value.trim() ?? "";
+    const { start, end } = values();
     if (start === "" || end === "") return false;
     settled.current = true;
     onCommit(start, end);
@@ -45,8 +52,8 @@ export function PunchPairInput({ focus, onCommit, onCancel }: Props) {
     inlineEditKeyHandler<HTMLInputElement>({
       onEnter: () => {
         if (commitIfComplete()) return;
-        const empty = startRef.current?.value.trim() === "" ? startRef.current : endRef.current;
-        empty?.focus();
+        // 入れた側は残し、空の側へフォーカスを移す（§8）
+        (values().start === "" ? startRef : endRef).current?.focus();
       },
       onEscape: cancel,
     })(e);
@@ -59,20 +66,20 @@ export function PunchPairInput({ focus, onCommit, onCancel }: Props) {
     if (!commitIfComplete()) cancel();
   }
 
-  const field = (ref: typeof startRef, side: Props["focus"], label: string) => (
+  const renderInput = (ref: typeof startRef, side: Props["focus"], label: string) => (
     <input
       ref={ref}
       autoFocus={focus === side}
       aria-label={label}
       onKeyDown={onKeyDown}
       placeholder="1935"
-      className={`w-16 text-right ${inputBase}`}
+      className={clockInput}
     />
   );
 
   return (
     <span onBlur={onBlur} className="inline-flex items-center gap-1">
-      {field(startRef, "startedAt", "開始時刻")}–{field(endRef, "endedAt", "終了時刻")}
+      {renderInput(startRef, "startedAt", "開始時刻")}–{renderInput(endRef, "endedAt", "終了時刻")}
     </span>
   );
 }
