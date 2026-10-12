@@ -122,6 +122,8 @@
 | T-164 | `wt-overlap.sh` を相対パスでサブディレクトリから呼ぶとヘルプが出ない | ツール整備 | 様子見 | 完了 2026-10-11 → `wt-overlap.sh` の usage が読む自分自身のパスを cd の前に絶対パスへ解決した（CDPATH の出力も捨てる）。サブディレクトリから相対で呼んでもヘルプが出ることを確認。同じ `sed "$0"` の形を持つスクリプトは他に無かった。T-163 と1本で対応（オーナー確定） | [詳細](#t-164) |
 | T-165 | 行内のポップオーバー・行メニューが貼り付いた見出しより上に出ることを、実効で確かめているテストが無い | テスト | 低 | 完了 2026-10-11 → `daily-board.scroll.browser.test.tsx` に describe「行内の浮遊面は貼り付いた見出しより手前」を足した。選択ポップオーバー・行メニュー・ルーチン化の3部品ごとに、段の前提（absolute と z-index）と、パネルが列見出し・セクション見出しにかかった点の描画を `elementFromPoint` で実測し、グループの境目（DOM 上パネルより後ろの見出しが貼り付いた場合）も1本で見る。この describe にだけ `.absolute` を敷いた。変異（各パネルの z-10 削除・行メニューの z-10→z-1・select-popover の absolute 削除・見出しの z-1→z-10）でいずれも赤を確認。先祖が stacking context を作る退行（isolate / opacity / transform）と、板と浮遊面の上下（条項に無い）は射程外 | [詳細](#t-165) |
 | T-114 | 本質的に複雑な仕様（楽観更新・打刻）の定義を、オーナーの理解と実装が揃う形に整理する | 調査 | 中 | 完了（2026-10-12。画面定義書01 §4 冒頭に「確定前に出す範囲」の表を置き、N-01 の基準を改めた。FB-79・FB-88・FB-94・FB-96 とあわせて実装） | [詳細](#t-114) |
+| T-02 | eslint 10 への追随 | 依存追随 | 様子見 | 完了（2026-10-12） | [詳細](#t-02) |
+| T-166 | Dependabot 依存追随（eslint 10・dotenv 18・minor-and-patch 2件、`@types/node` 26 クローズ） | 依存追随 | 中 | 完了（2026-10-12） | [詳細](#t-166) |
 
 ## 詳細
 
@@ -852,9 +854,9 @@
 - 検証: CI の `verify` が lint・typecheck・build・テスト2周（UTC / JST）まで完走して緑。[T-131](./closed_23_技術改善バックログ.md#t-131) と違い **CI を通らない依存は今回の3件に含まれない**（`tsx` のような `db:seed` 専用の依存が無い）ため、ローカル追検証は行っていない
 - 版差分の評価: `next` 16.3.1 は Turbopack と `next/image` のバグ修正が中心の patch。`@types/pg` 8.23.1 はランタイムの `pg`（`^8.23.0`）に**型が追いつく**方向で、[アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md) §11 の「追い越さない」に反しない
 - **クローズ（#135、`@types/node` 24.13.3→26.2.0）**: 本番 Vercel のランタイムが Node 24 系（CI・`db-migrate` も `node-version: 24`）のため追い越さない（同 §11）。現行 `^24` は追随済みで、[T-30](./closed_23_技術改善バックログ.md#t-30-typesnode-を本番ランタイムnode-24-系へ追随させる2026-07-25) のような中間版への残作業も無い。26 系のクローズは #3・#79 に続く3回目
-- **クローズ（#136、`eslint` 9.39.5→10.8.1）**: [T-02](./23_技術改善バックログ.md#t-02) に再確認として記録した（上流は前回から動いておらず、判断も同じ）
+- **クローズ（#136、`eslint` 9.39.5→10.8.1）**: [T-02](#t-02) に再確認として記録した（上流は前回から動いておらず、判断も同じ）
 - 結果: 挙動変更なし（lockfile と `package.json` のみ）。オープン Dependabot PR 0件・セキュリティアラート 0件
-- 関連: [T-131](./closed_23_技術改善バックログ.md#t-131)（直前の同種の依存追随）/ [T-02](./23_技術改善バックログ.md#t-02)（eslint 10 の保留。本件で3度目の再確認）/ [アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md) §11（版の追随関係）/ [.claude/skills/dependabot-triage](../../.claude/skills/dependabot-triage/SKILL.md)
+- 関連: [T-131](./closed_23_技術改善バックログ.md#t-131)（直前の同種の依存追随）/ [T-02](#t-02)（eslint 10 の保留。本件で3度目の再確認）/ [アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md) §11（版の追随関係）/ [.claude/skills/dependabot-triage](../../.claude/skills/dependabot-triage/SKILL.md)
 
 ### T-128
 
@@ -1202,12 +1204,12 @@
 - 背景: Dependabot の version-update PR 6件（#200・#202・#186〜#189）とセキュリティアラート6件（#18〜#23 undici、high 1件を含む）。トリアージ中のマージで brace-expansion のアラート2件（#30・#31）が新たに上がった。code-scanning（CodeQL）の open は 0件
 - **マージ（#202、`undici` 8.9.0→8.11.2）**: アラート #18〜#23 の根治。経路は `jsdom` → `undici` の1本だけで dev スコープ（コンポーネントテスト専用）。lockfile のみの差分
 - **マージ（#200、minor-and-patch グループ6件）**: `next` / `eslint-config-next` 16.3.5→16.3.6（patch。`next/og` の RCE 修正 GHSA-vcvr-r3jv-pc5j。本アプリは `next/og` 未使用）、`drizzle-orm` 0.45.2→0.45.3、`drizzle-kit` 0.31.10→0.31.11、`jsdom` 30.0.1→30.1.1、`tsx` 4.23.13→4.23.15。`drizzle-kit` は CI が見ない領域なので、PR ブランチでローカルに `drizzle-kit check`（問題なし）と `drizzle-kit generate`（スキーマ差分なし）を確かめた。#202 と `package-lock.json` が重なるため、**#202 のマージ後に `@dependabot rebase` して CI を回し直してから**マージした
-- **クローズ（#188、`eslint` 9→10）**: [T-02](./23_技術改善バックログ.md#t-02) の状況が変わらず、CI の lint が同じ `getFilename is not a function` で落ちる（4回目）
+- **クローズ（#188、`eslint` 9→10）**: [T-02](#t-02) の状況が変わらず、CI の lint が同じ `getFilename is not a function` で落ちる（4回目）
 - **クローズ（#189、`@types/node` 24→26）**: 本番 Node 24 系を追い越すため（[アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md) §11。26 系のクローズは4回目）
 - **クローズ（#186・#187、`@vitest/browser-playwright` / `@vitest/browser` 4→5）**: Dependabot が1パッケージずつ PR にするため、vitest 本体 4.1.x との peer が噛み合わず `npm ci` が ERESOLVE で落ちる。**単独 PR では構造的に緑にならない**ので、vitest 5 へ移るなら `vitest` / `@vitest/*` を手でまとめて上げる別作業になる（未起票）
 - **根治（本 PR、`brace-expansion` 1.1.16→1.1.21・5.0.9→5.0.12）**: アラート #31（`eslint` → `minimatch@3` 経由）と #30（`typescript-eslint` → `minimatch@10` 経由）。どちらも dev スコープ。#30 には Dependabot の PR が無く、#31 の PR #205 は #200 より前の main が起点だった。どちらも親の semver 範囲内で上がるため `overrides` を使わず `npm update brace-expansion` で lockfile だけを更新し、2件を1本で閉じて #205 はクローズした
 - **判明したこと**: 古い major の PR 4本（#186〜#189）が開いたまま残り、`dependabot.yml` の `open-pull-requests-limit: 5` をほぼ埋めていた。閉じる判断の PR を放置すると**新しい version-update PR が出なくなる**ので、クローズはトリアージのその場で済ませる
-- 関連: 本書 [T-152](#t-152)（同型の依存追随トリアージ）/ [T-02](./23_技術改善バックログ.md#t-02)（eslint 10）/ [アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md) §11（版の追随関係）/ [dependabot-triage スキル](../../.claude/skills/dependabot-triage/SKILL.md)
+- 関連: 本書 [T-152](#t-152)（同型の依存追随トリアージ）/ [T-02](#t-02)（eslint 10）/ [アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md) §11（版の追随関係）/ [dependabot-triage スキル](../../.claude/skills/dependabot-triage/SKILL.md)
 
 ### T-160
 
@@ -1352,6 +1354,25 @@
 - 優先度の根拠: 挙動は現に正しく動いており、直近の実害は「オーナーが仕様を確認するのに時間がかかる」「未定義の隙間が残る」の2点。急がないが、**この領域の FB は毎回コストが高い**（FB-83 は起票から対応まで一連のレビューを要した）ので、放置すると同じ形の取りこぼしが再発する
 - 進捗（2026-10-11）: オーナーとの対話で形を①に決めた——[画面定義書01](../仕様/13_画面定義書/01_デイリーリスト.md) §4 冒頭に「操作 × 確定前に出す部分 × 確定後の部分 × 理由」の表を置き、各 O 行・N-01・データモデル定義書 §4.6 に散っていた範囲の記述をそこへ寄せた。N-01 の基準も「確定後の結果をクライアントで再現できるか」に改めた（[FB-94](./closed_21_ユーザーフィードバック.md#fb-94) / [FB-96](./closed_21_ユーザーフィードバック.md#fb-96)）。打刻の入口（[FB-79](./closed_21_ユーザーフィードバック.md#fb-79) / [FB-88](./closed_21_ユーザーフィードバック.md#fb-88)）も同時に決めた。残りは実装で、FB 4件の実装が済んだら一緒に閉じる
 - 関連: [要件定義書](../仕様/12_要件定義書.md) §5.2・§6（N-01）/ [画面定義書01](../仕様/13_画面定義書/01_デイリーリスト.md) §3.3・§4.2・§8・O-4・O-13・O-14・O-15 / [データモデル定義書](../仕様/14_データモデル定義書.md) §3.5・§4.2・§4.5・§4.7 / [FB-94](./closed_21_ユーザーフィードバック.md#fb-94) / [FB-79](./closed_21_ユーザーフィードバック.md#fb-79) / [FB-69](./closed_21_ユーザーフィードバック.md#fb-69)（対応済み。上の材料）
+
+### T-02
+
+- 背景: `eslint-config-next` 同梱の `eslint-plugin-react` が ESLint 10 で削除された context API（`getFilename`）を使っており、eslint 10 では lint がクラッシュして起動しない（依存方向を守らせる `no-restricted-imports` すら実行不可）。Dependabot PR #4 はこの理由でクローズした
+- 対応方針: `eslint-config-next` が ESLint 10 対応版を出したら再挑戦する。それまでは 9 系を維持。次に Dependabot が eslint の新版 PR を出したときに状況を再確認する
+- **再確認（2026-07-27・eslint 10.8.0 の PR #73）**: 状況は変わらずクローズした。CI の `npm run lint` が同じ `getFilename is not a function` で落ちる。上流も未対応で、`eslint-plugin-react` は最新 7.37.5 でも peer が `^9.7` 止まり、`eslint-config-next` も最新 16.2.12 が `eslint-plugin-react@^7.37.0` に依存している
+- **再確認（2026-08-24・eslint 10.8.1 の PR #136）**: **上流は1か月動いていない**。`eslint-plugin-react` は 7.37.5 のまま（peer は依然 `^9.7`）、`eslint-config-next` は 16.3.2 まで進んだが `eslint-plugin-react@^7.37.0` への依存は据え置き。CI も同じ `getFilename is not a function` で赤のためクローズした。判断が3回とも同じなので、次回は**まず `eslint-plugin-react` の peer に `^10` が入ったかだけ**を見れば足りる
+- **再確認（2026-10-02・eslint 10.10.0 の PR #188）**: 変わらずクローズした。`eslint-plugin-react` 7.37.5 の peer は `^9.7` のまま、CI も同じ `getFilename is not a function` で赤（[T-159](./closed_23_技術改善バックログ.md#t-159)）
+- **追随（2026-10-12・eslint 10.12.0 の PR #225）**: CI の lint が初めて緑になりマージした。`eslint-plugin-react` は 7.37.5 のまま（peer も `^9.7` のまま）で、上流が公式に対応したわけではない。「クラッシュしないが何も検査していない」状態を疑って一時 worktree で実測し、有効ルール数が eslint 9 と同じ 115 であること、違反を仕込むと `no-restricted-imports`（レイヤー依存）・`react-hooks/rules-of-hooks`・`react/jsx-key` がすべて発火することを確かめた（[T-166](#t-166)）。今後 lint が `getFilename` 系で落ちたら、まず `eslint-plugin-react` の peer に `^10` が入ったかを見る
+
+### T-166
+
+- 背景: Dependabot の version-update PR 4件（#224〜#227）。セキュリティアラートは Dependabot・code-scanning（CodeQL）とも open 0件
+- **マージ（#224、minor-and-patch グループ2件）**: `drizzle-orm` 0.45.3→0.45.4（patch。postgres-js の prepare 修正で本アプリは node-postgres のため無関係）、`playwright` 1.63→1.64。マージ後に手元で `npx playwright install chromium` が要る（Chromium の取得はサンドボックスのプロキシ越しだと途中で切断されるため外で実行した）
+- **マージ（#225、`eslint` 9→10）**: [T-02](#t-02) の追随。CI の lint が緑になったのを受け、検査が実際に効いているかを一時 worktree で実測してからマージした（詳細は T-02）
+- **マージ（#227、`dotenv` 17→18）**: dotenv を使う `drizzle.config.ts`・seed・確認用フィクスチャはどれも CI が実行しないため、18.0.6 で手元の使い方を再現した。`path` 配列の前方優先・シェルの値を上書きしない（`dev:check` の確認用DBの安全装置が依拠）・`quiet: true` の無出力が、CJS・ESM とも 17 と同じだった。18 の主な追加は CLI と opt-in の高速パーサで、既定の挙動には触れていない
+- **クローズ（#226、`@types/node` 24→26）**: 本番 Node 24 系を追い越すため（[アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md) §11。26 系のクローズは5回目）
+- 3本とも `package-lock.json` に触るが、順にマージしてもテキストの衝突は出なかった。統合後の main で `npm ci` が通り、main の CI で組み合わせを確かめた
+- 関連: 本書 [T-161](#t-161)（直前の同型トリアージ）/ [T-02](#t-02)（eslint 10）/ [dependabot-triage スキル](../../.claude/skills/dependabot-triage/SKILL.md)
 
 ## 旧書式の記録（2026-07-26 以前）
 
