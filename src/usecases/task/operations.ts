@@ -3,21 +3,13 @@ import type { RoutineSkip, TaskRepository } from "@/usecases/ports/task-reposito
 import type { SectionRepository } from "@/usecases/ports/section-repository";
 import type { LogicalDate } from "@/domain/shared/logical-date";
 import { err, ok, type Result } from "@/domain/shared/result";
-import { sectionAt } from "@/domain/section/section";
 import { planDateMove } from "@/domain/task/date-move";
-import { duplicateDraft } from "@/domain/task/duplicate";
-import { canFinish, resumeTaskDraft } from "@/domain/task/punch";
+import { planDuplicate, planDuplicateAndStart, planSuspend } from "@/domain/task/placement";
+import { canFinish } from "@/domain/task/punch";
 import type { PunchUsecaseError } from "@/usecases/task/punch-usecases";
-import { newTaskFromDraft } from "@/usecases/task/from-draft";
+import { newTaskFromPlan } from "@/usecases/task/from-draft";
 import { taskStatus } from "@/domain/task/status";
-import { startOrderIndex } from "@/domain/task/relocation";
-import {
-  appendSortOrder,
-  placeNewBelow,
-  placeNewPair,
-  placeSortOrder,
-  tasksInSection,
-} from "@/domain/task/sort-order";
+import { appendSortOrder, tasksInSection } from "@/domain/task/sort-order";
 import type { Task, TaskId } from "@/domain/task/task";
 
 /**
@@ -41,20 +33,13 @@ export async function suspendTask(
   const finishable = canFinish(target, input.now);
   if (!finishable.ok) return finishable;
 
-  // 再開タスクは元タスクの直後（データモデル定義書 §4.2-a）
-  const sameDay = await repo.listByDate(target.taskDate);
-  const placed = placeNewBelow(sameDay, target);
-
-  const draft = resumeTaskDraft(target, input.now);
+  // 再開タスクは元タスクの直後（データモデル定義書 §4.2-a）。配置は domain の計画が決める
+  const plan = planSuspend(target, await repo.listByDate(target.taskDate), input.now);
   await repo.suspend({
     taskId: target.id,
     endedAt: input.now,
-    resumeTask: newTaskFromDraft(draft, {
-      taskDate: target.taskDate,
-      sectionId: target.sectionId,
-      sortOrder: placed.sortOrder,
-    }),
-    renumber: placed.renumber,
+    resumeTask: newTaskFromPlan(plan.resume, target.taskDate),
+    renumber: plan.renumber,
   });
   return ok(target.id);
 }
@@ -71,17 +56,10 @@ export async function duplicateTask(
   const target = await repo.findById(input.taskId);
   if (target === null) return err("task_not_found");
 
-  const sameDay = await repo.listByDate(target.taskDate);
-  const placed = placeNewBelow(sameDay, target);
-
-  const draft = duplicateDraft(target);
+  const plan = planDuplicate(target, await repo.listByDate(target.taskDate));
   const created = await repo.create(
-    newTaskFromDraft(draft, {
-      taskDate: target.taskDate,
-      sectionId: target.sectionId,
-      sortOrder: placed.sortOrder,
-    }),
-    placed.renumber
+    newTaskFromPlan(plan.duplicate, target.taskDate),
+    plan.renumber
   );
   return ok(created);
 }
@@ -104,61 +82,39 @@ export async function duplicateAndStartTask(
   // 返すが文言は別）。文言は taskActionErrorMessage("duplicateAndStart", …) が持つ（T-74 / T-76）
   if (taskStatus(target) !== "completed") return err("not_completed");
 
-  const [sameDay, sections] = await Promise.all([
+  const [sameDay, sections, running] = await Promise.all([
     repos.tasks.listByDate(target.taskDate),
     repos.sections.listAll(),
+    repos.tasks.findRunning(),
   ]);
-
-  // 複製タスクは開始済みで作る → 開始時の自動セクション移動（画面定義書01 §4.2-a）と同じ配置にする。
-  // 現在時刻がどのセクションにも属さない・表示日が今日でないときは複製元のセクションへ置く
-  const destinationSectionId =
-    target.taskDate === input.today
-      ? sectionAt(sections, input.nowClock)?.id ?? target.sectionId
-      : target.sectionId;
-
-  // 複製行は開始済みで作るので、規則a と同じ「開始時刻順の位置」へ入る
-  // （画面定義書01 §4.2 / データモデル定義書 §4.6）
-  const siblings = tasksInSection(sameDay, destinationSectionId);
-  const index = startOrderIndex(siblings, input.now);
-
-  const draft = duplicateDraft(target);
-  const newDuplicate = (sortOrder: number) =>
-    newTaskFromDraft(draft, {
-      taskDate: target.taskDate,
-      sectionId: destinationSectionId,
-      sortOrder,
-    });
-
-  const running = await repos.tasks.findRunning();
-  if (running === null) {
-    const single = placeSortOrder(siblings, index);
-    const created = await repos.tasks.duplicateAndStart({
-      newTask: newDuplicate(single.sortOrder),
-      startedAt: input.now,
-      interruption: null,
-      renumber: single.renumber,
-    });
-    return ok(created);
+  if (running !== null) {
+    const finishable = canFinish(running, input.now);
+    if (!finishable.ok) return finishable;
   }
 
-  const finishable = canFinish(running, input.now);
-  if (!finishable.ok) return finishable;
-
-  // 割り込み: 実行中タスクを終了し、その再開タスクを複製タスクの直下へ置く。
-  // 2行を同時に作るので採番も一度に決める（データモデル定義書 §3.5 の例外）
-  const pair = placeNewPair(siblings, index);
-  const resume = resumeTaskDraft(running, input.now);
-  const resumeTask = newTaskFromDraft(resume, {
-    taskDate: target.taskDate,
-    sectionId: destinationSectionId,
-    sortOrder: pair.second,
+  // 配置（移動先セクション・開始時刻順の位置・割り込みの再開タスク）は domain の計画が決める
+  const plan = planDuplicateAndStart({
+    target,
+    sameDay,
+    sections,
+    running,
+    now: input.now,
+    nowClock: input.nowClock,
+    isToday: target.taskDate === input.today,
   });
 
   const created = await repos.tasks.duplicateAndStart({
-    newTask: newDuplicate(pair.first),
+    newTask: newTaskFromPlan(plan.duplicate, target.taskDate),
     startedAt: input.now,
-    interruption: { runningTaskId: running.id, endedAt: input.now, resumeTask },
-    renumber: pair.renumber,
+    interruption:
+      plan.interruption === null
+        ? null
+        : {
+            runningTaskId: plan.interruption.runningTaskId,
+            endedAt: plan.interruption.endedAt,
+            resumeTask: newTaskFromPlan(plan.interruption.resume, target.taskDate),
+          },
+    renumber: plan.renumber,
   });
   return ok(created);
 }

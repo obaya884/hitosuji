@@ -4,6 +4,7 @@ import type { ModeId } from "@/domain/mode/mode";
 import type { ProjectId } from "@/domain/project/project";
 import type { SectionId } from "@/domain/section/section";
 import type { LogicalDate } from "@/domain/shared/logical-date";
+import type { NewRowPlan } from "@/domain/task/placement";
 import type { TaskId } from "@/domain/task/task";
 import type { NewTask } from "@/usecases/ports/task-repository";
 
@@ -54,4 +55,13 @@ export function newTaskFromDraft(
     bundleId: draft.bundleId ?? null,
     url: draft.url,
   };
+}
+
+/** domain の配置計画（`domain/task/placement.ts` の `NewRowPlan`）から NewTask を組み立てる。日付は元タスクと同じ */
+export function newTaskFromPlan(plan: NewRowPlan<TaskContentDraft>, taskDate: LogicalDate): NewTask {
+  return newTaskFromDraft(plan.draft, {
+    taskDate,
+    sectionId: plan.sectionId,
+    sortOrder: plan.sortOrder,
+  });
 }

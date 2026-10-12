@@ -9,17 +9,10 @@ import {
   canStart,
   canUndoComplete,
   canUndoStart,
-  resumeTaskDraft,
   type PunchError,
 } from "@/domain/task/punch";
-import { newTaskFromDraft } from "@/usecases/task/from-draft";
-import { placeNewBelow } from "@/domain/task/sort-order";
-import {
-  relocationOnPunchEdit,
-  relocationOnStart,
-  relocationOnUndoPunch,
-  withRelocations,
-} from "@/domain/task/relocation";
+import { newTaskFromPlan } from "@/usecases/task/from-draft";
+import { planPunchEdit, planStart, planUndoPunch } from "@/domain/task/placement";
 import type { Task, TaskId } from "@/domain/task/task";
 
 export type PunchUsecaseError = PunchError | "task_not_found";
@@ -46,52 +39,37 @@ export async function startTask(
   const startable = canStart(target);
   if (!startable.ok) return startable;
 
-  // 開始したタスク自身を、開始時刻を含むセクションの開始時刻順の位置へ移す（F-113 / 画面定義書01 §4.2-a）。
-  // 対象は今日のタスクのみ。打刻の書き込みと同一トランザクションで反映する
-  const sameDay = await repo.listByDate(target.taskDate);
-  const relocations =
-    target.taskDate === input.today
-      ? relocationOnStart(target, sameDay, await deps.sections.listAll(), input.now, input.nowClock)
-      : [];
-
-  // 以降の配置計算（再開タスクの位置）は移動後の位置を基準にする
-  const afterMove = withRelocations(sameDay, relocations);
-  const started = withRelocations([target], relocations)[0];
-
   const running = await repo.findRunning();
-  if (running === null) {
-    await repo.start({
-      taskId: target.id,
-      startedAt: input.now,
-      interruption: null,
-      relocations,
-    });
-    return ok(target.id);
+  if (running !== null) {
+    const finishable = canFinish(running, input.now);
+    if (!finishable.ok) return finishable;
   }
 
-  const finishable = canFinish(running, input.now);
-  if (!finishable.ok) return finishable;
+  // 配置（規則a の移動・再開タスクの位置）は domain の計画が決める。画面の楽観的更新も同じ計画を当てる。
+  // 規則a は今日のタスクのみで、打刻の書き込みと同一トランザクションで反映する
+  const plan = planStart({
+    target,
+    sameDay: await repo.listByDate(target.taskDate),
+    sections: await deps.sections.listAll(),
+    running,
+    now: input.now,
+    nowClock: input.nowClock,
+    isToday: target.taskDate === input.today,
+  });
 
-  // 再開タスクは開始タスクの直下（＝開始タスクと同じ日付・セクション）に置く。
-  // 前日以前の実行中タスクを割り込んだ場合も当日側に生成される（データモデル定義書 §4.2）。
-  // 画面定義書01 §4.2-a で開始タスクが移動した場合は移動先の直下になる
-  const placed = placeNewBelow(afterMove, started);
-
-  const draft = resumeTaskDraft(running, input.now);
   await repo.start({
     taskId: target.id,
     startedAt: input.now,
-    interruption: {
-      runningTaskId: running.id,
-      endedAt: input.now, // 終了と開始に同じ時刻を使い、実績に隙間を作らない
-      resumeTask: newTaskFromDraft(draft, {
-        taskDate: target.taskDate,
-        sectionId: started.sectionId,
-        sortOrder: placed.sortOrder,
-      }),
-      renumber: placed.renumber,
-    },
-    relocations,
+    interruption:
+      plan.interruption === null
+        ? null
+        : {
+            runningTaskId: plan.interruption.runningTaskId,
+            endedAt: plan.interruption.endedAt,
+            resumeTask: newTaskFromPlan(plan.interruption.resume, target.taskDate),
+            renumber: plan.renumber,
+          },
+    relocations: plan.relocations,
   });
   return ok(target.id);
 }
@@ -190,13 +168,12 @@ async function relocationsForUndoPunch(
   target: Task,
   input: Readonly<{ nowClock: string; today: LogicalDate }>
 ): Promise<Relocations> {
-  if (target.taskDate !== input.today) return [];
-
-  return relocationOnUndoPunch(
+  return planUndoPunch(
     target,
     await deps.tasks.listByDate(target.taskDate),
     await deps.sections.listAll(),
-    input.nowClock
+    input.nowClock,
+    target.taskDate === input.today
   );
 }
 
@@ -241,17 +218,14 @@ export async function updateTaskPunch(
     return err("ended_before_started");
   }
 
-  // 終了時刻だけの修正では移動しない（画面定義書01 §4.2 の対象外。帰属は「いつ始めたか」で決める）
-  const startedAtChanged = target.startedAt.getTime() !== input.startedAt.getTime();
-  const relocations = startedAtChanged
-    ? relocationOnPunchEdit(
-        target,
-        await repo.listByDate(target.taskDate),
-        await deps.sections.listAll(),
-        input.startedAt,
-        input.startClock
-      )
-    : [];
+  // 終了時刻だけの修正では移動しない判定も含め、domain の計画が決める（画面の楽観的更新と同じ計画）
+  const relocations = planPunchEdit(
+    target,
+    await repo.listByDate(target.taskDate),
+    await deps.sections.listAll(),
+    input.startedAt,
+    input.startClock
+  );
 
   await repo.updatePunch(
     target.id,
