@@ -425,6 +425,19 @@ describe("今日の表示: 配置の計画と規則b を当てる（画面定義
     expect(ids(applied)[1]).toEqual([3, -7, 4]);
   });
 
+  it("割り込みの再開タスクでも、直下に中間値が無ければ振り直した値で並べる（データモデル定義書 §3.5）", () => {
+    const target = task({ id: 3, sectionId: 1, sortOrder: 1000 });
+    const next = task({ id: 4, sectionId: 1, sortOrder: 1001 });
+    const running = task({ id: 5, sectionId: 2, startedAt: atJst("09:00") });
+    const applied = applyOptimisticAction(
+      [unclassifiedGroup([]), sectionGroup(MORNING, "12:00", [target, next]), sectionGroup(NOON, "06:00", [running])],
+      { type: "start", id: 3, at: atJst("10:00"), resumeSeq: 7 },
+      NOT_TODAY_TWO_SECTIONS
+    );
+
+    expect(ids(applied)[1]).toEqual([3, -7, 4]);
+  });
+
   it("先に当てた並び替え（採番しない）が混ざっても、表示順のまま計画を立てる", () => {
     // move は sort_order を振らないので、朝セクションの値の大小が表示順と食い違う
     const a = task({ id: 3, sectionId: 1, sortOrder: 3000 });
