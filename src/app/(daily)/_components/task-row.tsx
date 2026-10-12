@@ -6,6 +6,7 @@ import type { Mode } from "@/domain/mode/mode";
 import type { Project } from "@/domain/project/project";
 import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
 import type { Section, SectionId } from "@/domain/section/section";
+import { punchInputKind } from "@/domain/task/punch-edit";
 import { taskStatus } from "@/domain/task/status";
 import { actualMinutes, elapsedMinutes, type Task, type TaskId } from "@/domain/task/task";
 import { DurationValue } from "@/app/_components/duration-value";
@@ -23,6 +24,7 @@ import { toModeOptions, toProjectOptions } from "../_lib/master-options";
 import { rowBackgroundClass } from "../_lib/row-background";
 import { AssignCell } from "./assign-cell";
 import { BundleRoadCell } from "./bundle-road-cell";
+import { PunchPairInput } from "./punch-pair-input";
 import { RoutinizePopover } from "./routinize-popover";
 import { SelectPopover, type PopoverOption } from "./select-popover";
 
@@ -50,6 +52,8 @@ export type TaskRowProps = Readonly<{
   /** 表示日が今日か。日付移動（O-7）の行き先——真なら翌日へ、偽なら今日へ——を文言に出すのに使う */
   isToday: boolean;
   onEditPunch: (task: Task, field: "startedAt" | "endedAt", hhmm: string) => void;
+  /** 未実行のタスクに開始と終了をまとめて入れる（画面定義書01 §3.3 ④） */
+  onEditPunchPair: (task: Task, startHhmm: string, endHhmm: string) => void;
   index: number;
   sectionId: SectionId | null;
   modes: readonly Mode[];
@@ -121,6 +125,7 @@ export function TaskRow({
   isFutureDate,
   isToday,
   onEditPunch,
+  onEditPunchPair,
   now,
   projectedStart,
   scrollMarginTop,
@@ -129,9 +134,12 @@ export function TaskRow({
   const actual = actualMinutes(task);
   const elapsed = elapsedMinutes(task, now);
 
-  // 修正できるのは打刻済みの時刻だけなので、編集中でも打刻がなければ null（＝入力欄を出さない。§3.3）
+  // 開く欄は行の状態で決まる（§3.3 ①〜④）。キーで開く側（use-daily-shortcuts）と同じ規則を引く（FB-68）
+  const punchField = editing === "startedAt" || editing === "endedAt" ? editing : null;
+  const punchInput = punchField === null ? null : punchInputKind(task, punchField, isFutureDate);
+  // 1つの欄で入れる時刻の初期値。③（実行中の終了）は現在時刻、①②は打刻済みの値
   const editingPunchAt =
-    editing === "startedAt" ? task.startedAt : editing === "endedAt" ? task.endedAt : null;
+    punchInput === "finish" ? now : punchInput === "edit" && punchField !== null ? task[punchField] : null;
 
   function commit(input: HTMLInputElement) {
     const value = input.value;
@@ -337,7 +345,18 @@ export function TaskRow({
         )}
       </td>
       <td className={`py-2.5 text-right font-mono text-main tabular-nums ${dimmedClass}`}>
-        {/* 開始・終了時刻のインライン修正（F-203）。未打刻のタスクは編集させない */}
+        {/* 未実行に開始と終了をまとめて入れる（F-203 / §3.3 ④）。キーだけの入口なので表示用のボタンは無い */}
+        {punchInput === "pair" && punchField !== null && (
+          <PunchPairInput
+            focus={punchField}
+            onCommit={(start, end) => {
+              onEditPunchPair(task, start, end);
+              onEndEdit();
+            }}
+            onCancel={onEndEdit}
+          />
+        )}
+        {/* 開始・終了時刻のインライン修正・入力（F-203 / §3.3 ①〜③）。打刻済みの時刻だけを表示する */}
         {task.startedAt !== null &&
           (editingPunchAt !== null ? (
             <input
@@ -373,7 +392,9 @@ export function TaskRow({
             </>
           ))}
         {/* 未実行行は実打刻と同じ位置に予想開始時刻を弱色で併記する（F-120 / §3.3。出す行の判定は親） */}
-        {projectedStart !== null && <span className="text-ink-faint">{projectedStart}</span>}
+        {projectedStart !== null && punchInput !== "pair" && (
+          <span className="text-ink-faint">{projectedStart}</span>
+        )}
       </td>
       <td className="relative py-2.5">
         <RowMenu

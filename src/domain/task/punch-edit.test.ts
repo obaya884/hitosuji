@@ -2,7 +2,14 @@ import { describe, expect, it } from "vitest";
 import { addDays } from "../shared/logical-date";
 import { atJst, NEXT_TEST_DATE, TEST_DATE } from "../shared/testing/clock";
 import { APP_TIME_ZONE } from "../shared/time-zone";
-import { editEndedAt, editStartedAt, parseClockTime, type PunchEditContext } from "./punch-edit";
+import {
+  editEndedAt,
+  editPunchPair,
+  editStartedAt,
+  parseClockTime,
+  punchInputKind,
+  type PunchEditContext,
+} from "./punch-edit";
 import { task } from "./testing/task";
 
 // 打刻の修正は入力の `HH:MM` を運用タイムゾーンの壁時計として解釈するので、期待値も
@@ -273,10 +280,11 @@ describe("editEndedAt（F-203: 入力を開始時刻以降で最も早い候補�
     });
   });
 
-  it("実行中タスクにはまだ終了時刻がない", () => {
+  // 画面定義書01 §3.3 ③: 実行中の行の F は終了時刻を入れて完了させる。解釈は完了した行の修正と同じ
+  it("実行中タスクにも終了時刻を入れられる（開始以降で最も早い候補）", () => {
     expect(editEndedAt(task({ id: 1, startedAt: atJst("08:00") }), "09:00", context())).toEqual({
-      ok: false,
-      error: "not_punched",
+      ok: true,
+      value: atJst("09:00"),
     });
   });
 
@@ -290,5 +298,72 @@ describe("editEndedAt（F-203: 入力を開始時刻以降で最も早い候補�
   it("時刻として成立しない入力は invalid_time を伝播する", () => {
     const t = task({ id: 1, startedAt: atJst("08:00"), endedAt: atJst("08:30") });
     expect(editEndedAt(t, "abc", context())).toEqual({ ok: false, error: "invalid_time" });
+  });
+});
+
+describe("punchInputKind（画面定義書01 §3.3「開始-終了時刻」①〜④: B / F で開く欄）", () => {
+  const notStarted = task({ id: 1 });
+  const running = task({ id: 1, startedAt: atJst("08:00") });
+  const completed = task({ id: 1, startedAt: atJst("08:00"), endedAt: atJst("08:30") });
+
+  it.each([
+    ["開始済みの B は開始時刻の修正（①）", running, "startedAt", "edit"],
+    ["完了の B も開始時刻の修正（①）", completed, "startedAt", "edit"],
+    ["完了の F は終了時刻の修正（②）", completed, "endedAt", "edit"],
+    ["実行中の F は終了時刻を入れて完了（③）", running, "endedAt", "finish"],
+    ["未実行の B はまとめて入れる（④）", notStarted, "startedAt", "pair"],
+    ["未実行の F もまとめて入れる（④）", notStarted, "endedAt", "pair"],
+  ] as const)("%s", (_, target, field, kind) => {
+    expect(punchInputKind(target, field, false)).toBe(kind);
+  });
+
+  // §7: 未来日はどの HH:MM も未来になり確定できない。打刻済みの側は未来日には存在しない（打刻を受け付けない）
+  it("未来日では未打刻の側を開かない", () => {
+    expect(punchInputKind(notStarted, "startedAt", true)).toBeNull();
+    expect(punchInputKind(notStarted, "endedAt", true)).toBeNull();
+  });
+});
+
+describe("editPunchPair（画面定義書01 §3.3 ④: 未実行に開始と終了をまとめて入れる）", () => {
+  const notStarted = task({ id: 1 });
+
+  it("開始は論理日の時刻として、終了は入力中の開始以降で最も早い候補として読む", () => {
+    expect(editPunchPair(notStarted, "2330", "0010", context({ dayStartMinutes: DAY_START_0600 })))
+      .toEqual({
+        ok: true,
+        value: { startedAt: atJst("23:30"), endedAt: atJst("00:10", NEXT_TEST_DATE) },
+      });
+  });
+
+  it("開始と同じ分の終了は開始時刻そのものになる（実績 0:00）", () => {
+    expect(editPunchPair(notStarted, "0900", "0900", context())).toEqual({
+      ok: true,
+      value: { startedAt: atJst("09:00"), endedAt: atJst("09:00") },
+    });
+  });
+
+  it("開始が未来なら future_time", () => {
+    expect(editPunchPair(notStarted, "1000", "1030", context({ now: atJst("09:00") }))).toEqual({
+      ok: false,
+      error: "future_time",
+    });
+  });
+
+  it("終了が未来なら future_time（済んだことを記録する操作のため）", () => {
+    expect(editPunchPair(notStarted, "0800", "1030", context({ now: atJst("09:00") }))).toEqual({
+      ok: false,
+      error: "future_time",
+    });
+  });
+
+  it("どちらかが時刻として成立しなければ invalid_time", () => {
+    expect(editPunchPair(notStarted, "0900", "2599", context())).toEqual({
+      ok: false,
+      error: "invalid_time",
+    });
+    expect(editPunchPair(notStarted, "abc", "0930", context())).toEqual({
+      ok: false,
+      error: "invalid_time",
+    });
   });
 });

@@ -112,12 +112,6 @@ const EDIT_KEYS: readonly (readonly [key: string, field: EditField])[] = [
 /** 打刻の有無を見ない編集キー（B / F 以外）。ガードが打刻2フィールドに閉じていることの検証に使う */
 const NON_PUNCH_EDIT_KEYS = EDIT_KEYS.filter(([, field]) => field !== "startedAt" && field !== "endedAt");
 
-/** 終了打刻を持たない選択行（`F` を受け付けない状態。§3.3） */
-const NO_ENDED_AT_SELECTIONS: readonly (readonly [label: string, selectedId: number])[] = [
-  ["未実行", NEXT_UP.id],
-  ["実行中", RUNNING.id],
-];
-
 /** 押したキー自体が入力欄・編集欄へ入るのを防ぐため既定動作を止めるキー（§6 A / G ＋ 編集キー） */
 const PREVENT_DEFAULT_KEYS: readonly string[] = ["a", "g", ...EDIT_KEYS.map(([key]) => key)];
 
@@ -161,6 +155,7 @@ function params(
     editing: null,
     pickerOpen: false,
     keysLocked: false,
+    isFutureDate: false,
     orderedTasks: TASKS,
     selectedId: RUNNING.id,
     currentSectionId: null,
@@ -640,41 +635,27 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
       expect(spies.setEditing).toHaveBeenCalledWith({ taskId: NEXT_UP.id, field });
     });
 
-    // 打刻していない時刻には直すべき値が無い。編集状態にすると入力欄が描かれないまま
-    // 全ショートカットが止まる（`editing !== null` で早期 return する）ので、開かせない
-    it("B は未実行タスクでは開始時刻の編集を開かない（§3.3: 修正できるのは打刻済みの時刻だけ / FB-68）", () => {
-      const { spies } = renderShortcuts({ selectedId: NEXT_UP.id });
+    // 未打刻の時刻も B / F で入れられる（§3.3 ③④）。開く欄は行の状態で決まり、行側も同じ規則
+    // （`punchInputKind`）で入力欄を描く——片方だけ開くと入力欄が無いまま全ショートカットが止まる（FB-68）
+    it.each([
+      ["b", "startedAt", "未実行タスクの B は開始と終了をまとめて入れる欄（④）", NEXT_UP.id],
+      ["f", "endedAt", "未実行タスクの F も同じ欄（④）", NEXT_UP.id],
+      ["f", "endedAt", "実行中タスクの F は終了時刻を入れる欄（③）", RUNNING.id],
+    ] as const)("%s で %s の編集を開く: %s", (key, field, _label, selectedId) => {
+      const { spies } = renderShortcuts({ selectedId });
 
-      pressKey("b");
+      pressKey(key);
 
+      expect(spies.setEditing).toHaveBeenCalledWith({ taskId: selectedId, field });
+    });
+
+    // §7: 未来日ではどの HH:MM も未来で確定できない。打刻済みの行は未来日に存在しない（打刻を受け付けない）
+    it.each(["b", "f"])("未来日では未実行タスクの %s で編集を開かず、既定動作も止めない（00_共通 §3: 抑止は最小化）", (key) => {
+      const { spies } = renderShortcuts({ selectedId: NEXT_UP.id, isFutureDate: true });
+
+      expect(pressDefaultPrevented(key)).toBe(false);
       expectNothingCalled(spies);
     });
-
-    it.each(NO_ENDED_AT_SELECTIONS)(
-      "F は%sタスクでは終了時刻の編集を開かない（§3.3: 修正できるのは打刻済みの時刻だけ）",
-      (_label, selectedId) => {
-        const { spies } = renderShortcuts({ selectedId });
-
-        pressKey("f");
-
-        expectNothingCalled(spies);
-      }
-    );
-
-    it("B が開かないときは既定動作も止めない（00_共通 §3: 抑止は最小化）", () => {
-      renderShortcuts({ selectedId: NEXT_UP.id });
-
-      expect(pressDefaultPrevented("b")).toBe(false);
-    });
-
-    it.each(NO_ENDED_AT_SELECTIONS)(
-      "F が%sタスクで開かないときは既定動作も止めない（00_共通 §3: 抑止は最小化）",
-      (_label, selectedId) => {
-        renderShortcuts({ selectedId });
-
-        expect(pressDefaultPrevented("f")).toBe(false);
-      }
-    );
 
     it("実行中タスクでも開始時刻は開ける（打刻済みのため）", () => {
       const { spies } = renderShortcuts({ selectedId: RUNNING.id });

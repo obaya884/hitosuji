@@ -20,6 +20,7 @@ import {
   updateTaskPunchAction,
   updateTaskUrlAction,
   type CreatingActionResult,
+  type DailyActionResult,
 } from "../actions";
 import {
   COMPLETED,
@@ -30,6 +31,8 @@ import {
   FORENOON,
   hold,
   NOT_STARTED,
+  NOW,
+  OK,
   press,
   quickAddInput,
   renderBoard,
@@ -290,10 +293,22 @@ describe("DailyBoard のインライン編集の検証（§8 / 00_共通 §2.3�
     expect(vi.mocked(updateTaskCommentAction)).not.toHaveBeenCalled();
   });
 
-  // FB-68 の症状を通しで固定する。フック側は「編集を開かない」、行側は「入力欄を出さない」
-  // としか見ておらず、両者の合成である「キーボードが死なない」はここでしか見えない
-  it("未打刻タスクの B／F はキーボード操作を止めない（FB-68）", () => {
+  // FB-68 の症状を通しで固定する。フック側は「どの欄を開くか」、行側は「どの入力欄を出すか」を
+  // 同じ規則（`punchInputKind`）で決めるが、両者の合成である「編集状態なら必ず入力欄がある」はここでしか見えない
+  it("未実行タスクの B はまとめて入れる欄を開き、Esc で閉じればキー操作が戻る（FB-68 / §3.3 ④）", () => {
     renderBoard();
+    selectRow(NOT_STARTED);
+
+    press("b");
+    expect(screen.getByLabelText("開始時刻")).not.toBeNull();
+    fireEvent.keyDown(screen.getByLabelText("開始時刻"), { key: "Escape" });
+    press("j");
+
+    expect(isSelected(RUNNING)).toBe(true);
+  });
+
+  it("未来日の未実行タスクでは B／F は何も開かず、キー操作も止めない（§7 / FB-68）", () => {
+    renderBoard(defaultTasks(), { date: NEXT_TEST_DATE });
     selectRow(NOT_STARTED);
 
     press("b");
@@ -302,6 +317,58 @@ describe("DailyBoard のインライン編集の検証（§8 / 00_共通 §2.3�
 
     expect(screen.queryByPlaceholderText("1935")).toBeNull();
     expect(isSelected(RUNNING)).toBe(true);
+  });
+
+  it("未実行タスクに開始と終了をまとめて入れると、確定前に完了して開始時刻のセクションへ移る（§3.3 ④ / §4.2-c）", () => {
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(updateTaskPunchAction).mockReturnValue(gate.promise);
+    renderBoard(settledTasks());
+    selectRow(NOT_STARTED);
+
+    press("b");
+    fireEvent.change(screen.getByLabelText("開始時刻"), { target: { value: "0900" } });
+    fireEvent.change(screen.getByLabelText("終了時刻"), { target: { value: "0915" } });
+    fireEvent.keyDown(screen.getByLabelText("終了時刻"), { key: "Enter" });
+
+    expect(vi.mocked(updateTaskPunchAction)).toHaveBeenCalledWith(
+      11,
+      { startedAt: atJst("09:00"), endedAt: atJst("09:15") },
+      formatClock(atJst("09:00"))
+    );
+    // 09:00 開始は午前。10:00 開始の実行中より前（開始時刻順）へ入る
+    expect(rowNames()).toEqual([NOT_STARTED, RUNNING, COMPLETED]);
+    expect(within(taskRow(NOT_STARTED)).queryByLabelText("完了済み")).not.toBeNull();
+  });
+
+  it("未実行タスクへのまとめての入力が未来なら送らずエラートーストを出す（§8）", () => {
+    renderBoard(settledTasks());
+    selectRow(NOT_STARTED);
+
+    press("f");
+    fireEvent.change(screen.getByLabelText("開始時刻"), { target: { value: "1000" } });
+    fireEvent.change(screen.getByLabelText("終了時刻"), { target: { value: "1100" } }); // NOW = 10:30
+    fireEvent.keyDown(screen.getByLabelText("終了時刻"), { key: "Enter" });
+
+    expect(vi.mocked(updateTaskPunchAction)).not.toHaveBeenCalled();
+    expect(screen.queryByText("現在時刻までの時刻を入力してください")).not.toBeNull();
+  });
+
+  it("実行中タスクの F は現在時刻を初期値に開き、確定すると完了する（§3.3 ③）", () => {
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(updateTaskPunchAction).mockReturnValue(gate.promise);
+    renderBoard(settledTasks());
+    selectRow(RUNNING);
+
+    press("f");
+    expect(punchInput()).toHaveProperty("value", formatClock(NOW));
+    commit(punchInput(), "1020");
+
+    expect(vi.mocked(updateTaskPunchAction)).toHaveBeenCalledWith(
+      12,
+      { startedAt: atJst("10:00"), endedAt: atJst("10:20") },
+      formatClock(atJst("10:00"))
+    );
+    expect(within(taskRow(RUNNING)).queryByLabelText("完了済み")).not.toBeNull();
   });
 
   it("打刻の修正（F-203）は不正な時刻を送信せずエラートーストを出す", () => {

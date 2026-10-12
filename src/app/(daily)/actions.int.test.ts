@@ -93,12 +93,13 @@ describe("デイリーの Server Action の失敗経路（テスト戦略定義�
 
   // 対象は在るが状態が前提と違う経路。**「対象が無い」だけを見ていると、
   // 失敗コードが握り潰されて別のコードに化けても気づけない**
-  it("未実行のタスクは打刻を修正できず、その失敗コードの文言が返る", async () => {
+  // 画面定義書01 §3.3 ④: 未実行には開始と終了をまとめて入れる。開始だけでは実行中ができてしまう
+  it("未実行のタスクに開始だけは入れられず、その失敗コードの文言が返る", async () => {
     const id = await createNotStartedTask();
 
     expect(await updateTaskPunchAction(id, { startedAt: NOW, endedAt: null }, "10:30")).toEqual({
       ok: false,
-      message: taskActionErrorMessage("updatePunch", asPunchError("not_running")),
+      message: taskActionErrorMessage("updatePunch", asPunchError("ended_at_required")),
     });
   });
 

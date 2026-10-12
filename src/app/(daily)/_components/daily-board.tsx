@@ -25,7 +25,11 @@ import type { DailyGroup, SectionOrder } from "@/domain/task/daily-list";
 import { stepMoveDestination } from "@/domain/task/reorder";
 import { currentNotStartedId, keepSelection, selectionAfterRemoval } from "@/domain/task/selection";
 import { taskStatus } from "@/domain/task/status";
-import { editEndedAt, editStartedAt } from "@/domain/task/punch-edit";
+import {
+  editEndedAt,
+  editPunchPair as editPunchPairOf,
+  editStartedAt,
+} from "@/domain/task/punch-edit";
 import { normalizeComment, validateEstimateMinutes, validateTaskName } from "@/domain/task/edit";
 import { validateUrl } from "@/domain/shared/url";
 import type { RoutineFromTaskChoice } from "@/domain/routine/from-task";
@@ -526,6 +530,31 @@ export function DailyBoard({
     );
   }
 
+  /**
+   * 未実行のタスクに開始と終了をまとめて入れる（F-203 / 画面定義書01 §3.3 ④）。2つそろって初めて届く
+   * （そろわない入力は欄が破棄する）。確定するといきなり完了し、開始時刻を含むセクションへ規則c で移る——
+   * 楽観的更新の `punch` がサーバと同じ計画（`planPunchEdit`）で先に移す
+   */
+  function editPunchPair(task: Task, startHhmm: string, endHhmm: string) {
+    if (isProvisional(task)) return;
+    const now = new Date(); // 未来の判定（§3.3）。打刻修正と同じくクライアントの現在時刻
+    const edited = editPunchPairOf(task, startHhmm, endHhmm, {
+      timeZone: APP_TIME_ZONE,
+      dayStartMinutes,
+      now,
+    });
+    if (!edited.ok) {
+      setError(PUNCH_EDIT_MESSAGES[edited.error]);
+      return;
+    }
+
+    const punch = edited.value;
+    run(
+      () => updateTaskPunchAction(task.id, punch, formatClock(punch.startedAt)),
+      { type: "punch", id: task.id, ...punch }
+    );
+  }
+
   /** モード・プロジェクト・セクションの割り当て（O-5） */
   function assign(task: Task, field: "mode" | "project" | "section", id: number | null) {
     if (isProvisional(task)) return;
@@ -684,6 +713,7 @@ export function DailyBoard({
     editing,
     pickerOpen: showDatePicker,
     keysLocked: keysLockedCount > 0,
+    isFutureDate,
     orderedTasks,
     selectedId,
     currentSectionId,
@@ -813,6 +843,7 @@ export function DailyBoard({
         onPunch={punch}
         isFutureDate={isFutureDate}
         onEditPunch={editPunch}
+        onEditPunchPair={editPunchPair}
         sections={sections}
         onAssign={assign}
         onOperate={operate}

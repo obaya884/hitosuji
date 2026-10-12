@@ -44,6 +44,7 @@ const EXPECTED_PUNCH: Record<PunchUsecaseError, string> = {
   not_running: "実行中のタスクではありません",
   not_completed: "完了したタスクではありません",
   ended_before_started: "終了時刻は開始時刻より後にしてください",
+  ended_at_required: "未実行のタスクには開始と終了をまとめて入れてください",
 };
 
 const EXPECTED_PUNCH_EDIT: Record<PunchEditError, string> = {
@@ -60,6 +61,7 @@ const EXPECTED_OPERATION: Record<TaskOperationError, string> = {
   not_running: "実行中のタスクではありません",
   not_completed: "完了したタスクではありません",
   ended_before_started: "終了時刻は開始時刻より後にしてください",
+  ended_at_required: "未実行のタスクには開始と終了をまとめて入れてください",
   not_date_movable: "日付を移せるのは未実行タスクだけです",
 };
 

@@ -191,9 +191,10 @@ export async function finishTask(
 }
 
 /**
- * 打刻時刻の修正（F-203）。
+ * 打刻時刻の修正・入力（F-203 / 画面定義書01 §3.3 ①〜④）。
  * `HH:MM` → 絶対時刻の変換はクライアント側（利用者のタイムゾーン）で行い、
- * ここでは永続化前に 開始 ≦ 終了 の整合性を再検証する。
+ * ここでは永続化前に 開始 ≦ 終了 の整合性を再検証する。未実行のタスクには開始と終了を
+ * まとめて入れる（④）——開始だけでは実行中ができ、実行中は全体で最大1件（F-201）に割り込むため拒む。
  * 開始時刻が変わった場合は、修正後の時刻を含むセクションへ移す（F-113 / 画面定義書01 §4.2-c。
  * 規則cは表示日を問わないので「今日」を受け取らない）
  */
@@ -210,7 +211,7 @@ export async function updateTaskPunch(
   const repo = deps.tasks;
   const target = await repo.findById(input.taskId);
   if (target === null) return err("task_not_found");
-  if (target.startedAt === null) return err("not_running");
+  if (target.startedAt === null && input.endedAt === null) return err("ended_at_required");
 
   if (input.endedAt !== null && input.endedAt.getTime() < input.startedAt.getTime()) {
     return err("ended_before_started");

@@ -584,12 +584,28 @@ describe("updateTaskPunch（F-203: 打刻時刻の修正）", () => {
     expect(repo.rows[0].startedAt).toEqual(startedAt);
   });
 
-  it("未実行タスクの打刻は修正できない", async () => {
+  // 画面定義書01 §3.3 ④: 開始だけでは実行中ができ、実行中は全体で最大1件（F-201）に割り込む
+  it("未実行タスクに開始だけは入れられない", async () => {
     const repo = inMemoryTaskRepository([task({ id: 1 })]);
     expect(await editPunch(repo, { taskId: 1, startedAt, endedAt: null })).toEqual({
       ok: false,
-      error: "not_running",
+      error: "ended_at_required",
     });
+    expect(repo.rows[0].startedAt).toBeNull();
+  });
+
+  it("未実行タスクに開始と終了をまとめて入れると、いきなり完了する（画面定義書01 §3.3 ④）", async () => {
+    const repo = inMemoryTaskRepository([task({ id: 1 })]);
+
+    expect((await editPunch(repo, { taskId: 1, startedAt, endedAt })).ok).toBe(true);
+    expect(repo.rows[0]).toMatchObject({ startedAt, endedAt });
+  });
+
+  it("実行中タスクに終了時刻を入れると完了する（画面定義書01 §3.3 ③）", async () => {
+    const repo = inMemoryTaskRepository([task({ id: 1, startedAt })]);
+
+    expect((await editPunch(repo, { taskId: 1, startedAt, endedAt })).ok).toBe(true);
+    expect(repo.rows[0].endedAt).toEqual(endedAt);
   });
 
   it("存在しないタスクの打刻は修正できない", async () => {
@@ -613,6 +629,19 @@ describe("updateTaskPunch（F-203: 打刻時刻の修正）", () => {
     const newStart = new Date("2026-07-26T03:10:00Z"); // JST 12:10
 
     await editPunch(repo, { taskId: 1, startedAt: newStart, endedAt }, sections);
+
+    expect(repo.rows[0].sectionId).toBe(2);
+  });
+
+  it("未実行タスクにまとめて入れたときも、開始時刻を含むセクションへ移る（画面定義書01 §4.2-c）", async () => {
+    const repo = inMemoryTaskRepository([task({ id: 1, sectionId: 1, sortOrder: 1000 })]);
+    const start = new Date("2026-07-26T03:10:00Z"); // JST 12:10
+
+    await editPunch(
+      repo,
+      { taskId: 1, startedAt: start, endedAt: new Date("2026-07-26T03:40:00Z") },
+      sections
+    );
 
     expect(repo.rows[0].sectionId).toBe(2);
   });
