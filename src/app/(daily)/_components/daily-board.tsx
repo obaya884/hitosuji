@@ -303,8 +303,11 @@ export function DailyBoard({
     });
   }
 
+  // ここから下の行に作用するハンドラは、先頭で仮の行（`isProvisional`）を弾く——仮の行は選択できるが
+  // 操作は効かない（画面定義書01 §4 冒頭「仮の行」。サーバはまだその行を知らず、送れば「見つからない」で失敗する）。
+  // 高階関数でまとめないのは、描画中にラップを呼ぶ形を React Compiler の lint が「ref を描画中に読む」と判定するため
   function rename(task: Task, raw: string) {
-    if (isProvisional(task)) return; // 仮の行は操作が効かない（§4 冒頭「仮の行」）
+    if (isProvisional(task)) return;
     const validated = validateTaskName(raw);
     if (!validated.ok) return; // 空名は確定不可（§8）。編集は破棄して元の名前に戻る
     if (validated.value === task.name) return;
@@ -316,7 +319,7 @@ export function DailyBoard({
   }
 
   function setEstimate(task: Task, raw: string) {
-    if (isProvisional(task)) return; // 仮の行は操作が効かない（§4 冒頭「仮の行」）
+    if (isProvisional(task)) return;
     const validated = validateEstimateMinutes(raw);
     if (!validated.ok) {
       setError(TASK_EDIT_MESSAGES[validated.error]);
@@ -332,7 +335,7 @@ export function DailyBoard({
 
   /** コメントの編集（O-16 / F-206）。空で確定すればコメントを消す（長さの検証はない） */
   function setComment(task: Task, raw: string) {
-    if (isProvisional(task)) return; // 仮の行は操作が効かない（§4 冒頭「仮の行」）
+    if (isProvisional(task)) return;
     const comment = normalizeComment(raw);
     if (comment === task.comment) return;
 
@@ -344,7 +347,7 @@ export function DailyBoard({
    * 空で確定すれば消す。楽観的更新の対象——印がすぐ出る／消える
    */
   function setUrl(task: Task, raw: string) {
-    if (isProvisional(task)) return; // 仮の行は操作が効かない（§4 冒頭「仮の行」）
+    if (isProvisional(task)) return;
     const validated = validateUrl(raw);
     if (!validated.ok) {
       setError(TASK_EDIT_MESSAGES[validated.error]);
@@ -357,7 +360,7 @@ export function DailyBoard({
 
   /** ハイライトの付け外し（O-17 / F-118）。状態・日付を問わないトグル */
   function toggleHighlight(task: Task) {
-    if (isProvisional(task)) return; // 仮の行は操作が効かない（§4 冒頭「仮の行」）
+    if (isProvisional(task)) return;
     const highlighted = !task.highlighted;
     run(() => setTaskHighlightAction(task.id, highlighted), {
       type: "highlight",
@@ -393,7 +396,7 @@ export function DailyBoard({
    * `Enter`（§6）の経路だけになる
    */
   function punch(task: Task) {
-    if (isProvisional(task)) return; // 仮の行は操作が効かない（§4 冒頭「仮の行」）
+    if (isProvisional(task)) return;
     if (isFutureDate) return;
 
     const status = taskStatus(task);
@@ -466,7 +469,7 @@ export function DailyBoard({
 
   /** 開始打刻の取り消し（O-13 / F-210）。実行中タスクを未実行へ戻す。now はクライアントのものを送る */
   function unstart(task: Task) {
-    if (isProvisional(task)) return; // 仮の行は操作が効かない（§4 冒頭「仮の行」）
+    if (isProvisional(task)) return;
     const now = new Date(); // 並べ直しの現在位置をサーバと同じ時刻で求める
     run(() => undoStartAction(task.id, now), { type: "unstart", id: task.id, at: now });
   }
@@ -476,7 +479,7 @@ export function DailyBoard({
    * 復帰に要る4列のスナップショットを保留スロットへ置いて Undoトーストを出す
    */
   function uncomplete(task: Task) {
-    if (isProvisional(task)) return; // 仮の行は操作が効かない（§4 冒頭「仮の行」）
+    if (isProvisional(task)) return;
     const now = new Date(); // 並べ直しの現在位置をサーバと同じ時刻で求める
     run(
       async () => {
@@ -496,7 +499,7 @@ export function DailyBoard({
    * 現在時刻は未来への修正を弾くために渡す（他の打刻と同じくクライアントのもの）
    */
   function editPunch(task: Task, field: "startedAt" | "endedAt", hhmm: string) {
-    if (isProvisional(task)) return; // 仮の行は操作が効かない（§4 冒頭「仮の行」）
+    if (isProvisional(task)) return;
     // 検証と送信で同じ現在時刻を使う（分をまたぐ瞬間に判定と保存で日が割れないように）
     const now = new Date();
     const context = { timeZone: APP_TIME_ZONE, dayStartMinutes, now };
@@ -525,7 +528,7 @@ export function DailyBoard({
 
   /** モード・プロジェクト・セクションの割り当て（O-5） */
   function assign(task: Task, field: "mode" | "project" | "section", id: number | null) {
-    if (isProvisional(task)) return; // 仮の行は操作が効かない（§4 冒頭「仮の行」）
+    if (isProvisional(task)) return;
     if (field === "mode") {
       run(() => setTaskModeAction(task.id, id), { type: "mode", id: task.id, modeId: id });
       return;
@@ -549,7 +552,7 @@ export function DailyBoard({
 
   /** 中断・複製・日付移動・削除（F-204 / F-111 / F-107・F-123 / O-8） */
   function operate(task: Task, operation: RowOperation) {
-    if (isProvisional(task)) return; // 仮の行は操作が効かない（§4 冒頭「仮の行」）
+    if (isProvisional(task)) return;
     // 中断は現在時刻での終了打刻を含むので、未来日では受け付けない（§7）。行メニューの項目は
     // 実行中でなければ非活性だが、`I`（§6）は状態を見ずにここへ来るため止めるのはここになる
     if (operation === "suspend" && isFutureDate) return;
@@ -613,7 +616,7 @@ export function DailyBoard({
    * ポップオーバーを閉じさせないため（閉じると選んだ内容が黙って消える。00_共通 §4.2）
    */
   function routinize(task: Task, choice: RoutineFromTaskChoice): boolean {
-    if (isProvisional(task)) return false; // 仮の行は操作が効かない（§4 冒頭「仮の行」）
+    if (isProvisional(task)) return false;
     return run(async () => {
       const result = await createRoutineFromTaskAction(task.id, choice);
       if (result.ok) setNotice(routinizedMessage(task.name));
@@ -694,11 +697,11 @@ export function DailyBoard({
     setSelectedId,
     openDatePicker: () => setShowDatePicker(true),
     moveByStep,
-    punch: punch,
-    operate: operate,
-    toggleHighlight: toggleHighlight,
-    unstart: unstart,
-    uncomplete: uncomplete,
+    punch,
+    operate,
+    toggleHighlight,
+    unstart,
+    uncomplete,
     undoPending,
   });
 

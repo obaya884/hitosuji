@@ -126,15 +126,32 @@ describe("planDuplicateAndStart（画面定義書01 O-14 / データモデル定
     expect(plan.interruption).toBeNull();
   });
 
-  it("今日でなければ複製元と同じセクションに置く", () => {
+  it("今日でなければ複製元と同じセクションに置き、位置は今日と同じく開始時刻順（データモデル定義書 §4.6）", () => {
+    const laterStarted = task({ id: 2, sectionId: forenoon.id, sortOrder: 2000, startedAt: atJst("13:00") });
     const plan = planDuplicateAndStart({
       target: completed,
-      sameDay: [completed],
+      sameDay: [completed, laterStarted],
       sections,
       running: null,
       now: atJst("12:30"),
       nowClock: "12:30",
       isToday: false,
+    });
+    expect(plan.duplicate.sectionId).toBe(forenoon.id);
+    // 09:00 開始の複製元より後、13:00 開始より前
+    expect(plan.duplicate.sortOrder).toBeGreaterThan(completed.sortOrder);
+    expect(plan.duplicate.sortOrder).toBeLessThan(laterStarted.sortOrder);
+  });
+
+  it("今日でも現在時刻がどのセクションにも属さなければ（有効セクションが無い退避時）複製元のセクションに置く", () => {
+    const plan = planDuplicateAndStart({
+      target: completed,
+      sameDay: [completed],
+      sections: [],
+      running: null,
+      now: atJst("12:30"),
+      nowClock: "12:30",
+      isToday: true,
     });
     expect(plan.duplicate.sectionId).toBe(forenoon.id);
   });

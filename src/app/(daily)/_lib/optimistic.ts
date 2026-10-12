@@ -21,8 +21,9 @@ import {
   planUndoPunch,
   type InterruptionPlan,
   type NewRowPlan,
+  type StartPlanInput,
 } from "@/domain/task/placement";
-import { planCarryOver, withRelocations, type Relocation } from "@/domain/task/relocation";
+import { planCarryOver, withRelocations } from "@/domain/task/relocation";
 import type { Renumber } from "@/domain/task/sort-order";
 import { taskStatus } from "@/domain/task/status";
 import type { Task, TaskId } from "@/domain/task/task";
@@ -35,7 +36,8 @@ import { formatClock } from "@/app/_lib/format";
  * 確定前の表示は確定結果と一致する（同表の「線引きの基準」）。
  *
  * 仮の行の `seq` は `provisionalTask` の契約に従う。`at` はサーバへ送るのと同じ時刻を載せる——
- * reducer は積み直しのたびに再実行されるので、時刻も仮 id も action の中に持たせて純粋に保つ
+ * reducer は積み直しのたびに再実行されるので、時刻も仮 id も action の中に持たせて結果を揃える
+ * （例外は規則b に使う `OptimisticContext.nowClock` だけ。理由はそちら）
  */
 export type OptimisticAction =
   | Readonly<{ type: "append"; task: Task }>
@@ -67,7 +69,11 @@ export type OptimisticContext = Readonly<{
   sections: readonly Section[];
   /** 表示日が今日か。規則a / b と取り消しの並べ直しは今日だけ（画面定義書01 §4.2） */
   isToday: boolean;
-  /** 規則b の「現在位置」に使う現在時刻の `HH:MM` */
+  /**
+   * 規則b の「現在位置」に使う現在時刻の `HH:MM`。**操作の時刻ではなく当てる時点の時刻**で、積み直すたびに
+   * 変わりうる——サーバも確定後に描き直す時点の時刻で規則b を当てる（画面定義書01 §4.2 の発火タイミング）ので、
+   * それに合わせる。分の境目でずれたら確定結果に合わせる（画面定義書01 §4 冒頭）
+   */
   nowClock: string;
   /** 前日以前に放置されている実行中タスク。表示日に居ない割り込み相手になりうる（O-2） */
   staleRunningTask: Task | null;
@@ -78,30 +84,25 @@ export function applyOptimisticAction(
   action: OptimisticAction,
   context: OptimisticContext
 ): DailyGroup[] {
-  const placed = applyPlacement(normalizedTasks(groups), action, context);
-  if (placed !== null) return withCarryOver(placed, context);
+  const placed = applyPlacement(groups, action, context);
+  if (placed !== null) return groupTasksBySection(withCarryOver(placed, context), context.sections);
 
-  // 配置を伴わない操作は表示上の並びをそのまま変える。そのあとで規則b が動かす行があるときだけ組み直す
+  // 配置を伴わない操作は表示上の並びをそのまま変え、規則b が動かす行があるときだけ組み直す
   const changed = applyInPlace(groups, action);
-  if (!context.isToday) return changed;
   const tasks = normalizedTasks(changed);
-  const carryOver = planCarryOver(tasks, context.sections, context.nowClock);
-  return carryOver.length === 0 ? changed : regroup(withRelocations(tasks, carryOver), context);
+  const carried = withCarryOver(tasks, context);
+  return carried === tasks ? changed : groupTasksBySection(carried, context.sections);
 }
 
 /**
  * 画面定義書01 §4 冒頭「規則 b も先に当てる」: サーバは操作のたびにデイリーを描き直し、そのとき
- * 規則b を当てる（画面定義書01 §4.2 の発火タイミング）ので、確定前の並びにも同じ繰り下げを当ててから組み直す
+ * 規則b を当てる（画面定義書01 §4.2 の発火タイミング）ので、確定前の並びにも同じ繰り下げを当てる。
+ * 動かす行が無ければ入力をそのまま返す
  */
-function withCarryOver(tasks: readonly Task[], context: OptimisticContext): DailyGroup[] {
-  const carryOver = context.isToday
-    ? planCarryOver(tasks, context.sections, context.nowClock)
-    : [];
-  return regroup(withRelocations(tasks, carryOver), context);
-}
-
-function regroup(tasks: readonly Task[], context: OptimisticContext): DailyGroup[] {
-  return groupTasksBySection(tasks, context.sections);
+function withCarryOver(tasks: readonly Task[], context: OptimisticContext): readonly Task[] {
+  if (!context.isToday) return tasks;
+  const carryOver = planCarryOver(tasks, context.sections, context.nowClock);
+  return carryOver.length === 0 ? tasks : withRelocations(tasks, carryOver);
 }
 
 /**
@@ -109,28 +110,28 @@ function regroup(tasks: readonly Task[], context: OptimisticContext): DailyGroup
  * 計画は**変更前**のタスク列から立てる（開始前の行・修正前の開始時刻を見る規則があるため）
  */
 function applyPlacement(
-  tasks: readonly Task[],
+  groups: readonly DailyGroup[],
   action: OptimisticAction,
   context: OptimisticContext
 ): Task[] | null {
+  if (!PLACEMENT_TYPES.has(action.type)) return null;
+  const tasks = normalizedTasks(groups);
   switch (action.type) {
     // 開始（O-2）: 規則a の移動と、割り込みなら相手の終了・再開タスクの仮の行（移動後の直下）
     case "start": {
       const target = findTask(tasks, action.id);
       if (target === undefined) return [...tasks];
-      const plan = planStart({
-        target,
-        sameDay: tasks,
-        sections: context.sections,
-        running: runningOtherThan(tasks, target.id, context),
-        now: action.at,
-        nowClock: formatClock(action.at),
-        isToday: context.isToday,
-      });
+      const plan = planStart(startPlanInput(target, tasks, action.at, context));
       const started = updated(withRelocations(tasks, plan.relocations), target.id, {
         startedAt: action.at,
       });
-      return withInterruption(started, plan.interruption, plan.renumber, target.taskDate, action.resumeSeq);
+      return withInterruption(
+        started,
+        plan.interruption,
+        plan.interruption?.renumber ?? [],
+        target.taskDate,
+        action.resumeSeq
+      );
     }
     // 中断（O-4）: 終了と、再開タスクの仮の行（直後）
     case "suspend": {
@@ -154,15 +155,7 @@ function applyPlacement(
     case "duplicateAndStart": {
       const target = findTask(tasks, action.id);
       if (target === undefined) return [...tasks];
-      const plan = planDuplicateAndStart({
-        target,
-        sameDay: tasks,
-        sections: context.sections,
-        running: runningOtherThan(tasks, target.id, context),
-        now: action.at,
-        nowClock: formatClock(action.at),
-        isToday: context.isToday,
-      });
+      const plan = planDuplicateAndStart(startPlanInput(target, tasks, action.at, context));
       const withDuplicate = [
         ...tasks,
         provisionalTask(action.seq, target.taskDate, plan.duplicate, action.at),
@@ -189,7 +182,7 @@ function applyPlacement(
     case "punch": {
       const target = findTask(tasks, action.id);
       if (target === undefined) return [...tasks];
-      const relocations: Relocation[] = planPunchEdit(
+      const relocations = planPunchEdit(
         target,
         tasks,
         context.sections,
@@ -204,6 +197,37 @@ function applyPlacement(
     default:
       return null;
   }
+}
+
+/** 配置（domain の計画）を当てる操作の種類。ほかは `applyInPlace` が値と並びだけを変える */
+const PLACEMENT_TYPES: ReadonlySet<OptimisticAction["type"]> = new Set([
+  "start",
+  "suspend",
+  "duplicate",
+  "duplicateAndStart",
+  "unstart",
+  "uncomplete",
+  "punch",
+]);
+
+/** 開始を伴う計画の入力。割り込み相手は表示日に居なければ前日以前の放置分（実行中は全体で最大1件） */
+function startPlanInput(
+  target: Task,
+  tasks: readonly Task[],
+  at: Date,
+  context: OptimisticContext
+): StartPlanInput {
+  return {
+    target,
+    sameDay: tasks,
+    sections: context.sections,
+    running:
+      tasks.find((t) => t.id !== target.id && taskStatus(t) === "running") ??
+      context.staleRunningTask,
+    now: at,
+    nowClock: formatClock(at),
+    isToday: context.isToday,
+  };
 }
 
 /** 配置を伴わない操作（値の差し替え・追加・並び替え・取り除き） */
@@ -269,18 +293,6 @@ function withInterruption(
   // 終了時刻は開始と同じ値（O-2）。前日以前の相手は表示日に居ないので終了は現れない
   const ended = updated(renumbered, interruption.runningTaskId, { endedAt: interruption.endedAt });
   return [...ended, provisionalTask(resumeSeq, taskDate, interruption.resume)];
-}
-
-/** 割り込み相手（実行中は全体で最大1件。表示日に居なければ前日以前の放置分） */
-function runningOtherThan(
-  tasks: readonly Task[],
-  targetId: TaskId,
-  context: OptimisticContext
-): Task | null {
-  return (
-    tasks.find((t) => t.id !== targetId && taskStatus(t) === "running") ??
-    context.staleRunningTask
-  );
 }
 
 function findTask(tasks: readonly Task[], id: TaskId): Task | undefined {

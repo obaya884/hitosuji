@@ -4,7 +4,7 @@ import type { ModeId } from "@/domain/mode/mode";
 import type { ProjectId } from "@/domain/project/project";
 import type { SectionId } from "@/domain/section/section";
 import type { LogicalDate } from "@/domain/shared/logical-date";
-import type { NewRowPlan } from "@/domain/task/placement";
+import type { InterruptionPlan, NewRowPlan } from "@/domain/task/placement";
 import type { TaskId } from "@/domain/task/task";
 import type { NewTask } from "@/usecases/ports/task-repository";
 
@@ -64,4 +64,13 @@ export function newTaskFromPlan(plan: NewRowPlan<TaskContentDraft>, taskDate: Lo
     sectionId: plan.sectionId,
     sortOrder: plan.sortOrder,
   });
+}
+
+/** 割り込みの計画（`InterruptionPlan`）をリポジトリへ渡す形にする。再開タスクは開始タスクと同じ日に作る */
+export function interruptionFromPlan(plan: InterruptionPlan, taskDate: LogicalDate) {
+  return {
+    runningTaskId: plan.runningTaskId,
+    endedAt: plan.endedAt,
+    resumeTask: newTaskFromPlan(plan.resume, taskDate),
+  };
 }

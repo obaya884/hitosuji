@@ -44,12 +44,13 @@ import {
   renderBoard,
   RUNNING,
   selectRow,
+  settledTasks,
   setupBoard,
   UNCOMPLETE_OK,
   type UndoCompleteResult,
 } from "../_testing/board-helpers";
 import { bundleOf } from "../_testing/factories";
-import { cellsOf, isSelected, rowAt, taskRow } from "../_testing/table-helpers";
+import { cellsOf, isSelected, rowAt, rowNames, taskRow } from "../_testing/table-helpers";
 
 vi.mock("../actions", async () => (await import("../_testing/action-mocks")).actionMocks());
 
@@ -211,19 +212,55 @@ describe("DailyBoard の打刻（F-201 / F-211 / §7: クライアントの現�
 
   it("複製して開始（O-14）の確定後は選択を複製タスクへ移す", async () => {
     vi.mocked(duplicateAndStartTaskAction).mockResolvedValue({ ok: true, createdId: 32 });
-    const { applyServerState } = renderBoard();
+    const { applyServerState } = renderBoard(settledTasks());
     selectRow(COMPLETED);
 
     await pressAndSettle("Enter");
     // サーバが採番した複製（同名・実行中）が末尾に現れる
     applyServerState([
-      ...defaultTasks(),
+      ...settledTasks(),
       task({ id: 32, name: COMPLETED, sectionId: AFTERNOON.id, sortOrder: 2000, startedAt: NOW }),
     ]);
 
     // 同名の行が2つ並ぶので位置で見る（複製元は完了のまま残る）
     expect(isSelected(rowAt(3))).toBe(true);
     expect(isSelected(rowAt(2))).toBe(false);
+  });
+
+  it("複製して開始（O-14）は開始済みの複製の仮の行を規則a の位置に確定前から出し、相手の終了と再開タスクも出す", () => {
+    const gate = hold<CreatingActionResult>(CREATED);
+    vi.mocked(duplicateAndStartTaskAction).mockReturnValue(gate.promise);
+    renderBoard(settledTasks());
+    selectRow(COMPLETED);
+
+    press("Enter");
+
+    // 10:30 開始なので午前へ。10:00 開始の実行中（割り込まれて完了）の後ろ、未実行の前。再開タスクはその直下
+    expect(rowNames()).toEqual([RUNNING, COMPLETED, `${RUNNING}（再開）`, NOT_STARTED, COMPLETED]);
+    expect(within(taskRow(RUNNING)).queryByLabelText("終了")).toBeNull();
+    // 選択を仮の行へ移すのは確定後（画面定義書01 §4 冒頭「仮の行」）。まだ複製元に居る
+    expect(isSelected(rowAt(4))).toBe(true);
+  });
+
+  it("複製して開始（O-14）の確定待ちのあいだはキー操作をすべて受け付けない（直後の U が複製元の完了の取り消しにならない）", async () => {
+    const gate = hold<CreatingActionResult>(CREATED);
+    vi.mocked(duplicateAndStartTaskAction).mockReturnValue(gate.promise);
+    renderBoard(settledTasks());
+    selectRow(COMPLETED);
+
+    press("Enter");
+    press("u");
+    press("k");
+
+    expect(vi.mocked(undoCompleteAction)).not.toHaveBeenCalled();
+    expect(isSelected(rowAt(4))).toBe(true);
+
+    await gate.resolve({ ok: false, message: "保存に失敗しました" });
+
+    // 拒まれたら仮の行が消えて元へ戻り、キー操作も戻る
+    expect(rowNames()).toEqual([RUNNING, NOT_STARTED, COMPLETED]);
+    press("k");
+    expect(isSelected(NOT_STARTED)).toBe(true);
   });
 
   it("割り込み（O-2 / F-201）を画面側で2アクションに分解せず、開始の1操作だけをサーバへ送る", async () => {

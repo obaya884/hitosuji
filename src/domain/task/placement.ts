@@ -32,27 +32,32 @@ export type InterruptionPlan = Readonly<{
   resume: NewRowPlan<ResumeTaskDraft>;
 }>;
 
+/** 開始を伴う計画（開始 O-2・複製して開始 O-14）の入力 */
+export type StartPlanInput = Readonly<{
+  target: Task;
+  sameDay: readonly Task[];
+  sections: readonly Section[];
+  /** 日付をまたいで探した実行中タスク（前日以前でもよい）。終了できることは呼び出し側が確かめる */
+  running: Task | null;
+  now: Date;
+  nowClock: string;
+  isToday: boolean;
+}>;
+
 /**
  * 開始（O-2 / F-201）の計画。今日なら開始タスク自身を規則a で移し（画面定義書01 §4.2-a）、
  * 実行中タスクがあれば割り込みとして再開タスクを**移動後の**開始タスクの直下に置く。
- * `running` は日付をまたいで探した実行中タスク（前日以前でもよい）で、終了できることは呼び出し側が確かめる
+ * 再開タスクの採番で中間値が尽きたときの振り直し（`renumber`）は割り込みの側に持つ（割り込みが無ければ生じない）
  */
-export function planStart(
-  input: Readonly<{
-    target: Task;
-    sameDay: readonly Task[];
-    sections: readonly Section[];
-    running: Task | null;
-    now: Date;
-    nowClock: string;
-    isToday: boolean;
-  }>
-): Readonly<{ relocations: Relocation[]; interruption: InterruptionPlan | null; renumber: Renumber }> {
+export function planStart(input: StartPlanInput): Readonly<{
+  relocations: Relocation[];
+  interruption: (InterruptionPlan & Readonly<{ renumber: Renumber }>) | null;
+}> {
   const { target, sameDay, running, now } = input;
   const relocations = input.isToday
     ? relocationOnStart(target, sameDay, input.sections, now, input.nowClock)
     : [];
-  if (running === null) return { relocations, interruption: null, renumber: [] };
+  if (running === null) return { relocations, interruption: null };
 
   // 再開タスクは開始タスクの直下（＝開始タスクと同じ日付・セクション）。前日以前の実行中タスクを
   // 割り込んだ場合も当日側に生成される（データモデル定義書 §4.2）
@@ -69,8 +74,8 @@ export function planStart(
         sectionId: started.sectionId,
         sortOrder: placed.sortOrder,
       },
+      renumber: placed.renumber,
     },
-    renumber: placed.renumber,
   };
 }
 
@@ -116,17 +121,7 @@ export function planDuplicate(
  * 今日でなければ（または現在時刻がどのセクションにも属さなければ）複製元と同じ。
  * 実行中タスクがあれば割り込みとして再開タスクを複製行の直下へ置き、2行の採番を一度に決める（データモデル定義書 §3.5 の例外）
  */
-export function planDuplicateAndStart(
-  input: Readonly<{
-    target: Task;
-    sameDay: readonly Task[];
-    sections: readonly Section[];
-    running: Task | null;
-    now: Date;
-    nowClock: string;
-    isToday: boolean;
-  }>
-): Readonly<{
+export function planDuplicateAndStart(input: StartPlanInput): Readonly<{
   duplicate: NewRowPlan<DuplicateDraft>;
   interruption: InterruptionPlan | null;
   renumber: Renumber;

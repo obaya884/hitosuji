@@ -7,7 +7,7 @@ import { planDateMove } from "@/domain/task/date-move";
 import { planDuplicate, planDuplicateAndStart, planSuspend } from "@/domain/task/placement";
 import { canFinish } from "@/domain/task/punch";
 import type { PunchUsecaseError } from "@/usecases/task/punch-usecases";
-import { newTaskFromPlan } from "@/usecases/task/from-draft";
+import { interruptionFromPlan, newTaskFromPlan } from "@/usecases/task/from-draft";
 import { taskStatus } from "@/domain/task/status";
 import { appendSortOrder, tasksInSection } from "@/domain/task/sort-order";
 import type { Task, TaskId } from "@/domain/task/task";
@@ -107,13 +107,7 @@ export async function duplicateAndStartTask(
     newTask: newTaskFromPlan(plan.duplicate, target.taskDate),
     startedAt: input.now,
     interruption:
-      plan.interruption === null
-        ? null
-        : {
-            runningTaskId: plan.interruption.runningTaskId,
-            endedAt: plan.interruption.endedAt,
-            resumeTask: newTaskFromPlan(plan.interruption.resume, target.taskDate),
-          },
+      plan.interruption === null ? null : interruptionFromPlan(plan.interruption, target.taskDate),
     renumber: plan.renumber,
   });
   return ok(created);

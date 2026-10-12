@@ -11,7 +11,7 @@ import {
   canUndoStart,
   type PunchError,
 } from "@/domain/task/punch";
-import { newTaskFromPlan } from "@/usecases/task/from-draft";
+import { interruptionFromPlan } from "@/usecases/task/from-draft";
 import { planPunchEdit, planStart, planUndoPunch } from "@/domain/task/placement";
 import type { Task, TaskId } from "@/domain/task/task";
 
@@ -64,10 +64,8 @@ export async function startTask(
       plan.interruption === null
         ? null
         : {
-            runningTaskId: plan.interruption.runningTaskId,
-            endedAt: plan.interruption.endedAt,
-            resumeTask: newTaskFromPlan(plan.interruption.resume, target.taskDate),
-            renumber: plan.renumber,
+            ...interruptionFromPlan(plan.interruption, target.taskDate),
+            renumber: plan.interruption.renumber,
           },
     relocations: plan.relocations,
   });

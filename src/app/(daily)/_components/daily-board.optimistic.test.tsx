@@ -12,9 +12,12 @@ import { atJst, TEST_DATE } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
 
 import {
+  addTaskAction,
+  createRoutineFromTaskAction,
   deleteTaskAction,
   duplicateTaskAction,
   finishTaskAction,
+  moveTaskByStepAction,
   renameTaskAction,
   setTaskHighlightAction,
   startTaskAction,
@@ -42,6 +45,7 @@ import {
   OK,
   press,
   pressAndSettle,
+  quickAddInput,
   renderBoard,
   RUNNING,
   selectRow,
@@ -53,6 +57,9 @@ import { isSelected, rowAt, rowNames, taskRow } from "../_testing/table-helpers"
 vi.mock("../actions", async () => (await import("../_testing/action-mocks")).actionMocks());
 
 setupBoard();
+
+/** 中断・割り込みで生まれる、実行中タスクの再開タスク（O-4 / O-2）の名前 */
+const RESUMED = `${RUNNING}（再開）`;
 
 /** ハイライトの⭐（O-17）。ON/OFF は `aria-pressed` が持つ */
 function starOf(name: string): HTMLElement {
@@ -85,8 +92,9 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
 
     await gate.resolve({ ok: false, message: "保存に失敗しました" });
 
-    // 拒否されたら相手も実行中へ戻る（先取りした分まで巻き戻す）
+    // 拒否されたら相手も実行中へ戻る（先取りした分まで巻き戻す）。再開タスクの仮の行と規則a の移動も戻る
     expect(within(taskRow(RUNNING)).queryByLabelText("終了")).not.toBeNull();
+    expect(rowNames()).toEqual([NOT_STARTED, RUNNING, COMPLETED]);
   });
 
   it("開始打刻の失敗はエラートーストを出して未実行へ巻き戻す", async () => {
@@ -440,6 +448,73 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
     ]);
   });
 
+  it("前日以前の実行中タスクを割り込んだときも、再開タスクの仮の行が表示日に出る（O-2）", async () => {
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(startTaskAction).mockReturnValue(gate.promise);
+    const stale = task({ id: 99, taskDate: "2026-07-01", name: "前日の作業", startedAt: atJst("22:00") });
+    renderBoard(
+      settledTasks().filter((t) => t.name !== RUNNING),
+      { staleRunningTask: stale }
+    );
+
+    await click(within(taskRow(NOT_STARTED)).getByLabelText("開始"));
+
+    expect(rowNames()).toEqual([NOT_STARTED, "前日の作業（再開）", COMPLETED]);
+  });
+
+  // 仮 id の連番は生成元（追加・開始・中断・複製）をまたいで共有する（T-63）。重なると片方が他方を巻き添えにする
+  it("割り込みの再開タスクとクイック追加の仮の行は、別々の行として並ぶ（T-63）", async () => {
+    const startGate = hold<DailyActionResult>(OK);
+    vi.mocked(startTaskAction).mockReturnValue(startGate.promise);
+    const addGate = hold<CreatingActionResult>(CREATED);
+    vi.mocked(addTaskAction).mockReturnValue(addGate.promise);
+    renderBoard(settledTasks());
+
+    await click(within(taskRow(NOT_STARTED)).getByLabelText("開始"));
+    fireEvent.change(quickAddInput(), { target: { value: "洗濯" } });
+    fireEvent.keyDown(quickAddInput(), { key: "Enter" });
+
+    expect(rowNames()).toEqual(["洗濯", RUNNING, NOT_STARTED, `${RUNNING}（再開）`, COMPLETED]);
+    selectRow("洗濯");
+    expect(isSelected("洗濯")).toBe(true);
+    expect(isSelected(`${RUNNING}（再開）`)).toBe(false);
+  });
+
+  // キーの経路は上の Enter / d で見る。ここはクリック・Shift+J の入口（ハンドラの先頭の判定）
+  it.each([
+    ["Shift+J", () => press("J", { shiftKey: true }), moveTaskByStepAction],
+    ["名前のクリック", () => clickWithoutServer(screen.getByRole("button", { name: RESUMED })), renameTaskAction],
+    ["⭐のクリック", () => clickWithoutServer(starOf(RESUMED)), setTaskHighlightAction],
+  ] as const)("仮の行への %s は何もしない（§4 冒頭「仮の行」）", async (_, operate, action) => {
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(suspendTaskAction).mockReturnValue(gate.promise);
+    renderBoard(settledTasks());
+    selectRow(RUNNING);
+    press("i");
+    selectRow(RESUMED);
+
+    operate();
+
+    expect(vi.mocked(action)).not.toHaveBeenCalled();
+    expect(screen.queryByDisplayValue(RESUMED)).toBeNull(); // 名前の編集欄も開かない
+    expect(rowNames()).toEqual([RUNNING, RESUMED, NOT_STARTED, COMPLETED]);
+  });
+
+  // ルーチン化のポップオーバーは編集の開始（`onBeginEdit`）を通って開くので、仮の行ではそこで止まる
+  it("仮の行の行メニューからルーチン化を選んでもポップオーバーを開かない（§4 冒頭「仮の行」）", async () => {
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(suspendTaskAction).mockReturnValue(gate.promise);
+    renderBoard(settledTasks());
+    selectRow(RUNNING);
+    press("i");
+
+    clickWithoutServer(within(taskRow(RESUMED)).getByLabelText("行メニュー"));
+    await click(screen.getByRole("button", { name: "ルーチン化" }));
+
+    expect(screen.queryByRole("button", { name: "作成" })).toBeNull();
+    expect(vi.mocked(createRoutineFromTaskAction)).not.toHaveBeenCalled();
+  });
+
   it("仮の行は選択できるが、操作は効かない（§4 冒頭「仮の行」）", async () => {
     const gate = hold<DailyActionResult>(OK);
     vi.mocked(startTaskAction).mockReturnValue(gate.promise);
@@ -457,15 +532,14 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
 
   it("複製（O-11）の確定後は選択を複製されたタスクへ移す", async () => {
     vi.mocked(duplicateTaskAction).mockResolvedValue({ ok: true, createdId: 31 });
-    const { applyServerState } = renderBoard();
+    const { applyServerState } = renderBoard(settledTasks());
     selectRow(NOT_STARTED);
 
     await pressAndSettle("y");
-    // サーバが採番した複製（同名）が現れる。複製元 id:11 は現在位置より前なので、
-    // 直下に入った複製行は同じ描画で規則b により実行中 id:12 の直後へ繰り下がる（O-11）
+    // サーバが採番した複製（同名）が複製元の直下に現れる
     applyServerState([
-      ...defaultTasks(),
-      task({ id: 31, name: NOT_STARTED, sectionId: FORENOON.id, sortOrder: 3000 }),
+      ...settledTasks(),
+      task({ id: 31, name: NOT_STARTED, sectionId: FORENOON.id, sortOrder: 3500 }),
     ]);
 
     // 同名の行が2つ並ぶので位置で見る（複製元ではなく複製へ移っている）

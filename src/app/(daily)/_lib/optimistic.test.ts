@@ -370,6 +370,61 @@ describe("今日の表示: 配置の計画と規則b を当てる（画面定義
     expect(ids(applied)).toEqual([[], [1, 4], [5, 2]]);
   });
 
+  it("duplicateAndStart の割り込みでは、相手の終了と再開タスクの仮の行（複製の直下）も出す（O-14）", () => {
+    const running = task({ id: 4, sectionId: 2, startedAt: atJst("12:10"), name: "読書" });
+    const applied = applyOptimisticAction(
+      [unclassifiedGroup([]), sectionGroup(MORNING, "12:00", [done]), sectionGroup(NOON, "06:00", [running, later])],
+      { type: "duplicateAndStart", id: 1, at: atJst("12:30"), seq: 7, resumeSeq: 8 },
+      today("12:30")
+    );
+
+    expect(find(applied, 4)?.endedAt).toEqual(atJst("12:30"));
+    expect(ids(applied)).toEqual([[], [1], [4, -7, -8, 2]]);
+    expect(find(applied, -8)).toMatchObject({ name: "読書（再開）", splitParentId: 4, startedAt: null });
+  });
+
+  it("uncomplete は他に実行中タスクがあれば、その直後へ並べ直す（O-15。規則b では動かない形）", () => {
+    // 現在位置＝実行中タスクの直後（朝）。取り消した行は現在位置より前に無いので、規則b はこの行を動かさない
+    const running = task({ id: 4, sectionId: 1, startedAt: atJst("11:00") });
+    const completed = task({
+      id: 5,
+      sectionId: 2,
+      startedAt: atJst("12:05"),
+      endedAt: atJst("12:10"),
+      sortOrder: 500,
+    });
+    const applied = applyOptimisticAction(
+      [unclassifiedGroup([]), sectionGroup(MORNING, "12:00", [done, running]), sectionGroup(NOON, "06:00", [completed, later])],
+      { type: "uncomplete", id: 5, at: atJst("12:30") },
+      today("12:30")
+    );
+
+    expect(ids(applied)).toEqual([[], [1, 4, 5], [2]]);
+  });
+
+  it("配置を伴う操作でも、今日でなければ規則b を当てない（§4.2 の対象日）", () => {
+    const leftover = task({ id: 3, sectionId: 1, name: "片付け" });
+    const applied = applyOptimisticAction(
+      board(leftover),
+      { type: "duplicate", id: 3, seq: 7 },
+      { ...NOT_TODAY_TWO_SECTIONS, nowClock: "12:30" }
+    );
+
+    expect(ids(applied)).toEqual([[], [1, 3, -7], [2]]);
+  });
+
+  it("直下に中間値が無ければ振り直した値で並べ、表示の位置は直下のまま（データモデル定義書 §3.5）", () => {
+    const target = task({ id: 3, sectionId: 1, sortOrder: 1000 });
+    const next = task({ id: 4, sectionId: 1, sortOrder: 1001 });
+    const applied = applyOptimisticAction(
+      [unclassifiedGroup([]), sectionGroup(MORNING, "12:00", [target, next])],
+      { type: "duplicate", id: 3, seq: 7 },
+      NOT_TODAY_TWO_SECTIONS
+    );
+
+    expect(ids(applied)[1]).toEqual([3, -7, 4]);
+  });
+
   it("先に当てた並び替え（採番しない）が混ざっても、表示順のまま計画を立てる", () => {
     // move は sort_order を振らないので、朝セクションの値の大小が表示順と食い違う
     const a = task({ id: 3, sectionId: 1, sortOrder: 3000 });
@@ -390,6 +445,80 @@ describe("今日の表示: 配置の計画と規則b を当てる（画面定義
     expect(ids(duplicated)).toEqual([[], [1, 4, -7, 3], [2]]);
   });
 
+});
+
+describe("仮の行の中身（画面定義書01 §4 冒頭「仮の行」/ データモデル定義書 §4.2・§4.6）", () => {
+  // 全項目を固定する。写し漏れは仮の行と確定後の行の差になって、確定した瞬間に表示が変わる
+  const original = task({
+    id: 3,
+    name: "読書",
+    sectionId: 1,
+    sortOrder: 1000,
+    estimateMinutes: 60,
+    modeId: 2,
+    projectId: 4,
+    bundleId: 5,
+    url: "https://example.com/a",
+    highlighted: true,
+    comment: "メモ",
+    routineId: 6,
+    startedAt: atJst("09:00"),
+  });
+  const board = () => [unclassifiedGroup([]), sectionGroup(MORNING, "12:00", [original])];
+
+  it("再開タスク（中断 O-4）は残り見積もりで、ハイライト・バンドル・URL も引き継ぐ", () => {
+    const applied = applyOptimisticAction(
+      board(),
+      { type: "suspend", id: 3, at: atJst("09:20"), resumeSeq: 7 },
+      NOT_TODAY
+    );
+
+    expect(find(applied, -7)).toEqual({
+      id: -7,
+      taskDate: TEST_DATE,
+      initialTaskDate: TEST_DATE,
+      name: "読書（再開）",
+      estimateMinutes: 40,
+      sectionId: 1,
+      modeId: 2,
+      projectId: 4,
+      bundleId: 5,
+      sortOrder: 2000,
+      startedAt: null,
+      endedAt: null,
+      comment: null,
+      url: "https://example.com/a",
+      highlighted: true,
+      routineId: null,
+      splitParentId: 3,
+      postponedCount: 0,
+    });
+  });
+
+  it("複製（O-11）は見積もりを満額で写し、ハイライト・バンドル・系譜は引き継がない", () => {
+    const applied = applyOptimisticAction(board(), { type: "duplicate", id: 3, seq: 7 }, NOT_TODAY);
+
+    expect(find(applied, -7)).toEqual({
+      id: -7,
+      taskDate: TEST_DATE,
+      initialTaskDate: TEST_DATE,
+      name: "読書",
+      estimateMinutes: 60,
+      sectionId: 1,
+      modeId: 2,
+      projectId: 4,
+      bundleId: null,
+      sortOrder: 2000,
+      startedAt: null,
+      endedAt: null,
+      comment: null,
+      url: "https://example.com/a",
+      highlighted: false,
+      routineId: null,
+      splitParentId: null,
+      postponedCount: 0,
+    });
+  });
 });
 
 describe("isProvisional（画面定義書01 §4 冒頭「仮の行」）", () => {
