@@ -293,22 +293,20 @@ describe("DailyBoard の選択行が消えたときの送り先（§5 / FB-106�
     expect(isSelected(NOT_STARTED)).toBe(false);
   });
 
-  it("日付移動（O-7）も同じ規則で送るが、行が消えるのは確定後なので選択もそこで動く", async () => {
+  it("日付移動（O-7）も行が確定前に消えるので、選択は削除と同じく同時に送る", async () => {
     const gate = hold<DailyActionResult>(OK);
     vi.mocked(moveTaskDateAction).mockReturnValue(gate.promise);
-    const { applyServerState } = renderBoard(inboxAndSections());
+    renderBoard(inboxAndSections());
     selectRow(NOT_STARTED);
 
     await chooseRowMenu(NOT_STARTED, "翌日へ先送り");
-    expect(isSelected(NOT_STARTED)).toBe(true); // 確定前は動かさない
 
-    await gate.resolve(OK);
-    applyServerState(inboxAndSections().filter((t) => t.id !== 11)); // 再取得でその日から消える
-
+    // 確定を待つと、その間だけ現在地へ寄り道して見える（削除と同じ理由）
     expect(isSelected(COMPLETED)).toBe(true);
+    await gate.resolve(OK);
   });
 
-  it("日付移動の確定でも、待つ間に選び直した行は上書きしない", async () => {
+  it("日付移動が拒まれても、待つ間に選び直した行は上書きしない", async () => {
     const gate = hold<DailyActionResult>(OK);
     vi.mocked(moveTaskDateAction).mockReturnValue(gate.promise);
     renderBoard(inboxAndSections());
@@ -316,12 +314,12 @@ describe("DailyBoard の選択行が消えたときの送り先（§5 / FB-106�
 
     await chooseRowMenu(NOT_STARTED, "翌日へ先送り");
     selectRow(INBOX);
-    await gate.resolve(OK);
+    await gate.resolve({ ok: false, message: "日付を移せるのは未実行タスクだけです" });
 
     expect(isSelected(INBOX)).toBe(true);
   });
 
-  it("日付移動をサーバが拒んだら選択は動かさない", async () => {
+  it("日付移動をサーバが拒んだら行が戻り、選択も戻す", async () => {
     vi.mocked(moveTaskDateAction).mockResolvedValue({
       ok: false,
       message: "日付を移せるのは未実行タスクだけです",
@@ -498,7 +496,7 @@ describe("DailyBoard の通知と行メニュー（画面定義書01 §8 / O-7 /
     expect(screen.queryByText("日付を移せるのは未実行タスクだけです")).not.toBeNull();
   });
 
-  it("日付移動（O-7）は行メニューから実行し、楽観的更新はしない", async () => {
+  it("日付移動（O-7）は行メニューから実行し、行を確定前に表示日から外す", async () => {
     const gate = hold<DailyActionResult>(OK);
     vi.mocked(moveTaskDateAction).mockReturnValue(gate.promise);
     renderBoard();
@@ -507,6 +505,11 @@ describe("DailyBoard の通知と行メニュー（画面定義書01 §8 / O-7 /
 
     // 行き先はサーバが「今日」から決めるので、クライアントは現在時刻を送る（O-7 / F-116）
     expect(vi.mocked(moveTaskDateAction)).toHaveBeenCalledWith(11, NOW);
+    expect(rowNames()).toEqual([RUNNING, COMPLETED]);
+
+    await gate.resolve({ ok: false, message: "日付を移せるのは未実行タスクだけです" });
+
+    // 拒まれたら行が戻る（00_共通 §4.1）
     expect(rowNames()).toEqual([NOT_STARTED, RUNNING, COMPLETED]);
   });
 

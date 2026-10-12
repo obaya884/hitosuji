@@ -12,6 +12,7 @@ import { atJst, TEST_DATE } from "@/domain/shared/testing/clock";
 import { task } from "@/domain/task/testing/task";
 
 import {
+  deleteTaskAction,
   duplicateTaskAction,
   finishTaskAction,
   renameTaskAction,
@@ -26,6 +27,7 @@ import {
   type DailyActionResult,
 } from "../actions";
 import {
+  AFTERNOON,
   COMPLETED,
   CREATED,
   commentInput,
@@ -34,6 +36,7 @@ import {
   FORENOON,
   hold,
   INBOX,
+  LATER_NOT_STARTED,
   NOT_STARTED,
   NOW,
   OK,
@@ -42,6 +45,7 @@ import {
   renderBoard,
   RUNNING,
   selectRow,
+  settledTasks,
   setupBoard,
 } from "../_testing/board-helpers";
 import { isSelected, rowAt, rowNames, taskRow } from "../_testing/table-helpers";
@@ -347,28 +351,108 @@ describe("DailyBoard の楽観的更新（N-01 / 00_共通 §4: 即UIに反映 �
     expect(isSelected(INBOX)).toBe(true);
   });
 
-  it("中断（O-4）は楽観的更新の対象外でサーバ確定まで実行中のまま", () => {
+  it("中断（O-4）は終了と、再開タスクの仮の行（直後）を確定前に出す", () => {
     const gate = hold<DailyActionResult>(OK);
     vi.mocked(suspendTaskAction).mockReturnValue(gate.promise);
-    renderBoard();
+    renderBoard(settledTasks());
     selectRow(RUNNING);
 
     press("i");
 
     expect(vi.mocked(suspendTaskAction)).toHaveBeenCalledWith(12, NOW);
+    expect(within(taskRow(RUNNING)).queryByLabelText("終了")).toBeNull();
+    expect(rowNames()).toEqual([RUNNING, `${RUNNING}（再開）`, NOT_STARTED, COMPLETED]);
+  });
+
+  it("中断が拒まれたら再開タスクの仮の行を消し、実行中へ戻す（00_共通 §4.1）", async () => {
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(suspendTaskAction).mockReturnValue(gate.promise);
+    renderBoard(settledTasks());
+    selectRow(RUNNING);
+
+    press("i");
+    await gate.resolve({ ok: false, message: "保存に失敗しました" });
+
+    expect(rowNames()).toEqual([RUNNING, NOT_STARTED, COMPLETED]);
     expect(within(taskRow(RUNNING)).queryByLabelText("終了")).not.toBeNull();
   });
 
-  it("複製（O-11）は採番をサーバが決めるため楽観的更新しない", () => {
+  it("複製（O-11）は複製の仮の行を直下に確定前から出す", () => {
     const gate = hold<CreatingActionResult>(CREATED);
     vi.mocked(duplicateTaskAction).mockReturnValue(gate.promise);
-    renderBoard();
+    renderBoard(settledTasks());
     selectRow(NOT_STARTED);
 
     press("y");
 
     expect(vi.mocked(duplicateTaskAction)).toHaveBeenCalledWith(11);
-    expect(rowNames()).toEqual([NOT_STARTED, RUNNING, COMPLETED]);
+    expect(rowNames()).toEqual([RUNNING, NOT_STARTED, NOT_STARTED, COMPLETED]);
+    // 仮の行へ選択を移すのは確定後（画面定義書01 §4 冒頭「仮の行」）。まだ複製元に居る
+    expect(isSelected(rowAt(1))).toBe(true);
+  });
+
+  it("複製（O-11）の確定待ちのあいだはキー操作をすべて受け付けない（§4 冒頭「仮の行」）", () => {
+    const gate = hold<CreatingActionResult>(CREATED);
+    vi.mocked(duplicateTaskAction).mockReturnValue(gate.promise);
+    renderBoard(settledTasks());
+    selectRow(NOT_STARTED);
+
+    press("y");
+    press("k"); // 選択の移動も止まる
+    press("Enter"); // 複製元の開始にならない
+
+    expect(isSelected(rowAt(1))).toBe(true);
+    expect(vi.mocked(startTaskAction)).not.toHaveBeenCalled();
+  });
+
+  it("複製が拒まれたら仮の行を消す（00_共通 §4.1）", async () => {
+    const gate = hold<CreatingActionResult>(CREATED);
+    vi.mocked(duplicateTaskAction).mockReturnValue(gate.promise);
+    renderBoard(settledTasks());
+    selectRow(NOT_STARTED);
+
+    press("y");
+    await gate.resolve({ ok: false, message: "保存に失敗しました" });
+
+    expect(rowNames()).toEqual([RUNNING, NOT_STARTED, COMPLETED]);
+    // 確定が終わったのでキー操作も戻る
+    press("k");
+    expect(isSelected(RUNNING)).toBe(true);
+  });
+
+  it("開始した行は確定前に規則a の位置へ移り、再開タスクの仮の行がその直下に出る（O-2 / FB-96）", async () => {
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(startTaskAction).mockReturnValue(gate.promise);
+    renderBoard([
+      ...settledTasks(),
+      task({ id: 14, name: LATER_NOT_STARTED, sectionId: AFTERNOON.id, sortOrder: 2000 }),
+    ]);
+
+    await click(within(taskRow(LATER_NOT_STARTED)).getByLabelText("開始"));
+
+    // 10:30 開始なので午前へ。10:00 開始の実行中（いまは割り込まれて完了）より後ろ、未実行より前
+    expect(rowNames()).toEqual([
+      RUNNING,
+      LATER_NOT_STARTED,
+      `${RUNNING}（再開）`,
+      NOT_STARTED,
+      COMPLETED,
+    ]);
+  });
+
+  it("仮の行は選択できるが、操作は効かない（§4 冒頭「仮の行」）", async () => {
+    const gate = hold<DailyActionResult>(OK);
+    vi.mocked(startTaskAction).mockReturnValue(gate.promise);
+    renderBoard(settledTasks());
+
+    await click(within(taskRow(NOT_STARTED)).getByLabelText("開始"));
+    selectRow(`${RUNNING}（再開）`);
+    press("Enter");
+    press("d");
+
+    expect(isSelected(`${RUNNING}（再開）`)).toBe(true);
+    expect(vi.mocked(startTaskAction)).toHaveBeenCalledTimes(1); // 最初の開始だけ
+    expect(vi.mocked(deleteTaskAction)).not.toHaveBeenCalled();
   });
 
   it("複製（O-11）の確定後は選択を複製されたタスクへ移す", async () => {

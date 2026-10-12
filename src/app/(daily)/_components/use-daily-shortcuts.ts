@@ -8,6 +8,7 @@ import type { Task, TaskId } from "@/domain/task/task";
 import { dateHref, DAILY_PATH } from "@/app/_lib/date-href";
 import { isButtonTarget, isGlobalShortcutEvent } from "@/app/_lib/keyboard";
 import type { EditField, EditingCell } from "../_lib/editing";
+import { isProvisional } from "../_lib/optimistic";
 import type { RowOperation } from "./task-row";
 
 /** ショートカットの配線に要る状態と操作ハンドラ。フックは分岐も状態も持たず、これを引数で受け取るだけ */
@@ -15,6 +16,11 @@ export type DailyShortcutParams = Readonly<{
   editing: EditingCell | null;
   /** datepicker（F-117）の表示中は行操作キーを無効化する（背後へ流さない。§6） */
   pickerOpen: boolean;
+  /**
+   * 複製（O-11）・複製して開始（O-14）の確定待ち。このあいだキー操作をすべて止める
+   * （画面定義書01 §4 冒頭「仮の行」。選択が複製行へ移る前の複製元に当たらないように）
+   */
+  keysLocked: boolean;
   orderedTasks: readonly Task[];
   /** 表示時に導出された選択行 ID（keepSelection 後の値） */
   selectedId: TaskId | null;
@@ -51,6 +57,7 @@ export function useDailyShortcuts(params: DailyShortcutParams): void {
   const {
     editing,
     pickerOpen,
+    keysLocked,
     orderedTasks,
     selectedId,
     currentSectionId,
@@ -81,10 +88,13 @@ export function useDailyShortcuts(params: DailyShortcutParams): void {
       if (editing !== null) return;
       // datepicker 表示中も同様。カレンダーが自前で拾うキー以外を背後へ流さない（§3.1 / §6）
       if (pickerOpen) return;
+      if (keysLocked) return;
 
       const selected = orderedTasks.find((t) => t.id === selectedId) ?? null;
       const requestEdit = (field: EditField) => {
         if (selected === null) return;
+        // 仮の行（確定前）は編集を開かない（画面定義書01 §4 冒頭「仮の行」: 選択はできるが操作は効かない）
+        if (isProvisional(selected)) return;
         // 打刻時刻を修正できるのは打刻済みの側だけ（§3.3 / §6 / F-203）。行側も同じ条件で
         // 入力欄を描くので、ここで揃えないと「編集中だが入力欄が無い」状態になり、
         // editing を解除する発火源が無いまま全ショートカットが止まる（FB-68）

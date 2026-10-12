@@ -160,6 +160,7 @@ function params(
   return {
     editing: null,
     pickerOpen: false,
+    keysLocked: false,
     orderedTasks: TASKS,
     selectedId: RUNNING.id,
     currentSectionId: null,

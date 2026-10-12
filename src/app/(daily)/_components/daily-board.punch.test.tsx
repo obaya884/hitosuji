@@ -16,6 +16,7 @@ import { task } from "@/domain/task/testing/task";
 import {
   deleteTaskAction,
   duplicateAndStartTaskAction,
+  duplicateTaskAction,
   finishTaskAction,
   restoreCompletionAction,
   restoreTaskAction,
@@ -23,11 +24,13 @@ import {
   suspendTaskAction,
   undoCompleteAction,
   undoStartAction,
+  type CreatingActionResult,
   type DailyActionResult,
 } from "../actions";
 import {
   AFTERNOON,
   COMPLETED,
+  CREATED,
   defaultTasks,
   FORENOON,
   hold,
@@ -450,12 +453,11 @@ describe("DailyBoard のバンドル割り込み警告（F-119 / 要件定義書
     expect(screen.queryByText(`「${BUNDLE_NAME}」が途中です（残り1件）`)).not.toBeNull();
   });
 
-  it("確定待ちの操作が飛んでいる間は複製して開始が抑止され、警告も出ない（開始していないのに鳴らない）", () => {
-    // 複製して開始（F-208）は楽観的更新をしない「確定を待つ操作」なので、別の確定待ち操作
-    // （ここでは中断 I）が飛んでいる間は runGuarded に抑止される。抑止＝発火していないので、
-    // 通知（開始したことにする前提の処理）も出てはいけない
-    const gate = hold<DailyActionResult>(OK);
-    vi.mocked(suspendTaskAction).mockReturnValue(gate.promise);
+  it("複製の確定待ちでキーが止まっている間は複製して開始も発火せず、警告も出ない（開始していないのに鳴らない）", () => {
+    // 複製（O-11）の確定を待つあいだはキー操作がすべて止まる（画面定義書01 §4 冒頭「仮の行」）。
+    // 発火していない以上、通知（開始したことにする前提の処理）も出てはいけない
+    const gate = hold<CreatingActionResult>(CREATED);
+    vi.mocked(duplicateTaskAction).mockReturnValue(gate.promise);
     renderBoard([
       task({
         id: 23,
@@ -473,15 +475,15 @@ describe("DailyBoard のバンドル割り込み警告（F-119 / 要件定義書
         endedAt: atJst("09:40"),
       }),
       task({ id: 22, name: MEMBER_TODO, bundleId: BUNDLE_ID, sortOrder: 2000 }),
-      // 中断させる実行中タスク。開始時刻をメンバー(09:30)より前にして、「直前」の判定を
+      // 実行中タスク。開始時刻をメンバー(09:30)より前にして、「直前」の判定を
       // このタスクに奪わせない（後ろだと非メンバーの直前として拾われ、抑止と無関係に null になる）
       task({ id: 24, name: RUNNING, sortOrder: 3000, startedAt: atJst("08:00") }),
     ]);
     selectRow(RUNNING);
-    press("i"); // 中断（確定待ち）を発火させ、commitInFlight を立てる
+    press("y"); // 複製の確定待ちでキー操作を止める
 
-    selectRow(COMPLETED);
-    press("Enter"); // 複製して開始も確定待ちのため、この間は抑止される
+    selectRow(COMPLETED); // クリックでの選択は止まらない
+    press("Enter"); // キーが止まっているので複製して開始は発火しない
 
     expect(vi.mocked(duplicateAndStartTaskAction)).not.toHaveBeenCalled();
     expect(screen.queryByText(/が途中です/)).toBeNull();
@@ -769,10 +771,10 @@ describe("DailyBoard の開始時に URL を開く（F-125 / O-2 / O-14 / O-18�
     expect(screen.queryByText("保存に失敗しました")).not.toBeNull();
   });
 
-  it("確定を待つ操作の応答中は複製して開始が抑止されるので開かない（00_共通 §4.2）", async () => {
+  it("複製の確定待ちでキーが止まっている間は複製して開始が発火しないので開かない（§4 冒頭「仮の行」）", async () => {
     const open = spyOnWindowOpen();
-    const gate = hold<DailyActionResult>(OK);
-    vi.mocked(suspendTaskAction).mockReturnValue(gate.promise);
+    const gate = hold<CreatingActionResult>(CREATED);
+    vi.mocked(duplicateTaskAction).mockReturnValue(gate.promise);
     renderBoard([
       task({ id: 12, name: RUNNING, sectionId: FORENOON.id, startedAt: atJst("10:00") }),
       task({
@@ -785,14 +787,14 @@ describe("DailyBoard の開始時に URL を開く（F-125 / O-2 / O-14 / O-18�
       }),
     ]);
     selectRow(RUNNING);
-    await pressAndSettle("i"); // 中断（確定を待つ操作）を保留にしておく
+    await pressAndSettle("y"); // 複製の確定待ちでキー操作を止める
     selectRow(COMPLETED);
 
     await pressAndSettle("Enter");
 
     expect(vi.mocked(duplicateAndStartTaskAction)).not.toHaveBeenCalled();
     expect(open).not.toHaveBeenCalled();
-    await gate.resolve(OK);
+    await gate.resolve(CREATED);
   });
 
   it("URL の無いタスクの開始では何も開かない", async () => {

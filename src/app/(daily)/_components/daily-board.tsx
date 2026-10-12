@@ -73,6 +73,7 @@ import { openInNewTab } from "@/app/_lib/open-url";
 import type { EditingCell } from "../_lib/editing";
 import {
   applyOptimisticAction,
+  isProvisional,
   optimisticTask,
   type OptimisticAction,
 } from "../_lib/optimistic";
@@ -118,7 +119,25 @@ export function DailyBoard({
   staleRunningTask,
   staleUnstartedCounts,
 }: Props) {
-  const [optimisticGroups, dispatchOptimistic] = useOptimistic(groups, applyOptimisticAction);
+  // 表示日と今日の関係（規約は `today` の JSDoc）。子へはここで導いた値を配る
+  const isToday = date === today;
+  // 未来日では打刻を受け付けない（§7）。`LogicalDate` は `YYYY-MM-DD` なので辞書順の比較でよい
+  const isFutureDate = date > today;
+
+  // 楽観的更新の計画に要る表示日の外の情報（`OptimisticContext`）。reducer は積み直しのたびに
+  // 最新の描画のものが使われる。規則b の現在時刻だけは当てる時点で読む——`useNow` の値は
+  // optimisticGroups から導くので循環し、確定結果の規則b もサーバがその時点の時刻で決める
+  // （分の境目でずれたら確定結果に合わせる。画面定義書01 §4 冒頭）
+  const [optimisticGroups, dispatchOptimistic] = useOptimistic(
+    groups,
+    (current: readonly DailyGroup[], action: OptimisticAction) =>
+      applyOptimisticAction(current, action, {
+        sections,
+        isToday,
+        nowClock: formatClock(new Date()),
+        staleRunningTask,
+      })
+  );
   // バンドルの道（§3.3）で bundleId から色と名前を引く。bundles は稀にしか変わらないので memo する
   const bundleById = useMemo(() => new Map(bundles.map((b) => [b.id, b])), [bundles]);
   const [name, setName] = useState("");
@@ -147,13 +166,10 @@ export function DailyBoard({
    * N-01 の体感を損なう。立てる・下ろすのは `runGuarded`
    */
   const [commitInFlight, setCommitInFlight] = useState(false);
+  /** キー操作を止めている確定待ちの数（O-11 / O-14。立てる・下ろすのは `runSelectingCreated`） */
+  const [keysLockedCount, setKeysLockedCount] = useState(0);
   const slowPending = useSlowPending(commitInFlight);
   const [, startTransition] = useTransition();
-
-  // 表示日と今日の関係（規約は `today` の JSDoc）。子へはここで導いた値を配る
-  const isToday = date === today;
-  // 未来日では打刻を受け付けない（§7）。`LogicalDate` は `YYYY-MM-DD` なので辞書順の比較でよい
-  const isFutureDate = date > today;
 
   // 実行中タスクの経過（F-205）と終了予定時刻（F-104）のため毎分更新する。
   // 当日を表示していないときは終了予定を出さないので、実行中タスクがある場合のみ回す
@@ -193,7 +209,8 @@ export function DailyBoard({
 
   /**
    * 引数順は runSelectingCreated と揃えて action を先頭にする（読み違い防止）。
-   * `optimistic` は即時反映するものがあるときだけ渡す（中断・日付移動・ルーチン化は確定を待つ）。
+   * `optimistic` は確定前に出すものがあるときだけ渡す（渡さないのはルーチン化と取り消しの実行だけ。
+   * 画面定義書01 §4 冒頭の表）。
    *
    * **成功時の追加処理は action の内側で結果を見て行い、失敗時の処理は `onFailure` で外へ出す**。
    * 非対称なのは安全のため——action が拒否されると内側の残りは実行されず（`callAction` が外で捕まえる）、
@@ -217,17 +234,24 @@ export function DailyBoard({
   }
 
   /**
-   * 生成系（複製・複製して開始・クイック追加）の共通処理。採番をサーバが決めるため
-   * 生成物の選択は確定後に寄せる（O-11）: 成功なら `createdId` へ選択を移し、失敗なら `setError`
+   * 生成系（複製・複製して開始・クイック追加）の共通処理。仮の行へは選択を移さず、確定後に
+   * 生成物へ寄せる（画面定義書01 §4 冒頭「仮の行」）: 成功なら `createdId` へ選択を移し、失敗なら `setError`。
+   * `lockKeys` は確定までキー操作をすべて止める（O-11 / O-14。選択が移る前の複製元に当たらないように）。
+   * 止めるのは成功・失敗を問わず確定で下ろす（`onSettled` は拒否でも必ず呼ばれる。`callAction`）
    */
   function runSelectingCreated(
     action: () => Promise<CreatingActionResult>,
-    optimistic?: OptimisticAction
+    optimistic?: OptimisticAction,
+    options?: Readonly<{ lockKeys: boolean }>
   ): boolean {
-    return runGuarded(action, optimistic, (result) => {
+    const lockKeys = options?.lockKeys ?? false;
+    const fired = runGuarded(action, optimistic, (result) => {
+      if (lockKeys) setKeysLockedCount((n) => n - 1);
       if (result.ok) setSelectedId(result.createdId);
       else showFailure(result);
     });
+    if (fired && lockKeys) setKeysLockedCount((n) => n + 1);
+    return fired;
   }
 
   /**
@@ -280,6 +304,7 @@ export function DailyBoard({
   }
 
   function rename(task: Task, raw: string) {
+    if (isProvisional(task)) return; // 仮の行は操作が効かない（§4 冒頭「仮の行」）
     const validated = validateTaskName(raw);
     if (!validated.ok) return; // 空名は確定不可（§8）。編集は破棄して元の名前に戻る
     if (validated.value === task.name) return;
@@ -291,6 +316,7 @@ export function DailyBoard({
   }
 
   function setEstimate(task: Task, raw: string) {
+    if (isProvisional(task)) return; // 仮の行は操作が効かない（§4 冒頭「仮の行」）
     const validated = validateEstimateMinutes(raw);
     if (!validated.ok) {
       setError(TASK_EDIT_MESSAGES[validated.error]);
@@ -306,6 +332,7 @@ export function DailyBoard({
 
   /** コメントの編集（O-16 / F-206）。空で確定すればコメントを消す（長さの検証はない） */
   function setComment(task: Task, raw: string) {
+    if (isProvisional(task)) return; // 仮の行は操作が効かない（§4 冒頭「仮の行」）
     const comment = normalizeComment(raw);
     if (comment === task.comment) return;
 
@@ -317,6 +344,7 @@ export function DailyBoard({
    * 空で確定すれば消す。楽観的更新の対象——印がすぐ出る／消える
    */
   function setUrl(task: Task, raw: string) {
+    if (isProvisional(task)) return; // 仮の行は操作が効かない（§4 冒頭「仮の行」）
     const validated = validateUrl(raw);
     if (!validated.ok) {
       setError(TASK_EDIT_MESSAGES[validated.error]);
@@ -329,6 +357,7 @@ export function DailyBoard({
 
   /** ハイライトの付け外し（O-17 / F-118）。状態・日付を問わないトグル */
   function toggleHighlight(task: Task) {
+    if (isProvisional(task)) return; // 仮の行は操作が効かない（§4 冒頭「仮の行」）
     const highlighted = !task.highlighted;
     run(() => setTaskHighlightAction(task.id, highlighted), {
       type: "highlight",
@@ -364,6 +393,7 @@ export function DailyBoard({
    * `Enter`（§6）の経路だけになる
    */
   function punch(task: Task) {
+    if (isProvisional(task)) return; // 仮の行は操作が効かない（§4 冒頭「仮の行」）
     if (isFutureDate) return;
 
     const status = taskStatus(task);
@@ -376,10 +406,12 @@ export function DailyBoard({
         openInNewTab(task.url); // 複製は URL を引き継ぐので、開くのは複製元の値で足りる（F-125 / O-18）
       }
     } else if (status === "not_started") {
+      // 割り込みが起きるかは計画が決めるので、再開タスクの仮 id は先に1つ採っておく（使わなければ捨てる）
       const fired = run(() => startTaskAction(task.id, now), {
         type: "start",
         id: task.id,
         at: now,
+        resumeSeq: ++optimisticTaskSeq.current,
       });
       if (fired) {
         noticeBundleDeparture({ id: task.id, bundleId: task.bundleId });
@@ -413,35 +445,48 @@ export function DailyBoard({
   }
 
   /**
-   * 複製して開始（F-208 / O-14）。完了タスクの「もう一回」。生成物の採番はサーバが決めるため
-   * 楽観的更新はせず（O-11 と同じ）、開始した複製タスクへ選択を移す。
+   * 複製して開始（F-208 / O-14）。完了タスクの「もう一回」。開始済みの複製と（割り込みなら）再開タスクを
+   * 仮の行で先に出し、確定後に開始した複製タスクへ選択を移す（確定までキー操作を止める）。
    * 戻り値は発火したか（`runSelectingCreated` の戻り値をそのまま返す。呼び出し元の
    * `noticeBundleDeparture` の発火判定に使う）
    */
   function duplicateAndStart(task: Task, now: Date): boolean {
-    return runSelectingCreated(() => duplicateAndStartTaskAction(task.id, now));
+    return runSelectingCreated(
+      () => duplicateAndStartTaskAction(task.id, now),
+      {
+        type: "duplicateAndStart",
+        id: task.id,
+        at: now,
+        seq: ++optimisticTaskSeq.current,
+        resumeSeq: ++optimisticTaskSeq.current,
+      },
+      { lockKeys: true }
+    );
   }
 
   /** 開始打刻の取り消し（O-13 / F-210）。実行中タスクを未実行へ戻す。now はクライアントのものを送る */
   function unstart(task: Task) {
-    run(() => undoStartAction(task.id, new Date()), { type: "unstart", id: task.id });
+    if (isProvisional(task)) return; // 仮の行は操作が効かない（§4 冒頭「仮の行」）
+    const now = new Date(); // 並べ直しの現在位置をサーバと同じ時刻で求める
+    run(() => undoStartAction(task.id, now), { type: "unstart", id: task.id, at: now });
   }
 
   /**
    * 完了の取り消し（O-15 / F-212）。完了タスクを未実行へ戻す。実績を破棄するので、
-   * 復帰に要る4列のスナップショットを保留スロットへ置いて Undoトーストを出す。
-   * 楽観的更新は打刻のクリアだけ（並べ直しはサーバ確定後。O-13 と同じ扱い）
+   * 復帰に要る4列のスナップショットを保留スロットへ置いて Undoトーストを出す
    */
   function uncomplete(task: Task) {
+    if (isProvisional(task)) return; // 仮の行は操作が効かない（§4 冒頭「仮の行」）
+    const now = new Date(); // 並べ直しの現在位置をサーバと同じ時刻で求める
     run(
       async () => {
-        const result = await undoCompleteAction(task.id, new Date());
+        const result = await undoCompleteAction(task.id, now);
         if (result.ok) {
           holdUndo({ type: "uncomplete", name: task.name, snapshot: result.snapshot });
         }
         return result;
       },
-      { type: "uncomplete", id: task.id }
+      { type: "uncomplete", id: task.id, at: now }
     );
   }
 
@@ -451,6 +496,7 @@ export function DailyBoard({
    * 現在時刻は未来への修正を弾くために渡す（他の打刻と同じくクライアントのもの）
    */
   function editPunch(task: Task, field: "startedAt" | "endedAt", hhmm: string) {
+    if (isProvisional(task)) return; // 仮の行は操作が効かない（§4 冒頭「仮の行」）
     // 検証と送信で同じ現在時刻を使う（分をまたぐ瞬間に判定と保存で日が割れないように）
     const now = new Date();
     const context = { timeZone: APP_TIME_ZONE, dayStartMinutes, now };
@@ -479,6 +525,7 @@ export function DailyBoard({
 
   /** モード・プロジェクト・セクションの割り当て（O-5） */
   function assign(task: Task, field: "mode" | "project" | "section", id: number | null) {
+    if (isProvisional(task)) return; // 仮の行は操作が効かない（§4 冒頭「仮の行」）
     if (field === "mode") {
       run(() => setTaskModeAction(task.id, id), { type: "mode", id: task.id, modeId: id });
       return;
@@ -502,6 +549,7 @@ export function DailyBoard({
 
   /** 中断・複製・日付移動・削除（F-204 / F-111 / F-107・F-123 / O-8） */
   function operate(task: Task, operation: RowOperation) {
+    if (isProvisional(task)) return; // 仮の行は操作が効かない（§4 冒頭「仮の行」）
     // 中断は現在時刻での終了打刻を含むので、未来日では受け付けない（§7）。行メニューの項目は
     // 実行中でなければ非活性だが、`I`（§6）は状態を見ずにここへ来るため止めるのはここになる
     if (operation === "suspend" && isFutureDate) return;
@@ -529,24 +577,34 @@ export function DailyBoard({
     }
 
     if (operation === "duplicate") {
-      // 複製したタスクを選択する（O-11）。採番はサーバが決めるため楽観更新はしない
-      runSelectingCreated(() => duplicateTaskAction(task.id));
+      // 複製の仮の行を先に出し、確定後に複製したタスクを選択する（O-11）。確定までキー操作を止める
+      runSelectingCreated(
+        () => duplicateTaskAction(task.id),
+        { type: "duplicate", id: task.id, seq: ++optimisticTaskSeq.current },
+        { lockKeys: true }
+      );
       return;
     }
 
-    // 中断・日付移動は楽観更新せずサーバ確定を待つ（＝ optimistic を渡さない）
     if (operation === "suspend") {
-      run(() => suspendTaskAction(task.id, new Date()));
+      const now = new Date();
+      run(() => suspendTaskAction(task.id, now), {
+        type: "suspend",
+        id: task.id,
+        at: now,
+        resumeSeq: ++optimisticTaskSeq.current,
+      });
       return;
     }
 
-    run(async () => {
+    // 日付移動（O-7）: 行は表示日から先に外れるので、選択も削除と同じく同時に送り、拒まれたら戻す
+    setSelectedId(nextSelectedId);
+    run(
       // 行き先は「今日」との関係で決まるので、サーバが日界を踏まえて解けるよう現在時刻を送る（O-7）
-      const result = await moveTaskDateAction(task.id, new Date());
-      // 行が消えるのは確定後なので、選択もそこで送る（§5）。待つ間に選び直していたらそちらを優先する
-      if (result.ok) setSelectedId((current) => (current === task.id ? nextSelectedId : current));
-      return result;
-    });
+      () => moveTaskDateAction(task.id, new Date()),
+      { type: "remove", id: task.id },
+      () => setSelectedId((current) => (current === nextSelectedId ? task.id : current))
+    );
   }
 
   /**
@@ -555,6 +613,7 @@ export function DailyBoard({
    * ポップオーバーを閉じさせないため（閉じると選んだ内容が黙って消える。00_共通 §4.2）
    */
   function routinize(task: Task, choice: RoutineFromTaskChoice): boolean {
+    if (isProvisional(task)) return false; // 仮の行は操作が効かない（§4 冒頭「仮の行」）
     return run(async () => {
       const result = await createRoutineFromTaskAction(task.id, choice);
       if (result.ok) setNotice(routinizedMessage(task.name));
@@ -564,7 +623,7 @@ export function DailyBoard({
 
   /**
    * 保留中の取り消しを実行する（削除 O-8 / 完了の取り消し O-15。保留は共通の1スロット。O-13）。
-   * どちらも並びが戻るためサーバ確定を待つ（楽観的更新はしない）。
+   * どちらも書き戻す位置が確定時の並びで決まり再現できないため、サーバ確定を待つ（画面定義書01 §4 冒頭の表）。
    *
    * **保留を捨てるのは発火できたときだけ**——別の確定待ちの応答中は `runGuarded` が抑止するので、
    * 先に捨てるとトーストだけ消えて復元も走らず、取り消す手段が無くなる（00_共通 §2.2 の
@@ -586,7 +645,7 @@ export function DailyBoard({
    * 移動先はサーバ確定（moveTaskByStep）と同じ純関数 stepMoveDestination で求める（規則の二重実装を排除）
    */
   function moveByStep(step: 1 | -1) {
-    if (selectedId === null) return;
+    if (selectedId === null || isProvisional({ id: selectedId })) return;
 
     // 移動タスクへ選択を固定する（§5）。未選択（rawSelectedId=null）のままだと移動後に
     // keepSelection が選択を「現在地」（§5）へ再導出し、別タスクへ飛ぶ（FB-50）
@@ -621,6 +680,7 @@ export function DailyBoard({
   useDailyShortcuts({
     editing,
     pickerOpen: showDatePicker,
+    keysLocked: keysLockedCount > 0,
     orderedTasks,
     selectedId,
     currentSectionId,
@@ -634,11 +694,11 @@ export function DailyBoard({
     setSelectedId,
     openDatePicker: () => setShowDatePicker(true),
     moveByStep,
-    punch,
-    operate,
-    toggleHighlight,
-    unstart,
-    uncomplete,
+    punch: punch,
+    operate: operate,
+    toggleHighlight: toggleHighlight,
+    unstart: unstart,
+    uncomplete: uncomplete,
     undoPending,
   });
 
@@ -755,7 +815,9 @@ export function DailyBoard({
         onOperate={operate}
         onRoutinize={routinize}
         editing={editing}
-        onBeginEdit={(task, field) => setEditing({ taskId: task.id, field })}
+        onBeginEdit={(task, field) => {
+          if (!isProvisional(task)) setEditing({ taskId: task.id, field });
+        }}
         onEndEdit={() => setEditing(null)}
         selectedId={selectedId}
         onSelect={setSelectedId}

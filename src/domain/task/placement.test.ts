@@ -20,7 +20,7 @@ const sections = [forenoon, afternoon];
 describe("planStart（画面定義書01 O-2 / データモデル定義書 §4.2-b）", () => {
   const now = atJst("12:30");
 
-  it("今日なら開始タスク自身を規則a で開始時刻のセクションへ移す（§4.2-a）", () => {
+  it("今日なら開始タスク自身を規則a で開始時刻のセクションへ移す（画面定義書01 §4.2-a）", () => {
     const target = task({ id: 1, sectionId: forenoon.id });
     const plan = planStart({
       target,
@@ -35,7 +35,7 @@ describe("planStart（画面定義書01 O-2 / データモデル定義書 §4.2-
     expect(plan.interruption).toBeNull();
   });
 
-  it("今日でなければ規則a を当てない（§4.2 の対象日）", () => {
+  it("今日でなければ規則a を当てない（画面定義書01 §4.2 の対象日）", () => {
     const target = task({ id: 1, sectionId: forenoon.id });
     const plan = planStart({
       target,
@@ -49,7 +49,7 @@ describe("planStart（画面定義書01 O-2 / データモデル定義書 §4.2-
     expect(plan.relocations).toEqual([]);
   });
 
-  it("割り込みの再開タスクは、規則a で**移動した後の**開始タスクの直下に置く（§4.2-a）", () => {
+  it("割り込みの再開タスクは、規則a で**移動した後の**開始タスクの直下に置く（画面定義書01 §4.2-a）", () => {
     const running = task({ id: 9, sectionId: forenoon.id, startedAt: atJst("09:00"), estimateMinutes: 60 });
     const target = task({ id: 1, sectionId: forenoon.id, sortOrder: 2000 });
     const afternoonTask = task({ id: 3, sectionId: afternoon.id, sortOrder: 5000 });
@@ -139,7 +139,7 @@ describe("planDuplicateAndStart（画面定義書01 O-14 / データモデル定
     expect(plan.duplicate.sectionId).toBe(forenoon.id);
   });
 
-  it("割り込みでは再開タスクを複製行の直下に置き、2行の採番を一度に決める（§3.5 の例外）", () => {
+  it("割り込みでは再開タスクを複製行の直下に置き、2行の採番を一度に決める（データモデル定義書 §3.5 の例外）", () => {
     const running = task({ id: 9, sectionId: afternoon.id, startedAt: atJst("12:00"), sortOrder: 1000 });
     const plan = planDuplicateAndStart({
       target: completed,
@@ -183,7 +183,7 @@ describe("planPunchEdit（画面定義書01 §4.2-c）", () => {
     expect(planPunchEdit(target, [target], sections, atJst("09:00"), "09:00")).toEqual([]);
   });
 
-  it("未打刻のタスクに開始時刻を入れたときも移す（§3.3 ④）", () => {
+  it("未打刻のタスクに開始時刻を入れたときも移す（画面定義書01 §3.3 ④）", () => {
     const notStarted = task({ id: 1, sectionId: forenoon.id });
     expect(planPunchEdit(notStarted, [notStarted], sections, atJst("12:10"), "12:10")).toEqual([
       { taskId: 1, sectionId: afternoon.id, sortOrder: 1000 },
