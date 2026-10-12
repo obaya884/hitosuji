@@ -20,7 +20,6 @@ import {
   updateTaskPunchAction,
   updateTaskUrlAction,
   type CreatingActionResult,
-  type DailyActionResult,
 } from "../actions";
 import {
   COMPLETED,
@@ -28,18 +27,16 @@ import {
   commentInput,
   commit,
   defaultTasks,
-  DELETE_OK,
   FORENOON,
   hold,
   NOT_STARTED,
-  OK,
   press,
   quickAddInput,
   renderBoard,
   RUNNING,
   selectRow,
+  settledTasks,
   setupBoard,
-  type DeleteResult,
 } from "../_testing/board-helpers";
 import { router } from "@/app/_testing/next-navigation";
 import { isSelected, rowNames, taskRow } from "../_testing/table-helpers";
@@ -60,7 +57,8 @@ describe("DailyBoard のクイック追加（§3.4 / F-102）", () => {
   it("Enter で楽観的に行を出し、欄をクリアする", () => {
     const gate = hold<CreatingActionResult>(CREATED);
     vi.mocked(addTaskAction).mockReturnValue(gate.promise);
-    renderBoard();
+    // 確定前の並びを見るので、規則b を当て終えた盤面で描く（`settledTasks` の JSDoc）
+    renderBoard(settledTasks());
 
     const input = quickAddInput();
     fireEvent.change(input, { target: { value: "  買い物  " } });
@@ -68,7 +66,7 @@ describe("DailyBoard のクイック追加（§3.4 / F-102）", () => {
 
     expect(vi.mocked(addTaskAction)).toHaveBeenCalledWith({ date: TEST_DATE, name: "買い物" });
     // 未分類（リスト先頭）の末尾に確定前から出る
-    expect(rowNames()).toEqual(["買い物", NOT_STARTED, RUNNING, COMPLETED]);
+    expect(rowNames()).toEqual(["買い物", RUNNING, NOT_STARTED, COMPLETED]);
     expect(input).toHaveProperty("value", "");
   });
 
@@ -143,55 +141,49 @@ describe("DailyBoard のクイック追加（§3.4 / F-102）", () => {
   it("確定前に2件続けて追加しても、両方が別の行として残る（T-63）", () => {
     const gate = hold<CreatingActionResult>(CREATED);
     vi.mocked(addTaskAction).mockReturnValue(gate.promise);
-    renderBoard();
+    renderBoard(settledTasks());
 
     fireEvent.change(quickAddInput(), { target: { value: "買い物" } });
     fireEvent.keyDown(quickAddInput(), { key: "Enter" });
     fireEvent.change(quickAddInput(), { target: { value: "洗濯" } });
     fireEvent.keyDown(quickAddInput(), { key: "Enter" });
 
-    expect(rowNames()).toEqual(["買い物", "洗濯", NOT_STARTED, RUNNING, COMPLETED]);
+    expect(rowNames()).toEqual(["買い物", "洗濯", RUNNING, NOT_STARTED, COMPLETED]);
     // 選択（§5）は行のIDで決まるので、片方だけが選ばれることがIDの別々さの現れになる
     selectRow("洗濯");
     expect(isSelected("洗濯")).toBe(true);
     expect(isSelected("買い物")).toBe(false);
   });
 
-  it("確定前の仮の行を1件だけ編集しても、もう1件は巻き添えにならない（T-63）", () => {
+  // 仮の行は選択できるが操作は効かない（画面定義書01 §4 冒頭「仮の行」）。サーバはまだその行を
+  // 知らないので、送れば「見つからない」で失敗する
+  it("確定前の仮の行では名前の編集を開かない（§4 冒頭「仮の行」）", () => {
     const addGate = hold<CreatingActionResult>(CREATED);
     vi.mocked(addTaskAction).mockReturnValue(addGate.promise);
-    const renameGate = hold<DailyActionResult>(OK);
-    vi.mocked(renameTaskAction).mockReturnValue(renameGate.promise);
-    renderBoard();
+    renderBoard(settledTasks());
 
-    fireEvent.change(quickAddInput(), { target: { value: "買い物" } });
-    fireEvent.keyDown(quickAddInput(), { key: "Enter" });
     fireEvent.change(quickAddInput(), { target: { value: "洗濯" } });
     fireEvent.keyDown(quickAddInput(), { key: "Enter" });
 
     selectRow("洗濯");
     press("r");
-    commit(screen.getByDisplayValue("洗濯"), "洗濯物");
 
-    expect(rowNames()).toEqual(["買い物", "洗濯物", NOT_STARTED, RUNNING, COMPLETED]);
+    expect(screen.queryByDisplayValue("洗濯")).toBeNull();
   });
 
-  it("確定前の仮の行を1件だけ削除しても、もう1件は消えない（T-63 / O-8）", () => {
+  it("確定前の仮の行は削除しない（§4 冒頭「仮の行」）", () => {
     const addGate = hold<CreatingActionResult>(CREATED);
     vi.mocked(addTaskAction).mockReturnValue(addGate.promise);
-    const deleteGate = hold<DeleteResult>(DELETE_OK);
-    vi.mocked(deleteTaskAction).mockReturnValue(deleteGate.promise);
-    renderBoard();
+    renderBoard(settledTasks());
 
-    fireEvent.change(quickAddInput(), { target: { value: "買い物" } });
-    fireEvent.keyDown(quickAddInput(), { key: "Enter" });
     fireEvent.change(quickAddInput(), { target: { value: "洗濯" } });
     fireEvent.keyDown(quickAddInput(), { key: "Enter" });
 
     selectRow("洗濯");
     press("d");
 
-    expect(rowNames()).toEqual(["買い物", NOT_STARTED, RUNNING, COMPLETED]);
+    expect(vi.mocked(deleteTaskAction)).not.toHaveBeenCalled();
+    expect(rowNames()).toEqual(["洗濯", RUNNING, NOT_STARTED, COMPLETED]);
   });
 
   it("追加の失敗は仮の行を取り消してエラートーストを出す", async () => {

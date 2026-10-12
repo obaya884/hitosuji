@@ -33,6 +33,7 @@ import {
   renderBoard,
   RUNNING,
   selectRow,
+  settledTasks,
   setupBoard,
 } from "../_testing/board-helpers";
 import { isSelected, rowNames, taskRow } from "../_testing/table-helpers";
@@ -117,15 +118,16 @@ describe("DailyBoard のショートカット結線（§6。キー判定その�
   it("Shift+J はセクションを跨いで移動する（O-6。並びが同じでも所属が変わる）", () => {
     const gate = hold<DailyActionResult>(OK);
     vi.mocked(moveTaskByStepAction).mockReturnValue(gate.promise);
-    renderBoard();
-    selectRow(RUNNING); // 午前グループの最終行
+    // 確定前の並びを見るので、規則b を当て終えた盤面で描く（`settledTasks` の JSDoc）
+    renderBoard(settledTasks());
+    selectRow(NOT_STARTED); // 午前グループの最終行
 
     press("J", { shiftKey: true });
 
     // 表示順は隣接したままだが、行のセクション表記が移動先（午後）に変わる
-    expect(within(taskRow(RUNNING)).queryByRole("button", { name: AFTERNOON.name })).not.toBeNull();
-    expect(rowNames()).toEqual([NOT_STARTED, RUNNING, COMPLETED]);
-    expect(isSelected(RUNNING)).toBe(true);
+    expect(within(taskRow(NOT_STARTED)).queryByRole("button", { name: AFTERNOON.name })).not.toBeNull();
+    expect(rowNames()).toEqual([RUNNING, NOT_STARTED, COMPLETED]);
+    expect(isSelected(NOT_STARTED)).toBe(true);
   });
 
   it("タスク0件の日でも並び替えキーで壊れない（ルーチン未展開の日）", () => {

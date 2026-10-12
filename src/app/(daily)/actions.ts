@@ -335,8 +335,8 @@ export async function duplicateTaskAction(id: TaskId): Promise<CreatingActionRes
 }
 
 /**
- * 複製して開始（F-208 / O-14）。完了タスクの「もう一回」。生成物の採番はサーバが決めるため
- * 楽観的更新はしない。開始した複製タスクへ選択を移すため作られたIDを返す。now はクライアントの現在時刻
+ * 複製して開始（F-208 / O-14）。完了タスクの「もう一回」。画面は仮の行で先に出し、確定後に
+ * 開始した複製タスクへ選択を移すため作られたIDを返す。now はクライアントの現在時刻
  */
 export async function duplicateAndStartTaskAction(
   id: TaskId,

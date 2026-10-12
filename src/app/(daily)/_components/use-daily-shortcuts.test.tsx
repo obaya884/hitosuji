@@ -160,6 +160,7 @@ function params(
   return {
     editing: null,
     pickerOpen: false,
+    keysLocked: false,
     orderedTasks: TASKS,
     selectedId: RUNNING.id,
     currentSectionId: null,
@@ -617,6 +618,19 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
       expectNothingCalled(spies);
     });
 
+    // 仮の行は選択できるが操作は効かない（画面定義書01 §4 冒頭「仮の行」）。判定は `requestEdit` の1か所
+    it.each(EDIT_KEYS)("仮の行（確定前）では %s で編集を開かない", (key) => {
+      const provisional = task({ id: -1 });
+      const { spies } = renderShortcuts({
+        orderedTasks: [...TASKS, provisional],
+        selectedId: provisional.id,
+      });
+
+      pressKey(key);
+
+      expect(spies.setEditing).not.toHaveBeenCalled();
+    });
+
     // 打刻を見るのは B / F だけ。他の編集キーは打刻状態に依らず開く（ガードが広がっていないことの固定）
     it.each(NON_PUNCH_EDIT_KEYS)("%s は未実行タスクでも %s の編集を開く", (key, field) => {
       const { spies } = renderShortcuts({ selectedId: NEXT_UP.id });
@@ -755,6 +769,14 @@ describe("useDailyShortcuts（画面定義書01 §6: デイリーのキーボー
 
     it("datepicker 表示中は行操作キーを背後のリストへ流さない（§6 / §3.1）", () => {
       const { spies } = renderShortcuts({ pickerOpen: true });
+
+      pressAll();
+
+      expectNothingCalled(spies);
+    });
+
+    it("複製・複製して開始の確定待ち（keysLocked）はキー操作をすべて止める（画面定義書01 §4 冒頭「仮の行」）", () => {
+      const { spies } = renderShortcuts({ keysLocked: true });
 
       pressAll();
 

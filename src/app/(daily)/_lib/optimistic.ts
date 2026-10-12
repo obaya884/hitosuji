@@ -1,6 +1,7 @@
 // 楽観的更新の状態遷移。表示日1日分のグループを受けて次のグループを返すだけなので、
 // コンポーネントから切り出して純関数にする（テスト戦略定義書 §3）。
 import {
+  groupTasksBySection,
   withTaskAppended,
   withTaskMoved,
   withTaskRemoved,
@@ -9,15 +10,34 @@ import {
 } from "@/domain/task/daily-list";
 import type { ModeId } from "@/domain/mode/mode";
 import type { ProjectId } from "@/domain/project/project";
-import type { SectionId } from "@/domain/section/section";
+import type { Section, SectionId } from "@/domain/section/section";
 import type { LogicalDate } from "@/domain/shared/logical-date";
+import {
+  planDuplicate,
+  planDuplicateAndStart,
+  planPunchEdit,
+  planStart,
+  planSuspend,
+  planUndoPunch,
+  type InterruptionPlan,
+  type NewRowPlan,
+  type StartPlanInput,
+} from "@/domain/task/placement";
+import { planCarryOver, withRelocations } from "@/domain/task/relocation";
+import type { Renumber } from "@/domain/task/sort-order";
 import { taskStatus } from "@/domain/task/status";
 import type { Task, TaskId } from "@/domain/task/task";
+import { formatClock } from "@/app/_lib/format";
 
 /**
  * 楽観的更新（N-01 / 00_共通 §4）: 永続化を待たずに画面へ反映し、失敗時はサーバ状態へ巻き戻す。
- * **どこまでを即時に反映するか**が仕様条項そのもの（並べ直しや割り込みはサーバ確定後）なので、
- * 各 case のコメントは条項の写しとして残す
+ * **どこまでを確定前に出すかは画面定義書01 §4 冒頭「確定前に出す範囲」の表が正**。
+ * 配置（行がどこへ入るか）はサーバと同じ domain の計画（`domain/task/placement.ts`）を当てるので、
+ * 確定前の表示は確定結果と一致する（同表の「線引きの基準」）。
+ *
+ * 仮の行の `seq` は `provisionalTask` の契約に従う。`at` はサーバへ送るのと同じ時刻を載せる——
+ * reducer は積み直しのたびに再実行されるので、時刻も仮 id も action の中に持たせて結果を揃える
+ * （例外は規則b に使う `OptimisticContext.nowClock` だけ。理由はそちら）
  */
 export type OptimisticAction =
   | Readonly<{ type: "append"; task: Task }>
@@ -26,9 +46,12 @@ export type OptimisticAction =
   | Readonly<{ type: "comment"; id: TaskId; comment: string | null }>
   | Readonly<{ type: "url"; id: TaskId; url: string | null }>
   | Readonly<{ type: "highlight"; id: TaskId; highlighted: boolean }>
-  | Readonly<{ type: "start"; id: TaskId; at: Date }>
-  | Readonly<{ type: "unstart"; id: TaskId }>
-  | Readonly<{ type: "uncomplete"; id: TaskId }>
+  | Readonly<{ type: "start"; id: TaskId; at: Date; resumeSeq: number }>
+  | Readonly<{ type: "suspend"; id: TaskId; at: Date; resumeSeq: number }>
+  | Readonly<{ type: "duplicate"; id: TaskId; seq: number }>
+  | Readonly<{ type: "duplicateAndStart"; id: TaskId; at: Date; seq: number; resumeSeq: number }>
+  | Readonly<{ type: "unstart"; id: TaskId; at: Date }>
+  | Readonly<{ type: "uncomplete"; id: TaskId; at: Date }>
   | Readonly<{ type: "finish"; id: TaskId; at: Date }>
   | Readonly<{ type: "punch"; id: TaskId; startedAt: Date; endedAt: Date | null }>
   | Readonly<{
@@ -40,10 +63,175 @@ export type OptimisticAction =
   | Readonly<{ type: "project"; id: TaskId; projectId: ProjectId | null }>
   | Readonly<{ type: "remove"; id: TaskId }>;
 
+/** 計画を当てるのに要る、表示日の外の情報（盤面が持つ） */
+export type OptimisticContext = Readonly<{
+  /** アーカイブ済みも含むセクション（`groupTasksBySection` で組み直すため。サーバの一覧と同じもの） */
+  sections: readonly Section[];
+  /** 表示日が今日か。規則a / b と取り消しの並べ直しは今日だけ（画面定義書01 §4.2） */
+  isToday: boolean;
+  /**
+   * 規則b の「現在位置」に使う現在時刻の `HH:MM`。**操作の時刻ではなく当てる時点の時刻**で、積み直すたびに
+   * 変わりうる——サーバも確定後に描き直す時点の時刻で規則b を当てる（画面定義書01 §4.2 の発火タイミング）ので、
+   * それに合わせる。分の境目でずれたら確定結果に合わせる（画面定義書01 §4 冒頭）
+   */
+  nowClock: string;
+  /** 前日以前に放置されている実行中タスク。表示日に居ない割り込み相手になりうる（O-2） */
+  staleRunningTask: Task | null;
+}>;
+
 export function applyOptimisticAction(
   groups: readonly DailyGroup[],
-  action: OptimisticAction
+  action: OptimisticAction,
+  context: OptimisticContext
 ): DailyGroup[] {
+  const placed = applyPlacement(groups, action, context);
+  if (placed !== null) return groupTasksBySection(withCarryOver(placed, context), context.sections);
+
+  // 配置を伴わない操作は表示上の並びをそのまま変え、規則b が動かす行があるときだけ組み直す
+  const changed = applyInPlace(groups, action);
+  const tasks = normalizedTasks(changed);
+  const carried = withCarryOver(tasks, context);
+  return carried === tasks ? changed : groupTasksBySection(carried, context.sections);
+}
+
+/**
+ * 画面定義書01 §4 冒頭「規則 b も先に当てる」: サーバは操作のたびにデイリーを描き直し、そのとき
+ * 規則b を当てる（画面定義書01 §4.2 の発火タイミング）ので、確定前の並びにも同じ繰り下げを当てる。
+ * 動かす行が無ければ入力をそのまま返す
+ */
+function withCarryOver(tasks: readonly Task[], context: OptimisticContext): readonly Task[] {
+  if (!context.isToday) return tasks;
+  const carryOver = planCarryOver(tasks, context.sections, context.nowClock);
+  return carryOver.length === 0 ? tasks : withRelocations(tasks, carryOver);
+}
+
+/**
+ * 計画（domain の placement）を当てる操作。配置を伴わない操作なら null。
+ * 計画は**変更前**のタスク列から立てる（開始前の行・修正前の開始時刻を見る規則があるため）
+ */
+function applyPlacement(
+  groups: readonly DailyGroup[],
+  action: OptimisticAction,
+  context: OptimisticContext
+): Task[] | null {
+  if (!PLACEMENT_TYPES.has(action.type)) return null;
+  const tasks = normalizedTasks(groups);
+  switch (action.type) {
+    // 開始（O-2）: 規則a の移動と、割り込みなら相手の終了・再開タスクの仮の行（移動後の直下）
+    case "start": {
+      const target = findTask(tasks, action.id);
+      if (target === undefined) return [...tasks];
+      const plan = planStart(startPlanInput(target, tasks, action.at, context));
+      const started = updated(withRelocations(tasks, plan.relocations), target.id, {
+        startedAt: action.at,
+      });
+      return withInterruption(
+        started,
+        plan.interruption,
+        plan.interruption?.renumber ?? [],
+        target.taskDate,
+        action.resumeSeq
+      );
+    }
+    // 中断（O-4）: 終了と、再開タスクの仮の行（直後）
+    case "suspend": {
+      const target = findTask(tasks, action.id);
+      if (target === undefined) return [...tasks];
+      const plan = planSuspend(target, tasks, action.at);
+      const ended = updated(withRenumber(tasks, plan.renumber), target.id, { endedAt: action.at });
+      return [...ended, provisionalTask(action.resumeSeq, target.taskDate, plan.resume)];
+    }
+    // 複製（O-11）: 複製の仮の行（直下。今日なら規則b の繰り下げが後から当たる）
+    case "duplicate": {
+      const target = findTask(tasks, action.id);
+      if (target === undefined) return [...tasks];
+      const plan = planDuplicate(target, tasks);
+      return [
+        ...withRenumber(tasks, plan.renumber),
+        provisionalTask(action.seq, target.taskDate, plan.duplicate),
+      ];
+    }
+    // 複製して開始（O-14）: 開始済みの複製の仮の行と、割り込みなら相手の終了・再開タスクの仮の行
+    case "duplicateAndStart": {
+      const target = findTask(tasks, action.id);
+      if (target === undefined) return [...tasks];
+      const plan = planDuplicateAndStart(startPlanInput(target, tasks, action.at, context));
+      const withDuplicate = [
+        ...tasks,
+        provisionalTask(action.seq, target.taskDate, plan.duplicate, action.at),
+      ];
+      return withInterruption(withDuplicate, plan.interruption, plan.renumber, target.taskDate, action.resumeSeq);
+    }
+    // 開始の取り消し（O-13）・完了の取り消し（O-15）: 打刻のクリアと、今日なら現在位置への並べ直し
+    case "unstart":
+    case "uncomplete": {
+      const target = findTask(tasks, action.id);
+      if (target === undefined) return [...tasks];
+      const relocations = planUndoPunch(
+        target,
+        tasks,
+        context.sections,
+        formatClock(action.at),
+        context.isToday
+      );
+      const cleared =
+        action.type === "unstart" ? { startedAt: null } : { startedAt: null, endedAt: null };
+      return updated(withRelocations(tasks, relocations), target.id, cleared);
+    }
+    // 打刻時刻の修正（F-203）: 値と、開始時刻が変わったときの規則c の移動
+    case "punch": {
+      const target = findTask(tasks, action.id);
+      if (target === undefined) return [...tasks];
+      const relocations = planPunchEdit(
+        target,
+        tasks,
+        context.sections,
+        action.startedAt,
+        formatClock(action.startedAt)
+      );
+      return updated(withRelocations(tasks, relocations), target.id, {
+        startedAt: action.startedAt,
+        endedAt: action.endedAt,
+      });
+    }
+    default:
+      return null;
+  }
+}
+
+/** 配置（domain の計画）を当てる操作の種類。ほかは `applyInPlace` が値と並びだけを変える */
+const PLACEMENT_TYPES: ReadonlySet<OptimisticAction["type"]> = new Set([
+  "start",
+  "suspend",
+  "duplicate",
+  "duplicateAndStart",
+  "unstart",
+  "uncomplete",
+  "punch",
+]);
+
+/** 開始を伴う計画の入力。割り込み相手は表示日に居なければ前日以前の放置分（実行中は全体で最大1件） */
+function startPlanInput(
+  target: Task,
+  tasks: readonly Task[],
+  at: Date,
+  context: OptimisticContext
+): StartPlanInput {
+  return {
+    target,
+    sameDay: tasks,
+    sections: context.sections,
+    running:
+      tasks.find((t) => t.id !== target.id && taskStatus(t) === "running") ??
+      context.staleRunningTask,
+    now: at,
+    nowClock: formatClock(at),
+    isToday: context.isToday,
+  };
+}
+
+/** 配置を伴わない操作（値の差し替え・追加・並び替え・取り除き） */
+function applyInPlace(groups: readonly DailyGroup[], action: OptimisticAction): DailyGroup[] {
   switch (action.type) {
     case "append":
       return withTaskAppended(groups, action.task);
@@ -63,79 +251,125 @@ export function applyOptimisticAction(
     // ハイライトは行の位置に影響しないので、印だけを差し替える（O-17 / F-118）
     case "highlight":
       return withTaskUpdated(groups, action.id, (t) => ({ ...t, highlighted: action.highlighted }));
-    // 割り込み（O-2）では相手の実行中タスクも同じ時刻で終了させる——サーバが使う終了時刻は
-    // この開始時刻そのもの（`usecases/task/punch-usecases.ts` の `startTask`）で、完了タスクは
-    // 並びが動かない（画面定義書01 §4.2）ため確定結果と必ず一致する。相手の開始が `at` より
-    // 後になることは無い（未来の時刻へは修正できない。§3.3）ので、負の実績を描くこともない。
-    // 再開タスクの生成をはじめ、採番・配置を伴う反映はサーバ確定後になる
-    case "start": {
-      const interrupted = groups
-        .flatMap((g) => g.tasks)
-        .find((t) => t.id !== action.id && taskStatus(t) === "running");
-      const groupsAfterInterrupt =
-        interrupted === undefined
-          ? groups
-          : withTaskUpdated(groups, interrupted.id, (t) => ({ ...t, endedAt: action.at }));
-      return withTaskUpdated(groupsAfterInterrupt, action.id, (t) => ({
-        ...t,
-        startedAt: action.at,
-      }));
-    }
-    // 未実行への並べ直し（データモデル定義書 §4.5）はサーバ確定後に反映される。まず打刻だけ消す
-    case "unstart":
-      return withTaskUpdated(groups, action.id, (t) => ({ ...t, startedAt: null }));
-    // 完了の取り消し（データモデル定義書 §4.7）も並べ直しはサーバ確定後。打刻2列のクリアだけ即時に反映する（O-15）
-    case "uncomplete":
-      return withTaskUpdated(groups, action.id, (t) => ({
-        ...t,
-        startedAt: null,
-        endedAt: null,
-      }));
+    // 終了（O-3）。完了タスクは並びが動かない（§4.2）。実行中が居なくなることで動く規則b は呼び出し側が当てる
     case "finish":
       return withTaskUpdated(groups, action.id, (t) => ({ ...t, endedAt: action.at }));
-    case "punch":
-      return withTaskUpdated(groups, action.id, (t) => ({
-        ...t,
-        startedAt: action.startedAt,
-        endedAt: action.endedAt,
-      }));
     case "move":
       return withTaskMoved(groups, action.id, action.destination);
     case "mode":
       return withTaskUpdated(groups, action.id, (t) => ({ ...t, modeId: action.modeId }));
     case "project":
       return withTaskUpdated(groups, action.id, (t) => ({ ...t, projectId: action.projectId }));
+    // 削除（O-8）・日付移動（O-7）。どちらも行が表示日から外れる
     case "remove":
       return withTaskRemoved(groups, action.id);
+    default:
+      return [...groups];
   }
 }
 
 /**
- * 楽観的更新で先に表示する仮タスク。IDは符号を反転して負にする——サーバの採番は必ず正なので、
- * こうしておけば確定済みの行とぶつからない。
+ * 表示順のタスク列。計画は `sortOrder` の大小で位置を数えるので、表示上の並びと食い違う値を残さない——
+ * 先に当てた楽観的な並び替え（`withTaskMoved` は採番しない）やクイック追加の仮の値が混ざった
+ * セクションだけ、表示順のまま1000刻みで振り直す（他のセクションは値をそのまま保つ）
+ */
+function normalizedTasks(groups: readonly DailyGroup[]): Task[] {
+  return groups.flatMap((g) => {
+    const ascending = g.tasks.every((t, i) => i === 0 || g.tasks[i - 1].sortOrder < t.sortOrder);
+    return ascending ? [...g.tasks] : g.tasks.map((t, i) => ({ ...t, sortOrder: (i + 1) * 1000 }));
+  });
+}
+
+/** 割り込みの反映: 相手の終了（表示日に居れば）と再開タスクの仮の行 */
+function withInterruption(
+  tasks: readonly Task[],
+  interruption: InterruptionPlan | null,
+  renumber: Renumber,
+  taskDate: LogicalDate,
+  resumeSeq: number
+): Task[] {
+  const renumbered = withRenumber(tasks, renumber);
+  if (interruption === null) return renumbered;
+  // 終了時刻は開始と同じ値（O-2）。前日以前の相手は表示日に居ないので終了は現れない
+  const ended = updated(renumbered, interruption.runningTaskId, { endedAt: interruption.endedAt });
+  return [...ended, provisionalTask(resumeSeq, taskDate, interruption.resume)];
+}
+
+function findTask(tasks: readonly Task[], id: TaskId): Task | undefined {
+  return tasks.find((t) => t.id === id);
+}
+
+function updated(tasks: readonly Task[], id: TaskId, patch: Partial<Task>): Task[] {
+  return tasks.map((t) => (t.id === id ? { ...t, ...patch } : t));
+}
+
+/** 中間値が尽きたときの振り直し（データモデル定義書 §3.5）を表示用のタスク列へ当てる */
+function withRenumber(tasks: readonly Task[], renumber: Renumber): Task[] {
+  if (renumber.length === 0) return [...tasks];
+  const sortOrderOf = new Map(renumber.map((r) => [r.taskId, r.sortOrder]));
+  return tasks.map((t) => {
+    const sortOrder = sortOrderOf.get(t.id);
+    return sortOrder === undefined ? t : { ...t, sortOrder };
+  });
+}
+
+type ProvisionalDraft = Readonly<{
+  name: string;
+  estimateMinutes: number;
+  modeId: ModeId | null;
+  projectId: ProjectId | null;
+  url: string | null;
+  highlighted?: boolean;
+  splitParentId?: TaskId | null;
+  bundleId?: Task["bundleId"];
+}>;
+
+/**
+ * 楽観的更新で先に表示する仮の行（画面定義書01 §4 冒頭「仮の行」）。IDは符号を反転して負にする——
+ * サーバの採番は必ず正なので、こうしておけば確定済みの行とぶつからない（`isProvisional`）。
+ * 内容と置き場は domain の計画（`NewRowPlan`）をそのまま写す。持たない項目は新しい行の既定値。
  *
  * `seq` は**そのボードが生きている間ずっと重複しない正の整数**（0 は `-0` になって負にならない）。
  * 呼び出し側が単調増加カウンタで採ること——重複すると片方への更新・削除が他方を巻き添えにする
  */
-export function optimisticTask(date: LogicalDate, name: string, seq: number): Task {
+export function provisionalTask(
+  seq: number,
+  taskDate: LogicalDate,
+  plan: NewRowPlan<ProvisionalDraft>,
+  startedAt: Date | null = null
+): Task {
   return {
     id: -seq,
-    taskDate: date,
-    initialTaskDate: date, // 生まれた日そのもの。持ち越し表示は出ない（F-122）
-    name,
-    estimateMinutes: 0,
-    sectionId: null,
-    modeId: null,
-    projectId: null,
-    bundleId: null,
-    sortOrder: Number.MAX_SAFE_INTEGER, // 未分類の末尾（§3.4）
-    startedAt: null,
+    taskDate,
+    initialTaskDate: taskDate, // 生まれた日そのもの。持ち越し表示は出ない（F-122）
+    name: plan.draft.name,
+    estimateMinutes: plan.draft.estimateMinutes,
+    sectionId: plan.sectionId,
+    modeId: plan.draft.modeId,
+    projectId: plan.draft.projectId,
+    bundleId: plan.draft.bundleId ?? null,
+    sortOrder: plan.sortOrder,
+    startedAt,
     endedAt: null,
     comment: null,
-    url: null,
-    highlighted: false,
+    url: plan.draft.url,
+    highlighted: plan.draft.highlighted ?? false,
     routineId: null,
-    splitParentId: null,
+    splitParentId: plan.draft.splitParentId ?? null,
     postponedCount: 0,
   };
+}
+
+/** クイック追加（O-1）の仮の行。未分類の末尾（§3.4）に、名前だけを持って出す */
+export function optimisticTask(date: LogicalDate, name: string, seq: number): Task {
+  return provisionalTask(seq, date, {
+    draft: { name, estimateMinutes: 0, modeId: null, projectId: null, url: null },
+    sectionId: null,
+    sortOrder: Number.MAX_SAFE_INTEGER, // 未分類の末尾（§3.4）
+  });
+}
+
+/** 確定前の仮の行か（画面定義書01 §4 冒頭「仮の行」: 選択はできるが操作は効かない） */
+export function isProvisional(task: Readonly<{ id: TaskId }>): boolean {
+  return task.id < 0;
 }
