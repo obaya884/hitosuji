@@ -159,6 +159,22 @@ export function TaskRow({
 
   const onKeyDown = inlineEditKeyHandler({ onEnter: commit, onEscape: onEndEdit });
 
+  // 片側の時刻の入力欄（§3.3 ①〜③）。開始・終了のどちらの位置に置くかは描画側で決める
+  const punchInput = editingPunchAt !== null && (
+    <input
+      autoFocus
+      key={editing}
+      aria-label={editing === "startedAt" ? "開始時刻" : "終了時刻"}
+      defaultValue={formatClock(editingPunchAt)}
+      // 打ち直しが前提の項目なので既存値を全選択して始める（§3.3 / FB-23）
+      onFocus={(e) => e.currentTarget.select()}
+      onKeyDown={onKeyDown}
+      onBlur={(e) => commit(e.currentTarget)}
+      placeholder="1935"
+      className={clockInput}
+    />
+  );
+
   // 選択行が画面外にあるときはスクロールを追従させる（§5 / FB-20）。
   // J/K での移動だけでなく、自動セクション移動（§4.2）で行の位置が変わったときにも効かせたいので
   // 「選択されている間、その行の位置が変わったら」を条件にする（nearest なので見えていれば動かない）
@@ -367,17 +383,11 @@ export function TaskRow({
         {/* 開始・終了時刻のインライン修正・入力（F-203 / §3.3 ①〜③）。打刻済みの時刻だけを表示する */}
         {task.startedAt !== null &&
           (editingPunchAt !== null ? (
-            <input
-              autoFocus
-              key={editing}
-              defaultValue={formatClock(editingPunchAt)}
-              // 打ち直しが前提の項目なので既存値を全選択して始める（§3.3 / FB-23）
-              onFocus={(e) => e.currentTarget.select()}
-              onKeyDown={onKeyDown}
-              onBlur={(e) => commit(e.currentTarget)}
-              placeholder="1935"
-              className={clockInput}
-            />
+            // 開いた側だけを入力欄にし、もう片側は表示のまま残す（§3.3。並びと見た目は④の2欄に揃える）
+            <span className="inline-flex items-center gap-1">
+              {editing === "startedAt" ? punchInput : formatClock(task.startedAt)}–
+              {editing === "endedAt" ? punchInput : task.endedAt !== null && formatClock(task.endedAt)}
+            </span>
           ) : (
             <>
               <button

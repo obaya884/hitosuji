@@ -801,6 +801,36 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
         expect(input.selectionEnd).toBe("06:30".length);
       });
 
+      describe("片側の入力でももう片側は表示のまま残す（§3.3 / FB-119）", () => {
+        const running = task({ id: 1, name: "朝食", startedAt: atJst("06:30") });
+
+        it.each([
+          ["完了の開始（①）", completed, "startedAt", "開始時刻", ["[入力]", "–", "06:48"]],
+          ["完了の終了（②）", completed, "endedAt", "終了時刻", ["06:30", "–", "[入力]"]],
+          ["実行中の終了（③）", running, "endedAt", "終了時刻", ["06:30", "–", "[入力]"]],
+          ["実行中の開始（①）", running, "startedAt", "開始時刻", ["[入力]", "–"]],
+        ] as const)("%s: 入力欄は開いた側の位置に1つだけ、残りは表示のまま", (_, t, field, label, layout) => {
+          renderRow({ editing: field, task: t });
+
+          const input = screen.getByLabelText(label);
+          expect(screen.getAllByRole("textbox")).toEqual([input]);
+          // `–` のどちら側に入力欄があるかまで固定する（要素は入力欄1つだけなので子ノードで並びを見る）
+          const pair = input.parentElement as HTMLElement;
+          expect(Array.from(pair.childNodes, (n) => (n === input ? "[入力]" : n.textContent))).toEqual(layout);
+          // 表示のまま残す側はクリックで開く口にしない（入力中の確定と開き直しを同時に走らせない）
+          expect(within(cellsOf(taskRow("朝食")).time).queryByRole("button")).toBeNull();
+        });
+
+        it("欄を開けない組み合わせ（未来日の実行中の終了）は、入力欄を出さず表示とクリックの口のまま", () => {
+          renderRow({ editing: "endedAt", task: running, isFutureDate: true });
+
+          expect(screen.queryByRole("textbox")).toBeNull();
+          expect(within(cellsOf(taskRow("朝食")).time).getAllByRole("button").map((b) => b.textContent)).toEqual([
+            "06:30",
+          ]);
+        });
+      });
+
       it("区切り文字なしの入力をそのまま渡す（整形は受け取り側が担う）", () => {
         const { onEditPunch, onEndEdit } = renderRow({
           editing: "startedAt",
