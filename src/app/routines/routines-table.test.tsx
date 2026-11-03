@@ -970,10 +970,10 @@ describe("RoutinesTable（画面定義書02 §4・§5: 新規/編集フォーム
   });
 });
 
-// `?edit=<id>` の受け口（画面定義書05 O-7）。page.tsx が searchParams から読んだ id を
+// `?edit=<id>` の受け口（画面定義書02 O-2。入口は05 O-7・01 O-19）。page.tsx が searchParams から読んだ id を
 // initialEditingId として渡す。page.tsx 自体は async Server Component なので描画できず
 // （テスト戦略定義書 §3・§6）、渡された先のこの prop で受け口を固定する
-describe("RoutinesTable（S-05 のメンバー名リンクからの `?edit=<id>` の受け口）", () => {
+describe("RoutinesTable（他画面の導線からの `?edit=<id>` の受け口。02 O-2）", () => {
   it("initialEditingId に一致するルーチンの編集フォームを開いた状態で描画する", () => {
     renderTable(
       [

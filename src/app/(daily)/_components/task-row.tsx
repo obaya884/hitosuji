@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import type { Bundle } from "@/domain/bundle/bundle";
 import type { Mode } from "@/domain/mode/mode";
@@ -14,6 +15,7 @@ import { CheckIcon, CommentIcon, PlayIcon, StarIcon, StopIcon } from "@/app/_com
 import { formatCarryOver, formatClock, formatDuration } from "@/app/_lib/format";
 import { inlineEditKeyHandler } from "@/app/_lib/keyboard";
 import { modeAppearance } from "@/app/_lib/mode-appearance";
+import { routineEditHref } from "@/app/_lib/routine-href";
 import { DELETE_LABEL } from "@/app/_lib/operation-labels";
 import {
   clockInput,
@@ -139,6 +141,10 @@ export function TaskRow({
   const status = taskStatus(task);
   const actual = actualMinutes(task);
   const elapsed = elapsedMinutes(task, now);
+  const router = useRouter();
+
+  // 行メニューの「ルーチン画面で開く」（O-19）が使う。コールバック内でも null の絞り込みが効くよう局所に取る
+  const routineId = task.routineId;
 
   // 開く欄は行の状態で決まる（§3.3 ①〜④）。キーで開く側（use-daily-shortcuts）と同じ規則を引く（FB-68）
   const punch =
@@ -427,12 +433,14 @@ export function TaskRow({
               label: "URL",
               onSelect: () => onBeginEdit(task, "url"),
             },
-            {
-              label: "ルーチン化",
-              onSelect: () => onBeginEdit(task, "routinize"),
-              // ルーチン由来のタスクからは作れない。項目は見せて非活性にする（§4.1 / FB-30）
-              disabled: task.routineId !== null,
-            },
+            // ルーチン由来のタスクからは作れないので、同じ位置に元のルーチンへの導線を出す（§4.1 / O-19）
+            routineId === null
+              ? { label: "ルーチン化", onSelect: () => onBeginEdit(task, "routinize") }
+              : {
+                  label: "ルーチン画面で開く",
+                  // 同じタブで S-02 の編集フォームを開いた状態に着地する
+                  onSelect: () => router.push(routineEditHref(routineId)),
+                },
             {
               label: "中断",
               onSelect: () => onOperate(task, "suspend"),
