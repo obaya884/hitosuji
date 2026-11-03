@@ -67,27 +67,27 @@ describe("RowMenu（画面定義書01 O-7/O-8・画面定義書02 §3: 行メニ
     expect(onOutsideClick).not.toHaveBeenCalled();
   });
 
-  it("非活性の項目は見せるが押せない（§4.1 / FB-30: 操作の存在は分かるようにする）", () => {
+  it("非活性の項目は見せるが押せない（00_共通 §2.5 / 画面定義書01 O-4: 中断は実行中のみ）", () => {
     const onSelect = vi.fn();
-    openMenu([{ label: "ルーチン化", onSelect, disabled: true }]);
+    openMenu([{ label: "中断", onSelect, disabled: true }]);
 
-    const item = screen.getByText("ルーチン化");
+    const item = screen.getByText("中断");
     expect((item as HTMLButtonElement).disabled).toBe(true);
 
     fireEvent.click(item);
     expect(onSelect).not.toHaveBeenCalled();
   });
 
-  // 行メニューの無効はすべて恒久的（ルーチン由来はルーチン化不可・中断は実行中のみ 等）と
+  // 行メニューの無効はすべて恒久的（中断は実行中のみ・日付移動は未実行のみ 等）と
   // 見て薄くしている。保存中由来の項目が混ざると、この前提ごと条項違反になる（00_共通 §2.5）
   it("非活性の項目だけを薄くする（恒久的な無効。00_共通 §2.5）", () => {
     const onSelect = vi.fn();
     openMenu([
-      { label: "ルーチン化", onSelect, disabled: true },
+      { label: "中断", onSelect, disabled: true },
       { label: "複製", onSelect },
     ]);
 
-    expect(hasClass(screen.getByText("ルーチン化"), disabledPermanent)).toBe(true);
+    expect(hasClass(screen.getByText("中断"), disabledPermanent)).toBe(true);
     expect(hasClass(screen.getByText("複製"), disabledPermanent)).toBe(false);
   });
 

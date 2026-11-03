@@ -16,6 +16,7 @@ import type { Mode } from "@/domain/mode/mode";
 import { describeRecurrence, type Routine, type RoutineId } from "@/domain/routine/routine";
 import { bundleCandidates, bundleMembers } from "@/domain/bundle/members";
 import { EMPTY_BUNDLE_CANDIDATES, EMPTY_BUNDLE_MEMBERS } from "@/app/_lib/notice-messages";
+import { routineEditHref } from "@/app/_lib/routine-href";
 import {
   emptyNote,
   hoverSurface,
@@ -116,7 +117,7 @@ export function BundleMembersTable({
                   className={`border-b border-line ${member.isActive ? "" : "text-ink-faint"}`}
                 >
                   <td className="py-2 text-main">
-                    <Link href={`/routines?edit=${member.id}`} className={hoverWord}>
+                    <Link href={routineEditHref(member.id)} className={hoverWord}>
                       {member.name}
                     </Link>
                   </td>

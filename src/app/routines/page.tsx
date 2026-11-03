@@ -24,7 +24,7 @@ export default async function RoutinesPage({
     listSections(createSectionRepository()),
   ]);
 
-  // S-05 のメンバー名リンク（`/routines?edit=<id>`）の着地点（画面定義書05 O-7）
+  // `?edit=<id>` の着地点（画面定義書02 O-2。組み立て側と入口は app/_lib/routine-href.ts）
   const editParam = (await searchParams).edit;
   const initialEditingId = editParam === undefined ? null : Number(editParam);
 

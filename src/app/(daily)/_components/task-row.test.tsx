@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { faintTextOf, hasClass } from "@/app/_testing/dom";
+import { otherRouterCalls, router } from "@/app/_testing/next-navigation";
 import { NEW_TAB_ARGS, spyOnWindowOpen } from "@/app/_testing/window-open";
 import { disabledPermanent } from "@/app/_lib/ui";
 import { atJst } from "@/domain/shared/testing/clock";
@@ -1017,7 +1018,7 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
     });
   });
 
-  describe("行メニュー（O-7 / O-8 / O-12）", () => {
+  describe("行メニュー（O-7 / O-8 / O-12 / O-19）", () => {
     function openMenu(row: HTMLElement) {
       fireEvent.click(within(cellsOf(row).menu).getByLabelText("行メニュー"));
     }
@@ -1049,11 +1050,65 @@ describe("TaskRow（画面定義書01 §3.3: 1タスク=1行のセルとその�
       expect((screen.getByText("複製") as HTMLButtonElement).disabled).toBe(false);
     });
 
-    it("ルーチン由来のタスクはルーチン化を非活性で見せる（§4.1 / FB-30）", () => {
+    it("ルーチン由来のタスクはルーチン化の代わりにルーチン画面で開くを出す（§4.1 / O-19）", () => {
       renderRow({ task: task({ id: 1, name: "朝食", routineId: 9 }) });
       openMenu(taskRow("朝食"));
 
-      expect((screen.getByText("ルーチン化") as HTMLButtonElement).disabled).toBe(true);
+      expect(screen.queryByText("ルーチン化")).toBeNull();
+      expect((screen.getByText("ルーチン画面で開く") as HTMLButtonElement).disabled).toBe(false);
+    });
+
+    it("ルーチン画面で開くはルーチン化と同じ位置に出る（§4.1 / O-19）", () => {
+      // 開いた行メニューの項目名を上から順に（開くボタン自身は文言を持たないので除く）
+      const menuLabels = (name: string) =>
+        within(cellsOf(taskRow(name)).menu)
+          .getAllByRole("button")
+          .map((b) => b.textContent)
+          .filter((label) => label !== "");
+
+      renderRow({ task: task({ id: 1, name: "朝食" }) });
+      openMenu(taskRow("朝食"));
+      const plain = menuLabels("朝食");
+      cleanup();
+      renderRow({ task: task({ id: 1, name: "朝食", routineId: 9 }) });
+      openMenu(taskRow("朝食"));
+
+      expect(menuLabels("朝食")).toEqual(
+        plain.map((label) => (label === "ルーチン化" ? "ルーチン画面で開く" : label))
+      );
+    });
+
+    it.each([
+      ["実行中", { startedAt: atJst("06:30") }],
+      ["完了", { startedAt: atJst("06:30"), endedAt: atJst("06:48") }],
+    ])("ルーチン画面で開くは%sのタスクでも押せる（O-19: 状態を問わない）", (_, punch) => {
+      renderRow({ task: task({ id: 1, name: "朝食", routineId: 9, ...punch }) });
+      openMenu(taskRow("朝食"));
+
+      expect((screen.getByText("ルーチン画面で開く") as HTMLButtonElement).disabled).toBe(false);
+    });
+
+    it("ルーチン画面で開くを選ぶと元のルーチンの編集へ移る（O-19）", () => {
+      const { onBeginEdit, onOperate } = renderRow({
+        task: task({ id: 1, name: "朝食", routineId: 9 }),
+      });
+      openMenu(taskRow("朝食"));
+
+      fireEvent.click(screen.getByText("ルーチン画面で開く"));
+
+      expect(router.push).toHaveBeenCalledWith("/routines?edit=9");
+      expect(otherRouterCalls()).toEqual([]);
+      // 遷移だけで、ルーチン化ポップオーバー等の行内の操作は起こさない
+      expect(onBeginEdit).not.toHaveBeenCalled();
+      expect(onOperate).not.toHaveBeenCalled();
+    });
+
+    it("ルーチン由来でないタスクにはルーチン画面で開くを出さない（O-19）", () => {
+      renderRow({ task: task({ id: 1, name: "朝食" }) });
+      openMenu(taskRow("朝食"));
+
+      expect(screen.queryByText("ルーチン画面で開く")).toBeNull();
+      expect((screen.getByText("ルーチン化") as HTMLButtonElement).disabled).toBe(false);
     });
 
     it("中断を選ぶと suspend で通知する（O-4 / F-204）", () => {
