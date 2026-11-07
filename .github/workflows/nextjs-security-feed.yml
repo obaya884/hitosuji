@@ -1,0 +1,100 @@
+name: Next.js security feed
+
+# Next.js のブログの RSS からセキュリティ関連の告知を拾い、Issue にしてオーナーへ割り当てる（T-172）。
+# 狙い: 事前告知の段階で気づく。Dependabot のアラートは修正版の公開より後になることがある。
+# フィードが取れない・形式が変わったときは失敗させ、通知が黙って止まらないようにする。
+
+on:
+  schedule:
+    - cron: "0 0 * * *" # 毎日 9:00 JST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v9
+        with:
+          script: |
+            const FEED_URL = 'https://nextjs.org/feed.xml';
+            const LABEL = 'next-security';
+            // 題名と概要の両方を見る。古い記事の誤検知（例: セキュリティの考え方の解説）は日付で除く
+            const PATTERN = /security|advisor|cve-|vulnerab|out-of-band/i;
+            // 定期実行が数日失敗しても取りこぼさない幅。重複は Issue 側の印で防ぐ
+            const WINDOW_DAYS = 7;
+
+            const response = await fetch(FEED_URL);
+            if (!response.ok) throw new Error(`フィードを取得できません: ${response.status}`);
+            const xml = await response.text();
+
+            const readTag = (block, tag) => {
+              const match = block.match(new RegExp(`<${tag}[^>]*>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?</${tag}>`));
+              return match ? match[1].trim() : '';
+            };
+            const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].map(([, block]) => ({
+              title: readTag(block, 'title'),
+              description: readTag(block, 'description'),
+              link: readTag(block, 'link'),
+              guid: readTag(block, 'guid'),
+              published: new Date(readTag(block, 'pubDate')),
+            }));
+            if (items.length === 0 || items.some((i) => !i.title || !i.guid || isNaN(i.published))) {
+              throw new Error('フィードの形式が想定と異なります');
+            }
+
+            const since = Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000;
+            const notices = items.filter(
+              (i) => i.published.getTime() >= since && PATTERN.test(`${i.title} ${i.description}`),
+            );
+            core.info(`全${items.length}件のうち、直近${WINDOW_DAYS}日の告知は${notices.length}件`);
+            if (notices.length === 0) return;
+
+            const { owner, repo } = context.repo;
+            try {
+              await github.rest.issues.getLabel({ owner, repo, name: LABEL });
+            } catch (e) {
+              if (e.status !== 404) throw e;
+              await github.rest.issues.createLabel({
+                owner,
+                repo,
+                name: LABEL,
+                color: 'B60205',
+                description: 'Next.js のセキュリティ告知（T-172）',
+              });
+            }
+            const existing = await github.paginate(github.rest.issues.listForRepo, {
+              owner,
+              repo,
+              labels: LABEL,
+              state: 'all',
+              per_page: 100,
+            });
+
+            for (const notice of notices) {
+              // guid を隠しマーカーにして、閉じた Issue も含めて重複を防ぐ
+              const marker = `<!-- next-feed:${notice.guid} -->`;
+              if (existing.some((issue) => issue.body && issue.body.includes(marker))) {
+                core.info(`作成済み: ${notice.title}`);
+                continue;
+              }
+              await github.rest.issues.create({
+                owner,
+                repo,
+                title: `Next.js: ${notice.title}`,
+                labels: [LABEL],
+                assignees: [owner],
+                body: [
+                  marker,
+                  `**${notice.title}**（${notice.published.toISOString().slice(0, 10)}）`,
+                  '',
+                  notice.link,
+                  '',
+                  '`dependabot-triage` で該当するかを確かめ、取り込みが済んだら閉じる。',
+                ].join('\n'),
+              });
+              core.info(`Issue を作成: ${notice.title}`);
+            }
