@@ -49,7 +49,6 @@
       "Bash(git push origin)",
       "Bash(git push * HEAD)",
       "Bash(git push * main)",
-      "Bash(git push * main:*)",
       "Bash(git push *:main)",
       "Bash(git push *:main *)",
       "Bash(git push -u origin)",
