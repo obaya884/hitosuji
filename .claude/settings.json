@@ -42,7 +42,6 @@
       "Bash(gh pr diff*)",
       "Bash(gh pr checks*)",
       "Bash(gh pr create*)",
-      "Bash(gh pr merge*)",
       "Bash(gh run view*)",
       "Bash(gh run list*)",
       "Bash(gh run watch*)",
@@ -54,6 +53,13 @@
       "Bash(gh workflow view*)"
     ],
     "ask": [
+      "Bash(git push)",
+      "Bash(git push origin)",
+      "Bash(git push * HEAD)",
+      "Bash(git push * main)",
+      "Bash(git push * main:*)",
+      "Bash(git push *:main)",
+      "Bash(gh pr merge*)",
       "Bash(npm run db:migrate*)",
       "Bash(npm run db:restore*)",
       "Bash(npm run db:sync-masters*)",
