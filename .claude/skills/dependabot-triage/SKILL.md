@@ -38,6 +38,12 @@ gh api repos/obaya884/hitosuji/dependabot/alerts --jq '.[] | select(.state=="ope
 
 version-update PR と security アラートは別物。両方を見る。
 
+上のアラートの一覧は `open` だけなので、作成と同時に自動で閉じられたアラートは出ない。**`auto_dismissed` も別に引く**（開発用の依存に多い）。この型は PR を待っていても上がらないことがある（zod の high アラート #56 がそうで、T-168 で手動更新した）。`npm audit` と突き合わせて、残っていれば到達可能性を見て、直すか許容するかを決める:
+
+```bash
+gh api "repos/obaya884/hitosuji/dependabot/alerts?state=auto_dismissed" --jq '.[] | {num:.number, sev:.security_advisory.severity, pkg:.dependency.package.name, scope:.dependency.scope, patched:.security_vulnerability.first_patched_version.identifier}'
+```
+
 ### 2. 各PRの事実を集める
 
 - **版差分**（major / minor / patch）— タイトルの `from X to Y` から読む
@@ -92,6 +98,7 @@ git checkout main && git pull        # remote に追随
 npm ci                                # マージ後の lockfile に依存を合わせ直す
 ```
 
+- `gh pr merge` がエラーを返しても、実際にはマージされていることがある。直後の PR の状態は OPEN のままのことがあるので、**PR の状態だけで判断せず、`git fetch origin` のあと `git log origin/main` にそのコミットが無いことも確かめてから再実行する**（再実行すると空コミットが main に残る。T-168 の #245 で実際に起きた）
 - 合図が出るまではマージしない。複数PRを取り込むなら「先に全部ローカル検証 → まとめて合図をもらう」と本番デプロイ回数を絞れる
 - 挙動を変えない更新なら `docs/案件/23_技術改善バックログ.md` に完了記録として T-XX を残す
 
