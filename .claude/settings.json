@@ -1,4 +1,7 @@
 {
+  "enabledPlugins": {
+    "vercel@claude-plugins-official": true
+  },
   "permissions": {
     "allow": [
       "Bash(npm run dev)",
