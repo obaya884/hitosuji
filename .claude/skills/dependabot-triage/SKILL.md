@@ -63,7 +63,7 @@ gh pr checks <PR> --repo obaya884/hitosuji
 - **major bump** → 破壊的変更・エコシステムの追随遅れを疑う:
   - CI の build が**落ちている** → 素の破壊的変更（例: TypeScript 5→7 のネイティブ移植）。**close**
   - CI は緑だが **CI がその変更を検証していない** → ローカルで該当チェックを回す。例: eslint 9→10 は `next build` では eslint を実行しないため緑に見えるが、`npm run lint` を回すと `eslint-config-next` 同梱プラグインが未対応でクラッシュする、といった落とし穴がある（§4）
-- **`@types/*` / ランタイム連動**（`@types/node` 等） → **ランタイムのメジャーに合わせる**。最新へ追い越さない（本番 Vercel の Node ランタイムに揃える。types だけ先行すると、実在しない API を型が許してしまう）
+- **`@types/*` / ランタイム連動**（`@types/node` 等） → **ランタイムのメジャーに合わせる**。最新へ追い越さない（本番 Vercel の Node ランタイムに揃える。types だけ先行すると、実在しない API を型が許してしまう）。`@types/node` と `typescript` の major は `dependabot.yml` の `ignore` で止めている（T-170）。本番 Node を上げるときはこの `ignore` も見直す（T-169）
 - 迷ったら「**今マージして本番に出して安心か**」を基準に、close か verify-then-ask に振る
 
 ### 4. major/dev 依存のローカル検証（CI が見ない部分）
