@@ -1,33 +1,55 @@
 # Dependabot のバージョン更新設定
 # 設定オプションの一覧:
 # https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+#
+# schedule と cooldown はバージョン更新だけの設定で、セキュリティ更新の到着は遅らせない（T-170）
 
 version: 2
 updates:
-  # アプリの依存（npm）。CI で自動検証できるため daily で回す
+  # アプリの依存（npm）。確認を週1にまとめ、公開直後の版は7日待つ
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
-      interval: "daily"
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Tokyo"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
+    ignore:
+      # 本番 Node のメジャーに合わせる（アーキテクチャ定義書 §11）。26 系への移行は T-169 で追跡する
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # 7 系はネイティブ移植で、エコシステムの対応を見て別途判断する（T-170）
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
     groups:
-      # vitest 本体と @vitest/* は同じ版でないと peer が解決できないので、major も含めて一式で上げる（T-160）。
-      # 先に書いたグループが優先されるので minor-and-patch より前に置く
+      # vitest 本体と @vitest/* は同じ版でないと peer が解決できないので、major も含めて一式で上げる（T-160）
       vitest:
         patterns:
           - "vitest"
           - "@vitest/*"
-      # マイナー・パッチ更新はまとめて1つのPRにする
+      # マイナー・パッチ更新はまとめて1つのPRにする。
+      # update-types を持つこちらのほうが具体的なグループと扱われ、書く順に関係なく vitest を奪うので明示的に除く（T-170）
       minor-and-patch:
         update-types:
           - "minor"
           - "patch"
+        exclude-patterns:
+          - "vitest"
+          - "@vitest/*"
 
   # GitHub Actions（.github/workflows/*）。actions/checkout・setup-node 等を追随
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "daily"
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Tokyo"
+    cooldown:
+      default-days: 7
     groups:
       # アクション更新はまとめて1つのPRにする
       actions:
@@ -38,4 +60,7 @@ updates:
   - package-ecosystem: "docker-compose"
     directory: "/"
     schedule:
-      interval: "daily"
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Tokyo"
