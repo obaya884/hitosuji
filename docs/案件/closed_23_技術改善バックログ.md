@@ -127,6 +127,7 @@
 | T-167 | Node.js 2026年10月セキュリティリリース（24.22.1 / 26.12.1）への追随 | 依存追随 | 中 | 完了（2026-11-03。CI は v24.22.1、本番は 10/28 以降の新規デプロイ＝修正版の告知に基づき 11/03 の再デプロイで充足と判断） | [詳細](#t-167) |
 | T-172 | Next.js のセキュリティ告知を RSS から拾って Issue で通知する | ツール整備 | 低 | 完了 2026-11-07 → 毎日 9:00 JST に `nextjs.org/feed.xml` を確認し、セキュリティ関連の告知を Issue にしてオーナーへ割り当てる `nextjs-security-feed.yml` を追加（#249）。手動実行で Issue の作成と重複防止を確認 | [詳細](#t-172) |
 | T-171 | 依存のインストールスクリプトを全部拒否し、未承認のものでインストールを失敗にする | ツール整備 | 中 | 完了 2026-11-07 → `allowScripts` で esbuild・fsevents・unrs-resolver を拒否し、`strict-allow-scripts` で未登録のスクリプトを `npm ci` の失敗にした（#248）。npm 11.19.1 の CI と Vercel での動作も確認 | [詳細](#t-171) |
+| T-170 | `dependabot.yml` の見直し（閉じるだけの PR を減らす・効いていなかった vitest グループを直す） | ツール整備 | 中 | 完了 2026-11-07 → `minor-and-patch` から vitest を除き、`@types/node`・`typescript` の major を ignore し、週1回・cooldown 7日にした（#247）。実行ログで効果を確認 | [詳細](#t-170) |
 
 ## 詳細
 
@@ -1407,6 +1408,21 @@
 - 実測（2026-11-07、使い捨てのワークツリー、npm 11.20・Node 26）: 拒否した状態で `npm ci`・lint・typecheck・`test:unit`（1,155件）・`test:component`（1,132件）・`tsx`・`drizzle-kit generate`・`build` がすべて通った。`esbuild` はスタブのままでも動く（ネイティブへの置き換えは起動を速くするだけ）。未登録の状態で strict を有効にすると `npm ci` が失敗することも確かめた
 - 確認（PR #248）: 統合テストを含む CI・ブラウザ段が緑。CI と同じ npm 11.19.1 でも、拒否ありで `npm ci` が成功し、未登録では `ESTRICTALLOWSCRIPTS` で失敗することを実測した。Vercel は本番のビルドログに出ていた `install-scripts` の警告が #248 で消えたので `allowScripts` を読んでいる（Vercel での strict の失敗までは試していない）
 - 関連: [dependabot-triage スキル](../../.claude/skills/dependabot-triage/SKILL.md)
+
+### T-170
+
+- 背景: 2026-07-21〜11-07 の Dependabot の PR は72件で、マージ23件・クローズ49件（新しい PR への置き換えを含み、内訳は未集計）。`@types/node` の 26 系は7回閉じた一方、24 系の中の更新は来ず、24.13.3 のまま（範囲内の最新は 24.19.2）
+- **vitest グループが一度も効いていなかった**: [T-160](./closed_23_技術改善バックログ.md#t-160) で `minor-and-patch` より前に置いたが、2026-11-06 のログに `Skipping @vitest/browser for group 'vitest' - belongs to more specific group 'minor-and-patch'` とある。公式文書の「最初に一致したグループ」とは異なり、実際は具体的なグループが優先される。`vitest group` の PR は過去に無い
+  - 単独で来た #236・#239 は別件で、グループの対象外のセキュリティ更新とみられる（#237・#238・#240 も同型）
+- 対応方針（`.github/dependabot.yml`）:
+  - `minor-and-patch` に `exclude-patterns` で `vitest` / `@vitest/*` を足し、vitest グループへ分ける
+  - `@types/node` と `typescript` の `semver-major` を `ignore` する。前者は [T-169](./23_技術改善バックログ.md#t-169) で追跡し、後者は TypeScript 7 のネイティブ移植で build が落ちた経緯があるので、`next`・`typescript-eslint` の対応を見て別途判断する
+  - `schedule` を3エコシステムとも週1（月曜9時 JST）にする。npm と actions に `cooldown` 7日を明記する（既定は3日）。公式文書によりセキュリティ更新には効かない
+- 確認（2026-11-07）: #247 のマージで `dependabot.yml` が変わると定期実行を待たず Dependabot が走り、そのログ（run 42339987251）で確かめた
+  - vitest: `belongs to more specific group` が消え、一式が vitest グループで処理された。5.1.0 が最新なので「Nothing to update」で、グループの PR が実際に出るところはまだ見ていない
+  - `@types/node`: 24.13.3→24.19.2 の #250 が来た。26 系の PR は来ない
+  - `cooldown`: 7日未満の版が除外された（`tailwindcss` 4.3.5・`playwright` 1.65.0・`jsdom` 31.0.0 は PR に入らない）
+- 関連: [T-160](#t-160) / [T-168](./23_技術改善バックログ.md#t-168) / [T-169](./23_技術改善バックログ.md#t-169) / [アーキテクチャ定義書](../仕様/15_アーキテクチャ定義書.md) §11 / [dependabot-triage スキル](../../.claude/skills/dependabot-triage/SKILL.md)
 
 ## 旧書式の記録（2026-07-26 以前）
 
